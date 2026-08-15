@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-08-15 - Comisiones V2: control de ventas dinamico
+
+- Documentado el formato y las reglas en `docs/COMISIONES_V2_CONTROL_DINAMICO.md`.
+- Agregado `GET /api/commissions/control` con filas por producto, vendedor, cajero, sede, moneda,
+  equivalente USD, metodos de pago, financiamiento y comisiones.
+- Los metodos de pago exponen codigo/etiqueta/orden configurables para formar columnas dinamicas.
+- La interfaz muestra todas las columnas por defecto y permite presets y seleccion manual, incluyendo
+  una vista de solo comisiones en Bs; la preferencia se conserva localmente.
+- La tasa historica se toma de los snapshots existentes de venta y pago, nunca de la tasa actual.
+- Verificacion inicial: Commissions backend `13/13`; frontend de comisiones `7/7` y TypeScript limpio.
+
+## 2026-08-15 - Bootstrap inicial selectivo por grupo
+
+- Documentado el contrato en `docs/SYNC_BOOTSTRAP_SELECTIVO_GRUPOS.md`.
+- El pairing grupal ahora permite previsualizar las empresas y redimir solo los tenants seleccionados.
+- Se agregaron sesiones `sync_bootstrap_sessions` con token temporal, expiracion, punto de corte y
+  confirmacion idempotente.
+- `POST /api/sync/bootstrap` entrega un paquete tenant-scoped de la foto inicial; el local lo importa
+  en SQLite y luego confirma con `POST /api/sync/bootstrap/{session}/complete`.
+- La importacion registra `sync_inbox`, aplica el paquete con `SyncEventApplier`, conserva mappings y
+  deja el cursor `pull` del nodo listo para el flujo incremental.
+- Soporte Tecnico permite consultar el codigo, seleccionar empresas y completar el bootstrap antes de
+  activar `SistemaInventarioSync`.
+- Verificacion inicial: backend afectado `34/34` y frontend afectado `3/3`.
+
 ## 2026-08-14 - Procedimiento de prueba del Motor Local
 
 - Documentado el flujo de VM Windows para `motor-v0.1.3-test`: verificacion SHA-256, instalacion

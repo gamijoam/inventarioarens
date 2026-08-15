@@ -40,6 +40,8 @@ class LocalTechnicalConsoleController extends Controller
             'local_email' => ['required', 'email', 'max:255'],
             'local_user_name' => ['nullable', 'string', 'max:255'],
             'local_password' => ['required', 'string', 'min:8', 'max:255'],
+            'selected_tenant_ids' => ['nullable', 'array', 'min:1'],
+            'selected_tenant_ids.*' => ['integer', 'distinct'],
         ]);
 
         return response()->json(['data' => $this->console->connect($data)], 201, [], self::JSON_OPTIONS);

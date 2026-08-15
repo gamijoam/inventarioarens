@@ -6,6 +6,7 @@ use App\Modules\LocalSupport\Services\LocalTechnicalConsoleService;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -234,6 +235,80 @@ class LocalTechnicalConsoleApiTest extends TestCase
         $this->assertSame('group-token', $settings['tenants']['grupo']['token']);
         $this->assertSame('child-token', $settings['tenants']['hija']['token']);
         $this->assertSame(2, $settings['tenants']['hija']['remote_parent_id']);
+    }
+
+    public function test_connect_imports_and_confirms_the_initial_bootstrap_before_starting_sync(): void
+    {
+        config()->set('services.local_support.enabled', true);
+        config()->set('services.local_support.cloud_url', 'https://cloud.test/api');
+        Http::fake([
+            'https://cloud.test/api/sync/pairing-codes/redeem' => Http::response([
+                'data' => [
+                    'bootstrap_required' => true,
+                    'tenant' => [
+                        'id' => 501,
+                        'name' => 'Empresa bootstrap',
+                        'slug' => 'empresa-bootstrap',
+                        'parent_id' => null,
+                        'is_group' => false,
+                    ],
+                    'token' => 'bootstrap-token',
+                ],
+            ], 201),
+            'https://cloud.test/api/sync/bootstrap' => Http::response([
+                'data' => [
+                    'session' => ['token' => 'bootstrap-session-token'],
+                    'snapshot' => [
+                        'version' => 1,
+                        'events' => [[
+                            'event_uuid' => '50111111-1111-1111-1111-111111111111',
+                            'event_type' => 'product.created',
+                            'aggregate_type' => 'product',
+                            'aggregate_id' => 9001,
+                            'payload' => [
+                                'sku' => 'BOOT-LOCAL-001',
+                                'name' => 'Producto local bootstrap',
+                                'tracking_type' => 'quantity',
+                                'base_price' => '15.0000',
+                                'sale_currency' => 'USD',
+                                'is_active' => true,
+                            ],
+                            'created_at' => now()->subMinute()->toISOString(),
+                            'updated_at' => now()->subMinute()->toISOString(),
+                        ]],
+                    ],
+                ],
+            ], 201),
+            'https://cloud.test/api/sync/bootstrap/*/complete' => Http::response([
+                'data' => ['status' => 'completed'],
+            ]),
+        ]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/api/local-support/connect', [
+                'code' => str_repeat('C', 40),
+                'node_name' => 'Equipo bootstrap',
+                'node_code' => 'BOOTSTRAP-01',
+                'interval' => 15,
+                'local_email' => 'tecnico@bootstrap.test',
+                'local_password' => 'password123',
+                'selected_tenant_ids' => [501],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.download.status', 'completed')
+            ->assertJsonPath('data.bootstrap.summary.applied', 1);
+
+        $this->assertDatabaseHas('products', [
+            'tenant_id' => DB::table('tenants')->where('slug', 'empresa-bootstrap')->value('id'),
+            'sku' => 'BOOT-LOCAL-001',
+        ]);
+        $localTenantId = DB::table('tenants')->where('slug', 'empresa-bootstrap')->value('id');
+        $this->assertDatabaseHas('sync_tenant_readiness', [
+            'tenant_id' => $localTenantId,
+            'status' => 'ready',
+        ]);
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/sync/bootstrap'));
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/sync/bootstrap/') && str_ends_with($request->url(), '/complete'));
     }
 
     public function test_printer_test_reports_agent_unreachable_until_installed(): void

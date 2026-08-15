@@ -9,6 +9,8 @@ require base_path('app/Modules/Bootstrap/routes.php');
 
 Route::post('sync/pairing-codes/redeem', [SyncController::class, 'redeemPairingCode'])
     ->middleware('throttle:auth');
+Route::post('sync/pairing-codes/preview', [SyncController::class, 'previewPairingCode'])
+    ->middleware('throttle:auth');
 
 require base_path('app/Modules/LocalSupport/routes.php');
 

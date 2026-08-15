@@ -83,6 +83,24 @@ class AccessControlApiTest extends TestCase
             ->assertJsonFragment(['module' => 'roles']);
     }
 
+    public function test_owner_and_administrator_receive_commission_permissions_by_default(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        setPermissionsTeamId($tenant->id);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            $role = Role::query()
+                ->where('name', $roleName)
+                ->where('tenant_id', $tenant->id)
+                ->firstOrFail();
+
+            $this->assertTrue($role->hasPermissionTo('commissions.view_own'));
+            $this->assertTrue($role->hasPermissionTo('commissions.view_all'));
+        }
+    }
+
     public function test_existing_owner_and_administrator_roles_receive_intercompany_logistics_permissions(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

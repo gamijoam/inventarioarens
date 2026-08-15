@@ -14,6 +14,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 #[Fillable([
     'name',
     'code',
+    'report_code',
+    'report_label',
+    'report_visible',
+    'report_sort_order',
     'method',
     'currency_mode',
     'requires_reference',
@@ -36,6 +40,8 @@ class PaymentMethod extends Model
             'requires_reference' => 'boolean',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
+            'report_visible' => 'boolean',
+            'report_sort_order' => 'integer',
         ];
     }
 

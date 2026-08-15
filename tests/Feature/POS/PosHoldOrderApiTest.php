@@ -19,6 +19,7 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Tenancy\Models\Tenant;
@@ -188,6 +189,107 @@ class PosHoldOrderApiTest extends TestCase
         $this->assertDatabaseHas('pos_orders', [
             'id' => $orderId,
             'status' => PosOrder::STATUS_OPEN,
+        ]);
+    }
+
+    public function test_seller_can_arm_with_promotion_and_commission_uses_discounted_price(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Promo', 'slug' => 'empresa-promo']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $priceList = PriceList::create([
+            'name' => 'Precio Mayor',
+            'code' => 'MAYOR-PROMO',
+            'is_active' => true,
+        ]);
+        ProductPrice::create([
+            'product_id' => $product->id,
+            'price_list_id' => $priceList->id,
+            'price' => 150,
+            'currency' => Product::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $cashPaymentMethod = PaymentMethod::create([
+            'name' => 'Efectivo Promo',
+            'code' => 'CASH-PROMO',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $priceList->paymentMethods()->sync([$cashPaymentMethod->id => ['tenant_id' => $tenant->id]]);
+        $promotion = Promotion::create([
+            'name' => 'Descuento vendedor',
+            'code' => 'VENDEDOR10',
+            'benefit_type' => Promotion::BENEFIT_PERCENT_DISCOUNT,
+            'price_currency' => Promotion::PRICE_CURRENCY_USD,
+            'discount_percent' => 10,
+            'priority' => 1,
+            'is_active' => true,
+        ]);
+        $promotion->items()->create(['product_id' => $product->id, 'quantity' => 1]);
+
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor Promo', [
+            'pos.orders.hold',
+            'pos.view',
+            'pos.promotions.view',
+            'pos.promotions.apply',
+        ]);
+        $sellerPlan = CommissionPlan::create([
+            'name' => 'Vendedores 3%',
+            'beneficiary_role' => CommissionPlan::ROLE_SELLER,
+            'percentage' => 3,
+            'conversion_policy' => CommissionPlan::CONVERSION_SALE_SNAPSHOT,
+            'credit_policy' => CommissionPlan::CREDIT_SALE_CONFIRMATION,
+        ]);
+        $sellerPlan->assignments()->create(['user_id' => $seller->id, 'is_active' => true]);
+
+        $held = $this
+            ->actingAs($seller)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'promotion_id' => $promotion->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'price_source' => 'price_list',
+                    'quantity' => 2,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.sale.items.0.promotion_id', $promotion->id)
+            ->assertJsonPath('data.sale.items.0.promotion_discount_percent', 10)
+            ->assertJsonPath('data.sale.items.0.price_list_id', $priceList->id)
+            ->assertJsonPath('data.sale.items.0.base_total_amount', 270);
+
+        $cashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajera Promo', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id);
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders/'.$held->json('data.id').'/payments', [
+                'cash_register_session_id' => $session->id,
+                'payments' => [[
+                    'payment_method_id' => $cashPaymentMethod->id,
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 270,
+                ]],
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('commission_entries', [
+            'tenant_id' => $tenant->id,
+            'beneficiary_user_id' => $seller->id,
+            'eligible_base_amount' => '270.0000',
+            'commission_base_amount' => '8.1000',
         ]);
     }
 

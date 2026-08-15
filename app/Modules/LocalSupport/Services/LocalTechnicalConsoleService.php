@@ -5,7 +5,9 @@ namespace App\Modules\LocalSupport\Services;
 use App\Modules\Sync\Models\SyncInbox;
 use App\Modules\Sync\Models\SyncOutbox;
 use App\Modules\Sync\Models\SyncState;
+use App\Modules\Sync\Services\SyncBootstrapImporter;
 use App\Modules\Sync\Services\SyncEventApplier;
+use App\Modules\Sync\Services\SyncReadinessService;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Artisan;
@@ -159,6 +161,17 @@ class LocalTechnicalConsoleService
                 $this->runArtisan('sync:prepare-local', $parameters);
             });
 
+            $bootstrap = null;
+            if (($response['bootstrap_required'] ?? false) === true) {
+                $bootstrap = $this->downloadAndImportBootstrap(
+                    tenantSlug: $slug,
+                    token: $token,
+                    nodeCode: $nodeCode,
+                    nodeName: $nodeName,
+                    installationCode: (string) ($this->readSettings()['installation_code'] ?? $nodeCode),
+                );
+            }
+
             if ($this->usesLocalMotorService()) {
                 $worker = [
                     'output' => 'La sincronizacion se ejecuta mediante el servicio central SistemaInventarioSync.',
@@ -176,9 +189,10 @@ class LocalTechnicalConsoleService
             $prepared[] = [
                 'tenant' => $tenant,
                 'download' => [
-                    'status' => 'started',
-                    'message' => 'La descarga inicial continuara en segundo plano.',
+                    'status' => $bootstrap === null ? 'started' : 'completed',
+                    'message' => $bootstrap['message'] ?? 'La descarga inicial continuara en segundo plano.',
                 ],
+                'bootstrap' => $bootstrap,
                 'worker' => $worker,
             ];
         }
@@ -188,8 +202,10 @@ class LocalTechnicalConsoleService
                 'group' => $response['group'] ?? null,
                 'tenants' => $prepared,
                 'download' => [
-                    'status' => 'started',
-                    'message' => 'La descarga inicial del grupo continuara en segundo plano.',
+                    'status' => collect($prepared)->every(fn (array $item): bool => $item['download']['status'] === 'completed')
+                        ? 'completed'
+                        : 'started',
+                    'message' => 'La descarga inicial del grupo fue procesada antes de activar la sincronizacion incremental.',
                 ],
             ];
         }
@@ -200,6 +216,7 @@ class LocalTechnicalConsoleService
             'tenant' => $first['tenant'],
             'tenants' => $prepared,
             'download' => $first['download'],
+            'bootstrap' => $first['bootstrap'] ?? null,
             'worker' => $first['worker'],
         ];
     }
@@ -343,6 +360,7 @@ class LocalTechnicalConsoleService
                     'code' => $data['code'],
                     'node_code' => $data['node_code'],
                     'node_name' => $data['node_name'],
+                    'selected_tenant_ids' => $data['selected_tenant_ids'] ?? null,
                 ]);
         } catch (ConnectionException $e) {
             throw ValidationException::withMessages([
@@ -375,6 +393,74 @@ class LocalTechnicalConsoleService
         }
 
         return (array) $response->json('data');
+    }
+
+    private function downloadAndImportBootstrap(
+        string $tenantSlug,
+        string $token,
+        string $nodeCode,
+        string $nodeName,
+        string $installationCode,
+    ): array {
+        $cloudUrl = rtrim((string) config('services.local_support.cloud_url'), '/');
+        $response = Http::acceptJson()
+            ->withToken($token)
+            ->withHeader('X-Tenant', $tenantSlug)
+            ->timeout(180)
+            ->post($cloudUrl.'/sync/bootstrap', [
+                'node_code' => $nodeCode,
+                'node_name' => $nodeName,
+                'installation_code' => $installationCode,
+            ]);
+
+        if (! $response->successful()) {
+            throw ValidationException::withMessages([
+                'code' => (string) ($response->json('message') ?: 'La nube no pudo preparar el bootstrap inicial.'),
+            ]);
+        }
+
+        $bootstrap = (array) $response->json('data');
+        $tenant = Tenant::withoutGlobalScopes()->where('slug', $tenantSlug)->firstOrFail();
+        $summary = app(SyncBootstrapImporter::class)->importSnapshot(
+            $tenant,
+            (array) ($bootstrap['snapshot'] ?? []),
+        );
+        $sessionToken = (string) data_get($bootstrap, 'session.token');
+        if ($sessionToken === '') {
+            throw ValidationException::withMessages([
+                'code' => 'La nube no devolvio la sesion de confirmacion del bootstrap.',
+            ]);
+        }
+
+        $complete = Http::acceptJson()
+            ->withToken($token)
+            ->withHeader('X-Tenant', $tenantSlug)
+            ->timeout(60)
+            ->post($cloudUrl.'/sync/bootstrap/'.rawurlencode($sessionToken).'/complete');
+
+        if (! $complete->successful()) {
+            throw ValidationException::withMessages([
+                'code' => (string) ($complete->json('message') ?: 'La nube no pudo confirmar el bootstrap inicial.'),
+            ]);
+        }
+
+        app(SyncReadinessService::class)->markCompleted(
+            $tenant,
+            $installationCode,
+            $nodeCode,
+            $nodeName,
+            [
+                'pulled' => $summary['received'],
+                'applied' => $summary['applied'],
+                'ignored' => $summary['ignored'],
+                'failed' => $summary['failed'],
+            ],
+        );
+
+        return [
+            'message' => 'La descarga inicial fue importada y confirmada. La sincronizacion incremental puede comenzar.',
+            'summary' => $summary,
+        ];
     }
 
     private function writeTenantSettings(

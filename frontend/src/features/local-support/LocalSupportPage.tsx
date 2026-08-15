@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { AppVersionBadge } from '@/components/layout/AppVersionBadge';
@@ -23,8 +24,11 @@ import { formatDateTime } from '@/lib/format';
 
 import {
   localWorkerLabel,
+  normalizeSelectedTenantIds,
+  type PairingPreviewTenant,
   type LocalTenantStatus,
   useConnectLocalTenant,
+  usePreviewPairingCode,
   useLocalPrinterAction,
   useLocalPrinterTest,
   useLocalSupportStatus,
@@ -137,12 +141,30 @@ export function LocalSupportPage() {
 
 function ConnectCompanyCard() {
   const connect = useConnectLocalTenant();
+  const preview = usePreviewPairingCode();
   const [code, setCode] = useState('');
   const [nodeName, setNodeName] = useState('Equipo local');
   const [nodeCode, setNodeCode] = useState('LOCAL-01');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [availableTenants, setAvailableTenants] = useState<PairingPreviewTenant[]>([]);
+  const [selectedTenantIds, setSelectedTenantIds] = useState<number[]>([]);
+
+  async function previewCode(): Promise<void> {
+    if (code.trim().length !== 40) {
+      toast.error('Escribe un codigo de vinculacion valido de 40 caracteres.');
+      return;
+    }
+
+    try {
+      const result = await preview.mutateAsync(code.trim().toUpperCase());
+      setAvailableTenants(result.tenants);
+      setSelectedTenantIds(result.tenants.map((tenant) => tenant.id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo consultar el codigo.');
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -155,15 +177,18 @@ function ConnectCompanyCard() {
         local_email: email.trim(),
         local_user_name: name.trim() || undefined,
         local_password: password,
+        selected_tenant_ids: normalizeSelectedTenantIds(selectedTenantIds),
       });
       const names =
         result.tenants?.map((item) => item.tenant.name) ??
         (result.tenant ? [result.tenant.name] : []);
       toast.success(
-        `${names.join(', ')} fue vinculada${names.length > 1 ? 's' : ''}. La descarga inicial continuara en segundo plano.`,
+        `${names.join(', ')} fue vinculada${names.length > 1 ? 's' : ''}. La carga inicial fue completada antes de activar la sincronizacion.`,
       );
       setCode('');
       setPassword('');
+      setAvailableTenants([]);
+      setSelectedTenantIds([]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo vincular la empresa.');
     }
@@ -182,15 +207,65 @@ function ConnectCompanyCard() {
       <CardContent>
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
           <Field label="Codigo de vinculacion" className="sm:col-span-2">
-            <Input
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\s/g, '').toUpperCase())}
-              placeholder="ARNS-..."
-              minLength={40}
-              maxLength={40}
-              required
-            />
+            <div className="flex gap-2">
+              <Input
+                className="min-w-0 flex-1"
+                value={code}
+                onChange={(event) => {
+                  setCode(event.target.value.replace(/\s/g, '').toUpperCase());
+                  setAvailableTenants([]);
+                  setSelectedTenantIds([]);
+                }}
+                placeholder="ARNS-..."
+                minLength={40}
+                maxLength={40}
+                required
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void previewCode()}
+                loading={preview.isPending}
+              >
+                Consultar
+              </Button>
+            </div>
           </Field>
+          {availableTenants.length > 0 && (
+            <div className="border-border bg-surface rounded border p-3 sm:col-span-2">
+              <p className="text-sm font-medium">Empresas disponibles para esta instalacion</p>
+              <p className="text-text-muted mt-1 text-xs">
+                Selecciona las empresas que se descargaran en esta computadora.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {availableTenants.map((tenant) => {
+                  const checked = selectedTenantIds.includes(tenant.id);
+
+                  return (
+                    <label
+                      key={tenant.id}
+                      className="border-border flex items-center gap-2 rounded border p-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(value) => {
+                          setSelectedTenantIds((current) =>
+                            value
+                              ? normalizeSelectedTenantIds([...current, tenant.id])
+                              : current.filter((id) => id !== tenant.id),
+                          );
+                        }}
+                      />
+                      <span>
+                        <span className="block font-medium">{tenant.name}</span>
+                        <span className="text-text-muted text-xs">{tenant.slug}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <Field label="Nombre del equipo">
             <Input
               value={nodeName}
@@ -235,8 +310,12 @@ function ConnectCompanyCard() {
             La clave se usa solo para crear o actualizar el acceso local de esa persona; no se envia
             a la nube.
           </p>
-          <Button className="sm:col-span-2" loading={connect.isPending}>
-            <CloudDownload className="size-4" /> Vincular y descargar empresa
+          <Button
+            className="sm:col-span-2"
+            loading={connect.isPending}
+            disabled={availableTenants.length === 0 || selectedTenantIds.length === 0}
+          >
+            <CloudDownload className="size-4" /> Vincular y descargar empresas seleccionadas
           </Button>
         </form>
       </CardContent>

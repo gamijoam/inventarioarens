@@ -121,9 +121,25 @@ class SyncPairingService
 
             if ($pairing->is_group_bundle) {
                 $group = $pairing->targetTenant;
-                $tenants = collect([$group])
-                    ->merge($group->children()->where('is_group', false)->orderBy('id')->get())
-                    ->values();
+                $tenants = $this->groupTenants($group);
+                $selectedTenantIds = array_values(array_map(
+                    'intval',
+                    (array) ($data['selected_tenant_ids'] ?? []),
+                ));
+
+                if ($selectedTenantIds !== []) {
+                    $allowedTenantIds = $tenants->pluck('id')->all();
+                    if (array_diff($selectedTenantIds, $allowedTenantIds) !== []) {
+                        throw ValidationException::withMessages([
+                            'selected_tenant_ids' => 'Solo puedes seleccionar empresas del grupo autorizado.',
+                        ]);
+                    }
+
+                    $tenants = $tenants
+                        ->filter(fn (Tenant $tenant): bool => in_array($tenant->id, $selectedTenantIds, true))
+                        ->values();
+                }
+
                 $tokens = $tenants->map(fn (Tenant $tenant): array => [
                     'tenant' => $this->tenantSummary($tenant),
                     'token' => $this->tokens->issue(
@@ -155,14 +171,48 @@ class SyncPairingService
                 return [
                     'group' => $this->tenantSummary($pairing->targetTenant),
                     'tenants' => $tokens,
+                    'bootstrap_required' => true,
                 ];
             }
 
             return [
                 'tenant' => $this->tenantSummary($pairing->targetTenant),
                 'token' => $token,
+                'bootstrap_required' => true,
             ];
         });
+    }
+
+    public function preview(string $plainCode): array
+    {
+        $pairing = SyncPairingCode::query()
+            ->with('targetTenant')
+            ->where('code_hash', hash('sha256', $plainCode))
+            ->whereNull('redeemed_at')
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (! $pairing) {
+            throw ValidationException::withMessages([
+                'code' => 'El codigo es invalido, ya fue utilizado o expiro.',
+            ]);
+        }
+
+        if (! $pairing->is_group_bundle) {
+            return [
+                'tenant' => $this->tenantSummary($pairing->targetTenant),
+                'tenants' => [$this->tenantSummary($pairing->targetTenant)],
+            ];
+        }
+
+        $group = $pairing->targetTenant;
+
+        return [
+            'group' => $this->tenantSummary($group),
+            'tenants' => $this->groupTenants($group)
+                ->map(fn (Tenant $tenant): array => $this->tenantSummary($tenant))
+                ->all(),
+        ];
     }
 
     private function tenantSummary(Tenant $tenant): array
@@ -174,5 +224,12 @@ class SyncPairingService
             'parent_id' => $tenant->parent_id,
             'is_group' => $tenant->isGroup(),
         ];
+    }
+
+    private function groupTenants(Tenant $group)
+    {
+        return collect([$group])
+            ->merge($group->children()->where('is_group', false)->orderBy('id')->get())
+            ->values();
     }
 }

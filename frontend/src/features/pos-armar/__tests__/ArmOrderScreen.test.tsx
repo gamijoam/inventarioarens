@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   }[],
   fallbackPriceLists: [] as Record<string, unknown>[],
   bootstrapPriceLists: [] as Record<string, unknown>[],
+  availablePromotions: [] as Record<string, unknown>[],
   productQuery: vi.fn(),
   productResult: {
     isLoading: false,
@@ -95,6 +96,10 @@ vi.mock('@/features/pos/api', () => ({
   },
 }));
 
+vi.mock('@/features/promotions/api', () => ({
+  useAvailablePosPromotions: () => ({ data: mocks.availablePromotions, isLoading: false }),
+}));
+
 vi.mock('@/features/inventory-center/variantApi', () => ({
   getProductVariants: (...args: unknown[]) =>
     mocks.getProductVariants(...args) as unknown as Promise<unknown>,
@@ -154,6 +159,7 @@ describe('<ArmOrderScreen>', () => {
     mocks.fallbackWarehouses.splice(0);
     mocks.fallbackPriceLists.splice(0);
     mocks.bootstrapPriceLists.splice(0);
+    mocks.availablePromotions.splice(0);
     mocks.quoteProductForPos.mockReset();
     mocks.productResult.data.data = [
       {
@@ -322,6 +328,36 @@ describe('<ArmOrderScreen>', () => {
             }),
           ],
         }),
+      ),
+    );
+  });
+
+  it('permite aplicar una promocion al pedido armado y conserva la lista de precio elegida', async () => {
+    mocks.availablePromotions.push({
+      id: 8,
+      name: 'Descuento vendedor',
+      code: 'VENDEDOR10',
+      benefit_type: 'percent_discount',
+      price_currency: 'USD',
+      price_usd: null,
+      discount_percent: 10,
+      discount_amount_usd: null,
+      priority: 1,
+      is_active: true,
+      items: [{ product_id: 41, quantity: 1 }],
+    });
+
+    render(<ArmOrderScreen />);
+    fireEvent.click(screen.getByTestId('product-41'));
+
+    const promotion = await screen.findByLabelText('Promocion del ticket');
+    expect(promotion).toHaveTextContent('Descuento vendedor');
+    fireEvent.change(promotion, { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
+
+    await waitFor(() =>
+      expect(mocks.holdMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ promotion_id: 8 }),
       ),
     );
   });

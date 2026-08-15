@@ -9,6 +9,11 @@ import {
   fetchCommissionPlans,
   simulateCommission,
 } from './api';
+import {
+  defaultControlColumns,
+  presetControlColumns,
+  reconcileControlColumns,
+} from './controlColumns';
 
 vi.mock('@/api/client', () => ({
   getMany: vi.fn(),
@@ -85,32 +90,67 @@ describe('commissions api contract', () => {
   });
 
   it('parses my commission ledger and summary from the real envelope', async () => {
-    vi.spyOn(api, 'get').mockResolvedValueOnce({ data: {
-      data: [{
-        id: 7,
-        entry_uuid: '26ceda39-6f38-4ce1-96da-44498e0a9734',
-        sale_id: 10,
-        pos_order_id: 11,
-        sale_item_id: 12,
-        beneficiary_role: 'seller',
-        beneficiary: { id: 3, name: 'Ana', email: 'ana@example.test' },
-        entry_type: 'earning',
-        plan_name_snapshot: 'Vendedores 3%',
-        percentage_snapshot: '3.0000',
-        sale_currency: 'VES',
-        source_amount: '6000.0000',
-        eligible_base_amount: '100.0000',
-        exchange_rate_type_code: 'BCV',
-        exchange_rate: '60.000000',
-        commission_base_amount: '3.0000',
-        status: 'available',
-        earned_at: '2026-08-14T10:00:00Z',
-        available_at: '2026-08-14T10:00:00Z',
-        created_at: '2026-08-14T10:00:00Z',
-        updated_at: null,
-      }],
-      summary: { total_base_amount: '3.0000', available_base_amount: '3.0000', pending_base_amount: '0.0000' },
-    } });
+    vi.spyOn(api, 'get').mockResolvedValueOnce({
+      data: {
+        data: [
+          {
+            id: 7,
+            entry_uuid: '26ceda39-6f38-4ce1-96da-44498e0a9734',
+            sale_id: 10,
+            pos_order_id: 11,
+            sale_item_id: 12,
+            beneficiary_role: 'seller',
+            beneficiary: { id: 3, name: 'Ana', email: 'ana@example.test' },
+            entry_type: 'earning',
+            plan_name_snapshot: 'Vendedores 3%',
+            percentage_snapshot: '3.0000',
+            sale_currency: 'VES',
+            source_amount: '6000.0000',
+            eligible_base_amount: '100.0000',
+            exchange_rate_type_code: 'BCV',
+            exchange_rate: '60.000000',
+            commission_base_amount: '3.0000',
+            status: 'available',
+            earned_at: '2026-08-14T10:00:00Z',
+            available_at: '2026-08-14T10:00:00Z',
+            created_at: '2026-08-14T10:00:00Z',
+            updated_at: null,
+          },
+        ],
+        summary: {
+          total_base_amount: '3.0000',
+          available_base_amount: '3.0000',
+          pending_base_amount: '0.0000',
+          approved_base_amount: '0.0000',
+          paid_base_amount: '0.0000',
+          currency_breakdown: {
+            total_usd: '0.0000',
+            total_ves: '180.0000',
+            available_usd: '0.0000',
+            available_ves: '180.0000',
+            approved_usd: '0.0000',
+            approved_ves: '0.0000',
+            paid_usd: '0.0000',
+            paid_ves: '0.0000',
+          },
+          payables: [
+            {
+              user_id: 3,
+              name: 'Ana',
+              email: 'ana@example.test',
+              available_usd: '0.0000',
+              available_ves: '180.0000',
+              approved_usd: '0.0000',
+              approved_ves: '0.0000',
+              paid_usd: '0.0000',
+              paid_ves: '0.0000',
+              total_usd: '0.0000',
+              total_ves: '180.0000',
+            },
+          ],
+        },
+      },
+    });
 
     const ledger = await fetchCommissionEntries(true);
 
@@ -215,5 +255,27 @@ describe('commissions api contract', () => {
     expect(approved[0]?.status).toBe('approved');
     expect(settlement.total_local_amount).toBe('180.0000');
     expect(settlement.updated_at).toBeNull();
+  });
+});
+
+describe('commission control columns', () => {
+  const columns = [
+    { key: 'quantity', label: 'Cant.', default_visible: true },
+    { key: 'amount_usd', label: '$', default_visible: true },
+    { key: 'amount_ves', label: 'Bs', default_visible: true },
+    { key: 'commission_usd', label: 'Comision $', default_visible: true },
+    { key: 'commission_ves', label: 'Comision Bs', default_visible: true },
+    { key: 'payment_method_1', label: 'P.M.', default_visible: true },
+  ];
+
+  it('mantiene todas las columnas por defecto y permite una vista solo de comisiones en Bs', () => {
+    expect(defaultControlColumns(columns)).toHaveLength(columns.length);
+    expect(presetControlColumns(columns, 'commission_ves')).toEqual(['quantity', 'commission_ves']);
+  });
+
+  it('descarta columnas guardadas que ya no existen', () => {
+    expect(reconcileControlColumns(columns, ['amount_ves', 'deleted_column'])).toEqual([
+      'amount_ves',
+    ]);
   });
 });

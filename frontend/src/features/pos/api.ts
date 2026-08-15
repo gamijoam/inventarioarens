@@ -45,6 +45,10 @@ export const PaymentMethodSchema = z
     is_active: z.boolean().optional(),
     requires_reference: z.boolean().optional(),
     sort_order: z.number().int().optional(),
+    report_code: z.string().nullable().optional(),
+    report_label: z.string().nullable().optional(),
+    report_visible: z.boolean().optional(),
+    report_sort_order: z.number().int().optional(),
   })
   .passthrough();
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
@@ -307,7 +311,7 @@ export interface CheckoutPayload {
   promotion_code?: string | null;
   credit?: boolean;
   credit_due_date?: string | null;
-  items: Array<{
+  items: {
     warehouse_id: number;
     product_id: number;
     product_variant_id?: number | null;
@@ -318,8 +322,8 @@ export interface CheckoutPayload {
     discount_value?: number | null;
     discount_reason?: string | null;
     product_unit_ids?: number[];
-  }>;
-  payments: Array<{
+  }[];
+  payments: {
     payment_method_id?: number | null;
     method: PosPaymentMethod;
     currency: 'USD' | 'VES';
@@ -327,7 +331,7 @@ export interface CheckoutPayload {
     exchange_rate_type_id?: number | null;
     status?: 'captured' | 'pending' | 'failed';
     reference?: string | null;
-  }>;
+  }[];
 }
 
 /**
@@ -382,7 +386,7 @@ export interface CloseCashSessionPayload {
   counted_cash_ves?: number;
   exchange_rate_type_id?: number | null;
   closing_notes?: string | null;
-  counts?: Array<{ currency: 'USD' | 'VES'; denomination: number; quantity: number }>;
+  counts?: { currency: 'USD' | 'VES'; denomination: number; quantity: number }[];
   counting_mode?: 'standard' | 'blind';
 }
 
@@ -408,6 +412,10 @@ export interface PaymentMethodPayload {
   requires_reference?: boolean;
   is_active?: boolean;
   sort_order?: number;
+  report_code?: string | null;
+  report_label?: string | null;
+  report_visible?: boolean;
+  report_sort_order?: number;
 }
 
 export interface CreateCustomerPayload {
@@ -455,7 +463,7 @@ export function usePosProducts(
     page: 1,
     per_page: 12,
     with_images: 1,
-    warehouse_id: warehouseId || undefined,
+    warehouse_id: warehouseId ?? undefined,
   };
 
   return useProducts(filters, options);
@@ -736,7 +744,7 @@ export function usePosBootstrap() {
 }
 
 export interface BootstrapRefs {
-  warehouses: Array<{
+  warehouses: {
     id: number;
     branch_id: number | null;
     code: string;
@@ -744,18 +752,18 @@ export interface BootstrapRefs {
     status: 'active' | 'inactive';
     branch_name: string | null;
     branch_code: string | null;
-  }>;
-  cash_registers: Array<{
+  }[];
+  cash_registers: {
     id: number;
     branch_id: number | null;
     code: string;
     name: string;
-  }>;
-  branches: Array<{
+  }[];
+  branches: {
     id: number;
     code: string;
     name: string;
-  }>;
+  }[];
 }
 
 export interface BootstrapCombined {
@@ -892,7 +900,7 @@ export function usePriceListsForPos() {
   });
 }
 
-type PosPriceListLike = {
+interface PosPriceListLike {
   id: number;
   code: string;
   name: string;
@@ -902,7 +910,7 @@ type PosPriceListLike = {
   payment_exchange_rate_type?: PriceList['payment_exchange_rate_type'];
   payment_method_ids?: number[];
   payment_methods?: PriceList['payment_methods'];
-};
+}
 
 export function mergePosPriceLists<T extends PosPriceListLike>(
   configured: T[],
@@ -927,22 +935,22 @@ export function mergePosPriceLists<T extends PosPriceListLike>(
   });
 }
 
-type PosRateLike = {
+interface PosRateLike {
   exchange_rate_type_id: number;
   exchange_rate_type_code?: string | null;
   rate: number;
   base_currency?: string;
   quote_currency?: string;
   effective_at?: string | null;
-};
+}
 
-type PosRateTypeLike = {
+interface PosRateTypeLike {
   id: number;
   code: string;
   name?: string;
   is_default?: boolean;
   is_active?: boolean;
-};
+}
 
 export function resolvePosPaymentRate(
   rates: PosRateLike[],
@@ -997,13 +1005,13 @@ export function resolvePosPaymentRate(
   };
 }
 
-type PosExchangeRateTypeLike = {
+interface PosExchangeRateTypeLike {
   id: number;
   code: string;
   name: string;
   is_default?: boolean;
   is_active?: boolean;
-};
+}
 
 export function mergePosExchangeRateTypes(
   configured: PosExchangeRateTypeLike[],
@@ -1149,7 +1157,7 @@ export async function getProductForPos(
  *
  * Multi-tenancy estricto: el warehouse debe ser del tenant actual.
  */
-export function lookupProductSerial(params: {
+export function useLookupProductSerial(params: {
   warehouseId: number;
   serial: string;
   serialType?: 'imei' | 'serial';

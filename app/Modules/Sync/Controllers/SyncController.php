@@ -6,12 +6,15 @@ use App\Modules\Sync\Requests\AcknowledgeSyncEventRequest;
 use App\Modules\Sync\Requests\CreateSyncGroupPairingCodeRequest;
 use App\Modules\Sync\Requests\CreateSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\IssueSyncTokenRequest;
+use App\Modules\Sync\Requests\PreviewSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\PullSyncEventsRequest;
 use App\Modules\Sync\Requests\PushSyncEventsRequest;
 use App\Modules\Sync\Requests\RedeemSyncPairingCodeRequest;
 use App\Modules\Sync\Requests\RegisterSyncNodeRequest;
+use App\Modules\Sync\Requests\StartSyncBootstrapRequest;
 use App\Modules\Sync\Requests\SyncReadinessRequest;
 use App\Modules\Sync\Requests\UploadSyncImageRequest;
+use App\Modules\Sync\Services\SyncBootstrapService;
 use App\Modules\Sync\Services\SyncImageService;
 use App\Modules\Sync\Services\SyncPairingService;
 use App\Modules\Sync\Services\SyncReadinessService;
@@ -30,6 +33,7 @@ class SyncController extends Controller
         private readonly SyncReadinessService $readiness,
         private readonly SyncTokenService $tokens,
         private readonly SyncPairingService $pairing,
+        private readonly SyncBootstrapService $bootstrap,
         private readonly SyncImageService $images,
         private readonly TenantManager $tenancy,
     ) {}
@@ -69,6 +73,26 @@ class SyncController extends Controller
                 $request->validated('node_code'),
                 $request->validated('status') ?? 'applied',
                 $request->validated('error')
+            ),
+        ]);
+    }
+
+    public function startBootstrap(StartSyncBootstrapRequest $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->bootstrap->start(
+                $this->tenancy->require(),
+                $request->validated(),
+            ),
+        ], Response::HTTP_CREATED);
+    }
+
+    public function completeBootstrap(string $sessionToken): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->bootstrap->complete(
+                $this->tenancy->require(),
+                $sessionToken,
             ),
         ]);
     }
@@ -154,6 +178,13 @@ class SyncController extends Controller
                 $request->userAgent(),
             ),
         ], Response::HTTP_CREATED);
+    }
+
+    public function previewPairingCode(PreviewSyncPairingCodeRequest $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->pairing->preview($request->validated('code')),
+        ]);
     }
 
     /**

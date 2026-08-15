@@ -51,7 +51,11 @@ class CommissionEntryApiTest extends TestCase
             ->assertJsonPath('data.0.id', $mine->id)
             ->assertJsonPath('data.0.status', CommissionEntry::STATUS_AVAILABLE)
             ->assertJsonPath('summary.total_base_amount', '3.0000')
-            ->assertJsonPath('summary.available_base_amount', '3.0000');
+            ->assertJsonPath('summary.available_base_amount', '3.0000')
+            ->assertJsonPath('summary.currency_breakdown.available_usd', '3.0000')
+            ->assertJsonPath('summary.currency_breakdown.available_ves', '0.0000')
+            ->assertJsonPath('summary.payables.0.name', $seller->name)
+            ->assertJsonPath('summary.payables.0.available_usd', '3.0000');
     }
 
     public function test_manager_with_view_all_sees_every_beneficiary_but_other_tenant_never_leaks(): void
@@ -74,7 +78,30 @@ class CommissionEntryApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.beneficiary.email', 'seller@example.test')
-            ->assertJsonPath('summary.total_base_amount', '5.0000');
+            ->assertJsonPath('summary.total_base_amount', '5.0000')
+            ->assertJsonPath('summary.payables.0.approved_usd', '0.0000');
+    }
+
+    public function test_summary_separates_ves_commissions_using_the_historical_rate(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa VES', 'slug' => 'empresa-ves']);
+        app(TenantManager::class)->set($tenant);
+        $seller = $this->user($tenant, 'ves@example.test', ['commissions.view_own']);
+        $entry = $this->entry($this->saleItem($tenant, $seller), $seller, 2, now());
+        $entry->update([
+            'sale_currency' => 'VES',
+            'exchange_rate' => 3000,
+            'status' => CommissionEntry::STATUS_APPROVED,
+        ]);
+
+        $this
+            ->actingAs($seller)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/commissions/mine')
+            ->assertOk()
+            ->assertJsonPath('summary.currency_breakdown.approved_usd', '0.0000')
+            ->assertJsonPath('summary.currency_breakdown.approved_ves', '6000.0000')
+            ->assertJsonPath('summary.payables.0.approved_ves', '6000.0000');
     }
 
     private function user(Tenant $tenant, string $email, array $permissions): User

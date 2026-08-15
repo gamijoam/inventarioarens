@@ -221,6 +221,11 @@ En `InventoryTransferRequests`, `origin_tenant_id` identifica a la empresa solic
 - **ACK solo después de aplicar**: eventos fallidos permanecen en `sync_inbox` para retry.
 - **Foto inicial**: cuando un nodo local nuevo se registra con su catálogo vacío, la nube genera
   automáticamente un snapshot inicial (`product.created`, `price_list.created`, etc.) marcado `sync_snapshot`.
+- **Bootstrap inicial selectivo por grupo (2026-08-15)**: una instalación nueva puede redimir un
+  código de pairing grupal indicando solo los tenants seleccionados. La nube emite un token
+  independiente por tenant, prepara un paquete tenant-scoped con punto de corte y el local lo importa
+  en SQLite antes de activar el worker incremental. El token grupal no se usa como credencial
+  permanente. El contrato está en `docs/SYNC_BOOTSTRAP_SELECTIVO_GRUPOS.md`.
 
 **Worker en Windows**: el Motor Local ejecuta un único servicio real
 `SistemaInventarioSync` → `php artisan sync:daemon-all`. El supervisor relee
@@ -430,6 +435,13 @@ subject_type, subject_id) en 24h no se duplica.
 - Snapshot del rate: `exchange_rate_type_id`, `exchange_rate_type_code`, `exchange_rate` numérico.
 - NUNCA recalcular historicos — el rate congelado en su fila es la verdad.
 - Las devoluciones procesadas generan nota de crédito clasificada como `customer_credit`; no es CxC ni CxP. `customer_credit` genera además un ledger append-only de saldo a favor. Un canje siempre crea una nueva venta y aplica el crédito sin modificar la venta original.
+
+### 8.6.1 Comisiones V2 — control dinamico
+- El reporte de control por producto usa `sales`, `sale_items`, `pos_orders` y `pos_payments`; el ledger `commission_entries` conserva la comision append-only y no sustituye el detalle de ventas.
+- La tabla muestra todas las columnas por defecto y permite ocultar/mostrar columnas, incluyendo metodos de pago y `commission_ves` sin recalcular tasas historicas.
+- Los metodos de pago tienen codigo corto/etiqueta de reporte configurables; no hardcodear `P.M.` o `P.V.`.
+- El equivalente USD de una venta VES usa el snapshot almacenado en la linea/pago. Nunca consultar la tasa actual para modificar historicos.
+- Contrato inicial: `GET /api/commissions/control`; detalle y reglas en `docs/COMISIONES_V2_CONTROL_DINAMICO.md`.
 
 ### 8.7 Estilo
 - Pint 1.27 (`vendor/bin/pint` antes de commit).

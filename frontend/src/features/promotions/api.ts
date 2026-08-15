@@ -36,13 +36,15 @@ export function usePromotions(activeOnly = false) {
 export function useAvailablePosPromotions({
   warehouseId,
   productIds,
+  enabled = true,
 }: {
   warehouseId: number | null;
   productIds: number[];
+  enabled?: boolean;
 }) {
   return useQuery({
     queryKey: promotionKeys.available(warehouseId, productIds),
-    enabled: warehouseId !== null,
+    enabled: enabled && warehouseId !== null,
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set('warehouse_id', String(warehouseId));

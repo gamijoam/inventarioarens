@@ -120,10 +120,97 @@ export const CommissionLedgerSchema = z.object({
     pending_base_amount: z.string(),
     approved_base_amount: z.string().optional().default('0.0000'),
     paid_base_amount: z.string().optional().default('0.0000'),
+    currency_breakdown: z.object({
+      total_usd: z.string(),
+      total_ves: z.string(),
+      available_usd: z.string(),
+      available_ves: z.string(),
+      approved_usd: z.string(),
+      approved_ves: z.string(),
+      paid_usd: z.string(),
+      paid_ves: z.string(),
+    }),
+    payables: z.array(
+      z.object({
+        user_id: z.number().int(),
+        name: z.string(),
+        email: z.string().nullable(),
+        available_usd: z.string(),
+        available_ves: z.string(),
+        approved_usd: z.string(),
+        approved_ves: z.string(),
+        paid_usd: z.string(),
+        paid_ves: z.string(),
+        total_usd: z.string(),
+        total_ves: z.string(),
+      }),
+    ),
   }),
 });
 
 export type CommissionLedger = z.infer<typeof CommissionLedgerSchema>;
+
+export const CommissionControlColumnSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  default_visible: z.boolean(),
+});
+
+export const CommissionControlPaymentSchema = z.object({
+  code: z.string(),
+  label: z.string(),
+  amount: z.string(),
+  currency: z.string(),
+  amount_base: z.string(),
+  amount_local: z.string(),
+});
+
+export const CommissionControlRowSchema = z.object({
+  id: z.string(),
+  date: nullableTimestamp,
+  order_id: z.number().int().positive(),
+  seller: z.object({ id: z.number(), name: z.string(), email: z.string() }).nullable(),
+  cashier: z.object({ id: z.number(), name: z.string(), email: z.string() }).nullable(),
+  branch: z.object({ id: z.number(), name: z.string(), code: z.string() }).nullable(),
+  quantity: z.string(),
+  product: z.object({ id: z.number().nullable(), sku: z.string().nullable(), name: z.string() }),
+  sale_currency: z.enum(['USD', 'VES']),
+  amount_usd: z.string().nullable(),
+  amount_ves: z.string().nullable(),
+  equivalent_usd: z.string().nullable(),
+  exchange_rate_type_code: z.string().nullable(),
+  exchange_rate: z.string().nullable(),
+  payment_columns: z.record(CommissionControlPaymentSchema),
+  financing_method: z.string().nullable(),
+  financing_level: z.string().nullable(),
+  financed_amount: z.string().nullable(),
+  total: z.string(),
+  commission_usd: z.string(),
+  commission_ves: z.string().nullable(),
+});
+
+export type CommissionControlRow = z.infer<typeof CommissionControlRowSchema>;
+
+export const CommissionControlSchema = z.object({
+  data: z.array(CommissionControlRowSchema),
+  summary: z.object({
+    quantity: z.string(),
+    amount_usd: z.string(),
+    amount_ves: z.string(),
+    equivalent_usd: z.string(),
+    total: z.string(),
+    commission_usd: z.string(),
+    commission_ves: z.string(),
+    payment_columns: z.record(CommissionControlPaymentSchema),
+  }),
+  meta: z.object({
+    columns: z.array(CommissionControlColumnSchema),
+    payment_columns: z.array(z.object({ key: z.string(), code: z.string(), label: z.string() })),
+    total: z.number().int().nonnegative(),
+  }),
+});
+
+export type CommissionControl = z.infer<typeof CommissionControlSchema>;
 
 export const CommissionSettlementSchema = z.object({
   id: z.number().int().positive(),

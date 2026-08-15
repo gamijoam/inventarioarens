@@ -35,6 +35,10 @@ class UpdatePaymentMethodRequest extends FormRequest
             'requires_reference' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
+            'report_code' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'report_label' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'report_visible' => ['sometimes', 'boolean'],
+            'report_sort_order' => ['sometimes', 'integer', 'min:0'],
         ];
     }
 

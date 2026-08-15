@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Loader2, Minus, Plus, Search, Trash2, UserRound, Warehouse } from 'lucide-react';
+import { Loader2, Minus, Plus, Search, Tag, Trash2, UserRound, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/useAuth';
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { Product } from '@/features/inventory-center/schemas';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
+import { useAvailablePosPromotions } from '@/features/promotions/api';
 import {
   type CreateCustomerPayload,
   type Customer,
@@ -86,6 +87,7 @@ export function ArmOrderScreen() {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
   const [selectedPriceListId, setSelectedPriceListId] = useState<number | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [creatingCustomer, setCreatingCustomer] = useState(false);
@@ -94,6 +96,7 @@ export function ArmOrderScreen() {
   const holdOrder = useHoldOrder();
   const createCustomer = useCreateCustomerForPos();
   const canCreateCustomer = useCan(PERMISSIONS.CUSTOMERS_CREATE);
+  const canViewPromotions = useCan(PERMISSIONS.POS_PROMOTIONS_VIEW);
   const refs = useBootstrapRefsForPos();
   const fallbackWarehouses = useWarehousesForPos();
   const fallbackPriceLists = usePriceListsForPos();
@@ -126,6 +129,14 @@ export function ArmOrderScreen() {
   const warehouse =
     warehouses.find((item) => item.id === selectedWarehouseId) ?? warehouses[0] ?? null;
   const warehouseId = warehouse?.id ?? null;
+  const cartProductIds = useMemo(() => cart.map((line) => line.product.id), [cart]);
+  const availablePromotions = useAvailablePosPromotions({
+    warehouseId,
+    productIds: cartProductIds,
+    enabled: canViewPromotions && cart.length > 0,
+  });
+  const selectedPromotion =
+    availablePromotions.data?.find((promotion) => promotion.id === selectedPromotionId) ?? null;
 
   useEffect(() => {
     const selectedStillExists = warehouses.some((item) => item.id === selectedWarehouseId);
@@ -145,6 +156,17 @@ export function ArmOrderScreen() {
     const defaultPriceList = priceLists.find((item) => item.is_default);
     setSelectedPriceListId(defaultPriceList?.id ?? null);
   }, [priceLists, selectedPriceListId]);
+
+  useEffect(() => {
+    if (
+      selectedPromotionId !== null &&
+      availablePromotions.data?.some((promotion) => promotion.id === selectedPromotionId)
+    ) {
+      return;
+    }
+
+    setSelectedPromotionId(null);
+  }, [availablePromotions.data, selectedPromotionId]);
 
   const {
     data: productPage,
@@ -303,6 +325,7 @@ export function ArmOrderScreen() {
   function changeWarehouse(value: string): void {
     if (cart.length > 0) {
       setCart([]);
+      setSelectedPromotionId(null);
       toast.info('El ticket se limpio porque cambiaste el almacen de salida.');
     }
     setSelectedWarehouseId(Number(value));
@@ -356,6 +379,7 @@ export function ArmOrderScreen() {
     const payload: HoldPayload = {
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer?.name ?? 'Consumidor Final',
+      promotion_id: selectedPromotionId,
       items: cart.map((line) => ({
         warehouse_id: warehouseId,
         product_id: line.product.id,
@@ -372,6 +396,7 @@ export function ArmOrderScreen() {
       setCart([]);
       setQuery('');
       setSelectedCustomer(null);
+      setSelectedPromotionId(null);
       toast.success(`Orden #${order.id} armada. La cajera la cobrara.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo armar la orden.');
@@ -556,6 +581,7 @@ export function ArmOrderScreen() {
                     const nextId = event.target.value ? Number(event.target.value) : null;
                     if (cart.length > 0) {
                       setCart([]);
+                      setSelectedPromotionId(null);
                       toast.info('El ticket se limpio porque cambiaste la lista de precio.');
                     }
                     setPriceError(null);
@@ -578,6 +604,40 @@ export function ArmOrderScreen() {
                 <p className="text-primary mt-2 text-xs">
                   Los precios se cotizan con {selectedPriceList.name}.
                 </p>
+              )}
+              {canViewPromotions && cart.length > 0 && (
+                <label className="mt-3 block space-y-1 text-left">
+                  <span className="text-text-muted flex items-center gap-1 text-[11px] font-semibold uppercase">
+                    <Tag className="size-3" /> Promocion del ticket
+                  </span>
+                  <Select
+                    aria-label="Promocion del ticket"
+                    value={selectedPromotionId ?? ''}
+                    onChange={(event) =>
+                      setSelectedPromotionId(event.target.value ? Number(event.target.value) : null)
+                    }
+                    disabled={availablePromotions.isLoading}
+                    className="h-11 w-full"
+                  >
+                    <option value="">
+                      {availablePromotions.isLoading
+                        ? 'Buscando promociones...'
+                        : availablePromotions.data?.length
+                          ? 'Sin promocion'
+                          : 'No hay promociones aplicables'}
+                    </option>
+                    {(availablePromotions.data ?? []).map((promotion) => (
+                      <option key={promotion.id} value={promotion.id}>
+                        {promotion.name}{promotion.code ? ` · ${promotion.code}` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                  {selectedPromotion && (
+                    <p className="text-primary text-xs">
+                      Se validara con {selectedPriceList?.name ?? 'el precio base'} al enviar a caja.
+                    </p>
+                  )}
+                </label>
               )}
               {priceError && (
                 <p className="text-danger mt-2 text-xs" role="alert">
