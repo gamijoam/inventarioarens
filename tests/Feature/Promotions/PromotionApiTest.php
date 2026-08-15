@@ -603,6 +603,62 @@ class PromotionApiTest extends TestCase
         }
     }
 
+    public function test_pos_can_list_all_active_promotions_for_combo_selection_before_cart_items_exist(): void
+    {
+        Carbon::setTestNow('2026-08-10 12:00:00');
+
+        try {
+            [$tenant, $admin] = $this->tenantAndUser([
+                'promotions.view',
+                'promotions.create',
+                'pos.promotions.view',
+            ]);
+            [$warehouse, $phone, $charger] = $this->bundleProducts($tenant);
+            $payload = [
+                'benefit_type' => 'fixed_bundle_price',
+                'is_active' => true,
+                'starts_at' => '2026-08-01 00:00:00',
+                'ends_at' => '2026-08-31 23:59:59',
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 1],
+                    ['product_id' => $charger->id, 'quantity' => 1],
+                ],
+            ];
+
+            $this
+                ->actingAs($admin)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->postJson('/api/promotions', array_replace($payload, [
+                    'name' => 'Combo uno',
+                    'code' => 'COMBO-ONE',
+                    'price_usd' => 40,
+                    'priority' => 10,
+                ]))
+                ->assertCreated();
+
+            $this
+                ->actingAs($admin)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->postJson('/api/promotions', array_replace($payload, [
+                    'name' => 'Combo dos',
+                    'code' => 'COMBO-TWO',
+                    'price_usd' => 35,
+                    'priority' => 20,
+                ]))
+                ->assertCreated();
+
+            $response = $this
+                ->actingAs($admin)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->getJson("/api/pos/promotions/available?warehouse_id={$warehouse->id}&selectable=1")
+                ->assertOk();
+
+            $this->assertSame(['COMBO-TWO', 'COMBO-ONE'], collect($response->json('data'))->pluck('code')->all());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     private function tenantAndUser(array $permissions, ?string $slug = null): array
     {
         $slug ??= 'tenant-'.str()->lower(str()->random(8));

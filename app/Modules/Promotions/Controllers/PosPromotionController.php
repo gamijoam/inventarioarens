@@ -20,6 +20,7 @@ class PosPromotionController extends Controller
             ->filter()
             ->unique()
             ->values();
+        $selectable = $request->boolean('selectable');
 
         $promotions = Promotion::query()
             ->with(['items.product'])
@@ -35,7 +36,7 @@ class PosPromotionController extends Controller
                     return $required->diff($available)->isEmpty();
                 });
             })
-            ->take(1);
+            ->when(! $selectable, fn ($promotions) => $promotions->take(1));
 
         return PromotionResource::collection($promotions->values());
     }
