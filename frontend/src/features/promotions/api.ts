@@ -13,8 +13,8 @@ import {
 export const promotionKeys = {
   all: ['promotions'] as const,
   lists: () => [...promotionKeys.all, 'list'] as const,
-  available: (warehouseId: number | null, productIds: number[]) =>
-    [...promotionKeys.all, 'available', warehouseId, productIds] as const,
+  available: (warehouseId: number | null, productIds: number[], selectable: boolean) =>
+    [...promotionKeys.all, 'available', warehouseId, productIds, selectable] as const,
 };
 
 const promotionListSchema = z.array(PromotionSchema);
@@ -37,17 +37,20 @@ export function useAvailablePosPromotions({
   warehouseId,
   productIds,
   enabled = true,
+  selectable = false,
 }: {
   warehouseId: number | null;
   productIds: number[];
   enabled?: boolean;
+  selectable?: boolean;
 }) {
   return useQuery({
-    queryKey: promotionKeys.available(warehouseId, productIds),
+    queryKey: promotionKeys.available(warehouseId, productIds, selectable),
     enabled: enabled && warehouseId !== null,
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set('warehouse_id', String(warehouseId));
+      if (selectable) params.set('selectable', '1');
       productIds.forEach((id) => params.append('product_ids[]', String(id)));
       return parsePromotions(await getMany<unknown>(`/pos/promotions/available?${params.toString()}`));
     },

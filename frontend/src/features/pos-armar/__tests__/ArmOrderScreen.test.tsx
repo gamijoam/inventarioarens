@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   createCustomer: vi.fn(),
   getProductVariants: vi.fn(),
   quoteProductForPos: vi.fn<(productId: number, priceListId: number) => Promise<unknown>>(),
+  getProductForPos: vi.fn<(productId: number, warehouseId: number) => Promise<unknown>>(),
   bootstrapWarehouses: [
     { id: 7, name: 'Principal', code: 'MAIN', status: 'active' },
     { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
@@ -71,6 +72,8 @@ vi.mock('@/features/pos/api', () => ({
   useHoldOrder: () => ({ isPending: false, mutateAsync: mocks.holdMutate }),
   quoteProductForPos: (productId: number, priceListId: number) =>
     mocks.quoteProductForPos(productId, priceListId),
+  getProductForPos: (productId: number, warehouseId: number) =>
+    mocks.getProductForPos(productId, warehouseId),
   useCustomers: (search: string) => ({
     isLoading: false,
     data:
@@ -193,7 +196,20 @@ describe('<ArmOrderScreen>', () => {
         variants_count: 2,
         tracking_type: 'quantity',
       },
+      {
+        id: 44,
+        tenant_id: 1,
+        name: 'Cargador USB-C',
+        sku: 'CAT-000517',
+        barcode: null,
+        base_price: 20,
+        available_stock: 4,
+        tracking_type: 'quantity',
+      },
     ];
+    mocks.getProductForPos.mockImplementation((productId) =>
+      Promise.resolve(mocks.productResult.data.data.find((product) => product.id === productId)),
+    );
     mocks.getProductVariants.mockResolvedValue([
       { id: 501, color: 'Rojo', price_override: null, stock_available: 3 },
     ]);
@@ -350,9 +366,9 @@ describe('<ArmOrderScreen>', () => {
     render(<ArmOrderScreen />);
     fireEvent.click(screen.getByTestId('product-41'));
 
-    const promotion = await screen.findByLabelText('Promocion del ticket');
-    expect(promotion).toHaveTextContent('Descuento vendedor');
-    fireEvent.change(promotion, { target: { value: '8' } });
+    expect(await screen.findByText('Descuento vendedor')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar VENDEDOR10' }));
+    await screen.findByText('Promoción cargada');
     fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
 
     await waitFor(() =>
@@ -360,6 +376,34 @@ describe('<ArmOrderScreen>', () => {
         expect.objectContaining({ promotion_id: 8 }),
       ),
     );
+  });
+
+  it('carga automaticamente los productos de un combo para el vendedor', async () => {
+    mocks.availablePromotions.push({
+      id: 12,
+      name: 'Combo USB',
+      code: 'COMBO-USB',
+      benefit_type: 'fixed_bundle_price',
+      price_currency: 'USD',
+      price_usd: 25,
+      discount_percent: null,
+      discount_amount_usd: null,
+      priority: 10,
+      is_active: true,
+      items: [
+        { product_id: 41, product_name: 'Adaptador USB-C', quantity: 1 },
+        { product_id: 44, product_name: 'Cargador USB-C', quantity: 1 },
+      ],
+    });
+
+    render(<ArmOrderScreen />);
+
+    expect(await screen.findByText('Combo USB')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar COMBO-USB' }));
+
+    expect(await screen.findByText('Cargador USB-C')).toBeInTheDocument();
+    expect(screen.getAllByText('Adaptador USB-C').length).toBeGreaterThan(1);
+    expect(screen.getAllByText(/1 x \$12\.50/).length).toBeGreaterThan(0);
   });
 
   it('muestra un mensaje cuando el producto no tiene precio en la lista elegida', async () => {

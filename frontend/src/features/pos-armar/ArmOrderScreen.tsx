@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Loader2, Minus, Plus, Search, Tag, Trash2, UserRound, Warehouse } from 'lucide-react';
+import { Loader2, Minus, Plus, Search, Trash2, UserRound, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/useAuth';
@@ -19,6 +19,7 @@ import { Select } from '@/components/ui/Select';
 import type { Product } from '@/features/inventory-center/schemas';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import { useAvailablePosPromotions } from '@/features/promotions/api';
+import type { Promotion } from '@/features/promotions/schemas';
 import {
   type CreateCustomerPayload,
   type Customer,
@@ -26,14 +27,17 @@ import {
   useBootstrapRefsForPos,
   useCreateCustomerForPos,
   useCustomers,
+  getProductForPos,
   useHoldOrder,
   usePriceListsForPos,
   usePosProductsDebounced,
   useWarehousesForPos,
   quoteProductForPos,
 } from '@/features/pos/api';
+import { PromotionsPanel } from '@/features/pos/PromotionsPanel';
 import { TapButton } from '@/features/pos/TapButton';
 import { VariantPicker, type VariantPickerValue } from '@/features/pos/VariantPicker';
+import { expandPromotionItems, promotionLineUnitPrice } from '@/features/pos/posLogic';
 import { createClientId } from '@/lib/clientId';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
@@ -132,8 +136,9 @@ export function ArmOrderScreen() {
   const cartProductIds = useMemo(() => cart.map((line) => line.product.id), [cart]);
   const availablePromotions = useAvailablePosPromotions({
     warehouseId,
-    productIds: cartProductIds,
-    enabled: canViewPromotions && cart.length > 0,
+    productIds: [],
+    enabled: canViewPromotions,
+    selectable: true,
   });
   const selectedPromotion =
     availablePromotions.data?.find((promotion) => promotion.id === selectedPromotionId) ?? null;
@@ -167,6 +172,15 @@ export function ArmOrderScreen() {
 
     setSelectedPromotionId(null);
   }, [availablePromotions.data, selectedPromotionId]);
+
+  useEffect(() => {
+    if (
+      selectedPromotion &&
+      !selectedPromotion.items.every((item) => cartProductIds.includes(item.product_id))
+    ) {
+      setSelectedPromotionId(null);
+    }
+  }, [cartProductIds, selectedPromotion]);
 
   const {
     data: productPage,
@@ -301,6 +315,92 @@ export function ArmOrderScreen() {
       ];
     });
     setVariantPickerProduct(null);
+  }
+
+  async function loadPromotion(promotion: Promotion, sets: number): Promise<void> {
+    if (!warehouseId) {
+      toast.error('Selecciona un almacen antes de cargar una promocion.');
+      return;
+    }
+    if (priceLists.length > 0 && !selectedPriceList) {
+      toast.error('Selecciona una lista de precio antes de cargar una promocion.');
+      return;
+    }
+
+    const items = expandPromotionItems(promotion.items, sets);
+    if (items.length === 0) {
+      toast.error('La promocion no tiene componentes cargables.');
+      return;
+    }
+
+    try {
+      const products = await Promise.all(
+        items.map((item) => getProductForPos(item.product_id, warehouseId)),
+      );
+      const loadedItems = items
+        .map((item, index) => ({ item, product: products[index] }))
+        .filter(
+          (entry): entry is { item: (typeof items)[number]; product: Product } =>
+            entry.product !== undefined,
+        );
+      if (loadedItems.length !== items.length) {
+        toast.error('No se pudieron cargar todos los productos de la promocion.');
+        return;
+      }
+      if (loadedItems.some(({ product }) => Number(product.variants_count ?? 0) > 1)) {
+        toast.error('Los combos con variantes deben armarse seleccionando cada variante.');
+        return;
+      }
+
+      const currentQuantity = new Map<number, number>();
+      cart.forEach((line) => {
+        currentQuantity.set(
+          line.product.id,
+          (currentQuantity.get(line.product.id) ?? 0) + line.quantity,
+        );
+      });
+      for (const { item, product } of loadedItems) {
+        const available = stockOf(product);
+        if ((currentQuantity.get(item.product_id) ?? 0) + item.quantity > available) {
+          toast.error(`No hay stock suficiente de ${product.name} para ese combo.`);
+          return;
+        }
+      }
+
+      const quotes = await Promise.all(
+        loadedItems.map(({ product }) => quoteSelectedPrice(product)),
+      );
+      if (selectedPriceList && quotes.some((quote) => quote === null)) return;
+
+      const totalPromotionQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+      const lines: CartLine[] = loadedItems.map(({ item, product }, index) => {
+        const quote = quotes[index];
+        const normalUnitPrice = quote?.sale_price ?? Number(product.base_price ?? 0);
+
+        return {
+          id: createClientId(),
+          product,
+          product_variant_id: null,
+          product_variant_name: null,
+          quantity: item.quantity,
+          available_stock: stockOf(product),
+          unit_price: promotionLineUnitPrice(
+            promotion,
+            normalUnitPrice,
+            totalPromotionQuantity,
+          ),
+          price_list_id: quote?.price_list_id ?? null,
+          price_list_name: quote?.price_list_name ?? null,
+          price_source: quote ? 'price_list' : 'base',
+        };
+      });
+
+      setCart((current) => [...current, ...lines]);
+      setSelectedPromotionId(promotion.id);
+      toast.success(`${sets} conjunto(s) de ${promotion.name} cargado(s) al ticket.`);
+    } catch {
+      toast.error('No se pudieron cargar todos los productos de la promocion.');
+    }
   }
 
   function changeQuantity(index: number, delta: number): void {
@@ -605,39 +705,30 @@ export function ArmOrderScreen() {
                   Los precios se cotizan con {selectedPriceList.name}.
                 </p>
               )}
-              {canViewPromotions && cart.length > 0 && (
-                <label className="mt-3 block space-y-1 text-left">
-                  <span className="text-text-muted flex items-center gap-1 text-[11px] font-semibold uppercase">
-                    <Tag className="size-3" /> Promocion del ticket
-                  </span>
-                  <Select
-                    aria-label="Promocion del ticket"
-                    value={selectedPromotionId ?? ''}
-                    onChange={(event) =>
-                      setSelectedPromotionId(event.target.value ? Number(event.target.value) : null)
-                    }
-                    disabled={availablePromotions.isLoading}
-                    className="h-11 w-full"
-                  >
-                    <option value="">
-                      {availablePromotions.isLoading
-                        ? 'Buscando promociones...'
-                        : availablePromotions.data?.length
-                          ? 'Sin promocion'
-                          : 'No hay promociones aplicables'}
-                    </option>
-                    {(availablePromotions.data ?? []).map((promotion) => (
-                      <option key={promotion.id} value={promotion.id}>
-                        {promotion.name}{promotion.code ? ` · ${promotion.code}` : ''}
-                      </option>
-                    ))}
-                  </Select>
-                  {selectedPromotion && (
-                    <p className="text-primary text-xs">
-                      Se validara con {selectedPriceList?.name ?? 'el precio base'} al enviar a caja.
+              {canViewPromotions && (
+                <div className="border-border mt-3 max-h-72 overflow-y-auto border-t pt-3">
+                  <div className="mb-2">
+                    <p className="text-text-muted text-[11px] font-semibold uppercase">
+                      Promociones y combos
                     </p>
-                  )}
-                </label>
+                    <p className="text-text-muted text-xs">
+                      Selecciona un combo para cargar sus productos al ticket.
+                    </p>
+                  </div>
+                  <PromotionsPanel
+                    promotions={availablePromotions.data ?? []}
+                    selectedId={selectedPromotion?.id ?? null}
+                    isLoading={availablePromotions.isLoading}
+                    error={
+                      availablePromotions.isError
+                        ? 'No se pudieron cargar las promociones.'
+                        : null
+                    }
+                    onSelect={(promotion, sets) => {
+                      void loadPromotion(promotion, sets);
+                    }}
+                  />
+                </div>
               )}
               {priceError && (
                 <p className="text-danger mt-2 text-xs" role="alert">
