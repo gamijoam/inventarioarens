@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   holdMutate: vi.fn(),
   signOut: vi.fn(),
+  navigate: vi.fn(),
   createCustomer: vi.fn(),
+  getProductVariants: vi.fn(),
   bootstrapWarehouses: [
     { id: 7, name: 'Principal', code: 'MAIN', status: 'active' },
     { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
@@ -28,8 +30,19 @@ vi.mock('@/auth/useAuth', () => ({
   useAuth: () => ({ signOut: mocks.signOut }),
 }));
 
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mocks.navigate,
+}));
+
 vi.mock('@/components/layout/PosShell', () => ({
-  PosShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PosShell: ({ children, onExit }: { children: React.ReactNode; onExit?: () => void }) => (
+    <div>
+      <button type="button" onClick={onExit}>
+        Salir del POS
+      </button>
+      {children}
+    </div>
+  ),
 }));
 
 vi.mock('@/permissions/useCan', () => ({
@@ -73,6 +86,46 @@ vi.mock('@/features/pos/api', () => ({
   },
 }));
 
+vi.mock('@/features/inventory-center/variantApi', () => ({
+  getProductVariants: (...args: unknown[]) =>
+    mocks.getProductVariants(...args) as unknown as Promise<unknown>,
+}));
+
+vi.mock('@/features/pos/VariantPicker', () => ({
+  VariantPicker: ({
+    open,
+    onClose,
+    onSelect,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    onSelect: (value: { variant: Record<string, unknown>; quantity: number }) => void;
+  }) =>
+    open ? (
+      <div data-testid="variant-picker">
+        <button type="button" onClick={onClose}>
+          Cancelar variante
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSelect({
+              variant: {
+                id: 501,
+                color: 'Rojo',
+                price_override: null,
+                stock_available: 3,
+              },
+              quantity: 1,
+            })
+          }
+        >
+          Seleccionar variante
+        </button>
+      </div>
+    ) : null,
+}));
+
 vi.mock('../OnScreenKeyboard', () => ({
   OnScreenKeyboard: () => <div data-testid="keyboard" />,
 }));
@@ -111,7 +164,31 @@ describe('<ArmOrderScreen>', () => {
         available_stock: 0,
         tracking_type: 'quantity',
       },
+      {
+        id: 43,
+        tenant_id: 1,
+        name: 'Accesorio con variantes',
+        sku: 'ACC-001',
+        barcode: null,
+        base_price: 8,
+        available_stock: 0,
+        variants_count: 2,
+        tracking_type: 'quantity',
+      },
     ];
+    mocks.getProductVariants.mockResolvedValue([
+      { id: 501, color: 'Rojo', price_override: null, stock_available: 3 },
+    ]);
+  });
+
+  it('sale del POS y navega a login sin dejar el layout en cargando sesion', async () => {
+    mocks.signOut.mockResolvedValue(undefined);
+    render(<ArmOrderScreen />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salir del POS' }));
+
+    await waitFor(() => expect(mocks.signOut).toHaveBeenCalledOnce());
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/login' });
   });
 
   it('usa el listado alternativo y selecciona un almacen cuando bootstrap llega vacio', async () => {
@@ -159,6 +236,27 @@ describe('<ArmOrderScreen>', () => {
     fireEvent.click(screen.getByTestId('product-41'));
 
     expect(within(screen.getByRole('complementary')).getByText('2 x $12.50')).toBeInTheDocument();
+  });
+
+  it('permite elegir una variante con stock aunque el producto padre tenga stock cero', async () => {
+    render(<ArmOrderScreen />);
+
+    fireEvent.click(screen.getByTestId('product-43'));
+    expect(await screen.findByTestId('variant-picker')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar variante' }));
+
+    expect(within(screen.getByRole('complementary')).getByText(/Rojo/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
+
+    await waitFor(() =>
+      expect(mocks.holdMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({ product_id: 43, product_variant_id: 501, quantity: 1 }),
+          ],
+        }),
+      ),
+    );
   });
 
   it('busca un cliente por cedula, lo asigna y lo envia con la orden', async () => {

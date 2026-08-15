@@ -112,6 +112,7 @@ class ProductResource extends JsonResource
 
             'can_change_tracking_type' => $this->whenCounted('units', fn (): bool => (int) $this->units_count === 0),
             'units_count' => $this->whenCounted('units', fn (): int => (int) $this->units_count),
+            'variants_count' => $this->whenCounted('variants', fn (): int => (int) $this->variants_count),
 
             // Suma de stock_balances.quantity_available del producto. Si
             // el controller del index paso warehouse_id, este campo se

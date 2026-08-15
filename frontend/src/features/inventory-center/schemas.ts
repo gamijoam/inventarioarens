@@ -494,6 +494,7 @@ export const ProductSchema = z.object({
     .optional(),
   can_change_tracking_type: z.boolean().optional(),
   units_count: z.union([z.number(), z.string()]).optional(),
+  variants_count: z.union([z.number(), z.string()]).optional(),
   is_active: z.boolean(),
 
   // Catalogo compartido (Fase 1 arquitecto maestro + copia local).

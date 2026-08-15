@@ -51,7 +51,10 @@ class ProductController extends Controller
 
         $query = Product::query()
             ->with($relations)
-            ->withCount('units');
+            ->withCount([
+                'units',
+                'variants' => fn ($query) => $query->where('is_active', true),
+            ]);
 
         // Suma de stock_balances.quantity_available. Usamos SIEMPRE el
         // formato con AS explicito `as available_stock` para que el

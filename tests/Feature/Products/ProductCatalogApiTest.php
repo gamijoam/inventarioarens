@@ -10,6 +10,7 @@ use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -260,6 +261,34 @@ class ProductCatalogApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $product->id)
             ->assertJsonPath('data.0.available_stock', 0);
+    }
+
+    public function test_product_search_exposes_variant_count_for_pos_selection(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+        $product = Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Accesorio con variantes',
+            'sku' => 'ACC-001',
+            'tracking_type' => 'quantity',
+        ]);
+        ProductVariant::create([
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'color' => 'Rojo',
+            'color_hex' => '#ff0000',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?search=ACC-001')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $product->id)
+            ->assertJsonPath('data.0.variants_count', 2);
     }
 
     public function test_tracking_type_all_returns_quantity_and_serialized_products(): void

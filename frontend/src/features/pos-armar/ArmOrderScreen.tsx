@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Minus, Plus, Search, Trash2, UserRound, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,6 +29,8 @@ import {
   useWarehousesForPos,
 } from '@/features/pos/api';
 import { TapButton } from '@/features/pos/TapButton';
+import { VariantPicker, type VariantPickerValue } from '@/features/pos/VariantPicker';
+import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import { createClientId } from '@/lib/clientId';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
@@ -37,7 +40,11 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 interface CartLine {
   id: string;
   product: Product;
+  product_variant_id: number | null;
+  product_variant_name: string | null;
   quantity: number;
+  available_stock: number;
+  unit_price: number;
 }
 
 const EMPTY_CUSTOMER: CreateCustomerPayload = {
@@ -54,6 +61,10 @@ function stockOf(product: Product): number {
   return Math.max(0, Number(product.available_stock ?? 0));
 }
 
+function variantStockOf(variant: ProductVariant): number {
+  return Math.max(0, Number(variant.stock_available ?? 0));
+}
+
 function customerDocument(customer: Customer): string {
   const document = [customer.document_type, customer.document_number].filter(Boolean).join('-');
   return (
@@ -64,6 +75,7 @@ function customerDocument(customer: Customer): string {
 
 export function ArmOrderScreen() {
   const { signOut } = useAuth();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
@@ -72,6 +84,7 @@ export function ArmOrderScreen() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState<CreateCustomerPayload>(EMPTY_CUSTOMER);
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
   const holdOrder = useHoldOrder();
   const createCustomer = useCreateCustomerForPos();
   const canCreateCustomer = useCan(PERMISSIONS.CUSTOMERS_CREATE);
@@ -114,16 +127,19 @@ export function ArmOrderScreen() {
   });
   const products = useMemo(() => productPage?.data ?? [], [productPage?.data]);
   const customerQuery = useCustomers(customerSearch);
-  const total = cart.reduce(
-    (sum, line) => sum + Number(line.product.base_price ?? 0) * line.quantity,
-    0,
-  );
+  const total = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
 
   function handleKey(action: KeyAction): void {
     setQuery((current) => applyKey(current, action));
   }
 
   function addProduct(product: Product): void {
+    if (Number(product.variants_count ?? 0) > 1) {
+      setVariantPickerProduct(product);
+      setQuery('');
+      return;
+    }
+
     const stock = stockOf(product);
     if (stock <= 0) {
       toast.error(
@@ -133,9 +149,11 @@ export function ArmOrderScreen() {
     }
 
     setCart((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
+      const existing = current.find(
+        (line) => line.product.id === product.id && line.product_variant_id === null,
+      );
       if (existing) {
-        if (existing.quantity >= stock) {
+        if (existing.quantity >= existing.available_stock) {
           toast.error(`Solo hay ${stock} unidades disponibles de ${product.name}.`);
           return current;
         }
@@ -143,9 +161,61 @@ export function ArmOrderScreen() {
           line.id === existing.id ? { ...line, quantity: line.quantity + 1 } : line,
         );
       }
-      return [...current, { id: createClientId(), product, quantity: 1 }];
+      return [
+        ...current,
+        {
+          id: createClientId(),
+          product,
+          product_variant_id: null,
+          product_variant_name: null,
+          quantity: 1,
+          available_stock: stock,
+          unit_price: Number(product.base_price ?? 0),
+        },
+      ];
     });
     setQuery('');
+  }
+
+  function addVariantToCart({ variant, quantity }: VariantPickerValue): void {
+    const product = variantPickerProduct;
+    if (!product) return;
+
+    const availableStock = variantStockOf(variant);
+    if (availableStock <= 0) {
+      toast.error(`La variante ${variant.color ?? 'seleccionada'} no tiene stock disponible.`);
+      return;
+    }
+
+    const unitPrice = Number(variant.price_override ?? product.base_price ?? 0);
+    setCart((current) => {
+      const existing = current.find(
+        (line) => line.product.id === product.id && line.product_variant_id === variant.id,
+      );
+      if (existing) {
+        if (existing.quantity + quantity > existing.available_stock) {
+          toast.error(`Solo hay ${availableStock} unidades disponibles de la variante.`);
+          return current;
+        }
+        return current.map((line) =>
+          line.id === existing.id ? { ...line, quantity: line.quantity + quantity } : line,
+        );
+      }
+
+      return [
+        ...current,
+        {
+          id: createClientId(),
+          product,
+          product_variant_id: variant.id,
+          product_variant_name: variant.color ?? `Variante #${variant.id}`,
+          quantity,
+          available_stock: availableStock,
+          unit_price: unitPrice,
+        },
+      ];
+    });
+    setVariantPickerProduct(null);
   }
 
   function changeQuantity(index: number, delta: number): void {
@@ -154,8 +224,8 @@ export function ArmOrderScreen() {
         if (currentIndex !== index) return [line];
         const next = line.quantity + delta;
         if (next <= 0) return [];
-        if (next > stockOf(line.product)) {
-          toast.error(`Solo hay ${stockOf(line.product)} unidades disponibles.`);
+        if (next > line.available_stock) {
+          toast.error(`Solo hay ${line.available_stock} unidades disponibles.`);
           return [line];
         }
         return [{ ...line, quantity: next }];
@@ -220,6 +290,7 @@ export function ArmOrderScreen() {
       items: cart.map((line) => ({
         warehouse_id: warehouseId,
         product_id: line.product.id,
+        product_variant_id: line.product_variant_id,
         price_list_id: null,
         price_source: 'base',
         quantity: line.quantity,
@@ -239,7 +310,12 @@ export function ArmOrderScreen() {
   }
 
   return (
-    <PosShell onExit={() => void signOut()}>
+    <PosShell
+      onExit={async () => {
+        await signOut();
+        await navigate({ to: '/login' });
+      }}
+    >
       <div className="bg-bg text-text-primary flex h-dvh min-h-0 flex-col overflow-hidden">
         <header className="border-border/80 bg-surface/95 flex min-h-16 shrink-0 items-center gap-3 border-b px-4 py-3 pr-32">
           <div className="min-w-0">
@@ -329,7 +405,7 @@ export function ArmOrderScreen() {
                       key={product.id}
                       data-testid={`product-${product.id}`}
                       onPress={() => addProduct(product)}
-                      disabled={stockOf(product) <= 0}
+                      disabled={stockOf(product) <= 0 && Number(product.variants_count ?? 0) <= 1}
                       className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 active:border-primary active:bg-primary/10 min-h-24 touch-manipulation overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all select-none disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <p className="truncate font-semibold">{product.name}</p>
@@ -340,8 +416,18 @@ export function ArmOrderScreen() {
                         <span className="text-lg font-bold">
                           {money(Number(product.base_price ?? 0))}
                         </span>
-                        <Badge variant={stockOf(product) > 0 ? 'success' : 'warning'}>
-                          {stockOf(product) > 0 ? `Stock ${stockOf(product)}` : 'Agotado'}
+                        <Badge
+                          variant={
+                            stockOf(product) > 0 || Number(product.variants_count ?? 0) > 1
+                              ? 'success'
+                              : 'warning'
+                          }
+                        >
+                          {stockOf(product) > 0
+                            ? `Stock ${stockOf(product)}`
+                            : Number(product.variants_count ?? 0) > 1
+                              ? 'Ver variantes'
+                              : 'Agotado'}
                         </Badge>
                       </div>
                     </TapButton>
@@ -400,7 +486,8 @@ export function ArmOrderScreen() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{line.product.name}</p>
                       <p className="text-text-muted text-xs">
-                        {line.quantity} x {money(Number(line.product.base_price ?? 0))}
+                        {line.product_variant_name && `${line.product_variant_name} · `}
+                        {line.quantity} x {money(line.unit_price)}
                       </p>
                     </div>
                     <TapButton
@@ -412,7 +499,7 @@ export function ArmOrderScreen() {
                     </TapButton>
                     <TapButton
                       onPress={() => changeQuantity(index, 1)}
-                      disabled={line.quantity >= stockOf(line.product)}
+                      disabled={line.quantity >= line.available_stock}
                       className="border-border flex size-8 items-center justify-center rounded-lg border disabled:opacity-40"
                       aria-label={`Sumar ${line.product.name}`}
                     >
@@ -600,6 +687,16 @@ export function ArmOrderScreen() {
             )}
           </DialogContent>
         </Dialog>
+        {variantPickerProduct && (
+          <VariantPicker
+            productId={variantPickerProduct.id}
+            productName={variantPickerProduct.name}
+            warehouseId={warehouseId}
+            open
+            onClose={() => setVariantPickerProduct(null)}
+            onSelect={addVariantToCart}
+          />
+        )}
       </div>
     </PosShell>
   );
