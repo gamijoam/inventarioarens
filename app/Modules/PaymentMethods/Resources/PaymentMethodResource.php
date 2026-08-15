@@ -19,6 +19,10 @@ class PaymentMethodResource extends JsonResource
             'requires_reference' => (bool) $this->requires_reference,
             'is_active' => (bool) $this->is_active,
             'sort_order' => (int) $this->sort_order,
+            'report_code' => $this->report_code,
+            'report_label' => $this->report_label,
+            'report_visible' => (bool) $this->report_visible,
+            'report_sort_order' => (int) $this->report_sort_order,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

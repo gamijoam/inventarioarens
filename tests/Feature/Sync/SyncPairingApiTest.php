@@ -134,6 +134,101 @@ class SyncPairingApiTest extends TestCase
         unset($childUserOne, $childUserTwo);
     }
 
+    public function test_group_bundle_can_redeem_only_selected_group_tenants(): void
+    {
+        [$group, $owner] = $this->tenantUser('grupo-selectivo', 'owner@selectivo.test');
+        [$childOne, $childUserOne] = $this->tenantUser('empresa-selectiva-uno', 'uno@selectivo.test');
+        [$childTwo, $childUserTwo] = $this->tenantUser('empresa-selectiva-dos', 'dos@selectivo.test');
+        $childOne->update(['parent_id' => $group->id, 'is_group' => false]);
+        $childTwo->update(['parent_id' => $group->id, 'is_group' => false]);
+        $owner->tenants()->syncWithoutDetaching([
+            $childOne->id => ['status' => 'active'],
+            $childTwo->id => ['status' => 'active'],
+        ]);
+        $this->grantPermission($group, $owner, 'sync.issue_token');
+
+        $code = $this->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->postJson('/api/sync/group-pairing-codes', [
+                'user_email' => $owner->email,
+                'node_name' => 'Grupo selectivo',
+            ])
+            ->assertCreated()
+            ->json('data.code');
+
+        $redeemed = $this->postJson('/api/sync/pairing-codes/redeem', [
+            'code' => $code,
+            'node_code' => 'SELECTIVO-01',
+            'selected_tenant_ids' => [$childTwo->id],
+        ])->assertCreated();
+
+        $this->assertSame(
+            [$childTwo->slug],
+            collect($redeemed->json('data.tenants'))->pluck('tenant.slug')->all(),
+        );
+        $this->assertDatabaseHas('auth_tokens', ['tenant_id' => $childTwo->id]);
+        $this->assertDatabaseMissing('auth_tokens', ['tenant_id' => $childOne->id]);
+
+        unset($childUserOne, $childUserTwo);
+    }
+
+    public function test_group_bundle_rejects_a_selected_tenant_outside_the_group(): void
+    {
+        [$group, $owner] = $this->tenantUser('grupo-selectivo-seguro', 'owner@selectivo-seguro.test');
+        [$child, $childUser] = $this->tenantUser('empresa-selectiva-segura', 'child@selectivo-seguro.test');
+        [$other, $otherUser] = $this->tenantUser('empresa-fuera-selectiva', 'other@selectivo-seguro.test');
+        $child->update(['parent_id' => $group->id, 'is_group' => false]);
+        $owner->tenants()->syncWithoutDetaching([$child->id => ['status' => 'active']]);
+        $this->grantPermission($group, $owner, 'sync.issue_token');
+
+        $code = $this->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->postJson('/api/sync/group-pairing-codes', [
+                'user_email' => $owner->email,
+                'node_name' => 'Grupo seguro',
+            ])
+            ->assertCreated()
+            ->json('data.code');
+
+        $this->postJson('/api/sync/pairing-codes/redeem', [
+            'code' => $code,
+            'node_code' => 'SEGURO-01',
+            'selected_tenant_ids' => [$other->id],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['selected_tenant_ids']);
+
+        $this->assertDatabaseCount('auth_tokens', 0);
+        unset($childUser, $otherUser);
+    }
+
+    public function test_group_pairing_preview_does_not_consume_the_code(): void
+    {
+        [$group, $owner] = $this->tenantUser('grupo-preview', 'owner@preview.test');
+        [$child, $childUser] = $this->tenantUser('empresa-preview', 'child@preview.test');
+        $child->update(['parent_id' => $group->id, 'is_group' => false]);
+        $owner->tenants()->syncWithoutDetaching([$child->id => ['status' => 'active']]);
+        $this->grantPermission($group, $owner, 'sync.issue_token');
+
+        $code = $this->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->postJson('/api/sync/group-pairing-codes', [
+                'user_email' => $owner->email,
+                'node_name' => 'Preview',
+            ])
+            ->assertCreated()
+            ->json('data.code');
+
+        $this->postJson('/api/sync/pairing-codes/preview', ['code' => $code])
+            ->assertOk()
+            ->assertJsonPath('data.group.slug', $group->slug)
+            ->assertJsonPath('data.tenants.1.slug', $child->slug);
+
+        $this->assertDatabaseHas('sync_pairing_codes', [
+            'code_hash' => hash('sha256', $code),
+            'redeemed_at' => null,
+        ]);
+        unset($childUser);
+    }
+
     private function tenantUser(string $slug, string $email): array
     {
         $tenant = Tenant::create(['name' => $slug, 'slug' => $slug]);

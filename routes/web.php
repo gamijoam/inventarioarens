@@ -21,8 +21,14 @@ use Illuminate\Support\Facades\Route;
  */
 
 $spaIndex = base_path('frontend/dist/index.html');
+$spaHeaders = [
+    'Content-Type' => 'text/html; charset=UTF-8',
+    'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
+    'Pragma' => 'no-cache',
+    'Expires' => '0',
+];
 
-Route::get('/', function () use ($spaIndex) {
+Route::get('/', function () use ($spaIndex, $spaHeaders) {
     if (! is_file($spaIndex)) {
         // Fallback si el frontend aun no esta construido.
         return response()->json([
@@ -35,7 +41,7 @@ Route::get('/', function () use ($spaIndex) {
     }
 
     return response()->file($spaIndex, [
-        'Content-Type' => 'text/html; charset=UTF-8',
+        ...$spaHeaders,
     ]);
 })->name('spa.root');
 
@@ -92,7 +98,7 @@ Route::post('telegram/webhook', [TelegramWebhookController::class, 'handle'])
 // Catch-all SPA: cualquier ruta que NO sea /api/* o /up devuelve el index.html.
 // Esto es el comportamiento estandar de React Router/Vite SPA: el server siempre
 // devuelve index.html para rutas desconocidas y el cliente resuelve el routing.
-Route::fallback(function () use ($spaIndex) {
+Route::fallback(function () use ($spaIndex, $spaHeaders) {
     // Si el frontend no esta construido, devolvemos un 404 JSON informativo
     // en vez de devolver HTML vacio.
     if (! is_file($spaIndex)) {
@@ -103,6 +109,6 @@ Route::fallback(function () use ($spaIndex) {
     }
 
     return response()->file($spaIndex, [
-        'Content-Type' => 'text/html; charset=UTF-8',
+        ...$spaHeaders,
     ]);
 });

@@ -11,30 +11,31 @@ use Illuminate\Support\Str;
 
 class SyncInitialSnapshotService
 {
-    public function queueForNode(Tenant $tenant, int $targetNodeId, string $installationCode): array
+    public function queueForNode(Tenant $tenant, int $targetNodeId, string $installationCode, ?string $snapshotKey = null): array
     {
+        $snapshotKey ??= $installationCode;
         $this->clearPreviousSnapshot($tenant, $targetNodeId, $installationCode);
 
         $summary = [
-            'branch.created' => $this->queueBranches($tenant, $targetNodeId, $installationCode),
-            'warehouse.created' => $this->queueWarehouses($tenant, $targetNodeId, $installationCode),
-            'exchange_rate_type.created' => $this->queueExchangeRateTypes($tenant, $targetNodeId, $installationCode),
-            'exchange_rate.created' => $this->queueExchangeRates($tenant, $targetNodeId, $installationCode),
-            'payment_method.created' => $this->queuePaymentMethods($tenant, $targetNodeId, $installationCode),
-            'brand.created' => $this->queueBrands($tenant, $targetNodeId, $installationCode),
-            'category.created' => $this->queueCategories($tenant, $targetNodeId, $installationCode),
-            'tag.created' => $this->queueTags($tenant, $targetNodeId, $installationCode),
-            'warranty_policy.created' => $this->queueWarrantyPolicies($tenant, $targetNodeId, $installationCode),
-            'supplier.created' => $this->queueSuppliers($tenant, $targetNodeId, $installationCode),
-            'price_list.created' => $this->queuePriceLists($tenant, $targetNodeId, $installationCode),
-            'product.created' => $this->queueProducts($tenant, $targetNodeId, $installationCode),
-            'product_price.created' => $this->queueProductPrices($tenant, $targetNodeId, $installationCode),
-            'promotion.created' => $this->queuePromotions($tenant, $targetNodeId, $installationCode),
-            'customer.created' => $this->queueCustomers($tenant, $targetNodeId, $installationCode),
-            'stock_movement.created' => $this->queueStockMovements($tenant, $targetNodeId, $installationCode),
-            'product_unit.created' => $this->queueProductUnits($tenant, $targetNodeId, $installationCode),
-            'product.image.uploaded' => $this->queueProductImages($tenant, $targetNodeId, $installationCode),
-            'cash_register.created' => $this->queueCashRegisters($tenant, $targetNodeId, $installationCode),
+            'branch.created' => $this->queueBranches($tenant, $targetNodeId, $snapshotKey),
+            'warehouse.created' => $this->queueWarehouses($tenant, $targetNodeId, $snapshotKey),
+            'exchange_rate_type.created' => $this->queueExchangeRateTypes($tenant, $targetNodeId, $snapshotKey),
+            'exchange_rate.created' => $this->queueExchangeRates($tenant, $targetNodeId, $snapshotKey),
+            'payment_method.created' => $this->queuePaymentMethods($tenant, $targetNodeId, $snapshotKey),
+            'brand.created' => $this->queueBrands($tenant, $targetNodeId, $snapshotKey),
+            'category.created' => $this->queueCategories($tenant, $targetNodeId, $snapshotKey),
+            'tag.created' => $this->queueTags($tenant, $targetNodeId, $snapshotKey),
+            'warranty_policy.created' => $this->queueWarrantyPolicies($tenant, $targetNodeId, $snapshotKey),
+            'supplier.created' => $this->queueSuppliers($tenant, $targetNodeId, $snapshotKey),
+            'price_list.created' => $this->queuePriceLists($tenant, $targetNodeId, $snapshotKey),
+            'product.created' => $this->queueProducts($tenant, $targetNodeId, $snapshotKey),
+            'product_price.created' => $this->queueProductPrices($tenant, $targetNodeId, $snapshotKey),
+            'promotion.created' => $this->queuePromotions($tenant, $targetNodeId, $snapshotKey),
+            'customer.created' => $this->queueCustomers($tenant, $targetNodeId, $snapshotKey),
+            'stock_movement.created' => $this->queueStockMovements($tenant, $targetNodeId, $snapshotKey),
+            'product_unit.created' => $this->queueProductUnits($tenant, $targetNodeId, $snapshotKey),
+            'product.image.uploaded' => $this->queueProductImages($tenant, $targetNodeId, $snapshotKey),
+            'cash_register.created' => $this->queueCashRegisters($tenant, $targetNodeId, $snapshotKey),
         ];
 
         return [

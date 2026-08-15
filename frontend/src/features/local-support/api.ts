@@ -66,13 +66,28 @@ export interface ConnectLocalTenantPayload {
   local_email: string;
   local_user_name?: string;
   local_password: string;
+  selected_tenant_ids?: number[];
+}
+
+export interface PairingPreviewTenant {
+  id: number;
+  name: string;
+  slug: string;
+  parent_id: number | null;
+  is_group: boolean;
+}
+
+export interface PairingPreviewResult {
+  group?: PairingPreviewTenant;
+  tenant?: PairingPreviewTenant;
+  tenants: PairingPreviewTenant[];
 }
 
 export interface ConnectLocalTenantResult {
   tenant?: { name: string; slug: string };
   group?: { name: string; slug: string } | null;
   tenants?: { tenant: { name: string; slug: string } }[];
-  download: { status: 'started'; message: string };
+  download: { status: 'started' | 'completed'; message: string };
   worker?: { output: string; status: LocalWorkerStatus };
 }
 
@@ -84,6 +99,10 @@ export function localWorkerLabel(worker: LocalWorkerStatus): string {
   }
 
   return worker.active ? 'Worker activo' : 'Worker detenido';
+}
+
+export function normalizeSelectedTenantIds(ids: number[]): number[] {
+  return [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
 }
 
 export function useLocalSupportStatus() {
@@ -102,10 +121,17 @@ export function useConnectLocalTenant() {
         '/local-support/connect',
         payload,
         {
-          timeout: 45_000,
+          timeout: 180_000,
         },
       ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: localSupportKey }),
+  });
+}
+
+export function usePreviewPairingCode() {
+  return useMutation({
+    mutationFn: (code: string) =>
+      postOne<{ code: string }, PairingPreviewResult>('/sync/pairing-codes/preview', { code }),
   });
 }
 

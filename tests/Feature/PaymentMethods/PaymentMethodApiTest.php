@@ -34,12 +34,20 @@ class PaymentMethodApiTest extends TestCase
                 'method' => PosPayment::METHOD_MOBILE_PAYMENT,
                 'currency_mode' => PaymentMethod::CURRENCY_VES,
                 'requires_reference' => true,
+                'report_code' => 'PM',
+                'report_label' => 'P.M.',
+                'report_visible' => true,
+                'report_sort_order' => 3,
                 'sort_order' => 10,
             ])
             ->assertCreated()
             ->assertJsonPath('data.code', 'PM-VES')
             ->assertJsonPath('data.currency_mode', PaymentMethod::CURRENCY_VES)
-            ->assertJsonPath('data.requires_reference', true);
+            ->assertJsonPath('data.requires_reference', true)
+            ->assertJsonPath('data.report_code', 'PM')
+            ->assertJsonPath('data.report_label', 'P.M.')
+            ->assertJsonPath('data.report_visible', true)
+            ->assertJsonPath('data.report_sort_order', 3);
 
         $id = $response->json('data.id');
 
@@ -49,10 +57,14 @@ class PaymentMethodApiTest extends TestCase
             ->patchJson("/api/payment-methods/{$id}", [
                 'name' => 'Pago móvil bancario',
                 'is_active' => false,
+                'report_label' => 'Pago movil',
+                'report_visible' => false,
             ])
             ->assertOk()
             ->assertJsonPath('data.name', 'Pago móvil bancario')
-            ->assertJsonPath('data.is_active', false);
+            ->assertJsonPath('data.is_active', false)
+            ->assertJsonPath('data.report_label', 'Pago movil')
+            ->assertJsonPath('data.report_visible', false);
 
         $this
             ->actingAs($user)

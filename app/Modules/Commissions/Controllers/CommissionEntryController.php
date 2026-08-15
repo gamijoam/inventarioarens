@@ -59,7 +59,76 @@ class CommissionEntryController extends Controller
                 'pending_base_amount' => number_format($pending, 4, '.', ''),
                 'approved_base_amount' => number_format($approved, 4, '.', ''),
                 'paid_base_amount' => number_format($paid, 4, '.', ''),
+                ...$this->paymentSummary($entries),
             ],
         ]);
+    }
+
+    private function paymentSummary($entries): array
+    {
+        $totals = [
+            'total_usd' => 0.0,
+            'total_ves' => 0.0,
+            'available_usd' => 0.0,
+            'available_ves' => 0.0,
+            'approved_usd' => 0.0,
+            'approved_ves' => 0.0,
+            'paid_usd' => 0.0,
+            'paid_ves' => 0.0,
+        ];
+        $payables = [];
+
+        foreach ($entries as $entry) {
+            $amounts = $this->entryCurrencyAmounts($entry);
+            $totals['total_usd'] += $amounts['usd'];
+            $totals['total_ves'] += $amounts['ves'];
+
+            foreach (['available', 'approved', 'paid'] as $status) {
+                if ($entry->status === $status) {
+                    $totals[$status.'_usd'] += $amounts['usd'];
+                    $totals[$status.'_ves'] += $amounts['ves'];
+                }
+            }
+
+            $userId = (int) $entry->beneficiary_user_id;
+            $payables[$userId] ??= [
+                'user_id' => $userId,
+                'name' => $entry->beneficiary?->name ?? 'Sin beneficiario',
+                'email' => $entry->beneficiary?->email,
+                'available_usd' => 0.0,
+                'available_ves' => 0.0,
+                'approved_usd' => 0.0,
+                'approved_ves' => 0.0,
+                'paid_usd' => 0.0,
+                'paid_ves' => 0.0,
+                'total_usd' => 0.0,
+                'total_ves' => 0.0,
+            ];
+            $payables[$userId]['total_usd'] += $amounts['usd'];
+            $payables[$userId]['total_ves'] += $amounts['ves'];
+
+            if (in_array($entry->status, ['available', 'approved', 'paid'], true)) {
+                $payables[$userId][$entry->status.'_usd'] += $amounts['usd'];
+                $payables[$userId][$entry->status.'_ves'] += $amounts['ves'];
+            }
+        }
+
+        return [
+            'currency_breakdown' => collect($totals)->map(fn (float $amount): string => number_format($amount, 4, '.', ''))->all(),
+            'payables' => collect($payables)->map(function (array $payable): array {
+                return collect($payable)->map(function ($value, string $key) {
+                    return is_float($value) ? number_format($value, 4, '.', '') : $value;
+                })->all();
+            })->values()->all(),
+        ];
+    }
+
+    private function entryCurrencyAmounts(CommissionEntry $entry): array
+    {
+        $baseAmount = (float) $entry->commission_base_amount;
+
+        return $entry->sale_currency === 'VES' && (float) $entry->exchange_rate > 0
+            ? ['usd' => 0.0, 'ves' => $baseAmount * (float) $entry->exchange_rate]
+            : ['usd' => $baseAmount, 'ves' => 0.0];
     }
 }

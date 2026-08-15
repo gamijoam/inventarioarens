@@ -5,6 +5,7 @@ import { api, deleteOne, getMany, patchOne, postOne } from '@/api/client';
 import {
   CommissionPlanInputSchema,
   CommissionPlanSchema,
+  CommissionControlSchema,
   CommissionLedgerSchema,
   CommissionEntrySchema,
   CommissionSettlementSchema,
@@ -17,6 +18,7 @@ import {
   type CommissionAdjustmentInput,
   type CommissionSettlement,
   type CommissionSettlementInput,
+  type CommissionControl,
 } from './schemas';
 
 export const commissionKeys = {
@@ -28,7 +30,9 @@ export async function fetchCommissionPlans(): Promise<CommissionPlan[]> {
   return z.array(CommissionPlanSchema).parse(await getMany<unknown>('/commission-plans'));
 }
 
-export async function simulateCommission(input: CommissionSimulationInput): Promise<CommissionSimulation> {
+export async function simulateCommission(
+  input: CommissionSimulationInput,
+): Promise<CommissionSimulation> {
   return CommissionSimulationSchema.parse(
     await postOne<CommissionSimulationInput, unknown>('/commissions/simulate', input),
   );
@@ -39,13 +43,32 @@ export async function fetchCommissionEntries(ownOnly: boolean): Promise<Commissi
   return CommissionLedgerSchema.parse(response.data);
 }
 
+export interface CommissionControlFilters {
+  date_from?: string;
+  date_to?: string;
+  user_id?: number;
+  cashier_id?: number;
+  payment_method_id?: number;
+}
+
+export async function fetchCommissionControl(
+  filters: CommissionControlFilters = {},
+): Promise<CommissionControl> {
+  const response = await api.get('/commissions/control', { params: filters });
+  return CommissionControlSchema.parse(response.data);
+}
+
 export async function approveCommissionEntries(entryIds: number[]) {
   return z.array(CommissionEntrySchema).parse(
-    await postOne<{ entry_ids: number[] }, unknown>('/commissions/approve', { entry_ids: entryIds }),
+    await postOne<{ entry_ids: number[] }, unknown>('/commissions/approve', {
+      entry_ids: entryIds,
+    }),
   );
 }
 
-export async function createCommissionSettlement(input: CommissionSettlementInput): Promise<CommissionSettlement> {
+export async function createCommissionSettlement(
+  input: CommissionSettlementInput,
+): Promise<CommissionSettlement> {
   return CommissionSettlementSchema.parse(
     await postOne<CommissionSettlementInput, unknown>('/commission-settlements', input),
   );
@@ -78,11 +101,21 @@ export function useCommissionEntries(ownOnly: boolean) {
   });
 }
 
+export function useCommissionControl(filters: CommissionControlFilters = {}) {
+  return useQuery({
+    queryKey: [...commissionKeys.all, 'control', filters],
+    queryFn: () => fetchCommissionControl(filters),
+  });
+}
+
 export function useCreateCommissionPlan() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CommissionPlanInput) =>
-      postOne<CommissionPlanInput, CommissionPlan>('/commission-plans', CommissionPlanInputSchema.parse(input)),
+      postOne<CommissionPlanInput, CommissionPlan>(
+        '/commission-plans',
+        CommissionPlanInputSchema.parse(input),
+      ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: commissionKeys.all }),
   });
 }
@@ -91,7 +124,10 @@ export function useUpdateCommissionPlan() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...input }: CommissionPlanInput & { id: number }) =>
-      patchOne<CommissionPlanInput, CommissionPlan>(`/commission-plans/${id}`, CommissionPlanInputSchema.parse(input)),
+      patchOne<CommissionPlanInput, CommissionPlan>(
+        `/commission-plans/${id}`,
+        CommissionPlanInputSchema.parse(input),
+      ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: commissionKeys.all }),
   });
 }
