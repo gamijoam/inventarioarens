@@ -18,6 +18,7 @@ interface PromotionsPanelProps {
   selectedComboIds?: number[];
   onSelectCombo?: (promotion: Promotion, sets: number) => void;
   onSelectProductOffer?: (promotion: Promotion) => void;
+  view?: 'all' | 'invoice' | 'combo' | 'product_offer';
   isLoading?: boolean;
   error?: string | null;
 }
@@ -34,6 +35,7 @@ export function PromotionsPanel({
   selectedComboIds = [],
   onSelectCombo,
   onSelectProductOffer,
+  view = 'all',
   isLoading = false,
   error = null,
 }: PromotionsPanelProps) {
@@ -59,10 +61,13 @@ export function PromotionsPanel({
     combos ??
     legacyPromotions.filter((promotion) => !isInvoiceDiscountType(promotion.benefit_type));
   const offerPromotions = productOffers ?? [];
+  const visibleDiscounts = view === 'all' || view === 'invoice' ? discounts : [];
+  const visibleCombos = view === 'all' || view === 'combo' ? comboPromotions : [];
+  const visibleOffers = view === 'all' || view === 'product_offer' ? offerPromotions : [];
   const hasExplicitDomains =
     invoicePromotions !== undefined || combos !== undefined || productOffers !== undefined;
   const availableCount = hasExplicitDomains
-    ? discounts.length + comboPromotions.length + offerPromotions.length
+    ? visibleDiscounts.length + visibleCombos.length + visibleOffers.length
     : legacyPromotions.length;
 
   if (availableCount === 0) {
@@ -77,9 +82,9 @@ export function PromotionsPanel({
 
   return (
     <div>
-      {discounts.length > 0 && (
+      {visibleDiscounts.length > 0 && (
         <PromotionSection title="Descuentos de factura">
-          {discounts.map((promotion) => {
+          {visibleDiscounts.map((promotion) => {
             const selected = (selectedInvoiceId ?? selectedId ?? null) === promotion.id;
 
             return (
@@ -95,7 +100,7 @@ export function PromotionsPanel({
         </PromotionSection>
       )}
 
-      {comboPromotions.length > 0 && (
+      {visibleCombos.length > 0 && (
         <PromotionSection
           title={hasExplicitDomains ? 'Combos' : 'Combos y promociones de productos'}
         >
@@ -118,7 +123,7 @@ export function PromotionsPanel({
               aria-label="Cantidad de conjuntos"
             />
           </div>
-          {comboPromotions.map((promotion) => {
+          {visibleCombos.map((promotion) => {
             const selected = selectedComboIds.includes(promotion.id) || selectedId === promotion.id;
 
             return (
@@ -133,9 +138,9 @@ export function PromotionsPanel({
           })}
         </PromotionSection>
       )}
-      {offerPromotions.length > 0 && (
+      {visibleOffers.length > 0 && (
         <PromotionSection title="Ofertas por producto">
-          {offerPromotions.map((promotion) => (
+          {visibleOffers.map((promotion) => (
             <PromotionCard
               key={promotion.id}
               promotion={promotion}
