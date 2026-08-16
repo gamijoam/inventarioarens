@@ -162,6 +162,18 @@ export function shouldApplyInvoicePromotion(
   return promotion !== null && !hasPendingOrder;
 }
 
+export function resolvePendingPromotionTotal(
+  currentTotal: number,
+  promotionBeforeAmount: number | null | undefined,
+  decision: 'validate' | 'reject' | null,
+): number {
+  if (decision === 'reject' && promotionBeforeAmount != null) {
+    return roundMoney(Number(promotionBeforeAmount));
+  }
+
+  return roundMoney(currentTotal);
+}
+
 /**
  * Calcula el precio unitario (USD) que debe MOSTRAR una linea del carrito
  * cuando pertenece a una promocion cargada.

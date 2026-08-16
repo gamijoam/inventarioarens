@@ -11,6 +11,7 @@ import {
   lineTotal,
   missingSerialIssue,
   shouldApplyInvoicePromotion,
+  resolvePendingPromotionTotal,
   type PosCartLine,
 } from '../posLogic';
 
@@ -50,6 +51,12 @@ describe('POS cart logic', () => {
 
     expect(shouldApplyInvoicePromotion(promotion, false)).toBe(true);
     expect(shouldApplyInvoicePromotion(promotion, true)).toBe(false);
+  });
+
+  it('restaura el total original cuando se rechaza la promocion pendiente', () => {
+    expect(resolvePendingPromotionTotal(90, 100, 'validate')).toBe(90);
+    expect(resolvePendingPromotionTotal(90, 100, 'reject')).toBe(100);
+    expect(resolvePendingPromotionTotal(90, null, 'reject')).toBe(90);
   });
 
   it('calcula pagos mixtos y vuelto de efectivo', () => {
