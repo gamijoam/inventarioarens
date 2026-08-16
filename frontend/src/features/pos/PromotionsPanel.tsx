@@ -78,7 +78,12 @@ export function PromotionsPanel({
                   </div>
                   <div className="min-w-0">
                     <h3 className="truncate font-semibold">{promotion.name}</h3>
-                    {promotion.code && <Badge variant="info">{promotion.code}</Badge>}
+                    <div className="flex flex-wrap gap-1">
+                      {promotion.code && <Badge variant="info">{promotion.code}</Badge>}
+                      {promotion.benefit_type === 'buy_x_get_y' && (
+                        <Badge variant="success">2x1</Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <strong className="shrink-0 text-lg">{formatPromotionValue(promotion)}</strong>

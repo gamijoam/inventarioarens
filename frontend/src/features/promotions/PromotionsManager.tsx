@@ -309,7 +309,7 @@ function PromotionFormDialog({
                   : isFreeItem
                     ? 'Define productos que se entregarán gratis.'
                     : isBuyGet
-                      ? 'Define qué productos activan y cuáles se entregan gratis.'
+                      ? 'Configura un 2x1: define qué producto se compra y cuál se entrega gratis.'
                       : 'Define un combo con precio total configurable en USD.'}
           </DialogDescription>
         </DialogHeader>
@@ -346,7 +346,7 @@ function PromotionFormDialog({
                 <option value="fixed_discount">Descuento fijo USD</option>
                 <option value="fixed_item_price">Precio fijo por artículo</option>
                 <option value="free_item">Artículo gratis</option>
-                <option value="buy_x_get_y">Compra X y recibe Y</option>
+                <option value="buy_x_get_y">2x1 / Compra X y recibe Y</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -433,7 +433,7 @@ function PromotionFormDialog({
           <div className="border-border rounded-lg border p-3">
             <p className="text-text-muted mb-2 text-xs font-semibold uppercase">
               {isBuyGet
-                ? 'Compra X / recibe Y'
+                ? '2x1: compra X / recibe Y'
                 : isPercentage || isFixedDiscount || isFixedItemPrice || isFreeItem
                   ? 'Productos elegibles'
                   : 'Componentes del combo'}
@@ -550,7 +550,7 @@ function benefitTypeLabel(type: Promotion['benefit_type']): string {
         : type === 'free_item'
           ? 'Artículo gratis'
           : type === 'buy_x_get_y'
-            ? 'Compra X y recibe Y'
+            ? '2x1 / Compra X y recibe Y'
             : 'Combo con precio fijo';
 }
 
@@ -564,6 +564,6 @@ function formatPromotionValue(promotion: Promotion): string {
         : promotion.benefit_type === 'free_item'
           ? 'GRATIS'
           : promotion.benefit_type === 'buy_x_get_y'
-            ? 'COMPRA / REGALO'
+            ? '2x1'
             : `$${promotion.price_usd.toFixed(2)}`;
 }
