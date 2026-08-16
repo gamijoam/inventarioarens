@@ -52,4 +52,22 @@ describe('PromotionsPanel', () => {
 
     expect(onSelect).toHaveBeenCalledWith(promotion, 5);
   });
+
+  it('identifica visualmente una promocion 2x1', () => {
+    render(
+      <PromotionsPanel
+        promotions={[
+          {
+            ...promotion,
+            benefit_type: 'buy_x_get_y',
+            code: 'PHONE-2X1',
+          },
+        ]}
+        selectedId={null}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('2x1')).toBeInTheDocument();
+  });
 });
