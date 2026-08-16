@@ -16,6 +16,7 @@ class PromotionResource extends JsonResource
             'code' => $this->code,
             'benefit_type' => $this->benefit_type,
             'price_currency' => $this->price_currency,
+            'payment_currency' => $this->payment_currency,
             'price_usd' => $this->price_usd === null ? null : (float) $this->price_usd,
             'discount_percent' => $this->discount_percent === null ? null : (float) $this->discount_percent,
             'discount_amount_usd' => $this->discount_amount_usd === null ? null : (float) $this->discount_amount_usd,

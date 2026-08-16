@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
     'code',
     'benefit_type',
     'price_currency',
+    'payment_currency',
     'price_usd',
     'discount_percent',
     'discount_amount_usd',
@@ -39,6 +40,10 @@ class Promotion extends Model
     public const BENEFIT_BUY_X_GET_Y = 'buy_x_get_y';
 
     public const PRICE_CURRENCY_USD = 'USD';
+
+    public const PAYMENT_CURRENCY_ANY = 'ANY';
+
+    public const PAYMENT_CURRENCY_VES = 'VES';
 
     public function items(): HasMany
     {

@@ -10,6 +10,7 @@
 - Las promociones pueden aplicarse por identificador o por codigo.
 - Las ventas pendientes conservan la promocion aplicada al momento de crearlas.
 - Las promociones se sincronizan entre nube y nodos locales.
+- Una promocion puede aceptar cualquier moneda de pago o exigir que el pago completo sea en VES.
 
 ## Endpoints del contrato
 
@@ -37,6 +38,10 @@ El checkout acepta como maximo una promocion seleccionada:
 `promotion_id` se usa cuando el cajero selecciona una promocion desde el POS.
 `promotion_code` se usa cuando el cajero introduce un codigo manualmente. Si se
 envian ambos, deben referirse a la misma promocion.
+
+La configuracion opcional `payment_currency` acepta `ANY` o `VES`. Cuando vale
+`VES`, todos los pagos capturados o pendientes de la orden deben estar en
+bolivares; los pagos USD o mixtos se rechazan.
 
 ## Beneficios previstos
 
@@ -110,6 +115,7 @@ no se reutiliza para promociones automaticas.
 - calcular conjuntos completos de `buy_x_get_y` con componentes `trigger` y `reward`;
 - rechazar `buy_x_get_y` cuando falta la recompensa en el carrito;
 - rechazar promocion de otro tenant, vencida o incompatible;
+- rechazar una promocion restringida a VES cuando el pago es USD o mixto;
 - registrar precio final y snapshot por linea;
 - descontar stock y validar IMEIs;
 - preservar montos base/locales y tasa.
@@ -125,6 +131,7 @@ no se reutiliza para promociones automaticas.
 - emitir outbox al crear, actualizar, activar, desactivar o eliminar;
 - aplicar eventos idempotentemente en el nodo local;
 - mantener la promocion disponible offline hasta recibir cambios de nube.
+- sincronizar la condicion de moneda de pago.
 
 ## Tests iniciales
 

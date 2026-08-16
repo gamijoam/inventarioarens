@@ -110,6 +110,90 @@ class PosPromotionCheckoutTest extends TestCase
         $this->assertSame(25.0, (float) $phoneEventItem['promotion_discount_percent']);
     }
 
+    public function test_checkout_rejects_usd_payment_for_a_ves_only_promotion(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
+        $promotion = $this->createPercentagePromotion($tenant, $cashier, $phone, 10, 'PHONE-VES');
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson('/api/promotions/'.$promotion['id'], ['payment_currency' => 'VES'])
+            ->assertOk();
+
+        $this->checkout($tenant, $cashier, [
+            'promotion_id' => $promotion['id'],
+            'items' => $this->bundleItems($warehouse, $phone, $charger),
+            'payments' => [$this->cashPayment(51)],
+            'cash_register_session_id' => $session->id,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments']);
+
+        $this->assertDatabaseMissing('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+        ]);
+    }
+
+    public function test_checkout_accepts_a_ves_only_promotion_when_the_full_payment_is_in_ves(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
+        $promotion = $this->createPercentagePromotion($tenant, $cashier, $phone, 10, 'PHONE-VES-OK');
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson('/api/promotions/'.$promotion['id'], ['payment_currency' => 'VES'])
+            ->assertOk();
+
+        $response = $this->checkout($tenant, $cashier, [
+            'promotion_id' => $promotion['id'],
+            'items' => $this->bundleItems($warehouse, $phone, $charger),
+            'payments' => [$this->cashPaymentInCurrency(5050, Product::CURRENCY_VES)],
+            'cash_register_session_id' => $session->id,
+        ])->assertCreated();
+
+        $this->assertSame(51.0, (float) $response->json('data.sale.total_base_amount'));
+        $this->assertSame(Product::CURRENCY_VES, $response->json('data.payments.0.currency'));
+    }
+
+    public function test_pending_order_rejects_usd_payment_for_a_ves_only_promotion(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
+        $promotion = $this->createPercentagePromotion($tenant, $cashier, $phone, 10, 'PENDING-VES');
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson('/api/promotions/'.$promotion['id'], ['payment_currency' => 'VES'])
+            ->assertOk();
+
+        $pending = $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'promotion_id' => $promotion['id'],
+                'items' => $this->bundleItems($warehouse, $phone, $charger),
+            ])
+            ->assertCreated();
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders/'.$pending->json('data.id').'/payments', [
+                'cash_register_session_id' => $session->id,
+                'payments' => [$this->cashPayment(51)],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payments']);
+
+        $this->assertDatabaseHas('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'id' => $pending->json('data.id'),
+            'status' => PosOrder::STATUS_OPEN,
+        ]);
+    }
+
     public function test_checkout_distributes_fixed_discount_across_eligible_products(): void
     {
         [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
@@ -429,6 +513,7 @@ class PosPromotionCheckoutTest extends TestCase
             'promotions.update',
             'pos.promotions.apply',
             'pos.promotions.code',
+            'pos.orders.hold',
             'pos.checkout',
             'pos.view',
         ]);
@@ -668,9 +753,14 @@ class PosPromotionCheckoutTest extends TestCase
 
     private function cashPayment(float $amount): array
     {
+        return $this->cashPaymentInCurrency($amount, Product::CURRENCY_USD);
+    }
+
+    private function cashPaymentInCurrency(float $amount, string $currency): array
+    {
         return [
             'method' => PosPayment::METHOD_CASH,
-            'currency' => Product::CURRENCY_USD,
+            'currency' => $currency,
             'amount' => $amount,
         ];
     }

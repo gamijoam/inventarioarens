@@ -75,6 +75,16 @@ describe('PromotionsManager', () => {
     expect(screen.getByText('Productos elegibles')).toBeInTheDocument();
   });
 
+  it('permite restringir la promoción a pagos completos en VES', () => {
+    render(<PromotionsManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva promoción' }));
+    fireEvent.change(screen.getByLabelText('Moneda de pago'), { target: { value: 'VES' } });
+
+    expect(screen.getByLabelText('Moneda de pago')).toHaveValue('VES');
+    expect(screen.getByText(/pago completo sea en bolívares/i)).toBeInTheDocument();
+  });
+
   it('permite cambiar el formulario a precio fijo por articulo', () => {
     render(<PromotionsManager />);
 

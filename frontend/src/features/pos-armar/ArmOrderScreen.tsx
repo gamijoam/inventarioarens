@@ -704,7 +704,10 @@ export function ArmOrderScreen() {
                 <Button
                   variant={selectedPromotion ? 'secondary' : 'outline'}
                   className="mt-3 w-full"
-                  onClick={() => setPromotionDialogOpen(true)}
+                  onClick={() => {
+                    setPromotionDialogOpen(true);
+                    void availablePromotions.refetch();
+                  }}
                   disabled={warehouseId === null}
                 >
                   <Tag className="size-4" />

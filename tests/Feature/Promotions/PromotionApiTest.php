@@ -140,6 +140,38 @@ class PromotionApiTest extends TestCase
         $this->assertSame(25.0, (float) $event->payload['discount_percent']);
     }
 
+    public function test_administrator_can_restrict_a_promotion_to_ves_payments(): void
+    {
+        [$tenant, $admin] = $this->tenantAndUser(['promotions.create']);
+        [, $phone] = $this->bundleProducts($tenant);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/promotions', [
+                'name' => 'Descuento solo VES',
+                'code' => 'VES-10',
+                'benefit_type' => 'percent_discount',
+                'payment_currency' => 'VES',
+                'discount_percent' => 10,
+                'items' => [['product_id' => $phone->id, 'quantity' => 1]],
+            ])
+            ->assertCreated();
+
+        $this->assertSame('VES', $response->json('data.payment_currency'));
+        $this->assertDatabaseHas('promotions', [
+            'tenant_id' => $tenant->id,
+            'code' => 'VES-10',
+            'payment_currency' => 'VES',
+        ]);
+        $event = SyncOutbox::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'promotion.created')
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertSame('VES', $event->payload['payment_currency']);
+    }
+
     public function test_percentage_discount_must_be_between_zero_and_one_hundred(): void
     {
         [$tenant, $admin] = $this->tenantAndUser(['promotions.create']);

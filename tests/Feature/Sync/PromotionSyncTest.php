@@ -30,6 +30,7 @@ class PromotionSyncTest extends TestCase
             'code' => 'SYNC-COMBO',
             'benefit_type' => Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
             'price_currency' => 'USD',
+            'payment_currency' => 'VES',
             'price_usd' => '50.0000',
             'priority' => 25,
             'is_active' => true,
@@ -62,6 +63,7 @@ class PromotionSyncTest extends TestCase
             'tenant_id' => $tenant->id,
             'code' => 'SYNC-COMBO',
             'price_usd' => '50.0000',
+            'payment_currency' => 'VES',
         ]);
         $promotionId = DB::table('promotions')
             ->where('tenant_id', $tenant->id)

@@ -76,7 +76,7 @@ class PosCheckoutService
 
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
-                $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode);
+                $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode, $payments);
                 $priceLists = $this->priceListsForItems($items);
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
@@ -287,6 +287,17 @@ class PosCheckoutService
                         'order' => 'La venta asociada ya no esta disponible para completar cobro.',
                     ]);
                 }
+
+                $existingPayments = $order->payments
+                    ->map(fn (PosPayment $payment): array => [
+                        'currency' => $payment->currency,
+                        'status' => $payment->status,
+                    ])
+                    ->all();
+                $this->promotions->assertPaymentCurrencyAllowedForPromotions(
+                    $order->sale->items->pluck('promotion_id')->filter()->unique()->values()->all(),
+                    array_merge($existingPayments, $payments),
+                );
 
                 $this->applyChargeItemsToSale($order, $chargeItems);
 
