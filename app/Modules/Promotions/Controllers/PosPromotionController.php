@@ -24,6 +24,7 @@ class PosPromotionController extends Controller
 
         $promotions = Promotion::query()
             ->with(['items.product'])
+            ->when($scope = $request->route('promotion_scope'), fn ($query) => $query->where('scope', $scope))
             ->activeAt()
             ->orderByDesc('priority')
             ->orderBy('id')

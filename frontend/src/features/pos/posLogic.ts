@@ -36,6 +36,7 @@ export interface PosCartLine {
   promotion_id?: number | null;
   promotion_code?: string | null;
   promotion_benefit_type?: string | null;
+  combo_instance_uuid?: string | null;
   /**
    * Tasa de cambio asociada a esta linea. Viene del `quote` que retorna
    * `GET /products/{id}/price` y refleja la tasa anclada al producto
@@ -110,6 +111,7 @@ export interface VariantMatchInput {
   product_id: number;
   warehouse_id: number;
   product_variant_id?: number | null;
+  combo_instance_uuid?: string | null;
 }
 
 /**
@@ -125,7 +127,8 @@ export function findMatchingVariantLine(
     (line) =>
       line.product_id === input.product_id &&
       line.warehouse_id === input.warehouse_id &&
-      (line.product_variant_id ?? null) === (input.product_variant_id ?? null),
+      (line.product_variant_id ?? null) === (input.product_variant_id ?? null) &&
+      (line.combo_instance_uuid ?? null) === (input.combo_instance_uuid ?? null),
   );
 }
 

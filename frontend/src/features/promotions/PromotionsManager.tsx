@@ -13,36 +13,42 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useProducts } from '@/features/inventory-center/api';
-import { useCreatePromotion, useDeletePromotion, usePromotions, useUpdatePromotion } from './api';
+
+import {
+  useCombos,
+  useCreateCombo,
+  useCreateInvoicePromotion,
+  useCreateProductOffer,
+  useDeleteCombo,
+  useDeleteInvoicePromotion,
+  useDeleteProductOffer,
+  useInvoicePromotions,
+  useProductOffers,
+  useUpdateCombo,
+  useUpdateInvoicePromotion,
+  useUpdateProductOffer,
+} from './api';
 import {
   StorePromotionSchema,
   type Promotion,
   type PromotionBenefitType,
+  type PromotionDomain,
   type PromotionPaymentCurrency,
   type StorePromotionInput,
 } from './schemas';
 
-type SupportedBenefitType = Extract<
-  PromotionBenefitType,
-  | 'percent_discount'
-  | 'fixed_discount'
-  | 'fixed_item_price'
-  | 'free_item'
-  | 'buy_x_get_y'
-  | 'fixed_bundle_price'
->;
 type PromotionItemRole = 'eligible' | 'trigger' | 'reward';
 
 interface PromotionFormState {
   name: string;
   code: string;
-  benefit_type: SupportedBenefitType;
+  benefit_type: PromotionBenefitType;
   payment_currency: PromotionPaymentCurrency;
+  allows_combos: boolean;
   price_usd: string;
   discount_percent: string;
   discount_amount_usd: string;
@@ -51,43 +57,230 @@ interface PromotionFormState {
   items: { product_id: number; quantity: number; item_role: PromotionItemRole }[];
 }
 
-const emptyForm: PromotionFormState = {
-  name: '',
-  code: '',
-  benefit_type: 'fixed_bundle_price',
-  payment_currency: 'ANY',
-  price_usd: '',
-  discount_percent: '',
-  discount_amount_usd: '',
-  priority: '0',
-  is_active: true,
-  items: [],
+interface SelectedPromotion {
+  domain: PromotionDomain;
+  promotion: Promotion;
+}
+
+interface PromotionDomainConfig {
+  title: string;
+  createLabel: string;
+  createSubmitLabel: string;
+  emptyLabel: string;
+  benefitTypes: PromotionBenefitType[];
+}
+
+const domainConfig: Record<PromotionDomain, PromotionDomainConfig> = {
+  invoice: {
+    title: 'Descuentos de factura',
+    createLabel: 'Nuevo descuento de factura',
+    createSubmitLabel: 'Crear descuento de factura',
+    emptyLabel: 'No hay descuentos de factura configurados.',
+    benefitTypes: ['percent_discount', 'fixed_discount'],
+  },
+  combo: {
+    title: 'Combos',
+    createLabel: 'Nuevo combo',
+    createSubmitLabel: 'Crear combo',
+    emptyLabel: 'No hay combos configurados.',
+    benefitTypes: ['fixed_bundle_price', 'buy_x_get_y'],
+  },
+  product_offer: {
+    title: 'Ofertas de productos',
+    createLabel: 'Nueva oferta de producto',
+    createSubmitLabel: 'Crear oferta de producto',
+    emptyLabel: 'No hay ofertas de productos configuradas.',
+    benefitTypes: ['fixed_item_price', 'free_item'],
+  },
 };
 
-export function PromotionsManager() {
-  const { data: promotions = [], isLoading } = usePromotions(false);
-  const create = useCreatePromotion();
-  const update = useUpdatePromotion();
-  const remove = useDeletePromotion();
-  const [editing, setEditing] = useState<Promotion | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [deleting, setDeleting] = useState<Promotion | null>(null);
+function emptyForm(domain: PromotionDomain): PromotionFormState {
+  return {
+    name: '',
+    code: '',
+    benefit_type:
+      domain === 'invoice'
+        ? 'percent_discount'
+        : domain === 'combo'
+          ? 'fixed_bundle_price'
+          : 'fixed_item_price',
+    payment_currency: 'ANY',
+    allows_combos: false,
+    price_usd: '',
+    discount_percent: '',
+    discount_amount_usd: '',
+    priority: '0',
+    is_active: true,
+    items: [],
+  };
+}
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
+export function PromotionsManager() {
+  const invoices = useInvoicePromotions();
+  const combos = useCombos();
+  const productOffers = useProductOffers();
+  const createInvoice = useCreateInvoicePromotion();
+  const updateInvoice = useUpdateInvoicePromotion();
+  const deleteInvoice = useDeleteInvoicePromotion();
+  const createCombo = useCreateCombo();
+  const updateCombo = useUpdateCombo();
+  const deleteCombo = useDeleteCombo();
+  const createProductOffer = useCreateProductOffer();
+  const updateProductOffer = useUpdateProductOffer();
+  const deleteProductOffer = useDeleteProductOffer();
+  const [form, setForm] = useState<{ domain: PromotionDomain; promotion: Promotion | null } | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState<SelectedPromotion | null>(null);
+
+  if (invoices.isLoading || combos.isLoading || productOffers.isLoading) {
+    return <Skeleton className="h-40 w-full" />;
+  }
+
+  async function savePromotion(
+    domain: PromotionDomain,
+    promotion: Promotion | null,
+    values: StorePromotionInput,
+  ): Promise<void> {
+    if (domain === 'invoice') {
+      await (promotion
+        ? updateInvoice.mutateAsync({ id: promotion.id, ...values })
+        : createInvoice.mutateAsync(values));
+    } else if (domain === 'combo') {
+      await (promotion
+        ? updateCombo.mutateAsync({ id: promotion.id, ...values })
+        : createCombo.mutateAsync(values));
+    } else {
+      await (promotion
+        ? updateProductOffer.mutateAsync({ id: promotion.id, ...values })
+        : createProductOffer.mutateAsync(values));
+    }
+  }
+
+  async function deletePromotion(selected: SelectedPromotion): Promise<void> {
+    if (selected.domain === 'invoice') {
+      await deleteInvoice.mutateAsync(selected.promotion.id);
+    } else if (selected.domain === 'combo') {
+      await deleteCombo.mutateAsync(selected.promotion.id);
+    } else {
+      await deleteProductOffer.mutateAsync(selected.promotion.id);
+    }
+  }
+
+  const savePending = form
+    ? form.domain === 'invoice'
+      ? createInvoice.isPending || updateInvoice.isPending
+      : form.domain === 'combo'
+        ? createCombo.isPending || updateCombo.isPending
+        : createProductOffer.isPending || updateProductOffer.isPending
+    : false;
+  const deletePending = deleting
+    ? deleting.domain === 'invoice'
+      ? deleteInvoice.isPending
+      : deleting.domain === 'combo'
+        ? deleteCombo.isPending
+        : deleteProductOffer.isPending
+    : false;
 
   return (
     <>
-      <div className="flex justify-end">
-        <Button size="sm" leftIcon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
-          Nueva promoción
-        </Button>
+      <div className="space-y-5">
+        <PromotionSection
+          domain="invoice"
+          promotions={invoices.data ?? []}
+          onCreate={() => setForm({ domain: 'invoice', promotion: null })}
+          onEdit={(promotion) => setForm({ domain: 'invoice', promotion })}
+          onDelete={(promotion) => setDeleting({ domain: 'invoice', promotion })}
+        />
+        <PromotionSection
+          domain="combo"
+          promotions={combos.data ?? []}
+          onCreate={() => setForm({ domain: 'combo', promotion: null })}
+          onEdit={(promotion) => setForm({ domain: 'combo', promotion })}
+          onDelete={(promotion) => setDeleting({ domain: 'combo', promotion })}
+        />
+        <PromotionSection
+          domain="product_offer"
+          promotions={productOffers.data ?? []}
+          onCreate={() => setForm({ domain: 'product_offer', promotion: null })}
+          onEdit={(promotion) => setForm({ domain: 'product_offer', promotion })}
+          onDelete={(promotion) => setDeleting({ domain: 'product_offer', promotion })}
+        />
       </div>
 
-      {promotions.length === 0 ? (
-        <EmptyState
-          title="Sin promociones"
-          description="Crea un combo o precio especial para mostrarlo en el POS."
+      {form && (
+        <PromotionFormDialog
+          domain={form.domain}
+          promotion={form.promotion}
+          loading={savePending}
+          onClose={() => setForm(null)}
+          onSubmit={async (values) => {
+            try {
+              await savePromotion(form.domain, form.promotion, values);
+              toast.success(form.promotion ? 'Promoción actualizada.' : 'Promoción creada.');
+              setForm(null);
+            } catch (error) {
+              toast.error(
+                error instanceof Error ? error.message : 'No se pudo guardar la promoción.',
+              );
+            }
+          }}
         />
+      )}
+
+      {deleting && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeleting(null);
+          }}
+          title={`Desactivar "${deleting.promotion.name}"`}
+          description="La promoción dejará de aparecer en el POS, pero conservará su historial."
+          confirmLabel="Desactivar"
+          variant="danger"
+          loading={deletePending}
+          onConfirm={async () => {
+            try {
+              await deletePromotion(deleting);
+              setDeleting(null);
+              toast.success('Promoción desactivada.');
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : 'No se pudo desactivar.');
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function PromotionSection({
+  domain,
+  promotions,
+  onCreate,
+  onEdit,
+  onDelete,
+}: {
+  domain: PromotionDomain;
+  promotions: Promotion[];
+  onCreate: () => void;
+  onEdit: (promotion: Promotion) => void;
+  onDelete: (promotion: Promotion) => void;
+}) {
+  const config = domainConfig[domain];
+
+  return (
+    <section>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold tracking-wide uppercase">{config.title}</h3>
+        <Button size="sm" leftIcon={<Plus className="size-4" />} onClick={onCreate}>
+          {config.createLabel}
+        </Button>
+      </div>
+      {promotions.length === 0 ? (
+        <div className="border-border bg-surface text-text-muted rounded-lg border px-4 py-6 text-center text-sm">
+          {config.emptyLabel}
+        </div>
       ) : (
         <div className="border-border bg-surface overflow-x-auto rounded-lg border">
           <table className="table-dense w-full">
@@ -118,10 +311,7 @@ export function PromotionsManager() {
                       size="icon-sm"
                       variant="ghost"
                       aria-label={`Editar ${promotion.name}`}
-                      onClick={() => {
-                        setEditing(promotion);
-                        setFormOpen(true);
-                      }}
+                      onClick={() => onEdit(promotion)}
                     >
                       <Pencil className="size-4" />
                     </Button>
@@ -129,7 +319,7 @@ export function PromotionsManager() {
                       size="icon-sm"
                       variant="ghost"
                       aria-label={`Eliminar ${promotion.name}`}
-                      onClick={() => setDeleting(promotion)}
+                      onClick={() => onDelete(promotion)}
                     >
                       <Trash2 className="text-danger size-4" />
                     </Button>
@@ -140,72 +330,24 @@ export function PromotionsManager() {
           </table>
         </div>
       )}
-
-      {formOpen && (
-        <PromotionFormDialog
-          promotion={editing}
-          loading={create.isPending || update.isPending}
-          onClose={() => {
-            setFormOpen(false);
-            setEditing(null);
-          }}
-          onSubmit={async (values) => {
-            try {
-              if (editing) {
-                await update.mutateAsync({ id: editing.id, ...values });
-                toast.success('Promoción actualizada.');
-              } else {
-                await create.mutateAsync(values);
-                toast.success('Promoción creada.');
-              }
-              setFormOpen(false);
-              setEditing(null);
-            } catch (error) {
-              toast.error(
-                error instanceof Error ? error.message : 'No se pudo guardar la promoción.',
-              );
-            }
-          }}
-        />
-      )}
-
-      {deleting && (
-        <ConfirmDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setDeleting(null);
-          }}
-          title={`Desactivar "${deleting.name}"`}
-          description="La promoción dejará de aparecer en el POS, pero conservará su historial."
-          confirmLabel="Desactivar"
-          variant="danger"
-          loading={remove.isPending}
-          onConfirm={async () => {
-            try {
-              await remove.mutateAsync(deleting.id);
-              setDeleting(null);
-              toast.success('Promoción desactivada.');
-            } catch (error) {
-              toast.error(error instanceof Error ? error.message : 'No se pudo desactivar.');
-            }
-          }}
-        />
-      )}
-    </>
+    </section>
   );
 }
 
 function PromotionFormDialog({
+  domain,
   promotion,
   loading,
   onClose,
   onSubmit,
 }: {
+  domain: PromotionDomain;
   promotion: Promotion | null;
   loading: boolean;
   onClose: () => void;
   onSubmit: (values: StorePromotionInput) => Promise<void>;
 }) {
+  const config = domainConfig[domain];
   const [form, setForm] = useState<PromotionFormState>(() =>
     promotion
       ? {
@@ -213,6 +355,7 @@ function PromotionFormDialog({
           code: promotion.code ?? '',
           benefit_type: promotion.benefit_type,
           payment_currency: promotion.payment_currency ?? 'ANY',
+          allows_combos: promotion.allows_combos ?? false,
           price_usd: String(promotion.price_usd),
           discount_percent:
             promotion.discount_percent == null ? '' : String(promotion.discount_percent),
@@ -226,7 +369,7 @@ function PromotionFormDialog({
             item_role: item.item_role ?? 'eligible',
           })),
         }
-      : emptyForm,
+      : emptyForm(domain),
   );
   const [productSearch, setProductSearch] = useState('');
   const { data: productPage } = useProducts({
@@ -244,7 +387,6 @@ function PromotionFormDialog({
   );
   const isPercentage = form.benefit_type === 'percent_discount';
   const isFixedDiscount = form.benefit_type === 'fixed_discount';
-  const isFixedItemPrice = form.benefit_type === 'fixed_item_price';
   const isFreeItem = form.benefit_type === 'free_item';
   const isBuyGet = form.benefit_type === 'buy_x_get_y';
 
@@ -274,6 +416,7 @@ function PromotionFormDialog({
       benefit_type: form.benefit_type,
       price_currency: 'USD',
       payment_currency: form.payment_currency,
+      allows_combos: domain === 'invoice' && form.allows_combos,
       price_usd:
         isPercentage || isFixedDiscount || isFreeItem || isBuyGet || form.price_usd === ''
           ? null
@@ -286,13 +429,15 @@ function PromotionFormDialog({
           : null,
       priority: Number(form.priority),
       is_active: form.is_active,
-      items: form.items,
+      items: domain === 'invoice' ? [] : form.items,
     });
     if (!result.success) {
       toast.error(
-        isPercentage || isFixedDiscount
-          ? 'Completa el nombre, descuento y al menos un producto.'
-          : 'Completa el nombre, precio y al menos dos productos.',
+        domain === 'invoice'
+          ? 'Completa el nombre y el descuento de factura.'
+          : domain === 'combo'
+            ? 'Completa el nombre, precio y los componentes del combo.'
+            : 'Completa el nombre, precio y al menos un producto.',
       );
       return;
     }
@@ -303,20 +448,10 @@ function PromotionFormDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{promotion ? 'Editar promoción' : 'Nueva promoción'}</DialogTitle>
-          <DialogDescription>
-            {isPercentage
-              ? 'Define un descuento porcentual para productos seleccionados.'
-              : isFixedDiscount
-                ? 'Define un monto fijo de descuento para productos seleccionados.'
-                : isFixedItemPrice
-                  ? 'Define un precio fijo por unidad para productos seleccionados.'
-                  : isFreeItem
-                    ? 'Define productos que se entregarán gratis.'
-                    : isBuyGet
-                      ? 'Configura un 2x1: define qué producto se compra y cuál se entrega gratis.'
-                      : 'Define un combo con precio total configurable en USD.'}
-          </DialogDescription>
+          <DialogTitle>
+            {promotion ? `Editar ${domainLabel(domain)}` : config.createLabel}
+          </DialogTitle>
+          <DialogDescription>{formDescription(form.benefit_type)}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={submit}>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -343,15 +478,14 @@ function PromotionFormDialog({
                 className="border-border bg-surface text-text-primary focus:border-primary h-10 w-full rounded-lg border px-3 text-sm outline-none"
                 value={form.benefit_type}
                 onChange={(event) =>
-                  updateForm({ benefit_type: event.target.value as SupportedBenefitType })
+                  updateForm({ benefit_type: event.target.value as PromotionBenefitType })
                 }
               >
-                <option value="fixed_bundle_price">Combo con precio fijo</option>
-                <option value="percent_discount">Descuento porcentual</option>
-                <option value="fixed_discount">Descuento fijo USD</option>
-                <option value="fixed_item_price">Precio fijo por artículo</option>
-                <option value="free_item">Artículo gratis</option>
-                <option value="buy_x_get_y">2x1 / Compra X y recibe Y</option>
+                {config.benefitTypes.map((benefitType) => (
+                  <option key={benefitType} value={benefitType}>
+                    {benefitTypeLabel(benefitType)}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="space-y-1">
@@ -371,67 +505,7 @@ function PromotionFormDialog({
                 Solo VES exige que el pago completo sea en bolívares, sin pagos mixtos.
               </p>
             </div>
-            <div className="space-y-1">
-              <Label
-                htmlFor={
-                  isPercentage
-                    ? 'promotion-percent'
-                    : isFixedDiscount
-                      ? 'promotion-discount-amount'
-                      : 'promotion-price'
-                }
-              >
-                {isPercentage
-                  ? 'Descuento porcentual'
-                  : isFixedDiscount
-                    ? 'Descuento fijo USD'
-                    : isFixedItemPrice
-                      ? 'Precio por artículo USD'
-                      : isFreeItem
-                        ? 'Precio final'
-                        : 'Precio del combo USD'}
-              </Label>
-              {isPercentage ? (
-                <Input
-                  id="promotion-percent"
-                  type="number"
-                  min="0.01"
-                  max="100"
-                  step="0.01"
-                  value={form.discount_percent}
-                  onChange={(event) => updateForm({ discount_percent: event.target.value })}
-                  placeholder="25"
-                />
-              ) : isFixedDiscount ? (
-                <Input
-                  id="promotion-discount-amount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={form.discount_amount_usd}
-                  onChange={(event) => updateForm({ discount_amount_usd: event.target.value })}
-                  placeholder="10"
-                />
-              ) : isFreeItem ? (
-                <p className="border-border bg-bg text-text-secondary rounded-lg border px-3 py-2 text-sm">
-                  $0.00 por unidad
-                </p>
-              ) : isBuyGet ? (
-                <p className="border-border bg-bg text-text-secondary rounded-lg border px-3 py-2 text-sm">
-                  Precio de recompensa: $0.00
-                </p>
-              ) : (
-                <Input
-                  id="promotion-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.price_usd}
-                  onChange={(event) => updateForm({ price_usd: event.target.value })}
-                />
-              )}
-              {isPercentage && <p className="text-text-muted text-xs">Porcentaje de descuento</p>}
-            </div>
+            <PromotionValueField form={form} updateForm={updateForm} />
             <div className="space-y-1">
               <Label htmlFor="promotion-priority">Prioridad</Label>
               <Input
@@ -442,118 +516,54 @@ function PromotionFormDialog({
                 onChange={(event) => updateForm({ priority: event.target.value })}
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="promotion-product-search">Buscar producto</Label>
-              <Input
-                id="promotion-product-search"
-                value={productSearch}
-                onChange={(event) => setProductSearch(event.target.value)}
-                placeholder="Nombre, SKU o código"
-              />
-            </div>
+            {domain !== 'invoice' && (
+              <div className="space-y-1">
+                <Label htmlFor="promotion-product-search">Buscar producto</Label>
+                <Input
+                  id="promotion-product-search"
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Nombre, SKU o código"
+                />
+              </div>
+            )}
           </div>
-          <div className="border-border rounded-lg border p-3">
-            <p className="text-text-muted mb-2 text-xs font-semibold uppercase">
-              {isBuyGet
-                ? '2x1: compra X / recibe Y'
-                : isPercentage || isFixedDiscount || isFixedItemPrice || isFreeItem
-                  ? 'Productos elegibles'
-                  : 'Componentes del combo'}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {products
-                .filter(
-                  (product) =>
-                    !selectedIds.has(product.id) ||
-                    (isBuyGet &&
-                      form.items.filter((item) => item.product_id === product.id).length < 2),
-                )
-                .slice(0, 8)
-                .map((product) => (
-                  <Button
-                    key={`${product.id}-${form.items.filter((item) => item.product_id === product.id).length}`}
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => addProduct(product.id)}
-                  >
-                    + {product.name}
-                  </Button>
-                ))}
+
+          {domain === 'invoice' ? (
+            <div className="border-border bg-primary/5 space-y-3 rounded-lg border p-3 text-sm">
+              <div>
+                <p className="font-semibold">Descuento aplicado a toda la factura</p>
+                <p className="text-text-muted mt-1">
+                  No necesitas seleccionar productos. El descuento se calcula sobre el total del
+                  ticket al cobrar.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 font-medium">
+                <input
+                  type="checkbox"
+                  checked={form.allows_combos}
+                  onChange={(event) => updateForm({ allows_combos: event.target.checked })}
+                />
+                Permitir combinar con combos
+              </label>
             </div>
-            <div className="mt-3 space-y-2">
-              {form.items.map((item, index) => {
-                const product = products.find((entry) => entry.id === item.product_id);
-                return (
-                  <div
-                    key={`${item.product_id}-${index}`}
-                    className="bg-bg flex items-center justify-between rounded px-3 py-2 text-sm"
-                  >
-                    <span>{product?.name ?? `Producto #${item.product_id}`}</span>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        aria-label={`Cantidad ${product?.name ?? item.product_id}`}
-                        className="h-8 w-20"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={item.quantity}
-                        onChange={(event) =>
-                          updateForm({
-                            items: form.items.map((entry) =>
-                              entry === item
-                                ? {
-                                    ...entry,
-                                    quantity: Math.max(0.01, Number(event.target.value) || 0.01),
-                                  }
-                                : entry,
-                            ),
-                          })
-                        }
-                      />
-                      {isBuyGet && (
-                        <select
-                          aria-label={`Rol ${product?.name ?? item.product_id}`}
-                          className="border-border bg-surface text-text-primary h-8 rounded border px-2 text-xs"
-                          value={item.item_role}
-                          onChange={(event) =>
-                            updateForm({
-                              items: form.items.map((entry, entryIndex) =>
-                                entryIndex === index
-                                  ? { ...entry, item_role: event.target.value as PromotionItemRole }
-                                  : entry,
-                              ),
-                            })
-                          }
-                        >
-                          <option value="trigger">Compra</option>
-                          <option value="reward">Recibe gratis</option>
-                        </select>
-                      )}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          updateForm({
-                            items: form.items.filter((_, entryIndex) => entryIndex !== index),
-                          })
-                        }
-                      >
-                        Quitar
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          ) : (
+            <ProductComponents
+              domain={domain}
+              form={form}
+              products={products}
+              selectedIds={selectedIds}
+              updateForm={updateForm}
+              addProduct={addProduct}
+            />
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
             <Button type="submit" loading={loading}>
-              {promotion ? 'Guardar cambios' : 'Crear promoción'}
+              {promotion ? 'Guardar cambios' : config.createSubmitLabel}
             </Button>
           </DialogFooter>
         </form>
@@ -562,7 +572,232 @@ function PromotionFormDialog({
   );
 }
 
-function benefitTypeLabel(type: Promotion['benefit_type']): string {
+function PromotionValueField({
+  form,
+  updateForm,
+}: {
+  form: PromotionFormState;
+  updateForm: (patch: Partial<PromotionFormState>) => void;
+}) {
+  const isPercentage = form.benefit_type === 'percent_discount';
+  const isFixedDiscount = form.benefit_type === 'fixed_discount';
+  const isFixedItemPrice = form.benefit_type === 'fixed_item_price';
+  const isFreeItem = form.benefit_type === 'free_item';
+  const isBuyGet = form.benefit_type === 'buy_x_get_y';
+  const inputId = isPercentage
+    ? 'promotion-percent'
+    : isFixedDiscount
+      ? 'promotion-discount-amount'
+      : 'promotion-price';
+  const label = isPercentage
+    ? 'Descuento porcentual'
+    : isFixedDiscount
+      ? 'Descuento fijo USD'
+      : isFixedItemPrice
+        ? 'Precio por artículo USD'
+        : isFreeItem
+          ? 'Precio final'
+          : isBuyGet
+            ? 'Precio de recompensa'
+            : 'Precio del combo USD';
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={inputId}>{label}</Label>
+      {isPercentage ? (
+        <Input
+          id={inputId}
+          type="number"
+          min="0.01"
+          max="100"
+          step="0.01"
+          value={form.discount_percent}
+          onChange={(event) => updateForm({ discount_percent: event.target.value })}
+          placeholder="25"
+        />
+      ) : isFixedDiscount ? (
+        <Input
+          id={inputId}
+          type="number"
+          min="0.01"
+          step="0.01"
+          value={form.discount_amount_usd}
+          onChange={(event) => updateForm({ discount_amount_usd: event.target.value })}
+          placeholder="10"
+        />
+      ) : isFreeItem ? (
+        <p
+          id={inputId}
+          className="border-border bg-bg text-text-secondary rounded-lg border px-3 py-2 text-sm"
+        >
+          $0.00 por unidad
+        </p>
+      ) : isBuyGet ? (
+        <p
+          id={inputId}
+          className="border-border bg-bg text-text-secondary rounded-lg border px-3 py-2 text-sm"
+        >
+          Precio de recompensa: $0.00
+        </p>
+      ) : (
+        <Input
+          id={inputId}
+          type="number"
+          min="0"
+          step="0.01"
+          value={form.price_usd}
+          onChange={(event) => updateForm({ price_usd: event.target.value })}
+        />
+      )}
+      {isPercentage && (
+        <p className="text-text-muted text-xs">Porcentaje aplicado al total de la factura.</p>
+      )}
+    </div>
+  );
+}
+
+function ProductComponents({
+  domain,
+  form,
+  products,
+  selectedIds,
+  updateForm,
+  addProduct,
+}: {
+  domain: PromotionDomain;
+  form: PromotionFormState;
+  products: { id: number; name: string }[];
+  selectedIds: Set<number>;
+  updateForm: (patch: Partial<PromotionFormState>) => void;
+  addProduct: (productId: number) => void;
+}) {
+  const isBuyGet = form.benefit_type === 'buy_x_get_y';
+
+  return (
+    <div className="border-border rounded-lg border p-3">
+      <p className="text-text-muted mb-2 text-xs font-semibold uppercase">
+        {domain === 'combo'
+          ? isBuyGet
+            ? '2x1: compra X / recibe Y'
+            : 'Componentes del combo'
+          : 'Productos de la oferta'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {products
+          .filter(
+            (product) =>
+              !selectedIds.has(product.id) ||
+              (isBuyGet && form.items.filter((item) => item.product_id === product.id).length < 2),
+          )
+          .slice(0, 8)
+          .map((product) => (
+            <Button
+              key={`${product.id}-${form.items.filter((item) => item.product_id === product.id).length}`}
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => addProduct(product.id)}
+            >
+              + {product.name}
+            </Button>
+          ))}
+      </div>
+      <div className="mt-3 space-y-2">
+        {form.items.map((item, index) => {
+          const product = products.find((entry) => entry.id === item.product_id);
+          return (
+            <div
+              key={`${item.product_id}-${index}`}
+              className="bg-bg flex items-center justify-between rounded px-3 py-2 text-sm"
+            >
+              <span>{product?.name ?? `Producto #${item.product_id}`}</span>
+              <div className="flex items-center gap-2">
+                <Input
+                  aria-label={`Cantidad ${product?.name ?? item.product_id}`}
+                  className="h-8 w-20"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={item.quantity}
+                  onChange={(event) =>
+                    updateForm({
+                      items: form.items.map((entry) =>
+                        entry === item
+                          ? {
+                              ...entry,
+                              quantity: Math.max(0.01, Number(event.target.value) || 0.01),
+                            }
+                          : entry,
+                      ),
+                    })
+                  }
+                />
+                {isBuyGet && (
+                  <select
+                    aria-label={`Rol ${product?.name ?? item.product_id}`}
+                    className="border-border bg-surface text-text-primary h-8 rounded border px-2 text-xs"
+                    value={item.item_role}
+                    onChange={(event) =>
+                      updateForm({
+                        items: form.items.map((entry, entryIndex) =>
+                          entryIndex === index
+                            ? {
+                                ...entry,
+                                item_role: event.target.value as PromotionItemRole,
+                              }
+                            : entry,
+                        ),
+                      })
+                    }
+                  >
+                    <option value="trigger">Compra</option>
+                    <option value="reward">Recibe gratis</option>
+                  </select>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    updateForm({
+                      items: form.items.filter((_, entryIndex) => entryIndex !== index),
+                    })
+                  }
+                >
+                  Quitar
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function domainLabel(domain: PromotionDomain): string {
+  return domain === 'invoice'
+    ? 'descuento de factura'
+    : domain === 'combo'
+      ? 'combo'
+      : 'oferta de producto';
+}
+
+function formDescription(type: PromotionBenefitType): string {
+  return type === 'percent_discount'
+    ? 'Define un descuento porcentual para toda la factura.'
+    : type === 'fixed_discount'
+      ? 'Define un monto fijo de descuento para toda la factura.'
+      : type === 'fixed_item_price'
+        ? 'Define un precio fijo por unidad para productos seleccionados.'
+        : type === 'free_item'
+          ? 'Define productos que se entregarán gratis.'
+          : type === 'buy_x_get_y'
+            ? 'Configura qué producto se compra y cuál se entrega gratis.'
+            : 'Define un combo con precio total configurable en USD.';
+}
+
+function benefitTypeLabel(type: PromotionBenefitType): string {
   return type === 'percent_discount'
     ? 'Descuento porcentual'
     : type === 'fixed_discount'

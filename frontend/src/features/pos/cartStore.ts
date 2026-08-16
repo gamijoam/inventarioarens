@@ -71,6 +71,17 @@ export interface PosExchangeDraft {
   quantity: number;
 }
 
+export interface ComboApplicationDraft {
+  promotion: Promotion;
+  instance_uuid: string;
+  sets: number;
+}
+
+export interface ProductOfferApplicationDraft {
+  promotion: Promotion;
+  line_id: string;
+}
+
 export const usePosCartStore = create<{
   // ===== UI state =====
   panel: Panel;
@@ -86,6 +97,9 @@ export const usePosCartStore = create<{
   customerName: string;
   customerSearch: string;
   selectedPromotion: Promotion | null;
+  selectedInvoicePromotion: Promotion | null;
+  comboApplications: ComboApplicationDraft[];
+  productOfferApplications: ProductOfferApplicationDraft[];
 
   // ===== Carrito =====
   lines: PosCartLine[];
@@ -110,6 +124,14 @@ export const usePosCartStore = create<{
   setCustomerSearch: (search: string) => void;
   setSelectedPromotion: (promotion: Promotion | null) => void;
   clearSelectedPromotion: () => void;
+  setSelectedInvoicePromotion: (promotion: Promotion | null) => void;
+  clearSelectedInvoicePromotion: () => void;
+  addComboApplication: (promotion: Promotion, instanceUuid: string, sets: number) => void;
+  removeComboApplication: (instanceUuid: string) => void;
+  clearComboApplications: () => void;
+  addProductOfferApplication: (promotion: Promotion, lineId: string) => void;
+  removeProductOfferApplication: (lineId: string) => void;
+  clearProductOfferApplications: () => void;
 
   // ===== Acciones de carrito =====
   addLine: (input: AddLineInput) => string | null;
@@ -117,7 +139,12 @@ export const usePosCartStore = create<{
   updateQuantity: (id: string, quantity: number) => void;
   incrementLine: (id: string) => void;
   decrementLine: (id: string) => void;
-  setLineDiscount: (id: string, type: DiscountType | null, value: number | null, reason?: string | null) => void;
+  setLineDiscount: (
+    id: string,
+    type: DiscountType | null,
+    value: number | null,
+    reason?: string | null,
+  ) => void;
   setLineSerials: (id: string, serials: PosCartLine['selected_serials']) => void;
   clearLines: () => void;
   clearAll: () => void;
@@ -141,10 +168,13 @@ export const usePosCartStore = create<{
     // ===== Seleccion =====
     warehouseId: null,
     selectedPriceListId: null,
-  selectedCustomer: null,
-  customerName: 'Consumidor Final',
-  customerSearch: '',
-  selectedPromotion: null,
+    selectedCustomer: null,
+    customerName: 'Consumidor Final',
+    customerSearch: '',
+    selectedPromotion: null,
+    selectedInvoicePromotion: null,
+    comboApplications: [],
+    productOfferApplications: [],
 
     // ===== Carrito =====
     lines: [],
@@ -169,6 +199,43 @@ export const usePosCartStore = create<{
     setCustomerSearch: (customerSearch) => set({ customerSearch }),
     setSelectedPromotion: (selectedPromotion) => set({ selectedPromotion }),
     clearSelectedPromotion: () => set({ selectedPromotion: null }),
+    setSelectedInvoicePromotion: (selectedInvoicePromotion) =>
+      set({ selectedInvoicePromotion, selectedPromotion: selectedInvoicePromotion }),
+    clearSelectedInvoicePromotion: () =>
+      set((state) => ({
+        selectedInvoicePromotion: null,
+        selectedPromotion:
+          state.selectedPromotion?.scope === 'invoice' ? null : state.selectedPromotion,
+      })),
+    addComboApplication: (promotion, instanceUuid, sets) =>
+      set((state) => ({
+        comboApplications: [
+          ...state.comboApplications,
+          { promotion, instance_uuid: instanceUuid, sets },
+        ],
+        selectedPromotion: promotion,
+      })),
+    removeComboApplication: (instanceUuid) =>
+      set((state) => ({
+        comboApplications: state.comboApplications.filter(
+          (application) => application.instance_uuid !== instanceUuid,
+        ),
+      })),
+    clearComboApplications: () => set({ comboApplications: [] }),
+    addProductOfferApplication: (promotion, lineId) =>
+      set((state) => ({
+        productOfferApplications: [
+          ...state.productOfferApplications.filter((application) => application.line_id !== lineId),
+          { promotion, line_id: lineId },
+        ],
+      })),
+    removeProductOfferApplication: (lineId) =>
+      set((state) => ({
+        productOfferApplications: state.productOfferApplications.filter(
+          (application) => application.line_id !== lineId,
+        ),
+      })),
+    clearProductOfferApplications: () => set({ productOfferApplications: [] }),
 
     // ===== Acciones de carrito =====
     addLine: (input) => {
@@ -202,7 +269,8 @@ export const usePosCartStore = create<{
             warehouse_id: warehouse.id,
             quantity: 1,
             available_stock: availableStock,
-            unit_price: quote?.base_price_usd ?? defaultUnitPrice ?? Number(product.base_price ?? 0),
+            unit_price:
+              quote?.base_price_usd ?? defaultUnitPrice ?? Number(product.base_price ?? 0),
             base_unit_price: Number(product.base_price ?? 0),
             currency: (quote?.sale_currency ?? product.sale_currency ?? 'USD') as CurrencyCode,
             base_currency: (product.sale_currency ?? 'USD') as CurrencyCode,
@@ -218,14 +286,23 @@ export const usePosCartStore = create<{
 
       return id;
     },
-    removeLine: (id) => set({ lines: get().lines.filter((line) => line.id !== id) }),
+    removeLine: (id) =>
+      set((state) => ({
+        lines: state.lines.filter((line) => line.id !== id),
+        productOfferApplications: state.productOfferApplications.filter(
+          (application) => application.line_id !== id,
+        ),
+      })),
     updateQuantity: (id, quantity) =>
       set({
         lines: get().lines.map((line) =>
           line.id === id
             ? {
                 ...line,
-                quantity: Math.max(0, Math.min(quantity, line.track_stock === false ? Infinity : line.available_stock)),
+                quantity: Math.max(
+                  0,
+                  Math.min(quantity, line.track_stock === false ? Infinity : line.available_stock),
+                ),
               }
             : line,
         ),
@@ -260,13 +337,16 @@ export const usePosCartStore = create<{
         ),
       }),
     clearLines: () => set({ lines: [] }),
-     clearAll: () =>
+    clearAll: () =>
       set({
         lines: [],
         payments: [],
         selectedCustomer: null,
         customerName: 'Consumidor Final',
         selectedPromotion: null,
+        selectedInvoicePromotion: null,
+        comboApplications: [],
+        productOfferApplications: [],
         exchangeDraft: null,
         exchangeReturnId: null,
       }),
@@ -275,7 +355,9 @@ export const usePosCartStore = create<{
     addPayment: (payment) => set({ payments: [...get().payments, payment] }),
     updatePayment: (id, patch) =>
       set({
-        payments: get().payments.map((payment) => (payment.id === id ? { ...payment, ...patch } : payment)),
+        payments: get().payments.map((payment) =>
+          payment.id === id ? { ...payment, ...patch } : payment,
+        ),
       }),
     removePayment: (id) => set({ payments: get().payments.filter((payment) => payment.id !== id) }),
     clearPayments: () => set({ payments: [] }),
@@ -318,6 +400,9 @@ interface PersistedCart {
   selectedCustomer: Customer | null;
   customerName: string;
   selectedPromotion?: Promotion | null;
+  selectedInvoicePromotion?: Promotion | null;
+  comboApplications?: ComboApplicationDraft[];
+  productOfferApplications?: ProductOfferApplicationDraft[];
   exchangeDraft?: PosExchangeDraft | null;
   exchangeReturnId?: number | null;
 }
@@ -380,10 +465,7 @@ export function clearPersistedCart(tenantId: number | null, cashierId: number | 
  * evitamos que la suscripcion se quede con una clave `none_none` que
  * pisa el estado correcto cuando llega la sesion real.
  */
-export function usePosCartPersistence(
-  tenantId: number | null,
-  cashierId: number | null,
-): void {
+export function usePosCartPersistence(tenantId: number | null, cashierId: number | null): void {
   const sessionReady = tenantId !== null && cashierId !== null;
 
   // Hidratacion + suscripcion agrupadas en un solo useEffect con la
@@ -408,9 +490,14 @@ export function usePosCartPersistence(
         payments: persisted.payments ?? [],
         warehouseId: persisted.warehouseId ?? null,
         selectedPriceListId: persisted.selectedPriceListId ?? null,
-         selectedCustomer: persisted.selectedCustomer ?? null,
-         customerName: persisted.customerName ?? 'Consumidor Final',
-         selectedPromotion: persisted.selectedPromotion ?? currentState.selectedPromotion ?? null,
+        selectedCustomer: persisted.selectedCustomer ?? null,
+        customerName: persisted.customerName ?? 'Consumidor Final',
+        selectedPromotion: persisted.selectedPromotion ?? currentState.selectedPromotion ?? null,
+        selectedInvoicePromotion:
+          persisted.selectedInvoicePromotion ?? currentState.selectedInvoicePromotion ?? null,
+        comboApplications: persisted.comboApplications ?? currentState.comboApplications ?? [],
+        productOfferApplications:
+          persisted.productOfferApplications ?? currentState.productOfferApplications ?? [],
         exchangeDraft: persisted.exchangeDraft ?? currentState.exchangeDraft ?? null,
         exchangeReturnId: persisted.exchangeReturnId ?? currentState.exchangeReturnId ?? null,
       });
@@ -421,9 +508,12 @@ export function usePosCartPersistence(
         payments: [],
         warehouseId: null,
         selectedPriceListId: null,
-         selectedCustomer: null,
-         customerName: 'Consumidor Final',
-         selectedPromotion: null,
+        selectedCustomer: null,
+        customerName: 'Consumidor Final',
+        selectedPromotion: null,
+        selectedInvoicePromotion: null,
+        comboApplications: [],
+        productOfferApplications: [],
         exchangeDraft: currentState.exchangeDraft ?? null,
         exchangeReturnId: currentState.exchangeReturnId ?? null,
       });
@@ -439,17 +529,21 @@ export function usePosCartPersistence(
         payments: state.payments,
         warehouseId: state.warehouseId,
         selectedPriceListId: state.selectedPriceListId,
-         selectedCustomer: state.selectedCustomer,
-         customerName: state.customerName,
-         selectedPromotion: state.selectedPromotion,
+        selectedCustomer: state.selectedCustomer,
+        customerName: state.customerName,
+        selectedPromotion: state.selectedPromotion,
+        selectedInvoicePromotion: state.selectedInvoicePromotion,
+        comboApplications: state.comboApplications,
+        productOfferApplications: state.productOfferApplications,
         exchangeDraft: state.exchangeDraft,
         exchangeReturnId: state.exchangeReturnId,
       }),
       (snapshot) => {
-         const hasContent = snapshot.lines.length > 0
-           || snapshot.payments.length > 0
-           || snapshot.exchangeDraft != null
-           || snapshot.exchangeReturnId != null;
+        const hasContent =
+          snapshot.lines.length > 0 ||
+          snapshot.payments.length > 0 ||
+          snapshot.exchangeDraft != null ||
+          snapshot.exchangeReturnId != null;
         if (hasContent) {
           savePersistedCart(tenantId, cashierId, snapshot);
         } else {

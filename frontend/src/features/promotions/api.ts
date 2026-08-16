@@ -6,13 +6,46 @@ import { deleteOne, getMany, patchOne, postOne } from '@/api/client';
 import {
   PromotionSchema,
   type Promotion,
+  type PromotionDomain,
   StorePromotionSchema,
   type StorePromotionInput,
 } from './schemas';
 
+interface PosPromotionDiscoveryOptions {
+  warehouseId: number | null;
+  productIds: number[];
+  enabled?: boolean;
+  selectable?: boolean;
+}
+
+const endpointByDomain: Record<PromotionDomain, string> = {
+  invoice: '/invoice-promotions',
+  combo: '/combos',
+  product_offer: '/product-offers',
+};
+
+const posEndpointByDomain: Record<PromotionDomain, string> = {
+  invoice: '/pos/invoice-promotions',
+  combo: '/pos/combos',
+  product_offer: '/pos/product-offers',
+};
+
 export const promotionKeys = {
   all: ['promotions'] as const,
-  lists: () => [...promotionKeys.all, 'list'] as const,
+  admin: () => [...promotionKeys.all, 'admin'] as const,
+  invoicePromotions: (activeOnly?: boolean) =>
+    [...promotionKeys.admin(), 'invoice', { activeOnly: activeOnly ?? false }] as const,
+  combos: (activeOnly?: boolean) =>
+    [...promotionKeys.admin(), 'combo', { activeOnly: activeOnly ?? false }] as const,
+  productOffers: (activeOnly?: boolean) =>
+    [...promotionKeys.admin(), 'product-offer', { activeOnly: activeOnly ?? false }] as const,
+  pos: () => [...promotionKeys.all, 'pos'] as const,
+  posInvoicePromotions: (warehouseId: number | null, productIds: number[], selectable: boolean) =>
+    [...promotionKeys.pos(), 'invoice', warehouseId, productIds, selectable] as const,
+  posCombos: (warehouseId: number | null, productIds: number[], selectable: boolean) =>
+    [...promotionKeys.pos(), 'combo', warehouseId, productIds, selectable] as const,
+  posProductOffers: (warehouseId: number | null, productIds: number[], selectable: boolean) =>
+    [...promotionKeys.pos(), 'product-offer', warehouseId, productIds, selectable] as const,
   available: (warehouseId: number | null, productIds: number[], selectable: boolean) =>
     [...promotionKeys.all, 'available', warehouseId, productIds, selectable] as const,
 };
@@ -23,71 +56,179 @@ function parsePromotions(data: unknown): Promotion[] {
   return promotionListSchema.parse(data);
 }
 
-export function usePromotions(activeOnly = false) {
+function adminListPath(domain: PromotionDomain, activeOnly: boolean): string {
+  return `${endpointByDomain[domain]}${activeOnly ? '?active_only=1' : ''}`;
+}
+
+function posDiscoveryPath(domain: PromotionDomain, options: PosPromotionDiscoveryOptions): string {
+  const params = new URLSearchParams();
+  params.set('warehouse_id', String(options.warehouseId));
+  if (options.selectable) params.set('selectable', '1');
+  options.productIds.forEach((id) => params.append('product_ids[]', String(id)));
+  return `${posEndpointByDomain[domain]}?${params.toString()}`;
+}
+
+function useAdminPromotions(
+  domain: PromotionDomain,
+  queryKey: readonly unknown[],
+  activeOnly: boolean,
+) {
   return useQuery({
-    queryKey: [...promotionKeys.lists(), { activeOnly }],
-    queryFn: async () => {
-      const query = activeOnly ? '?active_only=1' : '';
-      return parsePromotions(await getMany<unknown>(`/promotions${query}`));
-    },
+    queryKey,
+    queryFn: async () => parsePromotions(await getMany<unknown>(adminListPath(domain, activeOnly))),
   });
 }
 
-export function useAvailablePosPromotions({
-  warehouseId,
-  productIds,
-  enabled = true,
-  selectable = false,
-}: {
-  warehouseId: number | null;
-  productIds: number[];
-  enabled?: boolean;
-  selectable?: boolean;
-}) {
+export function useInvoicePromotions(activeOnly = false) {
+  return useAdminPromotions('invoice', promotionKeys.invoicePromotions(activeOnly), activeOnly);
+}
+
+export function useCombos(activeOnly = false) {
+  return useAdminPromotions('combo', promotionKeys.combos(activeOnly), activeOnly);
+}
+
+export function useProductOffers(activeOnly = false) {
+  return useAdminPromotions('product_offer', promotionKeys.productOffers(activeOnly), activeOnly);
+}
+
+function usePosPromotionDiscovery(
+  domain: PromotionDomain,
+  queryKey: readonly unknown[],
+  options: PosPromotionDiscoveryOptions,
+) {
   return useQuery({
-    queryKey: promotionKeys.available(warehouseId, productIds, selectable),
-    enabled: enabled && warehouseId !== null,
+    queryKey,
+    enabled: options.enabled !== false && options.warehouseId !== null,
+    queryFn: async () => parsePromotions(await getMany<unknown>(posDiscoveryPath(domain, options))),
+  });
+}
+
+export function usePosInvoicePromotions(options: PosPromotionDiscoveryOptions) {
+  return usePosPromotionDiscovery(
+    'invoice',
+    promotionKeys.posInvoicePromotions(
+      options.warehouseId,
+      options.productIds,
+      options.selectable ?? false,
+    ),
+    options,
+  );
+}
+
+export function usePosCombos(options: PosPromotionDiscoveryOptions) {
+  return usePosPromotionDiscovery(
+    'combo',
+    promotionKeys.posCombos(options.warehouseId, options.productIds, options.selectable ?? false),
+    options,
+  );
+}
+
+export function usePosProductOffers(options: PosPromotionDiscoveryOptions) {
+  return usePosPromotionDiscovery(
+    'product_offer',
+    promotionKeys.posProductOffers(
+      options.warehouseId,
+      options.productIds,
+      options.selectable ?? false,
+    ),
+    options,
+  );
+}
+
+// Retained until the current POS cart switches to the three scoped discovery hooks.
+export function useAvailablePosPromotions(options: PosPromotionDiscoveryOptions) {
+  return useQuery({
+    queryKey: promotionKeys.available(
+      options.warehouseId,
+      options.productIds,
+      options.selectable ?? false,
+    ),
+    enabled: options.enabled !== false && options.warehouseId !== null,
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('warehouse_id', String(warehouseId));
-      if (selectable) params.set('selectable', '1');
-      productIds.forEach((id) => params.append('product_ids[]', String(id)));
-      return parsePromotions(await getMany<unknown>(`/pos/promotions/available?${params.toString()}`));
+      params.set('warehouse_id', String(options.warehouseId));
+      if (options.selectable) params.set('selectable', '1');
+      options.productIds.forEach((id) => params.append('product_ids[]', String(id)));
+      return parsePromotions(
+        await getMany<unknown>(`/pos/promotions/available?${params.toString()}`),
+      );
     },
   });
 }
 
-export function useCreatePromotion() {
+function useCreateDomainPromotion(domain: PromotionDomain) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: StorePromotionInput) =>
-      postOne<StorePromotionInput, Promotion>('/promotions', StorePromotionSchema.parse(input)),
+      postOne<StorePromotionInput, Promotion>(
+        endpointByDomain[domain],
+        StorePromotionSchema.parse(input),
+      ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: promotionKeys.all });
+      void queryClient.invalidateQueries({ queryKey: promotionKeys.admin() });
     },
   });
 }
 
-export function useUpdatePromotion() {
+function useUpdateDomainPromotion(domain: PromotionDomain) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...input }: StorePromotionInput & { id: number }) =>
-      patchOne<StorePromotionInput, Promotion>(`/promotions/${id}`, StorePromotionSchema.parse(input)),
+      patchOne<StorePromotionInput, Promotion>(
+        `${endpointByDomain[domain]}/${id}`,
+        StorePromotionSchema.parse(input),
+      ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: promotionKeys.all });
+      void queryClient.invalidateQueries({ queryKey: promotionKeys.admin() });
     },
   });
 }
 
-export function useDeletePromotion() {
+function useDeleteDomainPromotion(domain: PromotionDomain) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: number) => deleteOne(`/promotions/${id}`),
+    mutationFn: async (id: number) => deleteOne(`${endpointByDomain[domain]}/${id}`),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: promotionKeys.all });
+      void queryClient.invalidateQueries({ queryKey: promotionKeys.admin() });
     },
   });
+}
+
+export function useCreateInvoicePromotion() {
+  return useCreateDomainPromotion('invoice');
+}
+
+export function useUpdateInvoicePromotion() {
+  return useUpdateDomainPromotion('invoice');
+}
+
+export function useDeleteInvoicePromotion() {
+  return useDeleteDomainPromotion('invoice');
+}
+
+export function useCreateCombo() {
+  return useCreateDomainPromotion('combo');
+}
+
+export function useUpdateCombo() {
+  return useUpdateDomainPromotion('combo');
+}
+
+export function useDeleteCombo() {
+  return useDeleteDomainPromotion('combo');
+}
+
+export function useCreateProductOffer() {
+  return useCreateDomainPromotion('product_offer');
+}
+
+export function useUpdateProductOffer() {
+  return useUpdateDomainPromotion('product_offer');
+}
+
+export function useDeleteProductOffer() {
+  return useDeleteDomainPromotion('product_offer');
 }

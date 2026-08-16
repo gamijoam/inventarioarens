@@ -11,6 +11,8 @@ use App\Modules\POS\Requests\StorePosHoldRequest;
 use App\Modules\POS\Resources\PosOrderResource;
 use App\Modules\POS\Resources\PosOrderSummaryResource;
 use App\Modules\POS\Services\PosCheckoutService;
+use App\Modules\Promotions\Models\Promotion;
+use App\Modules\Promotions\Models\SalePromotionApplication;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -37,6 +39,7 @@ class PosOrderController extends Controller
                 'sale.items',
                 'sale.items.product',
                 'sale.items.warehouse',
+                'sale.promotionApplications.items',
                 'payments.paymentMethod:id,name',
             ])
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
@@ -72,7 +75,7 @@ class PosOrderController extends Controller
     {
         Gate::authorize('view', $posOrder);
 
-        $posOrder->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'payments.paymentMethod']);
+        $posOrder->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.warehouse', 'sale.promotionApplications.items', 'payments.paymentMethod']);
         $this->preloadSerialUnits($posOrder->sale?->items ?? collect(), request());
 
         return PosOrderResource::make($posOrder);
@@ -82,10 +85,13 @@ class PosOrderController extends Controller
     {
         Gate::authorize('checkout', PosOrder::class);
 
-        if ($request->filled('promotion_id')) {
+        if ($request->filled('promotion_id') || $request->filled('combo_applications') || $request->filled('product_offer_applications')) {
             abort_unless($request->user()?->can('pos.promotions.apply'), Response::HTTP_FORBIDDEN);
         }
-        if ($request->filled('promotion_code')) {
+        if ($request->filled('invoice_promotion_id') || $request->filled('invoice_promotion_code')) {
+            $this->authorizePromotionPermission($request, 'pos.promotions.validate');
+        }
+        if ($request->filled('promotion_code') || $request->filled('invoice_promotion_code')) {
             abort_unless($request->user()?->can('pos.promotions.code'), Response::HTTP_FORBIDDEN);
         }
 
@@ -108,9 +114,13 @@ class PosOrderController extends Controller
             creditDueDate: $request->validated('credit_due_date'),
             promotionId: $request->validated('promotion_id'),
             promotionCode: $request->validated('promotion_code'),
+            invoicePromotionId: $request->validated('invoice_promotion_id'),
+            invoicePromotionCode: $request->validated('invoice_promotion_code'),
+            comboApplications: $request->validated('combo_applications', []),
+            productOfferApplications: $request->validated('product_offer_applications', []),
         );
 
-        $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);
+        $this->preloadSerialUnits(collect([$order->loadMissing('sale.items')]), $request);
 
         return PosOrderResource::make($order)
             ->response()
@@ -121,10 +131,13 @@ class PosOrderController extends Controller
     {
         Gate::authorize('hold', PosOrder::class);
 
-        if ($request->filled('promotion_id')) {
+        if ($request->filled('promotion_id') || $request->filled('combo_applications') || $request->filled('product_offer_applications')) {
             abort_unless($request->user()?->can('pos.promotions.apply'), Response::HTTP_FORBIDDEN);
         }
-        if ($request->filled('promotion_code')) {
+        if ($request->filled('invoice_promotion_id') || $request->filled('invoice_promotion_code')) {
+            $this->authorizePromotionPermission($request, 'pos.promotions.request');
+        }
+        if ($request->filled('promotion_code') || $request->filled('invoice_promotion_code')) {
             abort_unless($request->user()?->can('pos.promotions.code'), Response::HTTP_FORBIDDEN);
         }
 
@@ -143,9 +156,13 @@ class PosOrderController extends Controller
             customerName: $request->validated('customer_name'),
             promotionId: $request->validated('promotion_id'),
             promotionCode: $request->validated('promotion_code'),
+            invoicePromotionId: $request->validated('invoice_promotion_id'),
+            invoicePromotionCode: $request->validated('invoice_promotion_code'),
+            comboApplications: $request->validated('combo_applications', []),
+            productOfferApplications: $request->validated('product_offer_applications', []),
         );
 
-        $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);
+        $this->preloadSerialUnits(collect([$order->loadMissing('sale.items')]), $request);
 
         return PosOrderResource::make($order)
             ->response()
@@ -156,15 +173,24 @@ class PosOrderController extends Controller
     {
         Gate::authorize('addPayment', $posOrder);
 
+        $hasRequestedInvoicePromotion = $posOrder->sale?->promotionApplications()
+            ->where('scope', Promotion::SCOPE_INVOICE)
+            ->where('status', SalePromotionApplication::STATUS_REQUESTED)
+            ->exists() ?? false;
+        if ($hasRequestedInvoicePromotion) {
+            $this->authorizePromotionPermission($request, 'pos.promotions.validate');
+        }
+
         $order = $checkout->addPayments(
             order: $posOrder,
             cashier: $request->user(),
             payments: $request->validated('payments'),
             cashRegisterSessionId: $request->validated('cash_register_session_id'),
             chargeItems: $request->validated('items', []),
+            invoicePromotionAction: $request->validated('invoice_promotion_action'),
         );
 
-        $this->preloadSerialUnits(collect([$order->load('sale.items')]), $request);
+        $this->preloadSerialUnits(collect([$order->loadMissing('sale.items')]), $request);
 
         return PosOrderResource::make($order);
     }
@@ -225,5 +251,13 @@ class PosOrderController extends Controller
             ->all();
 
         $request->attributes->set('serial_units_lookup', $lookup);
+    }
+
+    private function authorizePromotionPermission(Request $request, string $permission): void
+    {
+        abort_unless(
+            $request->user()?->can($permission) || $request->user()?->can('pos.promotions.apply'),
+            Response::HTTP_FORBIDDEN,
+        );
     }
 }

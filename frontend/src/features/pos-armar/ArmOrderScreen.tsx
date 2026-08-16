@@ -18,8 +18,12 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { Product } from '@/features/inventory-center/schemas';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
-import { useAvailablePosPromotions } from '@/features/promotions/api';
-import type { Promotion } from '@/features/promotions/schemas';
+import {
+  usePosCombos,
+  usePosInvoicePromotions,
+  usePosProductOffers,
+} from '@/features/promotions/api';
+import { isInvoiceDiscountType, type Promotion } from '@/features/promotions/schemas';
 import {
   type CreateCustomerPayload,
   type Customer,
@@ -55,6 +59,7 @@ interface CartLine {
   price_list_id: number | null;
   price_list_name: string | null;
   price_source: 'base' | 'price_list';
+  combo_instance_uuid?: string | null;
 }
 
 const EMPTY_CUSTOMER: CreateCustomerPayload = {
@@ -92,6 +97,13 @@ export function ArmOrderScreen() {
   const [selectedPriceListId, setSelectedPriceListId] = useState<number | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
+  const [selectedInvoicePromotionId, setSelectedInvoicePromotionId] = useState<number | null>(null);
+  const [comboApplications, setComboApplications] = useState<
+    NonNullable<HoldPayload['combo_applications']>
+  >([]);
+  const [productOfferApplications, setProductOfferApplications] = useState<
+    NonNullable<HoldPayload['product_offer_applications']>
+  >([]);
   const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -135,14 +147,43 @@ export function ArmOrderScreen() {
     warehouses.find((item) => item.id === selectedWarehouseId) ?? warehouses[0] ?? null;
   const warehouseId = warehouse?.id ?? null;
   const cartProductIds = useMemo(() => cart.map((line) => line.product.id), [cart]);
-  const availablePromotions = useAvailablePosPromotions({
+  const promotionQuery = {
     warehouseId,
     productIds: [],
     enabled: canViewPromotions,
     selectable: true,
-  });
+  };
+  const availableInvoicePromotions = usePosInvoicePromotions(promotionQuery);
+  const availableCombos = usePosCombos(promotionQuery);
+  const availableProductOffers = usePosProductOffers(promotionQuery);
+  const availablePromotions = {
+    data: [
+      ...(availableInvoicePromotions.data ?? []),
+      ...(availableCombos.data ?? []),
+      ...(availableProductOffers.data ?? []),
+    ],
+    isLoading:
+      availableInvoicePromotions.isLoading ||
+      availableCombos.isLoading ||
+      availableProductOffers.isLoading,
+    isError:
+      availableInvoicePromotions.isError ||
+      availableCombos.isError ||
+      availableProductOffers.isError,
+    refetch: async () => {
+      await Promise.all([
+        availableInvoicePromotions.refetch(),
+        availableCombos.refetch(),
+        availableProductOffers.refetch(),
+      ]);
+    },
+  };
   const selectedPromotion =
     availablePromotions.data?.find((promotion) => promotion.id === selectedPromotionId) ?? null;
+  const selectedInvoicePromotion =
+    availableInvoicePromotions.data?.find(
+      (promotion) => promotion.id === selectedInvoicePromotionId,
+    ) ?? null;
 
   useEffect(() => {
     const selectedStillExists = warehouses.some((item) => item.id === selectedWarehouseId);
@@ -176,12 +217,13 @@ export function ArmOrderScreen() {
 
   useEffect(() => {
     if (
-      selectedPromotion &&
-      !selectedPromotion.items.every((item) => cartProductIds.includes(item.product_id))
+      selectedInvoicePromotion &&
+      selectedInvoicePromotion.items.length > 0 &&
+      !selectedInvoicePromotion.items.every((item) => cartProductIds.includes(item.product_id))
     ) {
-      setSelectedPromotionId(null);
+      setSelectedInvoicePromotionId(null);
     }
-  }, [cartProductIds, selectedPromotion]);
+  }, [cartProductIds, selectedInvoicePromotion]);
 
   const {
     data: productPage,
@@ -193,7 +235,30 @@ export function ArmOrderScreen() {
   });
   const products = useMemo(() => productPage?.data ?? [], [productPage?.data]);
   const customerQuery = useCustomers(customerSearch);
-  const total = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
+  const subtotal = cart.reduce((sum, line) => sum + line.unit_price * line.quantity, 0);
+  const eligibleSubtotal = selectedInvoicePromotion?.items.length
+    ? cart
+        .filter((line) =>
+          selectedInvoicePromotion.items.some((item) => item.product_id === line.product.id),
+        )
+        .reduce((sum, line) => sum + line.unit_price * line.quantity, 0)
+    : subtotal;
+  const invoiceDiscount =
+    selectedInvoicePromotion && isInvoiceDiscountType(selectedInvoicePromotion.benefit_type)
+      ? selectedInvoicePromotion.benefit_type === 'percent_discount'
+        ? eligibleSubtotal * (Number(selectedInvoicePromotion.discount_percent ?? 0) / 100)
+        : Math.min(eligibleSubtotal, Number(selectedInvoicePromotion.discount_amount_usd ?? 0))
+      : 0;
+  const total = Math.max(0, subtotal - invoiceDiscount);
+
+  function selectInvoiceDiscount(promotion: Promotion): void {
+    if (cart.length === 0) {
+      toast.error('Agrega productos antes de aplicar un descuento de factura.');
+      return;
+    }
+
+    setSelectedInvoicePromotionId((current) => (current === promotion.id ? null : promotion.id));
+  }
 
   function handleKey(action: KeyAction): void {
     setQuery((current) => applyKey(current, action));
@@ -331,6 +396,7 @@ export function ArmOrderScreen() {
     }
 
     try {
+      const instanceUuid = createClientId();
       const products = await Promise.all(
         items.map((item) => getProductForPos(item.product_id, warehouseId)),
       );
@@ -385,10 +451,15 @@ export function ArmOrderScreen() {
           price_list_id: quote?.price_list_id ?? null,
           price_list_name: quote?.price_list_name ?? null,
           price_source: quote ? 'price_list' : 'base',
+          combo_instance_uuid: instanceUuid,
         };
       });
 
       setCart((current) => [...current, ...lines]);
+      setComboApplications((current) => [
+        ...current,
+        { promotion_id: promotion.id, instance_uuid: instanceUuid, sets },
+      ]);
       setSelectedPromotionId(promotion.id);
       toast.success(`${sets} conjunto(s) de ${promotion.name} cargado(s) al ticket.`);
       return true;
@@ -396,6 +467,35 @@ export function ArmOrderScreen() {
       toast.error('No se pudieron cargar todos los productos de la promocion.');
       return false;
     }
+  }
+
+  function selectProductOffer(promotion: Promotion): void {
+    const lineIndex = cart.findIndex(
+      (line) =>
+        !line.combo_instance_uuid &&
+        promotion.items.some((item) => item.product_id === line.product.id),
+    );
+    if (lineIndex < 0) {
+      toast.error('Agrega una línea normal elegible antes de aplicar la oferta.');
+      return;
+    }
+
+    const unitPrice = promotion.benefit_type === 'free_item' ? 0 : Number(promotion.price_usd ?? 0);
+    setCart((current) =>
+      current.map((line, index) =>
+        index === lineIndex
+          ? {
+              ...line,
+              unit_price: unitPrice,
+            }
+          : line,
+      ),
+    );
+    setProductOfferApplications((current) => [
+      ...current.filter((application) => application.item_index !== lineIndex),
+      { promotion_id: promotion.id, item_index: lineIndex },
+    ]);
+    setPromotionDialogOpen(false);
   }
 
   function changeQuantity(index: number, delta: number): void {
@@ -474,7 +574,9 @@ export function ArmOrderScreen() {
     const payload: HoldPayload = {
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer?.name ?? 'Consumidor Final',
-      promotion_id: selectedPromotionId,
+      invoice_promotion_id: selectedInvoicePromotionId,
+      combo_applications: comboApplications,
+      product_offer_applications: productOfferApplications,
       items: cart.map((line) => ({
         warehouse_id: warehouseId,
         product_id: line.product.id,
@@ -482,6 +584,7 @@ export function ArmOrderScreen() {
         price_list_id: line.price_list_id,
         price_source: line.price_source,
         quantity: line.quantity,
+        combo_instance_uuid: line.combo_instance_uuid ?? null,
         product_unit_ids: [],
       })),
     };
@@ -767,9 +870,23 @@ export function ArmOrderScreen() {
               )}
             </div>
             <div className="border-border border-t p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-text-muted text-sm">Total</span>
-                <span className="text-2xl font-bold">{money(total)}</span>
+              <div className="mb-3 space-y-1">
+                {invoiceDiscount > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-text-muted">Subtotal</span>
+                    <span>{money(subtotal)}</span>
+                  </div>
+                )}
+                {invoiceDiscount > 0 && (
+                  <div className="text-success flex items-center justify-between text-sm">
+                    <span>Descuento de factura</span>
+                    <span>-{money(invoiceDiscount)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-text-muted text-sm">Total</span>
+                  <span className="text-2xl font-bold">{money(total)}</span>
+                </div>
               </div>
               <Button
                 className="h-14 w-full text-base"
@@ -797,7 +914,17 @@ export function ArmOrderScreen() {
               </DialogDescription>
             </DialogHeader>
             <PromotionsPanel
-              promotions={availablePromotions.data ?? []}
+              invoicePromotions={availableInvoicePromotions.data ?? []}
+              combos={availableCombos.data ?? []}
+              productOffers={availableProductOffers.data ?? []}
+              selectedInvoiceId={selectedInvoicePromotionId}
+              selectedComboIds={comboApplications.map((application) => application.promotion_id)}
+              onSelectCombo={(promotion, sets) => {
+                void loadPromotion(promotion, sets).then((loaded) => {
+                  if (loaded) setPromotionDialogOpen(false);
+                });
+              }}
+              onSelectProductOffer={selectProductOffer}
               selectedId={selectedPromotion?.id ?? null}
               isLoading={availablePromotions.isLoading}
               error={availablePromotions.isError ? 'No se pudieron cargar las promociones.' : null}
@@ -805,6 +932,10 @@ export function ArmOrderScreen() {
                 void loadPromotion(promotion, sets).then((loaded) => {
                   if (loaded) setPromotionDialogOpen(false);
                 });
+              }}
+              onSelectDiscount={(promotion) => {
+                selectInvoiceDiscount(promotion);
+                setPromotionDialogOpen(false);
               }}
             />
           </DialogContent>

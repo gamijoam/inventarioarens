@@ -101,9 +101,32 @@ vi.mock('@/features/pos/api', () => ({
 }));
 
 vi.mock('@/features/promotions/api', () => ({
-  useAvailablePosPromotions: () => ({
-    data: mocks.availablePromotions,
+  usePosInvoicePromotions: () => ({
+    data: mocks.availablePromotions.filter(
+      (promotion) =>
+        promotion.benefit_type === 'percent_discount' ||
+        promotion.benefit_type === 'fixed_discount',
+    ),
     isLoading: false,
+    isError: false,
+    refetch: mocks.refetchPromotions,
+  }),
+  usePosCombos: () => ({
+    data: mocks.availablePromotions.filter(
+      (promotion) =>
+        promotion.benefit_type === 'fixed_bundle_price' || promotion.benefit_type === 'buy_x_get_y',
+    ),
+    isLoading: false,
+    isError: false,
+    refetch: mocks.refetchPromotions,
+  }),
+  usePosProductOffers: () => ({
+    data: mocks.availablePromotions.filter(
+      (promotion) =>
+        promotion.benefit_type === 'fixed_item_price' || promotion.benefit_type === 'free_item',
+    ),
+    isLoading: false,
+    isError: false,
     refetch: mocks.refetchPromotions,
   }),
 }));
@@ -374,11 +397,12 @@ describe('<ArmOrderScreen>', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
     expect(await screen.findByText('Descuento vendedor')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar VENDEDOR10' }));
-    await screen.findByText('Promoción cargada');
     fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
 
     await waitFor(() =>
-      expect(mocks.holdMutate).toHaveBeenCalledWith(expect.objectContaining({ promotion_id: 8 })),
+      expect(mocks.holdMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ invoice_promotion_id: 8 }),
+      ),
     );
   });
 
@@ -421,11 +445,52 @@ describe('<ArmOrderScreen>', () => {
     await waitFor(() =>
       expect(mocks.holdMutate).toHaveBeenCalledWith(
         expect.objectContaining({
-          promotion_id: 12,
+          combo_applications: [expect.objectContaining({ promotion_id: 12, sets: 1 })],
           items: expect.arrayContaining([
-            expect.objectContaining({ product_id: 41, price_source: 'base', price_list_id: null }),
-            expect.objectContaining({ product_id: 44, price_source: 'base', price_list_id: null }),
+            expect.objectContaining({
+              product_id: 41,
+              price_source: 'base',
+              price_list_id: null,
+              combo_instance_uuid: expect.any(String),
+            }),
+            expect.objectContaining({
+              product_id: 44,
+              price_source: 'base',
+              price_list_id: null,
+              combo_instance_uuid: expect.any(String),
+            }),
           ]),
+        }),
+      ),
+    );
+  });
+
+  it('aplica una oferta de producto solo a una línea normal del pedido', async () => {
+    mocks.availablePromotions.push({
+      id: 18,
+      name: 'Adaptador gratis',
+      code: 'FREE-ADAPTER',
+      benefit_type: 'free_item',
+      price_currency: 'USD',
+      price_usd: null,
+      discount_percent: null,
+      discount_amount_usd: null,
+      priority: 10,
+      is_active: true,
+      items: [{ product_id: 41, product_name: 'Adaptador USB-C', quantity: 1 }],
+    });
+
+    render(<ArmOrderScreen />);
+    fireEvent.click(screen.getByTestId('product-41'));
+    fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Aplicar FREE-ADAPTER' }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
+
+    await waitFor(() =>
+      expect(mocks.holdMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          product_offer_applications: [{ promotion_id: 18, item_index: 0 }],
+          items: [expect.objectContaining({ combo_instance_uuid: null })],
         }),
       ),
     );
@@ -436,7 +501,7 @@ describe('<ArmOrderScreen>', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
 
-    expect(mocks.refetchPromotions).toHaveBeenCalledOnce();
+    expect(mocks.refetchPromotions).toHaveBeenCalledTimes(3);
   });
 
   it('muestra un mensaje cuando el producto no tiene precio en la lista elegida', async () => {

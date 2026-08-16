@@ -16,6 +16,19 @@ export const PromotionBenefitTypes = [
 ] as const;
 export type PromotionBenefitType = (typeof PromotionBenefitTypes)[number];
 
+export const PromotionScopes = [
+  'invoice',
+  'combo',
+  'product_offer',
+  'legacy_product_discount',
+] as const;
+export type PromotionScope = (typeof PromotionScopes)[number];
+export type PromotionDomain = Exclude<PromotionScope, 'legacy_product_discount'>;
+
+export function isInvoiceDiscountType(benefitType: PromotionBenefitType): boolean {
+  return benefitType === 'percent_discount' || benefitType === 'fixed_discount';
+}
+
 export const PromotionPaymentCurrencies = ['ANY', 'VES'] as const;
 export type PromotionPaymentCurrency = (typeof PromotionPaymentCurrencies)[number];
 
@@ -35,7 +48,20 @@ export const PromotionItemSchema = z
   }));
 export type PromotionItem = z.infer<typeof PromotionItemSchema>;
 
-export const PromotionSchema = z
+function inferPromotionScope(value: Record<string, unknown>): PromotionScope {
+  if (value.benefit_type === 'fixed_bundle_price' || value.benefit_type === 'buy_x_get_y') {
+    return 'combo';
+  }
+  if (value.benefit_type === 'fixed_item_price' || value.benefit_type === 'free_item') {
+    return 'product_offer';
+  }
+
+  return Array.isArray(value.items) && value.items.length > 0
+    ? 'legacy_product_discount'
+    : 'invoice';
+}
+
+const promotionObjectSchema = z
   .object({
     id: z.number().int(),
     tenant_id: z.number().int().optional(),
@@ -44,6 +70,8 @@ export const PromotionSchema = z
     benefit_type: z.enum(PromotionBenefitTypes),
     price_currency: z.literal('USD'),
     payment_currency: z.enum(PromotionPaymentCurrencies).default('ANY'),
+    scope: z.enum(PromotionScopes),
+    allows_combos: z.boolean().default(false),
     price_usd: nullableNumber,
     discount_percent: nullableNumber,
     discount_amount_usd: nullableNumber,
@@ -52,6 +80,8 @@ export const PromotionSchema = z
     starts_at: z.string().nullable().optional(),
     ends_at: z.string().nullable().optional(),
     items: z.array(PromotionItemSchema),
+    created_at: z.string().nullable().optional(),
+    updated_at: z.string().nullable().optional(),
   })
   .passthrough()
   .transform((promotion) => ({
@@ -60,7 +90,20 @@ export const PromotionSchema = z
     discount_percent: promotion.discount_percent,
     discount_amount_usd: promotion.discount_amount_usd,
   }));
-export type Promotion = z.infer<typeof PromotionSchema>;
+
+export const PromotionSchema = z.preprocess((value) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || 'scope' in value) {
+    return value;
+  }
+
+  return { ...value, scope: inferPromotionScope(value as Record<string, unknown>) };
+}, promotionObjectSchema);
+
+type ParsedPromotion = z.infer<typeof PromotionSchema>;
+export type Promotion = Omit<ParsedPromotion, 'scope' | 'allows_combos'> & {
+  scope?: ParsedPromotion['scope'];
+  allows_combos?: boolean;
+};
 
 export const PromotionItemInputSchema = z.object({
   product_id: z.number().int().positive(),
@@ -75,6 +118,7 @@ export const StorePromotionSchema = z
     benefit_type: z.enum(PromotionBenefitTypes),
     price_currency: z.literal('USD'),
     payment_currency: z.enum(PromotionPaymentCurrencies).default('ANY'),
+    allows_combos: z.boolean().default(false),
     price_usd: z.number().min(0).nullable().optional(),
     discount_percent: z.number().gt(0).max(100).nullable().optional(),
     discount_amount_usd: z.number().gt(0).nullable().optional(),
@@ -82,9 +126,18 @@ export const StorePromotionSchema = z
     is_active: z.boolean(),
     starts_at: z.string().nullable().optional(),
     ends_at: z.string().nullable().optional(),
-    items: z.array(PromotionItemInputSchema).min(1),
+    items: z.array(PromotionItemInputSchema).default([]),
   })
   .superRefine((promotion, context) => {
+    if (!isInvoiceDiscountType(promotion.benefit_type) && promotion.items.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.too_small,
+        minimum: 1,
+        inclusive: true,
+        type: 'array',
+        path: ['items'],
+      });
+    }
     if (promotion.benefit_type === 'fixed_bundle_price' && promotion.items.length < 2) {
       context.addIssue({
         code: z.ZodIssueCode.too_small,

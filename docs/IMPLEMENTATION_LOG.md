@@ -6870,3 +6870,36 @@ Regla:
 - La URL se mantiene en `/pos/armar`, pero ahora monta directamente `ArmOrderScreen`; esto corrige
   el caso en tablet donde el resultado se mostraba en `PosTerminal` y el toque no agregaba el item.
 - Se agrego una prueba del arbol de rutas y se conservaron las pruebas tactiles y de layout POS.
+
+## 2026-08-16 - Separacion de descuentos de factura y combos
+
+- El POS estandar ahora solicita todas las promociones seleccionables, en lugar de conservar solo la
+  de mayor prioridad.
+- Administrativo y POS separan visualmente descuentos de factura de combos y promociones por producto.
+- `percent_discount` y `fixed_discount` pueden crearse sin `items`; sin componentes se aplican a todas
+  las lineas del ticket y se distribuyen en los snapshots de `sale_items`.
+- Los combos, precios por articulo, articulos gratis y `buy_x_get_y` conservan la validacion de
+  componentes. Las promociones antiguas con `items` mantienen su alcance por producto.
+- Al convertir un combo existente a descuento de factura, sus componentes se eliminan de forma
+  transaccional.
+- Verificacion: backend de promociones/POS `41/41`; frontend completo `703 passed, 1 skipped`; TypeScript,
+  Pint, Prettier y ESLint focalizado correctos.
+
+## 2026-08-16 - Promociones separadas, snapshots y permisos POS
+
+- Se agregaron los dominios explicitos `invoice`, `combo` y `product_offer` en el CRUD administrativo
+  y en los endpoints de descubrimiento del POS.
+- Una venta puede conservar una promocion de factura y multiples instancias de combos; cada instancia
+  usa `instance_uuid` y sus asignaciones se guardan en `sale_promotion_applications` y
+  `sale_promotion_application_items`.
+- Los eventos POS y `sale.confirmed` sincronizan las aplicaciones, asignaciones, snapshots financieros
+  y timestamps; el applier resuelve las lineas por identidad de sync y mantiene idempotencia.
+- Las ordenes pendientes exponen sus aplicaciones promocionales para que caja pueda validar o rechazar
+  explicitamente una solicitud antes de capturar pagos.
+- Se separaron `pos.promotions.request` y `pos.promotions.validate`; `pos.promotions.apply` queda para
+  combos y aplicaciones directas compatibles.
+- Las ofertas por producto se aplican por `item_index` solo a lineas normales, nunca a lineas de
+  combo, y pueden coexistir con combos y una promocion de factura.
+- Verificacion del corte: backend focalizado `94/94`; frontend de promociones/POS `172/172`;
+  TypeScript y ESLint focalizado correctos. Prettier pasa en los archivos modificados; conserva
+  avisos preexistentes en otros archivos POS no tocados.

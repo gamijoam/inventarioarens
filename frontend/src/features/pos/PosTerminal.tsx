@@ -40,8 +40,12 @@ import { cn } from '@/lib/cn';
 import { createClientId } from '@/lib/clientId';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
-import { useAvailablePosPromotions } from '@/features/promotions/api';
-import type { Promotion } from '@/features/promotions/schemas';
+import {
+  usePosCombos,
+  usePosInvoicePromotions,
+  usePosProductOffers,
+} from '@/features/promotions/api';
+import { isInvoiceDiscountType, type Promotion } from '@/features/promotions/schemas';
 import { PromotionsPanel } from './PromotionsPanel';
 import { VariantPicker } from './VariantPicker';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
@@ -278,14 +282,12 @@ export function buildPosShellActions(
   ];
 
   if (!sellerOnlyMode) {
-    actions.unshift(
-      {
-        id: 'cash',
-        label: 'Caja',
-        permission: PERMISSIONS.CASH_REGISTER_VIEW,
-        onClick: callbacks.onOpenCash,
-      },
-    );
+    actions.unshift({
+      id: 'cash',
+      label: 'Caja',
+      permission: PERMISSIONS.CASH_REGISTER_VIEW,
+      onClick: callbacks.onOpenCash,
+    });
     actions.push({
       id: 'close',
       label: 'Cerrar turno',
@@ -382,6 +384,9 @@ export function PosTerminal() {
   const selectedPriceListId = usePosCartStore((s) => s.selectedPriceListId);
   const selectedCustomer = usePosCartStore((s) => s.selectedCustomer);
   const selectedPromotion = usePosCartStore((s) => s.selectedPromotion);
+  const selectedInvoicePromotion = usePosCartStore((s) => s.selectedInvoicePromotion);
+  const comboApplications = usePosCartStore((s) => s.comboApplications);
+  const productOfferApplications = usePosCartStore((s) => s.productOfferApplications);
   const exchangeDraft = usePosCartStore((s) => s.exchangeDraft);
   const exchangeReturnId = usePosCartStore((s) => s.exchangeReturnId);
   const customerName = usePosCartStore((s) => s.customerName);
@@ -395,10 +400,17 @@ export function PosTerminal() {
   const setSelectedCustomer = usePosCartStore((s) => s.setSelectedCustomer);
   const setSelectedPromotion = usePosCartStore((s) => s.setSelectedPromotion);
   const clearSelectedPromotion = usePosCartStore((s) => s.clearSelectedPromotion);
+  const setSelectedInvoicePromotion = usePosCartStore((s) => s.setSelectedInvoicePromotion);
+  const clearSelectedInvoicePromotion = usePosCartStore((s) => s.clearSelectedInvoicePromotion);
+  const addComboApplication = usePosCartStore((s) => s.addComboApplication);
+  const addProductOfferApplication = usePosCartStore((s) => s.addProductOfferApplication);
+  const clearComboApplications = usePosCartStore((s) => s.clearComboApplications);
+  const clearProductOfferApplications = usePosCartStore((s) => s.clearProductOfferApplications);
   const setExchangeDraft = usePosCartStore((s) => s.setExchangeDraft);
   const setExchangeReturnId = usePosCartStore((s) => s.setExchangeReturnId);
   const setCustomerName = usePosCartStore((s) => s.setCustomerName);
   const setCustomerSearch = usePosCartStore((s) => s.setCustomerSearch);
+  const removeLine = usePosCartStore((s) => s.removeLine);
   // Wrappers legacy: el codigo existente usa setCart/setPayments con
   // updater functions o arrays directos. Mantenemos esa API delegando
   // al store de Zustand para evitar reescribir cada llamada inline.
@@ -429,6 +441,9 @@ export function PosTerminal() {
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [lastPrintJobs, setLastPrintJobs] = useState<PrintJob[]>([]);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
+  const [invoicePromotionAction, setInvoicePromotionAction] = useState<
+    'validate' | 'reject' | null
+  >(null);
   const [cashSessionClosed, setCashSessionClosed] = useState(false);
   const [cashSessionOpening, setCashSessionOpening] = useState(false);
   const [openingBaseAmount, setOpeningBaseAmount] = useState('0');
@@ -438,15 +453,15 @@ export function PosTerminal() {
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
   const [closingAmount, setClosingAmount] = useState('');
   const [creditDueDate, setCreditDueDate] = useState('');
-const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
-const [variantPickerQuantity, setVariantPickerQuantity] = useState(1);
-// Contexto de promocion propagado al VariantPicker cuando la linea viene de
-// una promocion cargada (precio de promocion + ref), para que al elegir el
-// color la linea mantenga el valor de la promocion.
-const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
-  price: number;
-  ref: { id: number; code?: string | null; benefitType?: string } | null;
-} | null>(null);
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+  const [variantPickerQuantity, setVariantPickerQuantity] = useState(1);
+  // Contexto de promocion propagado al VariantPicker cuando la linea viene de
+  // una promocion cargada (precio de promocion + ref), para que al elegir el
+  // color la linea mantenga el valor de la promocion.
+  const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
+    price: number;
+    ref: { id: number; code?: string | null; benefitType?: string } | null;
+  } | null>(null);
   const [serialSearch, setSerialSearch] = useState('');
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -561,13 +576,9 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
     data: productPage,
     isLoading: loadingProducts,
     debouncedSearch,
-  } = usePosProductsDebounced(
-    activeProductSearch,
-    effectiveWarehouseId,
-    {
-      enabled: shouldSearchProducts,
-    },
-  );
+  } = usePosProductsDebounced(activeProductSearch, effectiveWarehouseId, {
+    enabled: shouldSearchProducts,
+  });
   const configuredPaymentMethods = useMemo(
     () => bootstrap.data?.payment_methods ?? [],
     [bootstrap.data],
@@ -679,18 +690,30 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
   const selectedWarehouse =
     warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
   const cartProductIds = useMemo(() => cart.map((line) => line.product_id), [cart]);
-  const availablePromotions = useAvailablePosPromotions({
+  const promotionQuery = {
     warehouseId: selectedWarehouse?.id ?? null,
     productIds: cartProductIds,
-  });
+    selectable: true,
+  };
+  const availableInvoicePromotions = usePosInvoicePromotions(promotionQuery);
+  const availableCombos = usePosCombos(promotionQuery);
+  const availableProductOffers = usePosProductOffers(promotionQuery);
+  const promotionsLoading =
+    availableInvoicePromotions.isLoading ||
+    availableCombos.isLoading ||
+    availableProductOffers.isLoading;
+  const promotionsError =
+    availableInvoicePromotions.isError || availableCombos.isError || availableProductOffers.isError;
   useEffect(() => {
-    const selectedComponentsPresent = selectedPromotion?.items.every((item) =>
-      cartProductIds.includes(item.product_id),
-    );
-    if (selectedPromotion && (!selectedComponentsPresent || cartProductIds.length === 0)) {
-      clearSelectedPromotion();
+    const selectedComponentsPresent = selectedInvoicePromotion
+      ? selectedInvoicePromotion.items.length === 0
+        ? true
+        : selectedInvoicePromotion.items.every((item) => cartProductIds.includes(item.product_id))
+      : false;
+    if (selectedInvoicePromotion && (!selectedComponentsPresent || cartProductIds.length === 0)) {
+      clearSelectedInvoicePromotion();
     }
-  }, [cartProductIds, clearSelectedPromotion, selectedPromotion]);
+  }, [cartProductIds, clearSelectedInvoicePromotion, selectedInvoicePromotion]);
   const shellContext = buildPosShellContext({
     tenantName,
     branchName: activeSession?.branch?.name ?? null,
@@ -739,12 +762,57 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
   useEffect(() => {
     setQuickSearchIndex(0);
   }, [query, quickSearchResults.length]);
-  const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
+  const cartTotals = useMemo(() => {
+    const totals = calculateCartTotals(cart);
+    if (
+      !selectedInvoicePromotion ||
+      !isInvoiceDiscountType(selectedInvoicePromotion.benefit_type)
+    ) {
+      return totals;
+    }
+
+    const eligibleTotal =
+      selectedInvoicePromotion.items.length === 0
+        ? totals.total
+        : roundMoney(
+            cart
+              .filter((line) =>
+                selectedInvoicePromotion.items.some((item) => item.product_id === line.product_id),
+              )
+              .reduce((sum, line) => sum + lineTotal(line), 0),
+          );
+    const invoiceDiscount =
+      selectedInvoicePromotion.benefit_type === 'percent_discount'
+        ? roundMoney(eligibleTotal * (Number(selectedInvoicePromotion.discount_percent ?? 0) / 100))
+        : roundMoney(
+            Math.min(eligibleTotal, Number(selectedInvoicePromotion.discount_amount_usd ?? 0)),
+          );
+
+    return {
+      ...totals,
+      discount: roundMoney(totals.discount + invoiceDiscount),
+      total: roundMoney(totals.total - invoiceDiscount),
+    };
+  }, [cart, selectedInvoicePromotion]);
 
   const paymentTotals = useMemo(
     () => calculatePaymentTotals(payments, cartTotals.total),
     [payments, cartTotals.total],
   );
+  const pendingInvoicePromotion = useMemo(() => {
+    const applications = (
+      selectedPending?.sale as { promotion_applications?: unknown[] } | undefined
+    )?.promotion_applications;
+    return (
+      applications?.find(
+        (application): application is { status?: string; promotion_name?: string } =>
+          typeof application === 'object' &&
+          application !== null &&
+          (application as { scope?: string }).scope === 'invoice' &&
+          (application as { status?: string }).status === 'requested',
+      ) ?? null
+    );
+  }, [selectedPending]);
   const paymentSetupIssue = getPaymentSetupIssue(payments, allowedPaymentMethods);
   const priceIssue = firstPriceIssue(cart);
   const serialIssue = missingSerialIssue(cart);
@@ -1126,75 +1194,81 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
                   data-pos-search-input="true"
                   data-testid="pos-search"
                 />
-                {!panel && query.trim().length >= 2 && (loadingProducts || quickSearchResults.length > 0) && (
-                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
-                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
-                      <span>Resultados rapidos</span>
-                      <TapButton
-                        onPress={() => {
-                          setProductSearch(query);
-                          setPanel('product-search');
-                        }}
-                        className="text-primary font-semibold hover:underline"
-                      >
-                        Ver todos
-                      </TapButton>
-                    </div>
-                    <div className="max-h-96 overflow-auto p-2">
-                      {loadingProducts && quickSearchResults.length === 0 ? (
-                        <div className="text-text-muted px-2 py-3 text-sm">Buscando productos...</div>
-                      ) : quickSearchResults.length === 0 ? (
-                        <div className="text-text-muted px-2 py-3 text-sm">
-                          No hay productos con esa búsqueda.
-                        </div>
-                      ) : quickSearchResults.map((product, index) => (
+                {!panel &&
+                  query.trim().length >= 2 &&
+                  (loadingProducts || quickSearchResults.length > 0) && (
+                    <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
+                      <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
+                        <span>Resultados rapidos</span>
                         <TapButton
-                          key={product.id}
                           onPress={() => {
-                            // La sugerencia abre el panel de busqueda (mismo
-                            // flujo que F3 / "Ver todos"): asi los productos
-                            // con variantes/color muestran el VariantPicker de
-                            // forma fiable. Agregar directo desde el dropdown
-                            // fallaba en tablets.
-                            openSearchFromSuggestion(query, {
-                              setProductSearch,
-                              setPanel: (panel) => setPanel(panel),
-                            });
+                            setProductSearch(query);
+                            setPanel('product-search');
                           }}
-                          onMouseEnter={() => setQuickSearchIndex(index)}
-                          className={cn(
-                            'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                            index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
-                          )}
+                          className="text-primary font-semibold hover:underline"
                         >
-                          <ProductImageView
-                            image={primaryProductImage(product)}
-                            src={productImageSrc(product) ?? undefined}
-                            alt={product.name}
-                            variant="thumb"
-                            className="border-border bg-bg size-12 shrink-0 rounded-lg border"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold">{product.name}</p>
-                            <p className="text-text-muted truncate text-xs">
-                              {product.sku ?? product.barcode ?? 'Sin codigo'}
-                            </p>
-                          </div>
-                          <Badge
-                            variant={
-                              Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'
-                            }
-                            className="text-[10px]"
-                          >
-                            {Number(product.available_stock ?? 0) > 0
-                              ? `Stock ${Number(product.available_stock)}`
-                              : 'Sin stock'}
-                          </Badge>
+                          Ver todos
                         </TapButton>
-                      ))}
+                      </div>
+                      <div className="max-h-96 overflow-auto p-2">
+                        {loadingProducts && quickSearchResults.length === 0 ? (
+                          <div className="text-text-muted px-2 py-3 text-sm">
+                            Buscando productos...
+                          </div>
+                        ) : quickSearchResults.length === 0 ? (
+                          <div className="text-text-muted px-2 py-3 text-sm">
+                            No hay productos con esa búsqueda.
+                          </div>
+                        ) : (
+                          quickSearchResults.map((product, index) => (
+                            <TapButton
+                              key={product.id}
+                              onPress={() => {
+                                // La sugerencia abre el panel de busqueda (mismo
+                                // flujo que F3 / "Ver todos"): asi los productos
+                                // con variantes/color muestran el VariantPicker de
+                                // forma fiable. Agregar directo desde el dropdown
+                                // fallaba en tablets.
+                                openSearchFromSuggestion(query, {
+                                  setProductSearch,
+                                  setPanel: (panel) => setPanel(panel),
+                                });
+                              }}
+                              onMouseEnter={() => setQuickSearchIndex(index)}
+                              className={cn(
+                                'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                                index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
+                              )}
+                            >
+                              <ProductImageView
+                                image={primaryProductImage(product)}
+                                src={productImageSrc(product) ?? undefined}
+                                alt={product.name}
+                                variant="thumb"
+                                className="border-border bg-bg size-12 shrink-0 rounded-lg border"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold">{product.name}</p>
+                                <p className="text-text-muted truncate text-xs">
+                                  {product.sku ?? product.barcode ?? 'Sin codigo'}
+                                </p>
+                              </div>
+                              <Badge
+                                variant={
+                                  Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'
+                                }
+                                className="text-[10px]"
+                              >
+                                {Number(product.available_stock ?? 0) > 0
+                                  ? `Stock ${Number(product.available_stock)}`
+                                  : 'Sin stock'}
+                              </Badge>
+                            </TapButton>
+                          ))
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </div>
             <div className="space-y-1">
@@ -1381,9 +1455,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
                         setSerialLineId(line.id);
                         setPanel('serials');
                       }}
-                      onRemove={() =>
-                        setCart((current) => current.filter((item) => item.id !== line.id))
-                      }
+                      onRemove={() => removeLine(line.id)}
                     />
                   ))}
                 </div>
@@ -1432,6 +1504,30 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
                 </div>
               ) : null}
               <div className="flex min-h-0 flex-1 flex-col gap-3">
+                {pendingInvoicePromotion && (
+                  <div className="border-warning/40 bg-warning/10 rounded-lg border p-3 text-sm">
+                    <p className="font-semibold">Promoción pendiente de decisión</p>
+                    <p className="text-text-muted mt-1">
+                      {pendingInvoicePromotion.promotion_name ?? 'Descuento de factura'}
+                    </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        variant={invoicePromotionAction === 'validate' ? 'primary' : 'outline'}
+                        onClick={() => setInvoicePromotionAction('validate')}
+                      >
+                        Validar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={invoicePromotionAction === 'reject' ? 'danger' : 'outline'}
+                        onClick={() => setInvoicePromotionAction('reject')}
+                      >
+                        Rechazar
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <AmountRow label="Pagado" value={paymentTotals.paid} />
                 {payments.length > 0 && (
                   <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
@@ -1646,14 +1742,35 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
             )}
             {panel === 'promotions' && (
               <PromotionsPanel
-                promotions={availablePromotions.data ?? []}
+                invoicePromotions={availableInvoicePromotions.data ?? []}
+                combos={availableCombos.data ?? []}
+                productOffers={availableProductOffers.data ?? []}
+                selectedInvoiceId={selectedInvoicePromotion?.id ?? null}
+                selectedComboIds={comboApplications.map((application) => application.promotion.id)}
+                onSelectCombo={(promotion: Promotion, sets: number) => {
+                  void loadPromotion(promotion, sets);
+                }}
+                onSelectProductOffer={(promotion) => {
+                  applyProductOffer(promotion);
+                }}
                 selectedId={selectedPromotion?.id ?? null}
-                isLoading={availablePromotions.isLoading}
-                error={
-                  availablePromotions.isError ? 'No se pudieron cargar las promociones.' : null
-                }
+                isLoading={promotionsLoading}
+                error={promotionsError ? 'No se pudieron cargar las promociones.' : null}
                 onSelect={(promotion: Promotion, sets: number) => {
                   void loadPromotion(promotion, sets);
+                }}
+                onSelectDiscount={(promotion) => {
+                  if (cart.length === 0) {
+                    toast.error('Agrega productos antes de aplicar un descuento de factura.');
+                    return;
+                  }
+
+                  if (selectedInvoicePromotion?.id === promotion.id) {
+                    clearSelectedInvoicePromotion();
+                  } else {
+                    setSelectedInvoicePromotion(promotion);
+                  }
+                  setPanel(null);
                 }}
               />
             )}
@@ -1901,6 +2018,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
     selectedVariant?: ProductVariant | null,
     promotionPriceOverride?: number,
     promotionRef?: { id: number; code?: string | null; benefitType?: string } | null,
+    comboInstanceUuid?: string | null,
   ): Promise<boolean> {
     const warehouse = selectedWarehouse;
     if (!warehouse) {
@@ -1945,6 +2063,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
       product_id: product.id,
       warehouse_id: warehouse.id,
       product_variant_id: selectedVariant?.id ?? null,
+      combo_instance_uuid: comboInstanceUuid ?? null,
     };
     const matchingLine = findMatchingVariantLine(cart, variantMatch);
     const maximumQuantity = product.track_stock === false ? Number.MAX_SAFE_INTEGER : available;
@@ -2001,6 +2120,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
           sku: product.sku,
           barcode: product.barcode,
           warehouse_id: warehouse.id,
+          combo_instance_uuid: comboInstanceUuid ?? null,
           quantity,
           available_stock: available,
           unit_price:
@@ -2067,6 +2187,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
     }
 
     const totalPromotionQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+    const instanceUuid = createClientId();
 
     try {
       const products = await Promise.all(
@@ -2110,15 +2231,40 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
           undefined,
           unitPriceByProduct.get(item.product_id),
           promotionRef,
+          instanceUuid,
         );
       }
 
+      addComboApplication(promotion, instanceUuid, sets);
       setSelectedPromotion(promotion);
       setPanel(null);
       toast.success(`${sets} conjunto(s) de ${promotion.name} cargado(s) al ticket.`);
     } catch {
       toast.error('No se pudieron cargar todos los productos de la promoción.');
     }
+  }
+
+  function applyProductOffer(promotion: Promotion): void {
+    const eligibleLine = cart.find(
+      (line) =>
+        !line.combo_instance_uuid &&
+        promotion.items.some((item) => item.product_id === line.product_id),
+    );
+    if (!eligibleLine) {
+      toast.error('Agrega una línea normal elegible antes de aplicar la oferta.');
+      return;
+    }
+
+    const unitPrice = promotion.benefit_type === 'free_item' ? 0 : Number(promotion.price_usd ?? 0);
+    addProductOfferApplication(promotion, eligibleLine.id);
+    updateLine(eligibleLine.id, {
+      unit_price: unitPrice,
+      promotion_id: promotion.id,
+      promotion_code: promotion.code,
+      promotion_benefit_type: promotion.benefit_type,
+    });
+    setPanel(null);
+    toast.success(`Oferta ${promotion.name} aplicada a ${eligibleLine.name}.`);
   }
 
   function updateLine(id: string, patch: Partial<PosCartLine>): void {
@@ -2482,6 +2628,11 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
       toast.error('Agrega pagos para completar el ticket.');
       return;
     }
+    if (pendingInvoicePromotion && invoicePromotionAction === null) {
+      toast.error('Selecciona Validar o Rechazar antes de cobrar la promoción.');
+      setPanel('pay');
+      return;
+    }
     if (!activeSession) {
       toast.error('No hay caja abierta para cobrar.');
       return;
@@ -2497,6 +2648,9 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
       payments: payments.map(toPaymentPayload),
       cashRegisterSessionId: activeSession.id,
       items,
+      invoicePromotionAction: pendingInvoicePromotion
+        ? (invoicePromotionAction ?? undefined)
+        : undefined,
     });
     setLastReceipt(paid);
     void createAndDispatchPrintJobs(paid, false);
@@ -2581,6 +2735,51 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
 
       setCart(lines);
       setPayments([]);
+      clearSelectedInvoicePromotion();
+      clearComboApplications();
+      clearProductOfferApplications();
+      setInvoicePromotionAction(null);
+      const applicationPromotion = (application: {
+        promotion_id?: number | null;
+        promotion_name?: string | null;
+        promotion_code?: string | null;
+        benefit_type?: string | null;
+        payment_currency?: string | null;
+        base_after_amount?: number | null;
+        discount_percent?: number | null;
+      }): Promotion => ({
+        id: application.promotion_id ?? 0,
+        name: application.promotion_name ?? 'Promoción recuperada',
+        code: application.promotion_code ?? null,
+        benefit_type: (application.benefit_type ?? 'percent_discount') as Promotion['benefit_type'],
+        price_currency: 'USD',
+        payment_currency: (application.payment_currency ?? 'ANY') as Promotion['payment_currency'],
+        price_usd: 0,
+        discount_percent: application.discount_percent ?? null,
+        discount_amount_usd: null,
+        priority: 0,
+        is_active: true,
+        items: [],
+      });
+      const applications = order.sale?.promotion_applications ?? [];
+      const invoiceApplication = applications.find(
+        (application) => application.scope === 'invoice' && application.status === 'requested',
+      );
+      if (invoiceApplication?.promotion_id) {
+        setSelectedInvoicePromotion(applicationPromotion(invoiceApplication));
+      }
+      for (const application of applications.filter((entry) => entry.scope === 'combo')) {
+        if (application.promotion_id && application.instance_uuid) {
+          addComboApplication(applicationPromotion(application), application.instance_uuid, 1);
+        }
+      }
+      for (const application of applications.filter((entry) => entry.scope === 'product_offer')) {
+        if (!application.promotion_id) continue;
+        for (const applicationItem of application.items ?? []) {
+          const line = lines.find((entry) => entry.sale_item_id === applicationItem.sale_item_id);
+          if (line) addProductOfferApplication(applicationPromotion(application), line.id);
+        }
+      }
       setSelectedPriceListId(items[0]?.price_list_id ?? null);
       setWarehouseId(items[0]?.warehouse_id ?? warehouseId);
       setCustomerName(order.customer_name ?? 'Consumidor Final');
@@ -2599,8 +2798,21 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
       cash_register_session_id: sessionId,
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer ? selectedCustomer.name : customerName,
-      promotion_id: selectedPromotion?.id ?? null,
-      promotion_code: selectedPromotion?.code ?? null,
+      invoice_promotion_id: selectedInvoicePromotion?.id ?? null,
+      combo_applications: comboApplications.map(({ promotion, instance_uuid, sets }) => ({
+        promotion_id: promotion.id,
+        instance_uuid,
+        sets,
+      })),
+      product_offer_applications: productOfferApplications
+        .map(({ promotion, line_id }) => {
+          const itemIndex = cart.findIndex((line) => line.id === line_id);
+          return itemIndex < 0 ? null : { promotion_id: promotion.id, item_index: itemIndex };
+        })
+        .filter(
+          (application): application is { promotion_id: number; item_index: number } =>
+            application !== null,
+        ),
       items: cart.map((line) => ({
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
@@ -2609,6 +2821,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
         quantity: line.quantity,
+        combo_instance_uuid: line.combo_instance_uuid ?? null,
         discount_type: canDiscount ? (line.discount_type ?? null) : null,
         discount_value: canDiscount ? (line.discount_value ?? null) : null,
         discount_reason: canDiscount ? (line.discount_reason ?? null) : null,
@@ -2625,8 +2838,21 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
     return {
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer ? selectedCustomer.name : customerName,
-      promotion_id: selectedPromotion?.id ?? null,
-      promotion_code: selectedPromotion?.code ?? null,
+      invoice_promotion_id: selectedInvoicePromotion?.id ?? null,
+      combo_applications: comboApplications.map(({ promotion, instance_uuid, sets }) => ({
+        promotion_id: promotion.id,
+        instance_uuid,
+        sets,
+      })),
+      product_offer_applications: productOfferApplications
+        .map(({ promotion, line_id }) => {
+          const itemIndex = cart.findIndex((line) => line.id === line_id);
+          return itemIndex < 0 ? null : { promotion_id: promotion.id, item_index: itemIndex };
+        })
+        .filter(
+          (application): application is { promotion_id: number; item_index: number } =>
+            application !== null,
+        ),
       items: cart.map((line) => ({
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
@@ -2635,6 +2861,7 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
         quantity: line.quantity,
+        combo_instance_uuid: line.combo_instance_uuid ?? null,
         discount_type: canDiscount ? (line.discount_type ?? null) : null,
         discount_value: canDiscount ? (line.discount_value ?? null) : null,
         discount_reason: canDiscount ? (line.discount_reason ?? null) : null,
@@ -2661,9 +2888,14 @@ const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
     setPriceListNotice(null);
     setSelectedCustomer(null);
     setCustomerName('Consumidor Final');
+    clearSelectedInvoicePromotion();
+    clearComboApplications();
+    clearProductOfferApplications();
+    clearSelectedPromotion();
     setSelectedPending(null);
     setExchangeDraft(null);
     setExchangeReturnId(null);
+    setInvoicePromotionAction(null);
   }
 
   async function createAndDispatchPrintJobs(
@@ -3764,9 +3996,7 @@ function HoldPanel(props: {
                       {order.customer_name ?? 'Consumidor Final'}
                     </p>
                     {order.seller?.name && (
-                      <p className="text-text-muted mt-1 text-xs">
-                        Armada por {order.seller.name}
-                      </p>
+                      <p className="text-text-muted mt-1 text-xs">Armada por {order.seller.name}</p>
                     )}
                   </div>
                   <p className="text-xl font-bold">{money(order.total_base_amount ?? 0)}</p>

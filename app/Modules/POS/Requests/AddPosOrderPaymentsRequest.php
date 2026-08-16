@@ -25,6 +25,7 @@ class AddPosOrderPaymentsRequest extends FormRequest
             'items.*.sale_item_id' => ['required', 'integer'],
             'items.*.product_unit_ids' => ['sometimes', 'array'],
             'items.*.product_unit_ids.*' => ['integer', Rule::exists('product_units', 'id')->where('tenant_id', $tenantId)],
+            'invoice_promotion_action' => ['nullable', 'string', Rule::in(['validate', 'reject'])],
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.payment_method_id' => [
                 'nullable',

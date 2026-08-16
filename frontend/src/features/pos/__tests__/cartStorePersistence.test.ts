@@ -45,6 +45,10 @@ describe('pos cartStore persistence', () => {
       customerSearch: '',
       selectedPendingId: null,
       serialLineId: null,
+      selectedPromotion: null,
+      selectedInvoicePromotion: null,
+      comboApplications: [],
+      productOfferApplications: [],
     });
   });
 

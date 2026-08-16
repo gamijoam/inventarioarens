@@ -13,6 +13,32 @@ class StorePromotionRequest extends FormRequest
     {
         $tenantId = app(TenantManager::class)->require()->id;
         $benefitType = $this->input('benefit_type');
+        $scope = $this->route('promotion_scope');
+        $allowedBenefitTypes = match ($scope) {
+            Promotion::SCOPE_INVOICE => [
+                Promotion::BENEFIT_PERCENT_DISCOUNT,
+                Promotion::BENEFIT_FIXED_DISCOUNT,
+            ],
+            Promotion::SCOPE_COMBO => [
+                Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
+                Promotion::BENEFIT_BUY_X_GET_Y,
+            ],
+            Promotion::SCOPE_PRODUCT_OFFER => [
+                Promotion::BENEFIT_FIXED_ITEM_PRICE,
+                Promotion::BENEFIT_FREE_ITEM,
+            ],
+            default => [
+                Promotion::BENEFIT_PERCENT_DISCOUNT,
+                Promotion::BENEFIT_FIXED_DISCOUNT,
+                Promotion::BENEFIT_FIXED_ITEM_PRICE,
+                Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
+                Promotion::BENEFIT_FREE_ITEM,
+                Promotion::BENEFIT_BUY_X_GET_Y,
+            ],
+        };
+        $requiresItems = $scope === Promotion::SCOPE_INVOICE
+            ? false
+            : ! Promotion::isInvoiceDiscountType($benefitType);
 
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -23,19 +49,13 @@ class StorePromotionRequest extends FormRequest
                 'regex:/^[A-Z0-9_-]+$/',
                 Rule::unique('promotions', 'code')->where('tenant_id', $tenantId),
             ],
-            'benefit_type' => ['required', 'string', Rule::in([
-                Promotion::BENEFIT_PERCENT_DISCOUNT,
-                Promotion::BENEFIT_FIXED_DISCOUNT,
-                Promotion::BENEFIT_FIXED_ITEM_PRICE,
-                Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
-                Promotion::BENEFIT_FREE_ITEM,
-                Promotion::BENEFIT_BUY_X_GET_Y,
-            ])],
+            'benefit_type' => ['required', 'string', Rule::in($allowedBenefitTypes)],
             'price_currency' => ['sometimes', 'string', 'size:3', Rule::in(['USD'])],
             'payment_currency' => ['sometimes', 'string', 'size:3', Rule::in([
                 Promotion::PAYMENT_CURRENCY_ANY,
                 Promotion::PAYMENT_CURRENCY_VES,
             ])],
+            'allows_combos' => ['sometimes', 'boolean'],
             'price_usd' => ['required_if:benefit_type,fixed_item_price,fixed_bundle_price', 'nullable', 'numeric', 'gte:0'],
             'discount_percent' => ['required_if:benefit_type,percent_discount', 'nullable', 'numeric', 'gt:0', 'lte:100'],
             'discount_amount_usd' => ['required_if:benefit_type,fixed_discount', 'nullable', 'numeric', 'gt:0'],
@@ -43,7 +63,11 @@ class StorePromotionRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
-            'items' => ['required', 'array', 'min:1', Rule::when($benefitType === Promotion::BENEFIT_FIXED_BUNDLE_PRICE, ['min:2'])],
+            'items' => array_merge(
+                [$requiresItems ? 'required' : 'sometimes', 'array'],
+                $requiresItems ? ['min:1'] : [],
+                $benefitType === Promotion::BENEFIT_FIXED_BUNDLE_PRICE ? ['min:2'] : [],
+            ),
             'items.*.product_id' => [
                 'required',
                 'integer',

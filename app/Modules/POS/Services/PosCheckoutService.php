@@ -22,6 +22,8 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Services\ProductPriceService;
+use App\Modules\Promotions\Models\Promotion;
+use App\Modules\Promotions\Models\SalePromotionApplication;
 use App\Modules\Promotions\Services\PromotionService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
@@ -59,9 +61,13 @@ class PosCheckoutService
         ?string $creditDueDate = null,
         ?int $promotionId = null,
         ?string $promotionCode = null,
+        ?int $invoicePromotionId = null,
+        ?string $invoicePromotionCode = null,
+        array $comboApplications = [],
+        array $productOfferApplications = [],
     ): PosOrder {
-        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode): PosOrder {
-            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode): PosOrder {
+        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
+            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
                 if ($credit && ! $customerId) {
                     throw ValidationException::withMessages([
                         'customer_id' => 'La venta a credito requiere un cliente registrado.',
@@ -76,7 +82,24 @@ class PosCheckoutService
 
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
-                $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode, $payments);
+                if ($invoicePromotionId !== null || $invoicePromotionCode !== null || $comboApplications !== [] || $productOfferApplications !== []) {
+                    if ($promotionId !== null || $promotionCode !== null) {
+                        throw ValidationException::withMessages([
+                            'promotion_id' => 'No combine el contrato anterior con las selecciones separadas.',
+                        ]);
+                    }
+                    $items = $this->promotions->applyOrderPromotions(
+                        items: $items,
+                        actor: $cashier,
+                        invoicePromotionId: $invoicePromotionId,
+                        invoicePromotionCode: $invoicePromotionCode,
+                        comboApplications: $comboApplications,
+                        payments: $payments,
+                        productOfferApplications: $productOfferApplications,
+                    );
+                } else {
+                    $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode, $payments);
+                }
                 $priceLists = $this->priceListsForItems($items);
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
                 $resolvedPaymentMethods = PerformanceProbe::measure(
@@ -209,7 +232,7 @@ class PosCheckoutService
 
                 return PerformanceProbe::measure(
                     'POS cargar respuesta checkout',
-                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'payments']),
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'sale.promotionApplications.items', 'payments']),
                     300,
                     ['order_id' => $order->id]
                 );
@@ -224,10 +247,31 @@ class PosCheckoutService
         ?string $customerName = null,
         ?int $promotionId = null,
         ?string $promotionCode = null,
+        ?int $invoicePromotionId = null,
+        ?string $invoicePromotionCode = null,
+        array $comboApplications = [],
+        array $productOfferApplications = [],
     ): PosOrder {
-        return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode): PosOrder {
-            return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode): PosOrder {
-                $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode);
+        return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
+            return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
+                if ($invoicePromotionId !== null || $invoicePromotionCode !== null || $comboApplications !== [] || $productOfferApplications !== []) {
+                    if ($promotionId !== null || $promotionCode !== null) {
+                        throw ValidationException::withMessages([
+                            'promotion_id' => 'No combine el contrato anterior con las selecciones separadas.',
+                        ]);
+                    }
+                    $items = $this->promotions->applyOrderPromotions(
+                        items: $items,
+                        actor: $seller,
+                        invoicePromotionId: $invoicePromotionId,
+                        invoicePromotionCode: $invoicePromotionCode,
+                        comboApplications: $comboApplications,
+                        invoiceRequested: $invoicePromotionId !== null || $invoicePromotionCode !== null,
+                        productOfferApplications: $productOfferApplications,
+                    );
+                } else {
+                    $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode);
+                }
 
                 $sale = PerformanceProbe::measure(
                     'POS armar crear venta borrador',
@@ -259,7 +303,7 @@ class PosCheckoutService
 
                 return PerformanceProbe::measure(
                     'POS armar cargar respuesta',
-                    fn (): PosOrder => $order->refresh()->load(['customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'payments']),
+                    fn (): PosOrder => $order->refresh()->load(['customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'sale.promotionApplications.items', 'payments']),
                     300,
                     ['order_id' => $order->id]
                 );
@@ -267,12 +311,12 @@ class PosCheckoutService
         }, 1200, ['items' => count($items)]);
     }
 
-    public function addPayments(PosOrder $order, User $cashier, array $payments, ?int $cashRegisterSessionId = null, array $chargeItems = []): PosOrder
+    public function addPayments(PosOrder $order, User $cashier, array $payments, ?int $cashRegisterSessionId = null, array $chargeItems = [], ?string $invoicePromotionAction = null): PosOrder
     {
-        return PerformanceProbe::measure('POS completar orden pendiente total', function () use ($order, $cashier, $payments, $cashRegisterSessionId, $chargeItems): PosOrder {
-            return DB::transaction(function () use ($order, $cashier, $payments, $cashRegisterSessionId, $chargeItems): PosOrder {
+        return PerformanceProbe::measure('POS completar orden pendiente total', function () use ($order, $cashier, $payments, $cashRegisterSessionId, $chargeItems, $invoicePromotionAction): PosOrder {
+            return DB::transaction(function () use ($order, $cashier, $payments, $cashRegisterSessionId, $chargeItems, $invoicePromotionAction): PosOrder {
                 $order = PosOrder::query()
-                    ->with(['sale.items', 'cashRegisterSession', 'payments'])
+                    ->with(['sale.items', 'sale.promotionApplications.items', 'cashRegisterSession', 'payments'])
                     ->lockForUpdate()
                     ->findOrFail($order->id);
 
@@ -294,8 +338,37 @@ class PosCheckoutService
                         'status' => $payment->status,
                     ])
                     ->all();
+                $requestedInvoicePromotion = $order->sale->promotionApplications
+                    ->first(fn (SalePromotionApplication $application): bool => $application->scope === Promotion::SCOPE_INVOICE
+                        && $application->status === SalePromotionApplication::STATUS_REQUESTED);
+                if ($requestedInvoicePromotion) {
+                    if ($invoicePromotionAction === null) {
+                        throw ValidationException::withMessages([
+                            'invoice_promotion_action' => 'Debe validar o rechazar la promocion de factura solicitada.',
+                        ]);
+                    }
+                    if ($invoicePromotionAction === 'reject') {
+                        $this->rejectRequestedInvoicePromotion($order, $requestedInvoicePromotion, $cashier);
+                    } else {
+                        $this->promotions->assertPaymentCurrencyAllowedForApplication(
+                            $requestedInvoicePromotion,
+                            array_merge($existingPayments, $payments),
+                        );
+                        $requestedInvoicePromotion->update([
+                            'status' => SalePromotionApplication::STATUS_VALIDATED,
+                            'validated_by' => $cashier->id,
+                            'validated_at' => now(),
+                        ]);
+                    }
+                }
+                $promotionIds = $order->sale->items->pluck('promotion_id')->filter()->unique();
+                if ($requestedInvoicePromotion && $invoicePromotionAction === 'reject') {
+                    $promotionIds = $promotionIds->reject(
+                        fn ($promotionId): bool => (int) $promotionId === (int) $requestedInvoicePromotion->promotion_id
+                    );
+                }
                 $this->promotions->assertPaymentCurrencyAllowedForPromotions(
-                    $order->sale->items->pluck('promotion_id')->filter()->unique()->values()->all(),
+                    $promotionIds->values()->all(),
                     array_merge($existingPayments, $payments),
                 );
 
@@ -420,12 +493,44 @@ class PosCheckoutService
 
                 return PerformanceProbe::measure(
                     'POS pendiente cargar respuesta',
-                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'payments']),
+                    fn (): PosOrder => $order->refresh()->load(['cashRegisterSession', 'customer', 'sale.customer', 'sale.items.product', 'sale.items.variant', 'sale.items.warehouse', 'sale.promotionApplications.items', 'payments']),
                     300,
                     ['order_id' => $order->id]
                 );
             });
         }, 1200, ['order_id' => $order->id, 'payments' => count($payments)]);
+    }
+
+    private function rejectRequestedInvoicePromotion(PosOrder $order, SalePromotionApplication $application, User $cashier): void
+    {
+        foreach ($application->items as $allocation) {
+            $saleItem = $order->sale->items->firstWhere('id', $allocation->sale_item_id);
+            if (! $saleItem) {
+                continue;
+            }
+
+            $quantity = (float) $saleItem->quantity;
+            $baseTotal = (float) $allocation->base_before_amount;
+            $localTotal = (float) $allocation->local_before_amount;
+            $saleTotal = $saleItem->sale_currency === Product::CURRENCY_VES ? $localTotal : $baseTotal;
+            $saleItem->update([
+                'unit_price' => round($saleTotal / $quantity, 4),
+                'total_amount' => $saleTotal,
+                'base_total_amount' => $baseTotal,
+                'promotion_adjustment_base_amount' => round((float) $saleItem->promotion_adjustment_base_amount - (float) $allocation->base_adjustment_amount, 4),
+                'promotion_adjustment_local_amount' => round((float) $saleItem->promotion_adjustment_local_amount - (float) $allocation->local_adjustment_amount, 4),
+            ]);
+        }
+
+        $baseTotal = (float) $application->base_before_amount;
+        $localTotal = (float) $application->local_before_amount;
+        $order->sale->update(['total_base_amount' => $baseTotal, 'total_local_amount' => $localTotal]);
+        $order->update(['total_base_amount' => $baseTotal, 'total_local_amount' => $localTotal]);
+        $application->update([
+            'status' => SalePromotionApplication::STATUS_REJECTED,
+            'validated_by' => $cashier->id,
+            'rejected_at' => now(),
+        ]);
     }
 
     public function cancelPending(PosOrder $order, User $cashier): PosOrder
@@ -1080,6 +1185,7 @@ class PosCheckoutService
             'sale.items.variant',
             'sale.items.warehouse',
             'sale.items.priceList',
+            'sale.promotionApplications.items',
         ]);
 
         $serialUnitsBySaleItem = $this->loadSerialUnitsForOrder($order);
@@ -1225,6 +1331,43 @@ class PosCheckoutService
                     'warranty_conditions' => $item->warranty_conditions,
                     'warranty_starts_at' => $item->warranty_starts_at?->toJSON(),
                     'warranty_expires_at' => $item->warranty_expires_at?->toJSON(),
+                ])->values()->all() ?? [],
+                'promotion_applications' => $order->sale?->promotionApplications->map(fn ($application): array => [
+                    'slot' => $application->slot,
+                    'scope' => $application->scope,
+                    'status' => $application->status,
+                    'instance_uuid' => $application->instance_uuid,
+                    'promotion_code' => $application->promotion_code,
+                    'promotion_name' => $application->promotion_name,
+                    'benefit_type' => $application->benefit_type,
+                    'payment_currency' => $application->payment_currency,
+                    'price_usd' => $application->price_usd,
+                    'discount_percent' => $application->discount_percent,
+                    'discount_amount_usd' => $application->discount_amount_usd,
+                    'conditions_snapshot' => $application->conditions_snapshot,
+                    'base_before_amount' => $application->base_before_amount,
+                    'local_before_amount' => $application->local_before_amount,
+                    'base_adjustment_amount' => $application->base_adjustment_amount,
+                    'local_adjustment_amount' => $application->local_adjustment_amount,
+                    'base_after_amount' => $application->base_after_amount,
+                    'local_after_amount' => $application->local_after_amount,
+                    'requested_at' => $application->requested_at?->toJSON(),
+                    'validated_at' => $application->validated_at?->toJSON(),
+                    'rejected_at' => $application->rejected_at?->toJSON(),
+                    'created_at' => $application->created_at?->toJSON(),
+                    'updated_at' => $application->updated_at?->toJSON(),
+                    'items' => $application->items->map(fn ($item): array => [
+                        'sale_item_id' => $item->sale_item_id,
+                        'quantity' => $item->quantity,
+                        'base_before_amount' => $item->base_before_amount,
+                        'local_before_amount' => $item->local_before_amount,
+                        'base_adjustment_amount' => $item->base_adjustment_amount,
+                        'local_adjustment_amount' => $item->local_adjustment_amount,
+                        'base_after_amount' => $item->base_after_amount,
+                        'local_after_amount' => $item->local_after_amount,
+                        'created_at' => $item->created_at?->toJSON(),
+                        'updated_at' => $item->updated_at?->toJSON(),
+                    ])->values()->all(),
                 ])->values()->all() ?? [],
                 'payments' => $order->payments->map(fn ($payment): array => [
                     'id' => $payment->id,
