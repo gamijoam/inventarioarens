@@ -114,6 +114,7 @@ import {
   type PosCartLine,
   type PosPaymentLine,
   roundMoney,
+  resolvePendingPromotionTotal,
   shouldApplyInvoicePromotion,
 } from './posLogic';
 import { countPendingOrders, newPendingOrderIds } from './pendingBadge';
@@ -768,8 +769,39 @@ export function PosTerminal() {
   useEffect(() => {
     setQuickSearchIndex(0);
   }, [query, quickSearchResults.length]);
+  const pendingInvoicePromotion = useMemo(() => {
+    const applications = (
+      selectedPending?.sale as { promotion_applications?: unknown[] } | undefined
+    )?.promotion_applications;
+    return (
+      applications?.find(
+        (
+          application,
+        ): application is {
+          status?: string;
+          promotion_name?: string;
+          base_before_amount?: number | null;
+        } =>
+          typeof application === 'object' &&
+          application !== null &&
+          (application as { scope?: string }).scope === 'invoice' &&
+          (application as { status?: string }).status === 'requested',
+      ) ?? null
+    );
+  }, [selectedPending]);
   const cartTotals = useMemo(() => {
     const totals = calculateCartTotals(cart);
+    if (selectedPending && invoicePromotionAction === 'reject') {
+      return {
+        ...totals,
+        discount: 0,
+        total: resolvePendingPromotionTotal(
+          totals.total,
+          pendingInvoicePromotion?.base_before_amount,
+          invoicePromotionAction,
+        ),
+      };
+    }
     if (
       !shouldApplyInvoicePromotion(selectedInvoicePromotion, selectedPending !== null) ||
       !selectedInvoicePromotion ||
@@ -800,26 +832,18 @@ export function PosTerminal() {
       discount: roundMoney(totals.discount + invoiceDiscount),
       total: roundMoney(totals.total - invoiceDiscount),
     };
-  }, [cart, selectedInvoicePromotion, selectedPending]);
+  }, [
+    cart,
+    invoicePromotionAction,
+    pendingInvoicePromotion,
+    selectedInvoicePromotion,
+    selectedPending,
+  ]);
 
   const paymentTotals = useMemo(
     () => calculatePaymentTotals(payments, cartTotals.total),
     [payments, cartTotals.total],
   );
-  const pendingInvoicePromotion = useMemo(() => {
-    const applications = (
-      selectedPending?.sale as { promotion_applications?: unknown[] } | undefined
-    )?.promotion_applications;
-    return (
-      applications?.find(
-        (application): application is { status?: string; promotion_name?: string } =>
-          typeof application === 'object' &&
-          application !== null &&
-          (application as { scope?: string }).scope === 'invoice' &&
-          (application as { status?: string }).status === 'requested',
-      ) ?? null
-    );
-  }, [selectedPending]);
   const paymentSetupIssue = getPaymentSetupIssue(payments, allowedPaymentMethods);
   const priceIssue = firstPriceIssue(cart);
   const serialIssue = missingSerialIssue(cart);
