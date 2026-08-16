@@ -114,6 +114,7 @@ import {
   type PosCartLine,
   type PosPaymentLine,
   roundMoney,
+  shouldApplyInvoicePromotion,
 } from './posLogic';
 import { countPendingOrders, newPendingOrderIds } from './pendingBadge';
 import { TapButton } from './TapButton';
@@ -770,6 +771,7 @@ export function PosTerminal() {
   const cartTotals = useMemo(() => {
     const totals = calculateCartTotals(cart);
     if (
+      !shouldApplyInvoicePromotion(selectedInvoicePromotion, selectedPending !== null) ||
       !selectedInvoicePromotion ||
       !isInvoiceDiscountType(selectedInvoicePromotion.benefit_type)
     ) {
@@ -798,7 +800,7 @@ export function PosTerminal() {
       discount: roundMoney(totals.discount + invoiceDiscount),
       total: roundMoney(totals.total - invoiceDiscount),
     };
-  }, [cart, selectedInvoicePromotion]);
+  }, [cart, selectedInvoicePromotion, selectedPending]);
 
   const paymentTotals = useMemo(
     () => calculatePaymentTotals(payments, cartTotals.total),
@@ -2428,11 +2430,7 @@ export function PosTerminal() {
         method: configured?.method ?? method,
         currency,
         amount: paymentAmountForCurrency(
-          Math.max(
-            0,
-            calculateCartTotals(cart).total -
-              calculatePaymentTotals(current, calculateCartTotals(cart).total).paid,
-          ),
+          Math.max(0, cartTotals.total - calculatePaymentTotals(current, cartTotals.total).paid),
           currency,
           rate?.rate ?? null,
         ),
@@ -2441,8 +2439,7 @@ export function PosTerminal() {
             ? paymentAmountForCurrency(
                 Math.max(
                   0,
-                  calculateCartTotals(cart).total -
-                    calculatePaymentTotals(current, calculateCartTotals(cart).total).paid,
+                  cartTotals.total - calculatePaymentTotals(current, cartTotals.total).paid,
                 ),
                 currency,
                 rate?.rate ?? null,
@@ -2467,7 +2464,7 @@ export function PosTerminal() {
       return;
     }
     const available = Number(customerCredit?.available_base_amount ?? 0);
-    const remaining = calculatePaymentTotals(payments, calculateCartTotals(cart).total).remaining;
+    const remaining = calculatePaymentTotals(payments, cartTotals.total).remaining;
     const amount = roundMoney(Math.min(available, remaining));
 
     if (amount <= 0) return;
@@ -2778,12 +2775,6 @@ export function PosTerminal() {
         items: [],
       });
       const applications = order.sale?.promotion_applications ?? [];
-      const invoiceApplication = applications.find(
-        (application) => application.scope === 'invoice' && application.status === 'requested',
-      );
-      if (invoiceApplication?.promotion_id) {
-        setSelectedInvoicePromotion(applicationPromotion(invoiceApplication));
-      }
       for (const application of applications.filter((entry) => entry.scope === 'combo')) {
         if (application.promotion_id && application.instance_uuid) {
           addComboApplication(applicationPromotion(application), application.instance_uuid, 1);

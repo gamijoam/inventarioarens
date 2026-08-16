@@ -302,6 +302,20 @@ describe('<ArmOrderScreen>', () => {
     ).toBeInTheDocument();
   });
 
+  it('limpia el carrito y las selecciones de la orden con el boton dedicado', async () => {
+    render(<ArmOrderScreen />);
+
+    fireEvent.click(screen.getByTestId('product-41'));
+    expect(
+      await within(screen.getByRole('complementary')).findByText('1 x $12.50'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar carrito' }));
+
+    expect(screen.getByText('El ticket esta vacio.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Limpiar carrito' })).toBeDisabled();
+  });
+
   it('permite elegir una variante con stock aunque el producto padre tenga stock cero', async () => {
     render(<ArmOrderScreen />);
 
