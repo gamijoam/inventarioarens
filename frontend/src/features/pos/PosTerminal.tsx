@@ -3,6 +3,7 @@ import { usePosCartStore, usePosCartPersistence, type Panel } from './cartStore'
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   CreditCard,
+  Gift,
   Loader2,
   Minus,
   PauseCircle,
@@ -441,6 +442,9 @@ export function PosTerminal() {
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [lastPrintJobs, setLastPrintJobs] = useState<PrintJob[]>([]);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
+  const [promotionView, setPromotionView] = useState<'all' | 'invoice' | 'combo' | 'product_offer'>(
+    'all',
+  );
   const [invoicePromotionAction, setInvoicePromotionAction] = useState<
     'validate' | 'reject' | null
   >(null);
@@ -1368,14 +1372,41 @@ export function PosTerminal() {
               </Button>
             )}
             {canViewPromotions && (
-              <Button
-                variant={selectedPromotion ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => setPanel('promotions')}
-                disabled={!selectedWarehouse}
-              >
-                <Tag className="size-4" /> Promociones
-              </Button>
+              <>
+                <Button
+                  variant={selectedInvoicePromotion ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setPromotionView('invoice');
+                    setPanel('promotions');
+                  }}
+                  disabled={!selectedWarehouse}
+                >
+                  <Tag className="size-4" /> Promoción factura
+                </Button>
+                <Button
+                  variant={comboApplications.length > 0 ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setPromotionView('combo');
+                    setPanel('promotions');
+                  }}
+                  disabled={!selectedWarehouse}
+                >
+                  <Gift className="size-4" /> Combos
+                </Button>
+                <Button
+                  variant={productOfferApplications.length > 0 ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setPromotionView('product_offer');
+                    setPanel('promotions');
+                  }}
+                  disabled={!selectedWarehouse}
+                >
+                  <Tag className="size-4" /> Ofertas
+                </Button>
+              </>
             )}
             <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
               <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
@@ -1745,6 +1776,7 @@ export function PosTerminal() {
                 invoicePromotions={availableInvoicePromotions.data ?? []}
                 combos={availableCombos.data ?? []}
                 productOffers={availableProductOffers.data ?? []}
+                view={promotionView}
                 selectedInvoiceId={selectedInvoicePromotion?.id ?? null}
                 selectedComboIds={comboApplications.map((application) => application.promotion.id)}
                 onSelectCombo={(promotion: Promotion, sets: number) => {

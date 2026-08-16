@@ -136,4 +136,22 @@ describe('PromotionsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar FREE-CHARGER' }));
     expect(onSelectOffer).toHaveBeenCalledWith(offer);
   });
+
+  it('puede mostrar solamente el dominio de combos desde su boton dedicado', () => {
+    render(
+      <PromotionsPanel
+        invoicePromotions={[invoiceDiscount]}
+        combos={[promotion]}
+        productOffers={[]}
+        view="combo"
+        selectedId={null}
+        onSelect={vi.fn()}
+        onSelectCombo={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Combos')).toBeInTheDocument();
+    expect(screen.queryByText('Descuentos de factura')).not.toBeInTheDocument();
+    expect(screen.getByText('Telefono + cargador')).toBeInTheDocument();
+  });
 });
