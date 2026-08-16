@@ -10,6 +10,7 @@ import {
   hasStockIssue,
   lineTotal,
   missingSerialIssue,
+  shouldApplyInvoicePromotion,
   type PosCartLine,
 } from '../posLogic';
 
@@ -37,6 +38,18 @@ describe('POS cart logic', () => {
     ]);
 
     expect(totals).toEqual({ subtotal: 55, discount: 4, total: 51 });
+  });
+
+  it('no vuelve a aplicar una promocion de factura sobre una orden pendiente', () => {
+    const promotion = {
+      benefit_type: 'percent_discount',
+      price_usd: 0,
+      discount_percent: 10,
+      discount_amount_usd: null,
+    };
+
+    expect(shouldApplyInvoicePromotion(promotion, false)).toBe(true);
+    expect(shouldApplyInvoicePromotion(promotion, true)).toBe(false);
   });
 
   it('calcula pagos mixtos y vuelto de efectivo', () => {

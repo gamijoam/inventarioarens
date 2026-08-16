@@ -534,6 +534,23 @@ export function ArmOrderScreen() {
     setCreatingCustomer(false);
   }
 
+  function clearOrderDraft(notify = true): void {
+    setCart([]);
+    setQuery('');
+    setSelectedCustomer(null);
+    setSelectedPromotionId(null);
+    setSelectedInvoicePromotionId(null);
+    setComboApplications([]);
+    setProductOfferApplications([]);
+    setPromotionDialogOpen(false);
+    setCustomerOpen(false);
+    setCreatingCustomer(false);
+    setCustomerSearch('');
+    setCustomerForm(EMPTY_CUSTOMER);
+    setPriceError(null);
+    if (notify) toast.info('Ticket limpio.');
+  }
+
   async function saveCustomer(): Promise<void> {
     if (!customerForm.name.trim() || !customerForm.document_number.trim()) {
       toast.error('Nombre y documento son obligatorios.');
@@ -591,15 +608,7 @@ export function ArmOrderScreen() {
 
     try {
       const order = await holdOrder.mutateAsync(payload);
-      setCart([]);
-      setQuery('');
-      setSelectedCustomer(null);
-      setSelectedPromotionId(null);
-      setSelectedInvoicePromotionId(null);
-      setComboApplications([]);
-      setProductOfferApplications([]);
-      setPromotionDialogOpen(false);
-      setPriceError(null);
+      clearOrderDraft(false);
       toast.success(`Orden #${order.id} armada. La cajera la cobrara.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo armar la orden.');
@@ -746,14 +755,25 @@ export function ArmOrderScreen() {
                   <h2 className="font-bold">Ticket</h2>
                   <p className="text-text-muted text-xs">Se envia a la cajera para cobro.</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Seleccionar cliente"
-                  onClick={() => setCustomerOpen(true)}
-                >
-                  <UserRound className="size-4" /> Cliente
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Limpiar carrito"
+                    onClick={() => clearOrderDraft()}
+                    disabled={cart.length === 0}
+                  >
+                    <Trash2 className="size-4" /> Limpiar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Seleccionar cliente"
+                    onClick={() => setCustomerOpen(true)}
+                  >
+                    <UserRound className="size-4" /> Cliente
+                  </Button>
+                </div>
               </div>
               <button
                 type="button"

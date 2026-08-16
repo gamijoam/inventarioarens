@@ -155,6 +155,13 @@ export interface PromotionPricingInput {
   discount_amount_usd: number | null;
 }
 
+export function shouldApplyInvoicePromotion(
+  promotion: PromotionPricingInput | null,
+  hasPendingOrder: boolean,
+): boolean {
+  return promotion !== null && !hasPendingOrder;
+}
+
 /**
  * Calcula el precio unitario (USD) que debe MOSTRAR una linea del carrito
  * cuando pertenece a una promocion cargada.
