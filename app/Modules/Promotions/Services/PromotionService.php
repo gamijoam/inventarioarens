@@ -65,43 +65,6 @@ class PromotionService
     }
 
     /**
-     * @param  list<int>  $promotionIds
-     * @param  list<array<string, mixed>>  $payments
-     */
-    public function assertPaymentCurrencyAllowedForPromotions(array $promotionIds, array $payments): void
-    {
-        if ($promotionIds === []) {
-            return;
-        }
-
-        Promotion::query()
-            ->whereIn('id', $promotionIds)
-            ->get()
-            ->each(fn (Promotion $promotion): bool => $this->assertPaymentCurrencyAllowed($promotion, $payments));
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $payments
-     */
-    private function assertPaymentCurrencyAllowed(Promotion $promotion, array $payments): bool
-    {
-        if ($promotion->payment_currency !== Promotion::PAYMENT_CURRENCY_VES) {
-            return true;
-        }
-
-        $activePayments = collect($payments)
-            ->reject(fn (array $payment): bool => ($payment['status'] ?? 'captured') === 'failed');
-
-        if ($activePayments->isEmpty() || $activePayments->contains(fn (array $payment): bool => strtoupper((string) ($payment['currency'] ?? '')) !== Product::CURRENCY_VES)) {
-            throw ValidationException::withMessages([
-                'payments' => 'Esta promocion solo puede aplicarse cuando el pago completo se realiza en bolivares (VES).',
-            ]);
-        }
-
-        return true;
-    }
-
-    /**
      * @param  list<array<string, mixed>>  $items
      * @param  list<array{promotion_id:int, instance_uuid:string, sets:int}>  $comboApplications
      * @param  list<array{promotion_id:int, item_index:int}>  $productOfferApplications
