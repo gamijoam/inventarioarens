@@ -595,6 +595,11 @@ export function ArmOrderScreen() {
       setQuery('');
       setSelectedCustomer(null);
       setSelectedPromotionId(null);
+      setSelectedInvoicePromotionId(null);
+      setComboApplications([]);
+      setProductOfferApplications([]);
+      setPromotionDialogOpen(false);
+      setPriceError(null);
       toast.success(`Orden #${order.id} armada. La cajera la cobrara.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo armar la orden.');

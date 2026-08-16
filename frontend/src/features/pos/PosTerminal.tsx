@@ -48,6 +48,7 @@ import {
 } from '@/features/promotions/api';
 import { isInvoiceDiscountType, type Promotion } from '@/features/promotions/schemas';
 import { PromotionsPanel } from './PromotionsPanel';
+import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
@@ -1536,28 +1537,11 @@ export function PosTerminal() {
               ) : null}
               <div className="flex min-h-0 flex-1 flex-col gap-3">
                 {pendingInvoicePromotion && (
-                  <div className="border-warning/40 bg-warning/10 rounded-lg border p-3 text-sm">
-                    <p className="font-semibold">Promoción pendiente de decisión</p>
-                    <p className="text-text-muted mt-1">
-                      {pendingInvoicePromotion.promotion_name ?? 'Descuento de factura'}
-                    </p>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button
-                        size="sm"
-                        variant={invoicePromotionAction === 'validate' ? 'primary' : 'outline'}
-                        onClick={() => setInvoicePromotionAction('validate')}
-                      >
-                        Validar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={invoicePromotionAction === 'reject' ? 'danger' : 'outline'}
-                        onClick={() => setInvoicePromotionAction('reject')}
-                      >
-                        Rechazar
-                      </Button>
-                    </div>
-                  </div>
+                  <InvoicePromotionDecisionPanel
+                    promotionName={pendingInvoicePromotion.promotion_name ?? 'Descuento de factura'}
+                    decision={invoicePromotionAction}
+                    onDecision={setInvoicePromotionAction}
+                  />
                 )}
                 <AmountRow label="Pagado" value={paymentTotals.paid} />
                 {payments.length > 0 && (

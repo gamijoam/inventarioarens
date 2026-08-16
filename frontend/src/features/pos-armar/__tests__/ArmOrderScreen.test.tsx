@@ -404,6 +404,11 @@ describe('<ArmOrderScreen>', () => {
         expect.objectContaining({ invoice_promotion_id: 8 }),
       ),
     );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
+    expect(screen.getByRole('button', { name: 'Aplicar VENDEDOR10' })).toHaveTextContent(
+      'Aplicar a la factura',
+    );
   });
 
   it('carga automaticamente los productos de un combo para el vendedor', async () => {
@@ -462,6 +467,11 @@ describe('<ArmOrderScreen>', () => {
           ]),
         }),
       ),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
+    expect(screen.getByRole('button', { name: 'Aplicar COMBO-USB' })).toHaveTextContent(
+      'Cargar promoción',
     );
   });
 
