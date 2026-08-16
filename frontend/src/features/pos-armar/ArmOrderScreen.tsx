@@ -18,8 +18,6 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import type { Product } from '@/features/inventory-center/schemas';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
-import { useAvailablePosPromotions } from '@/features/promotions/api';
-import type { Promotion } from '@/features/promotions/schemas';
 import {
   usePosCombos,
   usePosInvoicePromotions,
