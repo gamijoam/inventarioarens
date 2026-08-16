@@ -366,19 +366,25 @@ describe('<ArmOrderScreen>', () => {
     render(<ArmOrderScreen />);
     fireEvent.click(screen.getByTestId('product-41'));
 
+    fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
     expect(await screen.findByText('Descuento vendedor')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar VENDEDOR10' }));
     await screen.findByText('Promoción cargada');
     fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
 
     await waitFor(() =>
-      expect(mocks.holdMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ promotion_id: 8 }),
-      ),
+      expect(mocks.holdMutate).toHaveBeenCalledWith(expect.objectContaining({ promotion_id: 8 })),
     );
   });
 
   it('carga automaticamente los productos de un combo para el vendedor', async () => {
+    mocks.bootstrapPriceLists.push({
+      id: 4,
+      name: 'Mayorista',
+      code: 'MAYOR',
+      is_active: true,
+      is_default: false,
+    });
     mocks.availablePromotions.push({
       id: 12,
       name: 'Combo USB',
@@ -398,12 +404,26 @@ describe('<ArmOrderScreen>', () => {
 
     render(<ArmOrderScreen />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
     expect(await screen.findByText('Combo USB')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar COMBO-USB' }));
 
     expect(await screen.findByText('Cargador USB-C')).toBeInTheDocument();
     expect(screen.getAllByText('Adaptador USB-C').length).toBeGreaterThan(1);
     expect(screen.getAllByText(/1 x \$12\.50/).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /enviar a la cajera/i }));
+    await waitFor(() =>
+      expect(mocks.holdMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          promotion_id: 12,
+          items: expect.arrayContaining([
+            expect.objectContaining({ product_id: 41, price_source: 'base', price_list_id: null }),
+            expect.objectContaining({ product_id: 44, price_source: 'base', price_list_id: null }),
+          ]),
+        }),
+      ),
+    );
   });
 
   it('muestra un mensaje cuando el producto no tiene precio en la lista elegida', async () => {

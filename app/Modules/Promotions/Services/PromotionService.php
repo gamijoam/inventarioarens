@@ -507,6 +507,7 @@ class PromotionService
             $freeItem = array_merge($item, $metadata, [
                 'quantity' => $freeQuantityForLine,
                 'product_unit_ids' => $freeUnitIds,
+                'promotion_price_usd' => 0.0,
                 'promotion_base_total_amount' => 0.0,
                 'promotion_total_amount' => 0.0,
                 'promotion_local_total_amount' => 0.0,
@@ -517,10 +518,24 @@ class PromotionService
 
             $paidQuantity = round($quantity - $freeQuantityForLine, 4);
             if ($paidQuantity > 0) {
-                $result[] = array_merge($item, [
+                $paidItem = [
                     'quantity' => $paidQuantity,
                     'product_unit_ids' => $paidUnitIds,
-                ]);
+                ];
+                if ($isTrigger) {
+                    $paidBase = round((float) $quote['base_price_usd'] * $paidQuantity, 4);
+                    $paidLocal = $quote['price_ves'] === null
+                        ? 0.0
+                        : round((float) $quote['price_ves'] * $paidQuantity, 4);
+                    $paidItem = array_merge($metadata, $paidItem, [
+                        'promotion_base_total_amount' => $paidBase,
+                        'promotion_total_amount' => $quote['sale_currency'] === Product::CURRENCY_VES ? $paidLocal : $paidBase,
+                        'promotion_local_total_amount' => $paidLocal,
+                        'promotion_adjustment_base_amount' => 0.0,
+                        'promotion_adjustment_local_amount' => 0.0,
+                    ]);
+                }
+                $result[] = array_merge($item, $paidItem);
             }
         }
 

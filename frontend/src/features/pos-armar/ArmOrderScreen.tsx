@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Loader2, Minus, Plus, Search, Trash2, UserRound, Warehouse } from 'lucide-react';
+import { Loader2, Minus, Plus, Search, Tag, Trash2, UserRound, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/useAuth';
@@ -92,6 +92,7 @@ export function ArmOrderScreen() {
   const [selectedPriceListId, setSelectedPriceListId] = useState<number | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
+  const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [creatingCustomer, setCreatingCustomer] = useState(false);
@@ -213,7 +214,7 @@ export function ArmOrderScreen() {
   }
 
   async function addProduct(product: Product): Promise<void> {
-    if (priceLists.length > 0 && !selectedPriceList) {
+    if (priceLists.length > 0 && !selectedPriceList && selectedPromotionId === null) {
       const message = 'Selecciona una lista de precio antes de agregar productos.';
       setPriceError(message);
       toast.error(message);
@@ -317,20 +318,16 @@ export function ArmOrderScreen() {
     setVariantPickerProduct(null);
   }
 
-  async function loadPromotion(promotion: Promotion, sets: number): Promise<void> {
+  async function loadPromotion(promotion: Promotion, sets: number): Promise<boolean> {
     if (!warehouseId) {
       toast.error('Selecciona un almacen antes de cargar una promocion.');
-      return;
-    }
-    if (priceLists.length > 0 && !selectedPriceList) {
-      toast.error('Selecciona una lista de precio antes de cargar una promocion.');
-      return;
+      return false;
     }
 
     const items = expandPromotionItems(promotion.items, sets);
     if (items.length === 0) {
       toast.error('La promocion no tiene componentes cargables.');
-      return;
+      return false;
     }
 
     try {
@@ -345,11 +342,11 @@ export function ArmOrderScreen() {
         );
       if (loadedItems.length !== items.length) {
         toast.error('No se pudieron cargar todos los productos de la promocion.');
-        return;
+        return false;
       }
       if (loadedItems.some(({ product }) => Number(product.variants_count ?? 0) > 1)) {
         toast.error('Los combos con variantes deben armarse seleccionando cada variante.');
-        return;
+        return false;
       }
 
       const currentQuantity = new Map<number, number>();
@@ -363,14 +360,14 @@ export function ArmOrderScreen() {
         const available = stockOf(product);
         if ((currentQuantity.get(item.product_id) ?? 0) + item.quantity > available) {
           toast.error(`No hay stock suficiente de ${product.name} para ese combo.`);
-          return;
+          return false;
         }
       }
 
       const quotes = await Promise.all(
         loadedItems.map(({ product }) => quoteSelectedPrice(product)),
       );
-      if (selectedPriceList && quotes.some((quote) => quote === null)) return;
+      if (selectedPriceList && quotes.some((quote) => quote === null)) return false;
 
       const totalPromotionQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
       const lines: CartLine[] = loadedItems.map(({ item, product }, index) => {
@@ -384,11 +381,7 @@ export function ArmOrderScreen() {
           product_variant_name: null,
           quantity: item.quantity,
           available_stock: stockOf(product),
-          unit_price: promotionLineUnitPrice(
-            promotion,
-            normalUnitPrice,
-            totalPromotionQuantity,
-          ),
+          unit_price: promotionLineUnitPrice(promotion, normalUnitPrice, totalPromotionQuantity),
           price_list_id: quote?.price_list_id ?? null,
           price_list_name: quote?.price_list_name ?? null,
           price_source: quote ? 'price_list' : 'base',
@@ -398,8 +391,10 @@ export function ArmOrderScreen() {
       setCart((current) => [...current, ...lines]);
       setSelectedPromotionId(promotion.id);
       toast.success(`${sets} conjunto(s) de ${promotion.name} cargado(s) al ticket.`);
+      return true;
     } catch {
       toast.error('No se pudieron cargar todos los productos de la promocion.');
+      return false;
     }
   }
 
@@ -469,7 +464,7 @@ export function ArmOrderScreen() {
       toast.error('No hay almacen disponible.');
       return;
     }
-    if (priceLists.length > 0 && !selectedPriceList) {
+    if (priceLists.length > 0 && !selectedPriceList && selectedPromotionId === null) {
       const message = 'Selecciona una lista de precio antes de enviar la orden.';
       setPriceError(message);
       toast.error(message);
@@ -706,29 +701,15 @@ export function ArmOrderScreen() {
                 </p>
               )}
               {canViewPromotions && (
-                <div className="border-border mt-3 max-h-72 overflow-y-auto border-t pt-3">
-                  <div className="mb-2">
-                    <p className="text-text-muted text-[11px] font-semibold uppercase">
-                      Promociones y combos
-                    </p>
-                    <p className="text-text-muted text-xs">
-                      Selecciona un combo para cargar sus productos al ticket.
-                    </p>
-                  </div>
-                  <PromotionsPanel
-                    promotions={availablePromotions.data ?? []}
-                    selectedId={selectedPromotion?.id ?? null}
-                    isLoading={availablePromotions.isLoading}
-                    error={
-                      availablePromotions.isError
-                        ? 'No se pudieron cargar las promociones.'
-                        : null
-                    }
-                    onSelect={(promotion, sets) => {
-                      void loadPromotion(promotion, sets);
-                    }}
-                  />
-                </div>
+                <Button
+                  variant={selectedPromotion ? 'secondary' : 'outline'}
+                  className="mt-3 w-full"
+                  onClick={() => setPromotionDialogOpen(true)}
+                  disabled={warehouseId === null}
+                >
+                  <Tag className="size-4" />
+                  {selectedPromotion ? `Promocion: ${selectedPromotion.name}` : 'Promociones'}
+                </Button>
               )}
               {priceError && (
                 <p className="text-danger mt-2 text-xs" role="alert">
@@ -802,6 +783,29 @@ export function ArmOrderScreen() {
             </div>
           </aside>
         </div>
+
+        <Dialog open={promotionDialogOpen} onOpenChange={setPromotionDialogOpen}>
+          <DialogContent className="max-h-[88dvh] max-w-3xl overflow-y-auto p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle>Promociones y combos</DialogTitle>
+              <DialogDescription>
+                Selecciona una promocion y cuantas veces deseas cargarla al pedido. El precio
+                configurado de la promocion no depende de la lista de precio.
+              </DialogDescription>
+            </DialogHeader>
+            <PromotionsPanel
+              promotions={availablePromotions.data ?? []}
+              selectedId={selectedPromotion?.id ?? null}
+              isLoading={availablePromotions.isLoading}
+              error={availablePromotions.isError ? 'No se pudieron cargar las promociones.' : null}
+              onSelect={(promotion, sets) => {
+                void loadPromotion(promotion, sets).then((loaded) => {
+                  if (loaded) setPromotionDialogOpen(false);
+                });
+              }}
+            />
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={customerOpen} onOpenChange={setCustomerOpen}>
           <DialogContent className="max-h-[88dvh] max-w-2xl overflow-y-auto p-4 sm:p-6">

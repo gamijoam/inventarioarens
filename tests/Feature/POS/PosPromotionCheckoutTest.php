@@ -267,6 +267,47 @@ class PosPromotionCheckoutTest extends TestCase
             ->assertJsonValidationErrors(['promotion_id']);
     }
 
+    public function test_checkout_supports_two_for_one_with_the_same_product_as_trigger_and_reward(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone] = array_slice($this->posFixture(), 0, 5);
+        $promotion = $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/promotions', [
+                'name' => '2x1 Telefono',
+                'code' => 'PHONE-2X1',
+                'benefit_type' => 'buy_x_get_y',
+                'priority' => 10,
+                'is_active' => true,
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 2, 'item_role' => 'trigger'],
+                    ['product_id' => $phone->id, 'quantity' => 1, 'item_role' => 'reward'],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $response = $this->checkout($tenant, $cashier, [
+            'promotion_id' => $promotion['id'],
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $phone->id,
+                'quantity' => 3,
+            ]],
+            'payments' => [$this->cashPayment(80)],
+            'cash_register_session_id' => $session->id,
+        ])->assertCreated();
+
+        $this->assertSame(80.0, (float) $response->json('data.sale.total_base_amount'));
+        $this->assertDatabaseHas('sale_items', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $phone->id,
+            'quantity' => '1.0000',
+            'promotion_price_usd' => '0.0000',
+            'promotion_adjustment_base_amount' => '-40.0000',
+        ]);
+    }
+
     public function test_checkout_allows_bundle_price_higher_than_normal_total(): void
     {
         [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
