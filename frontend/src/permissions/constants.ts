@@ -48,6 +48,8 @@ export const PERMISSIONS = {
   POS_DISCOUNT: 'pos.discount',
   POS_PROMOTIONS_VIEW: 'pos.promotions.view',
   POS_PROMOTIONS_APPLY: 'pos.promotions.apply',
+  POS_PROMOTIONS_REQUEST: 'pos.promotions.request',
+  POS_PROMOTIONS_VALIDATE: 'pos.promotions.validate',
   POS_PROMOTIONS_CODE: 'pos.promotions.code',
 
   // Promotions

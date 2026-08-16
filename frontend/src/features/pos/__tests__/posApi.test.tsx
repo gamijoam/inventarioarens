@@ -677,6 +677,34 @@ describe('pos api', () => {
     });
   });
 
+  it('envia combos, ofertas por linea y promocion de factura en checkout', async () => {
+    mockPostOne.mockResolvedValue({ id: 12, status: 'paid', sale_id: 23 });
+
+    const { result } = renderHook(() => useCheckout(), { wrapper });
+    result.current.mutate({
+      cash_register_session_id: 3,
+      invoice_promotion_id: 15,
+      combo_applications: [{ promotion_id: 20, instance_uuid: 'combo-a', sets: 1 }],
+      product_offer_applications: [{ promotion_id: 30, item_index: 1 }],
+      items: [
+        { warehouse_id: 1, product_id: 2, quantity: 1, combo_instance_uuid: 'combo-a' },
+        { warehouse_id: 1, product_id: 3, quantity: 1, combo_instance_uuid: null },
+      ],
+      payments: [],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith(
+      '/pos/checkouts',
+      expect.objectContaining({
+        invoice_promotion_id: 15,
+        combo_applications: [{ promotion_id: 20, instance_uuid: 'combo-a', sets: 1 }],
+        product_offer_applications: [{ promotion_id: 30, item_index: 1 }],
+      }),
+    );
+  });
+
   it('arma una orden pendiente (hold) SIN sesion de caja ni pagos', async () => {
     mockPostOne.mockResolvedValue({ id: 21, status: 'open', sale_id: 31, seller_id: 7 });
 
@@ -695,6 +723,29 @@ describe('pos api', () => {
       items: [{ warehouse_id: 1, product_id: 2, quantity: 2 }],
     });
     expect(result.current.data?.seller_id).toBe(7);
+  });
+
+  it('envia la solicitud de factura y aplicaciones separadas al armar una orden', async () => {
+    mockPostOne.mockResolvedValue({ id: 24, status: 'open', sale_id: 34 });
+
+    const { result } = renderHook(() => useHoldOrder(), { wrapper });
+    result.current.mutate({
+      invoice_promotion_id: 15,
+      combo_applications: [{ promotion_id: 20, instance_uuid: 'combo-a', sets: 1 }],
+      product_offer_applications: [{ promotion_id: 30, item_index: 0 }],
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 1, combo_instance_uuid: 'combo-a' }],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith(
+      '/pos/orders',
+      expect.objectContaining({
+        invoice_promotion_id: 15,
+        combo_applications: [{ promotion_id: 20, instance_uuid: 'combo-a', sets: 1 }],
+        product_offer_applications: [{ promotion_id: 30, item_index: 0 }],
+      }),
+    );
   });
 
   it('completa el cobro de una orden pendiente con la sesion de la cajera e IMEIs asignados', async () => {
@@ -747,5 +798,26 @@ describe('pos api', () => {
       payments: [{ method: 'transfer', currency: 'USD', amount: 100 }],
       cash_register_session_id: 10,
     });
+  });
+
+  it('envia la decision explicita de validar o rechazar la promocion de factura', async () => {
+    mockPostOne.mockResolvedValue({ id: 22, status: 'paid', sale_id: 32 });
+
+    const { result } = renderHook(() => useAddPosPayments(), { wrapper });
+    result.current.mutate({
+      orderId: 22,
+      cashRegisterSessionId: 10,
+      invoicePromotionAction: 'reject',
+      payments: [{ method: 'transfer', currency: 'USD', amount: 100 }],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockPostOne).toHaveBeenCalledWith(
+      '/pos/orders/22/payments',
+      expect.objectContaining({
+        invoice_promotion_action: 'reject',
+      }),
+    );
   });
 });

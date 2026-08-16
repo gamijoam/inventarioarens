@@ -9,6 +9,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Services\ProductPriceService;
+use App\Modules\Promotions\Models\SalePromotionApplication;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -33,8 +34,9 @@ class SaleService
 
             $totalBase = 0.0;
             $totalLocal = 0.0;
+            $createdItems = [];
 
-            foreach ($items as $item) {
+            foreach ($items as $itemIndex => $item) {
                 $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
                 $product = Product::query()->with('warrantyPolicy')->findOrFail($item['product_id']);
                 $quantity = (float) $item['quantity'];
@@ -71,7 +73,7 @@ class SaleService
                 $netBaseTotal = $promotionApplied ? $baseTotal : round($baseTotal - $discount['base_amount'], 4);
                 $netLocalTotal = $promotionApplied ? $localTotal : round($localTotal - $discount['local_amount'], 4);
 
-                SaleItem::create([
+                $createdItems[$itemIndex] = SaleItem::create([
                     'sale_id' => $sale->id,
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
@@ -114,6 +116,8 @@ class SaleService
                 $totalLocal += $netLocalTotal;
             }
 
+            $this->persistPromotionApplications($sale, $items, $createdItems);
+
             $sale->update([
                 'total_base_amount' => $totalBase,
                 'total_local_amount' => $totalLocal,
@@ -121,6 +125,63 @@ class SaleService
 
             return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse']);
         });
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @param  array<int, SaleItem>  $createdItems
+     */
+    private function persistPromotionApplications(Sale $sale, array $items, array $createdItems): void
+    {
+        $grouped = [];
+        foreach ($items as $itemIndex => $item) {
+            foreach ($item['_promotion_allocations'] ?? [] as $allocation) {
+                $grouped[$allocation['slot']][] = [$itemIndex, $allocation];
+            }
+        }
+
+        foreach ($grouped as $slot => $entries) {
+            $first = $entries[0][1];
+            $application = SalePromotionApplication::create([
+                'sale_id' => $sale->id,
+                'promotion_id' => $first['promotion_id'],
+                'slot' => $slot,
+                'scope' => $first['scope'],
+                'status' => $first['status'],
+                'instance_uuid' => $first['instance_uuid'],
+                'requested_by' => $first['requested_by'],
+                'validated_by' => $first['validated_by'],
+                'requested_at' => now(),
+                'validated_at' => $first['validated_by'] ? now() : null,
+                'promotion_code' => $first['promotion_code'],
+                'promotion_name' => $first['promotion_name'],
+                'benefit_type' => $first['benefit_type'],
+                'payment_currency' => $first['payment_currency'],
+                'price_usd' => $first['price_usd'],
+                'discount_percent' => $first['discount_percent'],
+                'discount_amount_usd' => $first['discount_amount_usd'],
+                'conditions_snapshot' => $first['conditions_snapshot'],
+                'base_before_amount' => collect($entries)->sum(fn (array $entry): float => (float) $entry[1]['base_before_amount']),
+                'local_before_amount' => collect($entries)->sum(fn (array $entry): float => (float) $entry[1]['local_before_amount']),
+                'base_adjustment_amount' => collect($entries)->sum(fn (array $entry): float => (float) $entry[1]['base_adjustment_amount']),
+                'local_adjustment_amount' => collect($entries)->sum(fn (array $entry): float => (float) $entry[1]['local_adjustment_amount']),
+                'base_after_amount' => collect($entries)->sum(fn (array $entry): float => (float) $entry[1]['base_after_amount']),
+                'local_after_amount' => collect($entries)->sum(fn (array $entry): float => (float) $entry[1]['local_after_amount']),
+            ]);
+
+            foreach ($entries as [$itemIndex, $allocation]) {
+                $application->items()->create([
+                    'sale_item_id' => $createdItems[$itemIndex]->id,
+                    'quantity' => $allocation['quantity'],
+                    'base_before_amount' => $allocation['base_before_amount'],
+                    'local_before_amount' => $allocation['local_before_amount'],
+                    'base_adjustment_amount' => $allocation['base_adjustment_amount'],
+                    'local_adjustment_amount' => $allocation['local_adjustment_amount'],
+                    'base_after_amount' => $allocation['base_after_amount'],
+                    'local_after_amount' => $allocation['local_after_amount'],
+                ]);
+            }
+        }
     }
 
     public function confirm(Sale $sale, User $user): Sale

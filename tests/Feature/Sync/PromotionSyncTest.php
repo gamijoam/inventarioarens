@@ -28,6 +28,8 @@ class PromotionSyncTest extends TestCase
         $payload = [
             'name' => 'Combo sincronizado',
             'code' => 'SYNC-COMBO',
+            'scope' => Promotion::SCOPE_COMBO,
+            'allows_combos' => true,
             'benefit_type' => Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
             'price_currency' => 'USD',
             'payment_currency' => 'VES',
@@ -62,6 +64,8 @@ class PromotionSyncTest extends TestCase
         $this->assertDatabaseHas('promotions', [
             'tenant_id' => $tenant->id,
             'code' => 'SYNC-COMBO',
+            'scope' => Promotion::SCOPE_COMBO,
+            'allows_combos' => true,
             'price_usd' => '50.0000',
             'payment_currency' => 'VES',
         ]);
@@ -86,19 +90,18 @@ class PromotionSyncTest extends TestCase
     {
         $tenant = Tenant::create(['name' => 'Empresa Sync Descuento', 'slug' => 'sync-percent']);
         app(TenantManager::class)->set($tenant);
-        $this->product($tenant, 'PHONE-PERCENT', 'Telefono');
         $payload = [
             'name' => 'Descuento sincronizado',
             'code' => 'SYNC-25',
+            'scope' => Promotion::SCOPE_INVOICE,
+            'allows_combos' => true,
             'benefit_type' => Promotion::BENEFIT_PERCENT_DISCOUNT,
             'price_currency' => 'USD',
             'price_usd' => null,
             'discount_percent' => '25.00',
             'priority' => 30,
             'is_active' => true,
-            'items' => [
-                ['product_sku' => 'PHONE-PERCENT', 'quantity' => '1.0000', 'sort_order' => 0],
-            ],
+            'items' => [],
         ];
 
         DB::table('sync_inbox')->insert([
@@ -122,8 +125,11 @@ class PromotionSyncTest extends TestCase
             'tenant_id' => $tenant->id,
             'code' => 'SYNC-25',
             'benefit_type' => Promotion::BENEFIT_PERCENT_DISCOUNT,
+            'scope' => Promotion::SCOPE_INVOICE,
+            'allows_combos' => true,
             'discount_percent' => '25.00',
         ]);
+        $this->assertDatabaseCount('promotion_items', 0);
     }
 
     public function test_it_syncs_fixed_discount_configuration(): void
@@ -314,6 +320,8 @@ class PromotionSyncTest extends TestCase
         $promotion = Promotion::create([
             'name' => 'Combo snapshot',
             'code' => 'SNAPSHOT-COMBO',
+            'scope' => Promotion::SCOPE_COMBO,
+            'allows_combos' => true,
             'benefit_type' => Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
             'price_currency' => 'USD',
             'price_usd' => 50,
@@ -335,7 +343,10 @@ class PromotionSyncTest extends TestCase
             ->where('event_type', 'promotion.created')
             ->first();
         $this->assertNotNull($event);
-        $this->assertSame('SNAPSHOT-COMBO', json_decode($event->payload, true)['code']);
+        $payload = json_decode($event->payload, true);
+        $this->assertSame('SNAPSHOT-COMBO', $payload['code']);
+        $this->assertSame(Promotion::SCOPE_COMBO, $payload['scope']);
+        $this->assertTrue($payload['allows_combos']);
     }
 
     public function test_initial_snapshot_clears_pending_snapshots_from_previous_installations(): void

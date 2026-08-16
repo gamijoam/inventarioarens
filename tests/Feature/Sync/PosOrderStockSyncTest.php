@@ -65,6 +65,39 @@ class PosOrderStockSyncTest extends TestCase
                 'product_unit_ids' => [],
                 'product_serial_units' => [],
             ]],
+            'promotion_applications' => [[
+                'slot' => 'invoice',
+                'scope' => 'invoice',
+                'status' => 'applied',
+                'instance_uuid' => null,
+                'promotion_code' => 'SYNC-INVOICE-10',
+                'promotion_name' => 'Descuento factura sincronizado',
+                'benefit_type' => 'percent_discount',
+                'payment_currency' => 'ANY',
+                'price_usd' => null,
+                'discount_percent' => '10.00',
+                'discount_amount_usd' => null,
+                'conditions_snapshot' => ['allows_combos' => true],
+                'base_before_amount' => '22.2222',
+                'local_before_amount' => '2222.2200',
+                'base_adjustment_amount' => '-2.2222',
+                'local_adjustment_amount' => '-222.2200',
+                'base_after_amount' => '20.0000',
+                'local_after_amount' => '2000.0000',
+                'requested_at' => '2026-08-16T12:00:00Z',
+                'validated_at' => '2026-08-16T12:01:00Z',
+                'rejected_at' => null,
+                'items' => [[
+                    'sale_item_id' => 100,
+                    'quantity' => '2.0000',
+                    'base_before_amount' => '22.2222',
+                    'local_before_amount' => '2222.2200',
+                    'base_adjustment_amount' => '-2.2222',
+                    'local_adjustment_amount' => '-222.2200',
+                    'base_after_amount' => '20.0000',
+                    'local_after_amount' => '2000.0000',
+                ]],
+            ]],
             'payments' => [],
         ]);
 
@@ -90,6 +123,22 @@ class PosOrderStockSyncTest extends TestCase
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $productId)
             ->value('quantity_available'));
+        $application = DB::table('sale_promotion_applications')
+            ->where('tenant_id', $tenant->id)
+            ->where('slot', 'invoice')
+            ->first();
+        $this->assertNotNull($application);
+        $this->assertSame('SYNC-INVOICE-10', $application->promotion_code);
+        $this->assertSame('applied', $application->status);
+        $this->assertNotNull($application->created_at);
+        $this->assertNotNull($application->updated_at);
+        $applicationItem = DB::table('sale_promotion_application_items')
+            ->where('tenant_id', $tenant->id)
+            ->where('sale_promotion_application_id', $application->id)
+            ->first();
+        $this->assertNotNull($applicationItem);
+        $this->assertNotNull($applicationItem->created_at);
+        $this->assertNotNull($applicationItem->updated_at);
     }
 
     public function test_paid_pos_order_sync_marks_serialized_units_as_sold(): void

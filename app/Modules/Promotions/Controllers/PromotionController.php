@@ -23,6 +23,7 @@ class PromotionController extends Controller
         return PromotionResource::collection(
             Promotion::query()
                 ->with(['items.product'])
+                ->when($scope = $request->route('promotion_scope'), fn ($query) => $query->where('scope', $scope))
                 ->when($request->boolean('active_only'), fn ($query) => $query->where('is_active', true))
                 ->orderByDesc('priority')
                 ->orderBy('name')
@@ -33,6 +34,7 @@ class PromotionController extends Controller
     public function show(Request $request, Promotion $promotion): PromotionResource
     {
         abort_unless($request->user()?->can('promotions.view'), Response::HTTP_FORBIDDEN);
+        $this->assertRouteScope($request, $promotion);
 
         return PromotionResource::make($promotion->load('items.product'));
     }
@@ -43,9 +45,14 @@ class PromotionController extends Controller
 
         $promotion = DB::transaction(function () use ($request): Promotion {
             $data = $request->validated();
-            $items = $data['items'];
+            $items = $data['items'] ?? [];
             unset($data['items']);
             $data['price_currency'] ??= Promotion::PRICE_CURRENCY_USD;
+            $data['scope'] = $request->route('promotion_scope')
+                ?? Promotion::inferScope($data['benefit_type'], $items !== []);
+            $data['allows_combos'] = $data['scope'] === Promotion::SCOPE_INVOICE
+                ? (bool) ($data['allows_combos'] ?? false)
+                : false;
 
             $promotion = Promotion::create($data);
             $promotion->items()->createMany($this->normalizeItems($items));
@@ -62,11 +69,21 @@ class PromotionController extends Controller
     public function update(UpdatePromotionRequest $request, Promotion $promotion, SyncCatalogOutboxService $syncCatalog): PromotionResource
     {
         abort_unless($request->user()?->can('promotions.update'), Response::HTTP_FORBIDDEN);
+        $this->assertRouteScope($request, $promotion);
 
         DB::transaction(function () use ($request, $promotion): void {
             $data = $request->validated();
-            $items = $data['items'] ?? null;
+            $nextBenefitType = $data['benefit_type'] ?? $promotion->benefit_type;
+            $items = array_key_exists('items', $data)
+                ? $data['items']
+                : (Promotion::isInvoiceDiscountType($nextBenefitType) && $nextBenefitType !== $promotion->benefit_type ? [] : null);
             unset($data['items']);
+            $hasItems = $items === null ? $promotion->items()->exists() : $items !== [];
+            $data['scope'] = $request->route('promotion_scope')
+                ?? Promotion::inferScope($nextBenefitType, $hasItems);
+            if ($data['scope'] !== Promotion::SCOPE_INVOICE) {
+                $data['allows_combos'] = false;
+            }
             $promotion->update($data);
 
             if ($items !== null) {
@@ -82,6 +99,7 @@ class PromotionController extends Controller
     public function destroy(Request $request, Promotion $promotion, SyncCatalogOutboxService $syncCatalog): Response
     {
         abort_unless($request->user()?->can('promotions.delete'), Response::HTTP_FORBIDDEN);
+        $this->assertRouteScope($request, $promotion);
 
         $promotion->update(['is_active' => false]);
         $syncCatalog->promotionDeleted($promotion->refresh()->load('items.product'));
@@ -100,5 +118,11 @@ class PromotionController extends Controller
                 'sort_order' => $index,
             ])
             ->all();
+    }
+
+    private function assertRouteScope(Request $request, Promotion $promotion): void
+    {
+        $scope = $request->route('promotion_scope');
+        abort_if($scope !== null && $promotion->scope !== $scope, Response::HTTP_NOT_FOUND);
     }
 }

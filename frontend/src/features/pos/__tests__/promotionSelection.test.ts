@@ -22,7 +22,12 @@ const promotion: Promotion = {
 
 describe('POS promotion selection', () => {
   beforeEach(() => {
-    usePosCartStore.setState({ selectedPromotion: null });
+    usePosCartStore.setState({
+      selectedPromotion: null,
+      selectedInvoicePromotion: null,
+      comboApplications: [],
+      productOfferApplications: [],
+    });
   });
 
   it('stores the selected promotion for checkout', () => {
@@ -37,6 +42,42 @@ describe('POS promotion selection', () => {
     usePosCartStore.getState().clearSelectedPromotion();
 
     expect(usePosCartStore.getState().selectedPromotion).toBeNull();
+  });
+
+  it('keeps one invoice promotion and multiple combo instances independently', () => {
+    const invoice = {
+      ...promotion,
+      id: 21,
+      scope: 'invoice' as const,
+      benefit_type: 'percent_discount' as const,
+    };
+    const combo = { ...promotion, scope: 'combo' as const };
+
+    usePosCartStore.getState().setSelectedInvoicePromotion(invoice);
+    usePosCartStore.getState().addComboApplication(combo, 'combo-a', 1);
+    usePosCartStore.getState().addComboApplication(combo, 'combo-b', 2);
+
+    expect(usePosCartStore.getState().selectedInvoicePromotion).toEqual(invoice);
+    expect(usePosCartStore.getState().comboApplications).toEqual([
+      { promotion: combo, instance_uuid: 'combo-a', sets: 1 },
+      { promotion: combo, instance_uuid: 'combo-b', sets: 2 },
+    ]);
+  });
+
+  it('assigns product offers to ordinary line ids without replacing combos', () => {
+    const offer = {
+      ...promotion,
+      id: 30,
+      scope: 'product_offer' as const,
+      benefit_type: 'free_item' as const,
+    };
+
+    usePosCartStore.getState().addProductOfferApplication(offer, 'line-ordinary');
+
+    expect(usePosCartStore.getState().productOfferApplications).toEqual([
+      { promotion: offer, line_id: 'line-ordinary' },
+    ]);
+    expect(usePosCartStore.getState().comboApplications).toEqual([]);
   });
 
   it('expands every component for multiple promotion sets and combines duplicate products', () => {

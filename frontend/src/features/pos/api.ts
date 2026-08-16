@@ -261,6 +261,82 @@ export const PosProductQuoteSchema = z
   .passthrough();
 export type PosProductQuote = z.infer<typeof PosProductQuoteSchema>;
 
+const SalePromotionApplicationItemSchema = z
+  .object({
+    id: z.number().int().optional(),
+    sale_item_id: z.number().int(),
+    quantity: nullableNumber,
+    base_before_amount: nullableNumber,
+    local_before_amount: nullableNumber,
+    base_adjustment_amount: nullableNumber,
+    local_adjustment_amount: nullableNumber,
+    base_after_amount: nullableNumber,
+    local_after_amount: nullableNumber,
+    created_at: z.string().nullable().optional(),
+    updated_at: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const SalePromotionApplicationSchema = z
+  .object({
+    id: z.number().int().optional(),
+    slot: z.string().optional(),
+    scope: z.string(),
+    status: z.string(),
+    instance_uuid: z.string().nullable().optional(),
+    promotion_id: z.number().int().nullable().optional(),
+    promotion_code: z.string().nullable().optional(),
+    promotion_name: z.string().nullable().optional(),
+    benefit_type: z.string().nullable().optional(),
+    payment_currency: z.string().nullable().optional(),
+    price_usd: nullableNumber,
+    discount_percent: nullableNumber,
+    discount_amount_usd: nullableNumber,
+    conditions_snapshot: z.record(z.string(), z.unknown()).nullable().optional(),
+    base_before_amount: nullableNumber,
+    local_before_amount: nullableNumber,
+    base_adjustment_amount: nullableNumber,
+    local_adjustment_amount: nullableNumber,
+    base_after_amount: nullableNumber,
+    local_after_amount: nullableNumber,
+    requested_at: z.string().nullable().optional(),
+    validated_at: z.string().nullable().optional(),
+    rejected_at: z.string().nullable().optional(),
+    created_at: z.string().nullable().optional(),
+    updated_at: z.string().nullable().optional(),
+    items: z.array(SalePromotionApplicationItemSchema).optional(),
+  })
+  .passthrough();
+
+const PosSaleItemSchema = z
+  .object({
+    id: z.number().int(),
+    product_id: z.number().int(),
+    product_variant_id: z.number().int().nullable().optional(),
+    warehouse_id: z.number().int(),
+    quantity: nullableNumber,
+    unit_price: nullableNumber,
+    base_unit_price: nullableNumber,
+    sale_currency: z.enum(['USD', 'VES']).optional(),
+    price_list_id: z.number().int().nullable().optional(),
+    price_list_name: z.string().nullable().optional(),
+    product_unit_ids: z.array(z.number().int()).nullable().optional(),
+    serial_units: z.array(ProductSerialSchema).optional(),
+    combo_instance_uuid: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const PosSaleSchema = z
+  .object({
+    id: z.number().int(),
+    status: z.string(),
+    total_base_amount: nullableNumber,
+    total_local_amount: nullableNumber,
+    items: z.array(PosSaleItemSchema).optional(),
+    promotion_applications: z.array(SalePromotionApplicationSchema).optional(),
+  })
+  .passthrough();
+
 export const PosOrderSchema = z
   .object({
     id: z.number().int(),
@@ -284,7 +360,7 @@ export const PosOrderSchema = z
       })
       .nullable()
       .optional(),
-    sale: z.unknown().optional(),
+    sale: PosSaleSchema.nullable().optional(),
   })
   .passthrough();
 export type PosOrder = z.infer<typeof PosOrderSchema>;
@@ -309,6 +385,9 @@ export interface CheckoutPayload {
   customer_name?: string | null;
   promotion_id?: number | null;
   promotion_code?: string | null;
+  invoice_promotion_id?: number | null;
+  combo_applications?: ComboApplicationPayload[];
+  product_offer_applications?: ProductOfferApplicationPayload[];
   credit?: boolean;
   credit_due_date?: string | null;
   items: {
@@ -318,6 +397,7 @@ export interface CheckoutPayload {
     price_list_id?: number | null;
     price_source?: 'base' | 'price_list';
     quantity: number;
+    combo_instance_uuid?: string | null;
     discount_type?: 'percent' | 'fixed' | null;
     discount_value?: number | null;
     discount_reason?: string | null;
@@ -344,7 +424,21 @@ export interface HoldPayload {
   customer_name?: string | null;
   promotion_id?: number | null;
   promotion_code?: string | null;
+  invoice_promotion_id?: number | null;
+  combo_applications?: ComboApplicationPayload[];
+  product_offer_applications?: ProductOfferApplicationPayload[];
   items: CheckoutPayload['items'];
+}
+
+export interface ComboApplicationPayload {
+  promotion_id: number;
+  instance_uuid: string;
+  sets: number;
+}
+
+export interface ProductOfferApplicationPayload {
+  promotion_id: number;
+  item_index: number;
 }
 
 /**
@@ -586,23 +680,27 @@ export function useAddPosPayments() {
       payments,
       cashRegisterSessionId,
       items,
+      invoicePromotionAction,
     }: {
       orderId: number;
       payments: CheckoutPayload['payments'];
       cashRegisterSessionId?: number | null;
       items?: ChargeItemPayload[];
+      invoicePromotionAction?: 'validate' | 'reject';
     }) =>
       postOne<
         {
           payments: CheckoutPayload['payments'];
           cash_register_session_id?: number | null;
           items?: ChargeItemPayload[];
+          invoice_promotion_action?: 'validate' | 'reject';
         },
         PosOrder
       >(`/pos/orders/${orderId}/payments`, {
         payments,
         cash_register_session_id: cashRegisterSessionId ?? null,
         items: items && items.length > 0 ? items : undefined,
+        invoice_promotion_action: invoicePromotionAction,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });

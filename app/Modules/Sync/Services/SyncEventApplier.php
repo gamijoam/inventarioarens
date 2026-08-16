@@ -2030,7 +2030,12 @@ class SyncEventApplier
         }
 
         $items = $payload['items'] ?? [];
-        if (! is_array($items) || $items === []) {
+        if (! is_array($items)) {
+            throw new RuntimeException('La promocion sincronizada no tiene componentes.');
+        }
+        $benefitType = $this->requiredString($payload, 'benefit_type');
+        $scope = $payload['scope'] ?? Promotion::inferScope($benefitType, $items !== []);
+        if ($scope !== Promotion::SCOPE_INVOICE && $items === []) {
             throw new RuntimeException('La promocion sincronizada no tiene componentes.');
         }
 
@@ -2041,7 +2046,9 @@ class SyncEventApplier
         $promotion->fill([
             'name' => $this->requiredString($payload, 'name'),
             'code' => $code,
-            'benefit_type' => $this->requiredString($payload, 'benefit_type'),
+            'scope' => $scope,
+            'allows_combos' => (bool) ($payload['allows_combos'] ?? false),
+            'benefit_type' => $benefitType,
             'price_currency' => strtoupper((string) ($payload['price_currency'] ?? 'USD')),
             'payment_currency' => strtoupper((string) ($payload['payment_currency'] ?? Promotion::PAYMENT_CURRENCY_ANY)),
             'price_usd' => $payload['price_usd'] ?? null,
@@ -2739,6 +2746,12 @@ class SyncEventApplier
             $previousSaleStatus !== 'confirmed',
             $payload['items'] ?? []
         );
+        $this->syncSalePromotionApplications(
+            $tenant,
+            $saleId,
+            $sourceNodeCode,
+            $payload['promotion_applications'] ?? []
+        );
         $this->syncPosPayments($tenant, $orderId, $sourceNodeCode, $payload['payments'] ?? []);
         $this->syncPosReceivable($tenant, $saleId, $sourceNodeCode, $payload['receivable'] ?? null);
 
@@ -2827,6 +2840,103 @@ class SyncEventApplier
             ->where('sync_source_node_code', $sourceNodeCode)
             ->whereNotIn('sync_source_id', $sourceIds)
             ->delete();
+    }
+
+    private function syncSalePromotionApplications(
+        Tenant $tenant,
+        int $saleId,
+        string $sourceNodeCode,
+        array $applications
+    ): void {
+        foreach ($applications as $application) {
+            $slot = $this->requiredString($application, 'slot');
+            $promotionCode = isset($application['promotion_code']) && trim((string) $application['promotion_code']) !== ''
+                ? mb_strtoupper(trim((string) $application['promotion_code']))
+                : null;
+            $promotionId = $promotionCode === null
+                ? null
+                : DB::table('promotions')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('code', $promotionCode)
+                    ->value('id');
+            $now = now();
+            $applicationId = $this->upsertAndGetId(
+                'sale_promotion_applications',
+                [
+                    'tenant_id' => $tenant->id,
+                    'sale_id' => $saleId,
+                    'slot' => $slot,
+                ],
+                [
+                    'promotion_id' => $promotionId,
+                    'scope' => $this->requiredString($application, 'scope'),
+                    'status' => $this->requiredString($application, 'status'),
+                    'instance_uuid' => $application['instance_uuid'] ?? null,
+                    'requested_by' => null,
+                    'validated_by' => null,
+                    'requested_at' => $this->nullableDate($application['requested_at'] ?? null),
+                    'validated_at' => $this->nullableDate($application['validated_at'] ?? null),
+                    'rejected_at' => $this->nullableDate($application['rejected_at'] ?? null),
+                    'promotion_code' => $promotionCode,
+                    'promotion_name' => $this->requiredString($application, 'promotion_name'),
+                    'benefit_type' => $this->requiredString($application, 'benefit_type'),
+                    'payment_currency' => strtoupper((string) ($application['payment_currency'] ?? Promotion::PAYMENT_CURRENCY_ANY)),
+                    'price_usd' => $application['price_usd'] ?? null,
+                    'discount_percent' => $application['discount_percent'] ?? null,
+                    'discount_amount_usd' => $application['discount_amount_usd'] ?? null,
+                    'conditions_snapshot' => isset($application['conditions_snapshot'])
+                        ? json_encode($application['conditions_snapshot'])
+                        : null,
+                    'base_before_amount' => $application['base_before_amount'] ?? 0,
+                    'local_before_amount' => $application['local_before_amount'] ?? 0,
+                    'base_adjustment_amount' => $application['base_adjustment_amount'] ?? 0,
+                    'local_adjustment_amount' => $application['local_adjustment_amount'] ?? 0,
+                    'base_after_amount' => $application['base_after_amount'] ?? 0,
+                    'local_after_amount' => $application['local_after_amount'] ?? 0,
+                    'updated_at' => $this->nullableDate($application['updated_at'] ?? null) ?? $now,
+                ]
+            );
+
+            $saleItemIds = [];
+            foreach ($application['items'] ?? [] as $item) {
+                $sourceSaleItemId = (int) ($item['sale_item_id'] ?? 0);
+                $saleItemId = DB::table('sale_items')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('sale_id', $saleId)
+                    ->where('sync_source_node_code', $sourceNodeCode)
+                    ->where('sync_source_id', $sourceSaleItemId)
+                    ->value('id');
+                if (! $saleItemId) {
+                    throw new RuntimeException('No se pudo resolver la linea de venta de una promocion sincronizada.');
+                }
+                $saleItemIds[] = (int) $saleItemId;
+                $this->upsertByKeys(
+                    'sale_promotion_application_items',
+                    [
+                        'tenant_id' => $tenant->id,
+                        'sale_promotion_application_id' => $applicationId,
+                        'sale_item_id' => (int) $saleItemId,
+                    ],
+                    [
+                        'quantity' => $item['quantity'] ?? 0,
+                        'base_before_amount' => $item['base_before_amount'] ?? 0,
+                        'local_before_amount' => $item['local_before_amount'] ?? 0,
+                        'base_adjustment_amount' => $item['base_adjustment_amount'] ?? 0,
+                        'local_adjustment_amount' => $item['local_adjustment_amount'] ?? 0,
+                        'base_after_amount' => $item['base_after_amount'] ?? 0,
+                        'local_after_amount' => $item['local_after_amount'] ?? 0,
+                        'updated_at' => $this->nullableDate($item['updated_at'] ?? null) ?? $now,
+                    ]
+                );
+            }
+
+            DB::table('sale_promotion_application_items')
+                ->where('tenant_id', $tenant->id)
+                ->where('sale_promotion_application_id', $applicationId)
+                ->when($saleItemIds !== [], fn ($query) => $query->whereNotIn('sale_item_id', $saleItemIds))
+                ->when($saleItemIds === [], fn ($query) => $query)
+                ->delete();
+        }
     }
 
     private function syncPosReceivable(Tenant $tenant, int $saleId, string $sourceNodeCode, mixed $receivable): void
@@ -3289,6 +3399,12 @@ class SyncEventApplier
         );
 
         $this->syncPlainSaleItems($tenant, $saleId, $sourceNodeCode, $payload['items'] ?? []);
+        $this->syncSalePromotionApplications(
+            $tenant,
+            $saleId,
+            $sourceNodeCode,
+            $payload['promotion_applications'] ?? []
+        );
 
         return 'applied';
     }
@@ -3313,7 +3429,7 @@ class SyncEventApplier
             $product = $this->productBySku($tenant, $sku);
             $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
             $priceListId = $this->nullablePriceListIdByCode($tenant, $item['price_list_code'] ?? null);
-            $sourceItemId = $saleId * 1000 + $index + 1;
+            $sourceItemId = (int) ($item['id'] ?? ($saleId * 1000 + $index + 1));
 
             $this->upsertByKeys(
                 'sale_items',

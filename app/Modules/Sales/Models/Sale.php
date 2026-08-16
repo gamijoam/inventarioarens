@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\POS\Models\PosOrder;
+use App\Modules\Promotions\Models\SalePromotionApplication;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Support\Sync\Syncable;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
@@ -92,5 +93,10 @@ class Sale extends Model
     public function salesReturns(): HasMany
     {
         return $this->hasMany(SalesReturn::class);
+    }
+
+    public function promotionApplications(): HasMany
+    {
+        return $this->hasMany(SalePromotionApplication::class);
     }
 }

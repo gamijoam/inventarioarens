@@ -22,6 +22,8 @@ use Illuminate\Support\Carbon;
     'is_active',
     'starts_at',
     'ends_at',
+    'scope',
+    'allows_combos',
 ])]
 class Promotion extends Model
 {
@@ -45,6 +47,31 @@ class Promotion extends Model
 
     public const PAYMENT_CURRENCY_VES = 'VES';
 
+    public const SCOPE_INVOICE = 'invoice';
+
+    public const SCOPE_COMBO = 'combo';
+
+    public const SCOPE_PRODUCT_OFFER = 'product_offer';
+
+    public const SCOPE_LEGACY_PRODUCT_DISCOUNT = 'legacy_product_discount';
+
+    /**
+     * Descuentos que se aplican sobre el total del ticket. Los items son
+     * opcionales para conservar la posibilidad de restringir promociones
+     * antiguas a productos elegibles.
+     *
+     * @var list<string>
+     */
+    public const INVOICE_DISCOUNT_TYPES = [
+        self::BENEFIT_PERCENT_DISCOUNT,
+        self::BENEFIT_FIXED_DISCOUNT,
+    ];
+
+    public static function isInvoiceDiscountType(?string $benefitType): bool
+    {
+        return in_array($benefitType, self::INVOICE_DISCOUNT_TYPES, true);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PromotionItem::class);
@@ -60,7 +87,26 @@ class Promotion extends Model
             'is_active' => 'boolean',
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
+            'allows_combos' => 'boolean',
         ];
+    }
+
+    public static function inferScope(string $benefitType, bool $hasItems): string
+    {
+        if (in_array($benefitType, [self::BENEFIT_FIXED_BUNDLE_PRICE, self::BENEFIT_BUY_X_GET_Y], true)) {
+            return self::SCOPE_COMBO;
+        }
+
+        if (self::isInvoiceDiscountType($benefitType)) {
+            return $hasItems ? self::SCOPE_LEGACY_PRODUCT_DISCOUNT : self::SCOPE_INVOICE;
+        }
+
+        return self::SCOPE_PRODUCT_OFFER;
+    }
+
+    public function scopeOfType(Builder $query, string $scope): Builder
+    {
+        return $query->where('scope', $scope);
     }
 
     public function scopeActiveAt(Builder $query, ?Carbon $at = null): Builder

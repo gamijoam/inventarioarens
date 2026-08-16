@@ -23,6 +23,17 @@ const promotion: Promotion = {
   ],
 };
 
+const invoiceDiscount: Promotion = {
+  ...promotion,
+  id: 16,
+  name: 'Descuento de factura',
+  code: 'INVOICE-25',
+  benefit_type: 'percent_discount',
+  discount_percent: 25,
+  price_usd: 0,
+  items: [],
+};
+
 describe('PromotionsPanel', () => {
   it('muestra los componentes y permite aplicar una promocion', () => {
     const onSelect = vi.fn();
@@ -70,5 +81,59 @@ describe('PromotionsPanel', () => {
     );
 
     expect(screen.getByText('2x1')).toBeInTheDocument();
+  });
+
+  it('separa descuentos de factura de los combos y no pide conjuntos para descuentos', () => {
+    const onSelectDiscount = vi.fn();
+
+    render(
+      <PromotionsPanel
+        promotions={[promotion, invoiceDiscount]}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onSelectDiscount={onSelectDiscount}
+      />,
+    );
+
+    expect(screen.getByText('Descuentos de factura')).toBeInTheDocument();
+    expect(screen.getByText('Combos y promociones de productos')).toBeInTheDocument();
+    expect(screen.getByText('Se aplica al total de la factura.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Cantidad de conjuntos')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar INVOICE-25' }));
+
+    expect(onSelectDiscount).toHaveBeenCalledWith(invoiceDiscount);
+  });
+
+  it('muestra ofertas de producto separadas y no les aplica cantidad de conjuntos', () => {
+    const offer = {
+      ...promotion,
+      id: 17,
+      scope: 'product_offer' as const,
+      benefit_type: 'free_item' as const,
+      name: 'Cargador gratis',
+      code: 'FREE-CHARGER',
+    };
+    const onSelectOffer = vi.fn();
+
+    render(
+      <PromotionsPanel
+        invoicePromotions={[invoiceDiscount]}
+        combos={[promotion]}
+        productOffers={[offer]}
+        selectedInvoiceId={null}
+        selectedComboIds={[]}
+        onSelectCombo={vi.fn()}
+        onSelectProductOffer={onSelectOffer}
+        onSelect={vi.fn()}
+        selectedId={null}
+      />,
+    );
+
+    expect(screen.getByText('Ofertas por producto')).toBeInTheDocument();
+    expect(screen.getByText('Cargador gratis')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Cantidad de conjuntos')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar FREE-CHARGER' }));
+    expect(onSelectOffer).toHaveBeenCalledWith(offer);
   });
 });

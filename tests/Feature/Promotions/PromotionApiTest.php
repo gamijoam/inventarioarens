@@ -5,6 +5,7 @@ namespace Tests\Feature\Promotions;
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Products\Models\Product;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sync\Models\SyncOutbox;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -96,6 +97,7 @@ class PromotionApiTest extends TestCase
             ->latest('id')
             ->firstOrFail();
         $this->assertSame('COMBO-50', $event->payload['code']);
+        $this->assertSame(Promotion::SCOPE_COMBO, $event->payload['scope']);
         $this->assertCount(2, $event->payload['items']);
     }
 
@@ -138,6 +140,57 @@ class PromotionApiTest extends TestCase
             ->latest('id')
             ->firstOrFail();
         $this->assertSame(25.0, (float) $event->payload['discount_percent']);
+    }
+
+    public function test_administrator_can_create_invoice_percentage_discount_without_products(): void
+    {
+        [$tenant, $admin] = $this->tenantAndUser([
+            'promotions.create',
+        ]);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/promotions', [
+                'name' => 'Descuento para toda la factura',
+                'code' => 'INVOICE-25',
+                'benefit_type' => 'percent_discount',
+                'discount_percent' => 25,
+                'is_active' => true,
+            ])
+            ->assertCreated();
+
+        $this->assertSame([], $response->json('data.items'));
+        $this->assertDatabaseHas('promotions', [
+            'tenant_id' => $tenant->id,
+            'code' => 'INVOICE-25',
+            'benefit_type' => 'percent_discount',
+        ]);
+        $event = SyncOutbox::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'promotion.created')
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertSame(Promotion::SCOPE_INVOICE, $event->payload['scope']);
+        $this->assertFalse($event->payload['allows_combos']);
+        $this->assertSame([], $event->payload['items']);
+    }
+
+    public function test_non_discount_promotions_still_require_components(): void
+    {
+        [$tenant, $admin] = $this->tenantAndUser(['promotions.create']);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/promotions', [
+                'name' => 'Combo sin componentes',
+                'benefit_type' => 'fixed_bundle_price',
+                'price_usd' => 50,
+                'items' => [],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items']);
     }
 
     public function test_administrator_can_restrict_a_promotion_to_ves_payments(): void
@@ -221,6 +274,41 @@ class PromotionApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['discount_percent']);
+    }
+
+    public function test_switching_a_combo_to_invoice_discount_removes_its_product_components(): void
+    {
+        [$tenant, $admin] = $this->tenantAndUser([
+            'promotions.create',
+            'promotions.update',
+        ]);
+        [, $phone, $charger] = $this->bundleProducts($tenant);
+
+        $created = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/promotions', [
+                'name' => 'Combo convertible a factura',
+                'benefit_type' => 'fixed_bundle_price',
+                'price_usd' => 50,
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 1],
+                    ['product_id' => $charger->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated();
+
+        $updated = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson('/api/promotions/'.$created->json('data.id'), [
+                'benefit_type' => 'percent_discount',
+                'discount_percent' => 15,
+            ])
+            ->assertOk();
+
+        $this->assertSame([], $updated->json('data.items'));
+        $this->assertDatabaseCount('promotion_items', 0);
     }
 
     public function test_administrator_can_create_fixed_discount_for_selected_products(): void
@@ -689,6 +777,125 @@ class PromotionApiTest extends TestCase
         } finally {
             Carbon::setTestNow();
         }
+    }
+
+    public function test_invoice_promotions_combos_and_product_offers_have_separate_endpoints(): void
+    {
+        [$tenant, $admin] = $this->tenantAndUser([
+            'promotions.view',
+            'promotions.create',
+            'pos.promotions.view',
+        ]);
+        [$warehouse, $phone, $charger] = $this->bundleProducts($tenant);
+
+        $invoicePromotion = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/invoice-promotions', [
+                'name' => 'Diez por ciento pagando en VES',
+                'code' => 'VES-10-INVOICE',
+                'benefit_type' => 'percent_discount',
+                'discount_percent' => 10,
+                'payment_currency' => 'VES',
+                'allows_combos' => true,
+            ])
+            ->assertCreated();
+
+        $combo = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/combos', [
+                'name' => 'Telefono con cargador',
+                'code' => 'PHONE-BUNDLE',
+                'benefit_type' => 'fixed_bundle_price',
+                'price_usd' => 50,
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 1],
+                    ['product_id' => $charger->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated();
+
+        $offer = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/product-offers', [
+                'name' => 'Telefono a precio especial',
+                'code' => 'PHONE-OFFER',
+                'benefit_type' => 'fixed_item_price',
+                'price_usd' => 30,
+                'items' => [['product_id' => $phone->id, 'quantity' => 1]],
+            ])
+            ->assertCreated();
+
+        $this->assertSame('invoice', $invoicePromotion->json('data.scope'));
+        $this->assertTrue($invoicePromotion->json('data.allows_combos'));
+        $this->assertSame('combo', $combo->json('data.scope'));
+        $this->assertSame('product_offer', $offer->json('data.scope'));
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/invoice-promotions')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $invoicePromotion->json('data.id'));
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/combos')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $combo->json('data.id'));
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/product-offers')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $offer->json('data.id'));
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/pos/combos?warehouse_id={$warehouse->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.scope', 'combo');
+    }
+
+    public function test_separate_endpoints_reject_benefit_types_from_another_domain(): void
+    {
+        [$tenant, $admin] = $this->tenantAndUser(['promotions.create']);
+        [, $phone, $charger] = $this->bundleProducts($tenant);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/invoice-promotions', [
+                'name' => 'No es una promocion de factura',
+                'benefit_type' => 'fixed_bundle_price',
+                'price_usd' => 50,
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 1],
+                    ['product_id' => $charger->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['benefit_type']);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/combos', [
+                'name' => 'No es combo',
+                'benefit_type' => 'percent_discount',
+                'discount_percent' => 10,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['benefit_type']);
     }
 
     private function tenantAndUser(array $permissions, ?string $slug = null): array

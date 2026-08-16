@@ -433,6 +433,8 @@ class SyncInitialSnapshotService
                         'id' => (int) $promotion->id,
                         'name' => $promotion->name,
                         'code' => $promotion->code,
+                        'scope' => $promotion->scope,
+                        'allows_combos' => (bool) $promotion->allows_combos,
                         'benefit_type' => $promotion->benefit_type,
                         'price_currency' => $promotion->price_currency,
                         'payment_currency' => $promotion->payment_currency,
