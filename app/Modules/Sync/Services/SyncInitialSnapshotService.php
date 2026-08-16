@@ -435,6 +435,7 @@ class SyncInitialSnapshotService
                         'code' => $promotion->code,
                         'benefit_type' => $promotion->benefit_type,
                         'price_currency' => $promotion->price_currency,
+                        'payment_currency' => $promotion->payment_currency,
                         'price_usd' => $promotion->price_usd === null ? null : (string) $promotion->price_usd,
                         'discount_percent' => $promotion->discount_percent === null ? null : (string) $promotion->discount_percent,
                         'discount_amount_usd' => $promotion->discount_amount_usd === null ? null : (string) $promotion->discount_amount_usd,

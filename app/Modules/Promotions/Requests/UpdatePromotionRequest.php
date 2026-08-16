@@ -34,6 +34,10 @@ class UpdatePromotionRequest extends FormRequest
                 Promotion::BENEFIT_BUY_X_GET_Y,
             ])],
             'price_currency' => ['sometimes', 'string', 'size:3', Rule::in(['USD'])],
+            'payment_currency' => ['sometimes', 'string', 'size:3', Rule::in([
+                Promotion::PAYMENT_CURRENCY_ANY,
+                Promotion::PAYMENT_CURRENCY_VES,
+            ])],
             'price_usd' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'discount_percent' => [
                 Rule::requiredIf($this->input('benefit_type') === Promotion::BENEFIT_PERCENT_DISCOUNT),

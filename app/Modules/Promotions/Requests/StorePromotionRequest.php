@@ -32,6 +32,10 @@ class StorePromotionRequest extends FormRequest
                 Promotion::BENEFIT_BUY_X_GET_Y,
             ])],
             'price_currency' => ['sometimes', 'string', 'size:3', Rule::in(['USD'])],
+            'payment_currency' => ['sometimes', 'string', 'size:3', Rule::in([
+                Promotion::PAYMENT_CURRENCY_ANY,
+                Promotion::PAYMENT_CURRENCY_VES,
+            ])],
             'price_usd' => ['required_if:benefit_type,fixed_item_price,fixed_bundle_price', 'nullable', 'numeric', 'gte:0'],
             'discount_percent' => ['required_if:benefit_type,percent_discount', 'nullable', 'numeric', 'gt:0', 'lte:100'],
             'discount_amount_usd' => ['required_if:benefit_type,fixed_discount', 'nullable', 'numeric', 'gt:0'],

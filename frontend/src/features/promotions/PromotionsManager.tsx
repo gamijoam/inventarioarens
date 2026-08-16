@@ -23,6 +23,7 @@ import {
   StorePromotionSchema,
   type Promotion,
   type PromotionBenefitType,
+  type PromotionPaymentCurrency,
   type StorePromotionInput,
 } from './schemas';
 
@@ -41,6 +42,7 @@ interface PromotionFormState {
   name: string;
   code: string;
   benefit_type: SupportedBenefitType;
+  payment_currency: PromotionPaymentCurrency;
   price_usd: string;
   discount_percent: string;
   discount_amount_usd: string;
@@ -53,6 +55,7 @@ const emptyForm: PromotionFormState = {
   name: '',
   code: '',
   benefit_type: 'fixed_bundle_price',
+  payment_currency: 'ANY',
   price_usd: '',
   discount_percent: '',
   discount_amount_usd: '',
@@ -209,6 +212,7 @@ function PromotionFormDialog({
           name: promotion.name,
           code: promotion.code ?? '',
           benefit_type: promotion.benefit_type,
+          payment_currency: promotion.payment_currency ?? 'ANY',
           price_usd: String(promotion.price_usd),
           discount_percent:
             promotion.discount_percent == null ? '' : String(promotion.discount_percent),
@@ -269,6 +273,7 @@ function PromotionFormDialog({
       code: form.code,
       benefit_type: form.benefit_type,
       price_currency: 'USD',
+      payment_currency: form.payment_currency,
       price_usd:
         isPercentage || isFixedDiscount || isFreeItem || isBuyGet || form.price_usd === ''
           ? null
@@ -348,6 +353,23 @@ function PromotionFormDialog({
                 <option value="free_item">Artículo gratis</option>
                 <option value="buy_x_get_y">2x1 / Compra X y recibe Y</option>
               </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="promotion-payment-currency">Moneda de pago</Label>
+              <select
+                id="promotion-payment-currency"
+                className="border-border bg-surface text-text-primary focus:border-primary h-10 w-full rounded-lg border px-3 text-sm outline-none"
+                value={form.payment_currency}
+                onChange={(event) =>
+                  updateForm({ payment_currency: event.target.value as PromotionPaymentCurrency })
+                }
+              >
+                <option value="ANY">Cualquier moneda</option>
+                <option value="VES">Solo VES (bolívares)</option>
+              </select>
+              <p className="text-text-muted text-xs">
+                Solo VES exige que el pago completo sea en bolívares, sin pagos mixtos.
+              </p>
             </div>
             <div className="space-y-1">
               <Label

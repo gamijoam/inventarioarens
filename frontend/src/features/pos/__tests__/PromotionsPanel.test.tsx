@@ -11,6 +11,7 @@ const promotion: Promotion = {
   code: 'COMBO-50',
   benefit_type: 'fixed_bundle_price',
   price_currency: 'USD',
+  payment_currency: 'ANY',
   price_usd: 50,
   discount_percent: null,
   discount_amount_usd: null,

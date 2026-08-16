@@ -2043,6 +2043,7 @@ class SyncEventApplier
             'code' => $code,
             'benefit_type' => $this->requiredString($payload, 'benefit_type'),
             'price_currency' => strtoupper((string) ($payload['price_currency'] ?? 'USD')),
+            'payment_currency' => strtoupper((string) ($payload['payment_currency'] ?? Promotion::PAYMENT_CURRENCY_ANY)),
             'price_usd' => $payload['price_usd'] ?? null,
             'discount_percent' => $payload['discount_percent'] ?? null,
             'discount_amount_usd' => $payload['discount_amount_usd'] ?? null,

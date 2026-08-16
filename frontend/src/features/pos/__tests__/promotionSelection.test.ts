@@ -11,6 +11,7 @@ const promotion: Promotion = {
   code: 'COMBO-50',
   benefit_type: 'fixed_bundle_price',
   price_currency: 'USD',
+  payment_currency: 'ANY',
   price_usd: 50,
   discount_percent: null,
   discount_amount_usd: null,
@@ -58,7 +59,12 @@ describe('POS promotion selection', () => {
     // Bundle de $50 con 3 unidades totales -> $16.67 por unidad.
     expect(
       promotionLineUnitPrice(
-        { benefit_type: 'fixed_bundle_price', price_usd: 50, discount_percent: null, discount_amount_usd: null },
+        {
+          benefit_type: 'fixed_bundle_price',
+          price_usd: 50,
+          discount_percent: null,
+          discount_amount_usd: null,
+        },
         100,
         3,
       ),
@@ -68,7 +74,12 @@ describe('POS promotion selection', () => {
   it('aplica el porcentaje de descuento al precio base', () => {
     expect(
       promotionLineUnitPrice(
-        { benefit_type: 'percent_discount', price_usd: 0, discount_percent: 20, discount_amount_usd: null },
+        {
+          benefit_type: 'percent_discount',
+          price_usd: 0,
+          discount_percent: 20,
+          discount_amount_usd: null,
+        },
         100,
         1,
       ),
@@ -78,14 +89,24 @@ describe('POS promotion selection', () => {
   it('aplica el descuento fijo al precio base sin dejarlo negativo', () => {
     expect(
       promotionLineUnitPrice(
-        { benefit_type: 'fixed_discount', price_usd: 0, discount_percent: null, discount_amount_usd: 30 },
+        {
+          benefit_type: 'fixed_discount',
+          price_usd: 0,
+          discount_percent: null,
+          discount_amount_usd: 30,
+        },
         100,
         1,
       ),
     ).toBe(70);
     expect(
       promotionLineUnitPrice(
-        { benefit_type: 'fixed_discount', price_usd: 0, discount_percent: null, discount_amount_usd: 200 },
+        {
+          benefit_type: 'fixed_discount',
+          price_usd: 0,
+          discount_percent: null,
+          discount_amount_usd: 200,
+        },
         100,
         1,
       ),
@@ -95,7 +116,12 @@ describe('POS promotion selection', () => {
   it('mantiene el precio base para free_item y buy_x_get_y (el descuento se resuelve en backend)', () => {
     expect(
       promotionLineUnitPrice(
-        { benefit_type: 'free_item', price_usd: 0, discount_percent: null, discount_amount_usd: null },
+        {
+          benefit_type: 'free_item',
+          price_usd: 0,
+          discount_percent: null,
+          discount_amount_usd: null,
+        },
         100,
         1,
       ),

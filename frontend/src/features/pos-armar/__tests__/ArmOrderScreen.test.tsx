@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getProductVariants: vi.fn(),
   quoteProductForPos: vi.fn<(productId: number, priceListId: number) => Promise<unknown>>(),
   getProductForPos: vi.fn<(productId: number, warehouseId: number) => Promise<unknown>>(),
+  refetchPromotions: vi.fn(),
   bootstrapWarehouses: [
     { id: 7, name: 'Principal', code: 'MAIN', status: 'active' },
     { id: 8, name: 'Deposito', code: 'DEP', status: 'active' },
@@ -100,7 +101,11 @@ vi.mock('@/features/pos/api', () => ({
 }));
 
 vi.mock('@/features/promotions/api', () => ({
-  useAvailablePosPromotions: () => ({ data: mocks.availablePromotions, isLoading: false }),
+  useAvailablePosPromotions: () => ({
+    data: mocks.availablePromotions,
+    isLoading: false,
+    refetch: mocks.refetchPromotions,
+  }),
 }));
 
 vi.mock('@/features/inventory-center/variantApi', () => ({
@@ -424,6 +429,14 @@ describe('<ArmOrderScreen>', () => {
         }),
       ),
     );
+  });
+
+  it('actualiza las promociones al abrir el modal para mostrar promociones nuevas', () => {
+    render(<ArmOrderScreen />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Promociones' }));
+
+    expect(mocks.refetchPromotions).toHaveBeenCalledOnce();
   });
 
   it('muestra un mensaje cuando el producto no tiene precio en la lista elegida', async () => {
