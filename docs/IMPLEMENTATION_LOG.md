@@ -1,5 +1,17 @@
 # Registro de implementación
 
+## 2026-08-17 - Instalacion aislada Tiendas Arens
+
+- Creada una segunda instalacion Laravel en `/opt/tiendasarens-cloud` para
+  `app.tiendasarens.com`, sin reutilizar la base ni el directorio de MiInventarioFacil.
+- Creada la base PostgreSQL `inventory_tiendasarens` con el rol independiente `tiendasarens_app`.
+- Configurados PHP-FPM, Nginx, Traefik, queue worker y sync timer propios en el puerto interno `8082`.
+- Ejecutadas todas las migraciones y `RolesAndPermissionsSeeder`; el tenant `tiendasarens` fue creado
+  con bootstrap, Gabriel quedo como `Owner` del grupo y el endpoint publico se desactivo inmediatamente despues.
+- Verificacion: HTTPS valido, `/up` devuelve `200`, login por dominio funciona y la instalacion
+  existente `app.miinventariofacil.com` continua respondiendo `200`.
+- Procedimiento operativo: `docs/DEPLOY_TIENDAS_ARENS_VPS.md`.
+
 ## 2026-08-15 - Comisiones V2: control de ventas dinamico
 
 - Documentado el formato y las reglas en `docs/COMISIONES_V2_CONTROL_DINAMICO.md`.
