@@ -8,6 +8,12 @@ import {
   usePosCartStore,
   usePosCartPersistence,
 } from '../cartStore';
+import type {
+  ComboApplicationDraft,
+  ProductOfferApplicationDraft,
+} from '../cartStore';
+import type { PosCartLine, PosPaymentLine } from '../posLogic';
+import type { Promotion } from '@/features/promotions/schemas';
 
 /**
  * Tests de la persistencia del carrito en sessionStorage.
@@ -133,6 +139,29 @@ describe('pos cartStore persistence', () => {
     expect(loadPersistedCart(TENANT_A, CASHIER_A)).not.toBeNull();
     clearPersistedCart(TENANT_A, CASHIER_A);
     expect(loadPersistedCart(TENANT_A, CASHIER_A)).toBeNull();
+  });
+
+  it('clearAll vacia lineas, pagos y promociones del ticket', () => {
+    usePosCartStore.setState({
+      lines: [{ id: 'line-1' } as PosCartLine],
+      payments: [{ id: 'payment-1' } as PosPaymentLine],
+      customerName: 'Cliente cargado',
+      selectedPromotion: {} as Promotion,
+      selectedInvoicePromotion: {} as Promotion,
+      comboApplications: [{} as ComboApplicationDraft],
+      productOfferApplications: [{} as ProductOfferApplicationDraft],
+    });
+
+    usePosCartStore.getState().clearAll();
+
+    const state = usePosCartStore.getState();
+    expect(state.lines).toEqual([]);
+    expect(state.payments).toEqual([]);
+    expect(state.customerName).toBe('Consumidor Final');
+    expect(state.selectedPromotion).toBeNull();
+    expect(state.selectedInvoicePromotion).toBeNull();
+    expect(state.comboApplications).toEqual([]);
+    expect(state.productOfferApplications).toEqual([]);
   });
 
   it('usePosCartPersistence: hidrata el store desde sessionStorage al montar', async () => {

@@ -1052,6 +1052,20 @@ bundle viejo y la UI nueva no llega.
 
 Detalle completo en `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md`.
 
+## Instalacion aislada Tiendas Arens (2026-08-17)
+
+Tiendas Arens es un segundo cliente desplegado en el mismo VPS, pero con aislamiento de aplicacion
+y base de datos respecto a MiInventarioFacil. Su dominio es `app.tiendasarens.com`, su Laravel vive
+en `/opt/tiendasarens-cloud`, usa la base PostgreSQL `inventory_tiendasarens`, el usuario
+`tiendasarens_app`, PHP-FPM pool/socket propios y Nginx en el puerto interno `8082`. La instalacion
+existente conserva `/opt/inventarioarens-cloud`, `inventory_arens` y el puerto `8080`.
+
+Los workers `tiendasarens-queue.service`, `tiendasarens-sync.service` y
+`tiendasarens-sync.timer` son independientes. La ruta Traefik se agrega como archivo nuevo en
+`/root/deploy/core/traefik-config/`; no tocar routers de otros productos ni reiniciar Traefik para
+cambios ordinarios. La landing `tiendasarens.com` y sus registros de correo se mantienen fuera de
+este stack. El procedimiento operativo completo esta en `docs/DEPLOY_TIENDAS_ARENS_VPS.md`.
+
 ## Traslados v2 � Fase 0 (2026-07-19)
 
 Cambios criticos para que el flujo de IMEIs/seriales funcione end-to-end:

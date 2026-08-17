@@ -114,6 +114,10 @@ export interface VariantMatchInput {
   combo_instance_uuid?: string | null;
 }
 
+export function requiresPosVariantSelection(variants: { color?: string | null }[]): boolean {
+  return variants.length > 1 || variants.some((variant) => Boolean(variant.color));
+}
+
 /**
  * Encuentra en el carrito la linea que corresponde al mismo producto +
  * almacen + variante. Esto permite tener 1 unidad de un color y 2 de otro

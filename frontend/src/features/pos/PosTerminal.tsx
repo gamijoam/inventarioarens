@@ -108,6 +108,7 @@ import {
   missingSerialIssue,
   paymentBaseAmount,
   findMatchingVariantLine,
+  requiresPosVariantSelection,
   promotionLineUnitPrice,
   invoicePromotionPaymentIssue,
   type CurrencyCode,
@@ -334,6 +335,20 @@ export function openSearchFromSuggestion(query: string, action: SearchPanelActio
 
 export const POS_LAYOUT_CLASS_NAME = 'flex min-h-0 flex-1 flex-col overflow-hidden';
 
+interface PromotionLoadEntry {
+  item: { product_id: number; quantity: number };
+  product: Product;
+  unitPrice: number;
+}
+
+interface PendingPromotionLoad {
+  promotion: Promotion;
+  sets: number;
+  instanceUuid: string;
+  entries: PromotionLoadEntry[];
+  nextIndex: number;
+}
+
 export function PosTerminal() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -403,8 +418,8 @@ export function PosTerminal() {
   const setWarehouseId = usePosCartStore((s) => s.setWarehouseId);
   const setSelectedPriceListId = usePosCartStore((s) => s.setSelectedPriceListId);
   const setSelectedCustomer = usePosCartStore((s) => s.setSelectedCustomer);
+  const clearAll = usePosCartStore((s) => s.clearAll);
   const setSelectedPromotion = usePosCartStore((s) => s.setSelectedPromotion);
-  const clearSelectedPromotion = usePosCartStore((s) => s.clearSelectedPromotion);
   const setSelectedInvoicePromotion = usePosCartStore((s) => s.setSelectedInvoicePromotion);
   const clearSelectedInvoicePromotion = usePosCartStore((s) => s.clearSelectedInvoicePromotion);
   const addComboApplication = usePosCartStore((s) => s.addComboApplication);
@@ -469,7 +484,10 @@ export function PosTerminal() {
   const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
     price: number;
     ref: { id: number; code?: string | null; benefitType?: string } | null;
+    comboInstanceUuid?: string | null;
   } | null>(null);
+  const [pendingPromotionLoad, setPendingPromotionLoad] =
+    useState<PendingPromotionLoad | null>(null);
   const [serialSearch, setSerialSearch] = useState('');
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -1458,6 +1476,15 @@ export function PosTerminal() {
                 <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearPos}
+              disabled={cart.length === 0 && payments.length === 0}
+              title="Vaciar el ticket actual y sus promociones"
+            >
+              <Trash2 className="size-4" /> Limpiar POS
+            </Button>
           </div>
         </header>
 
@@ -1482,8 +1509,8 @@ export function PosTerminal() {
                 <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
                   <UserRound className="size-4" /> Cliente
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => clearTicket()}>
-                  <RotateCcw className="size-4" /> Nuevo
+                <Button variant="outline" size="sm" onClick={clearPos}>
+                  <Trash2 className="size-4" /> Limpiar POS
                 </Button>
               </div>
             </div>
@@ -1960,21 +1987,34 @@ export function PosTerminal() {
               onClose={() => {
                 setVariantPickerProduct(null);
                 setVariantPickerPromotion(null);
+                setPendingPromotionLoad(null);
               }}
-              onSelect={({ variant, quantity }) => {
+              onSelect={async ({ variant, quantity }) => {
                 const product = variantPickerProduct;
                 const promotion = variantPickerPromotion;
+                const pending = pendingPromotionLoad;
                 setVariantPickerProduct(null);
                 setVariantPickerPromotion(null);
                 if (product) {
-                  void addProduct(
+                  const added = await addProduct(
                     product,
                     undefined,
                     quantity,
                     variant,
                     promotion?.price,
                     promotion?.ref ?? null,
+                    promotion?.comboInstanceUuid ?? null,
                   );
+                  if (!added) {
+                    setPendingPromotionLoad(null);
+                    return;
+                  }
+                  if (pending) {
+                    await continuePromotionLoad({
+                      ...pending,
+                      nextIndex: pending.nextIndex + 1,
+                    });
+                  }
                 }
               }}
             />
@@ -2081,8 +2121,7 @@ export function PosTerminal() {
     if (!selectedVariant && !scannedSerial) {
       try {
         const variants = await getProductVariants(product.id, warehouse.id);
-        const namedVariants = variants.filter((variant) => Boolean(variant.color));
-        if (namedVariants.length > 0) {
+        if (requiresPosVariantSelection(variants)) {
           setVariantPickerProduct(product);
           setVariantPickerQuantity(Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
           // Conserva el contexto de promocion si esta linea viene de una
@@ -2094,7 +2133,7 @@ export function PosTerminal() {
           }
           return false;
         }
-        selectedVariant = variants[0] ?? null;
+        selectedVariant = null;
       } catch {
         toast.error('No se pudieron consultar las variantes de este producto. Intenta de nuevo.');
         return false;
@@ -2226,6 +2265,65 @@ export function PosTerminal() {
     return true;
   }
 
+  async function continuePromotionLoad(load: PendingPromotionLoad): Promise<void> {
+    if (!selectedWarehouse) {
+      setPendingPromotionLoad(null);
+      toast.error('Selecciona un almacen antes de cargar una promoción.');
+      return;
+    }
+
+    try {
+      for (let index = load.nextIndex; index < load.entries.length; index += 1) {
+        const entry = load.entries[index];
+        if (!entry) continue;
+        const variants = await getProductVariants(entry.product.id, selectedWarehouse.id);
+
+        if (requiresPosVariantSelection(variants)) {
+          setPendingPromotionLoad({ ...load, nextIndex: index });
+          setVariantPickerProduct(entry.product);
+          setVariantPickerQuantity(Math.max(1, Math.floor(entry.item.quantity)));
+          setVariantPickerPromotion({
+            price: entry.unitPrice,
+            ref: {
+              id: load.promotion.id,
+              code: load.promotion.code,
+              benefitType: load.promotion.benefit_type,
+            },
+            comboInstanceUuid: load.instanceUuid,
+          });
+          return;
+        }
+
+        const added = await addProduct(
+          entry.product,
+          undefined,
+          entry.item.quantity,
+          undefined,
+          entry.unitPrice,
+          {
+            id: load.promotion.id,
+            code: load.promotion.code,
+            benefitType: load.promotion.benefit_type,
+          },
+          load.instanceUuid,
+        );
+        if (!added) {
+          setPendingPromotionLoad(null);
+          return;
+        }
+      }
+
+      addComboApplication(load.promotion, load.instanceUuid, load.sets);
+      setSelectedPromotion(load.promotion);
+      setPendingPromotionLoad(null);
+      setPanel(null);
+      toast.success(`${load.sets} conjunto(s) de ${load.promotion.name} cargado(s) al ticket.`);
+    } catch {
+      setPendingPromotionLoad(null);
+      toast.error('No se pudieron cargar todos los productos de la promoción.');
+    }
+  }
+
   async function loadPromotion(promotion: Promotion, sets: number): Promise<void> {
     if (!selectedWarehouse) {
       toast.error('Selecciona un almacen antes de cargar una promoción.');
@@ -2256,42 +2354,27 @@ export function PosTerminal() {
         return;
       }
 
-      const promotionRef = {
-        id: promotion.id,
-        code: promotion.code,
-        benefitType: promotion.benefit_type,
-      };
-      // Precio unitario que se muestra en el carrito para el valor de la
-      // promocion (el backend re-valida y ajusta en el checkout).
-      const unitPriceByProduct = new Map<number, number>();
-      for (const { item, product } of loadedItems) {
-        const base = Number(product.base_price ?? 0);
-        unitPriceByProduct.set(
-          item.product_id,
-          promotionLineUnitPrice(promotion, base, totalPromotionQuantity),
-        );
-      }
-
-      // Si el producto tiene variantes, addProduct abrira el VariantPicker y
-      // retornara false (se continua con los demas items y se setea la
-      // promocion al final).
-      for (const { item, product } of loadedItems) {
-        await addProduct(
+      // La selección de variantes se procesa una por una. No se debe marcar
+      // el combo como cargado hasta que todas sus líneas estén en el carrito.
+      const pending: PendingPromotionLoad = {
+        promotion,
+        sets,
+        instanceUuid,
+        entries: loadedItems.map(({ item, product }) => ({
+          item,
           product,
-          undefined,
-          item.quantity,
-          undefined,
-          unitPriceByProduct.get(item.product_id),
-          promotionRef,
-          instanceUuid,
-        );
-      }
-
-      addComboApplication(promotion, instanceUuid, sets);
-      setSelectedPromotion(promotion);
-      setPanel(null);
-      toast.success(`${sets} conjunto(s) de ${promotion.name} cargado(s) al ticket.`);
+          unitPrice: promotionLineUnitPrice(
+            promotion,
+            Number(product.base_price ?? 0),
+            totalPromotionQuantity,
+          ),
+        })),
+        nextIndex: 0,
+      };
+      setPendingPromotionLoad(pending);
+      await continuePromotionLoad(pending);
     } catch {
+      setPendingPromotionLoad(null);
       toast.error('No se pudieron cargar todos los productos de la promoción.');
     }
   }
@@ -2923,16 +3006,19 @@ export function PosTerminal() {
     };
   }
 
+  function clearPos(): void {
+    if ((cart.length > 0 || payments.length > 0) && !window.confirm('¿Limpiar el ticket actual?')) {
+      return;
+    }
+
+    clearTicket();
+    setPanel(null);
+    toast.success('POS limpiado.');
+  }
+
   function clearTicket(): void {
-    setCart([]);
-    setPayments([]);
+    clearAll();
     setPriceListNotice(null);
-    setSelectedCustomer(null);
-    setCustomerName('Consumidor Final');
-    clearSelectedInvoicePromotion();
-    clearComboApplications();
-    clearProductOfferApplications();
-    clearSelectedPromotion();
     setSelectedPending(null);
     setExchangeDraft(null);
     setExchangeReturnId(null);

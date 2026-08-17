@@ -21,7 +21,7 @@ export const Route = createFileRoute('/_authed/import/sessions/$sessionId')({
 function ImportSessionDetailPage() {
   const { sessionId } = Route.useParams();
   const id = Number(sessionId);
-  const { data: session, isLoading } = useDataImportSession(id);
+  const { data: session, isLoading } = useDataImportSession(id, true);
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {

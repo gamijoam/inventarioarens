@@ -13,6 +13,7 @@ import {
   shouldApplyInvoicePromotion,
   resolvePendingPromotionTotal,
   invoicePromotionPaymentIssue,
+  requiresPosVariantSelection,
   type PosCartLine,
 } from '../posLogic';
 
@@ -31,6 +32,12 @@ describe('POS cart logic', () => {
   it('calcula descuentos por porcentaje y monto fijo', () => {
     expect(lineTotal({ ...baseLine, discount_type: 'percent', discount_value: 10 })).toBe(36);
     expect(lineTotal({ ...baseLine, discount_type: 'fixed', discount_value: 5 })).toBe(35);
+  });
+
+  it('no exige seleccionar una variante fantasma unica sin color', () => {
+    expect(requiresPosVariantSelection([{ color: null }])).toBe(false);
+    expect(requiresPosVariantSelection([{ color: 'Negra' }])).toBe(true);
+    expect(requiresPosVariantSelection([{ color: null }, { color: null }])).toBe(true);
   });
 
   it('calcula totales del carrito', () => {

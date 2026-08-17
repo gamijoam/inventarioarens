@@ -7,10 +7,6 @@ use InvalidArgumentException;
 
 final class CsvParser
 {
-    public const MAX_ROWS = 5000;
-
-    public const MAX_FILE_BYTES = 5242880;
-
     private const SEPARATORS = [',', ';', "\t", '|'];
 
     private string $separator = ',';
@@ -26,10 +22,14 @@ final class CsvParser
             throw new InvalidArgumentException("CSV file not found: {$filePath}");
         }
 
+        $maxFileMb = self::maxFileMb();
         $size = filesize($filePath);
-        if ($size !== false && $size > self::MAX_FILE_BYTES) {
+        if ($size !== false && $size > self::maxFileBytes()) {
             throw new InvalidArgumentException(
-                'CSV excede el tamano maximo permitido (5 MB).'
+                sprintf(
+                    'CSV excede el tamano maximo permitido (%d MB).',
+                    $maxFileMb,
+                ),
             );
         }
 
@@ -44,6 +44,7 @@ final class CsvParser
             $headers = null;
             $rowNumber = 0;
             $count = 0;
+            $maxRows = self::maxRows();
 
             while (($rawRow = fgetcsv($handle, 0, $this->separator, '"', '')) !== false) {
                 if ($headers === null) {
@@ -55,10 +56,10 @@ final class CsvParser
                 $rowNumber++;
                 $count++;
 
-                if ($count > self::MAX_ROWS) {
+                if ($count > $maxRows) {
                     throw new InvalidArgumentException(sprintf(
                         'CSV excede el maximo de %d filas. Dividi el archivo en lotes mas pequenos.',
-                        self::MAX_ROWS,
+                        $maxRows,
                     ));
                 }
 
@@ -83,6 +84,30 @@ final class CsvParser
             'separator' => $this->separator,
             'encoding' => $this->encoding,
         ];
+    }
+
+    private static function maxRows(): int
+    {
+        return max(1, (int) self::configValue('data_import.max_rows', 100_000));
+    }
+
+    private static function maxFileBytes(): int
+    {
+        return self::maxFileMb() * 1024 * 1024;
+    }
+
+    private static function maxFileMb(): int
+    {
+        return max(1, self::configValue('data_import.max_file_mb', 50));
+    }
+
+    private static function configValue(string $key, int $default): int
+    {
+        if (function_exists('app') && app()->bound('config')) {
+            return (int) config($key, $default);
+        }
+
+        return $default;
     }
 
     private function detectFormat(string $filePath): void

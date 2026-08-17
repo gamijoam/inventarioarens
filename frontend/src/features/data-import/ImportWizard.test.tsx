@@ -12,6 +12,7 @@ vi.mock('./api', () => ({
   templateUrl: (entity: string) => `/import/templates/${entity}`,
   downloadImportFile: vi.fn(),
   useCreateDataImportSession: () => ({ mutateAsync: mockCreateSession, isPending: false }),
+  useDataImportSession: () => ({ data: undefined }),
   useUploadImportFile: () => ({ mutateAsync: mockUpload, isPending: false }),
   useRunImportEntity: () => ({ mutateAsync: mockRun, isPending: false, data: null }),
 }));
