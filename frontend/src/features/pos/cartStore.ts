@@ -45,11 +45,11 @@ export interface AddLineInput {
     name: string;
     sku?: string | null;
     barcode?: string | null;
-    tracking_type?: 'quantity' | 'serialized' | string | null;
+    tracking_type?: string | null;
     track_stock?: boolean;
     base_price?: number | string | null;
     available_stock?: number | string | null;
-    sale_currency?: CurrencyCode | string | null;
+    sale_currency?: string | null;
   };
   warehouse: { id: number; name?: string; code?: string };
   quote: {
@@ -391,6 +391,7 @@ export const selectPanel = (s: ReturnType<typeof usePosCartStore.getState>) => s
  */
 
 const POS_CART_KEY_PREFIX = 'pos_cart_';
+const POS_PRICE_LIST_PREFERENCE_KEY_PREFIX = 'pos_price_list_preference_';
 
 interface PersistedCart {
   lines: PosCartLine[];
@@ -409,6 +410,55 @@ interface PersistedCart {
 
 function cartKey(tenantId: number | null, cashierId: number | null): string {
   return `${POS_CART_KEY_PREFIX}${tenantId ?? 'none'}_${cashierId ?? 'none'}`;
+}
+
+function priceListPreferenceKey(tenantId: number | null, cashierId: number | null): string {
+  return `${POS_PRICE_LIST_PREFERENCE_KEY_PREFIX}${tenantId ?? 'none'}_${cashierId ?? 'none'}`;
+}
+
+export function loadPersistedPriceListPreference(
+  tenantId: number | null,
+  cashierId: number | null,
+): number | null | undefined {
+  if (typeof window === 'undefined') return undefined;
+
+  const raw = window.localStorage.getItem(priceListPreferenceKey(tenantId, cashierId));
+  if (raw === null) return undefined;
+
+  try {
+    const value = JSON.parse(raw) as { selectedPriceListId?: unknown };
+    if (value.selectedPriceListId === null) return null;
+    return typeof value.selectedPriceListId === 'number' && Number.isInteger(value.selectedPriceListId)
+      ? value.selectedPriceListId
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function savePersistedPriceListPreference(
+  tenantId: number | null,
+  cashierId: number | null,
+  selectedPriceListId: number | null,
+): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(
+      priceListPreferenceKey(tenantId, cashierId),
+      JSON.stringify({ selectedPriceListId }),
+    );
+  } catch {
+    // localStorage puede estar lleno o deshabilitado en modo privado.
+  }
+}
+
+export function clearPersistedPriceListPreference(
+  tenantId: number | null,
+  cashierId: number | null,
+): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(priceListPreferenceKey(tenantId, cashierId));
 }
 
 export function loadPersistedCart(

@@ -1,5 +1,14 @@
 # Registro de implementación
 
+## 2026-08-17 - Plan futuro: dashboard consolidado de grupo
+
+- Registrada la propuesta de una Vista Consolidada / Vista de Jefe para Owners de grupos.
+- El dashboard se mostrara por defecto en el tenant grupo y permitira consultar las empresas hijas
+  sin cambiar de tenant; las hijas conservaran dashboards operativos aislados.
+- La futura implementacion debe usar `reports.organization.view`, Owner estricto, consultas SQL
+  agregadas por `tenant_id` y pruebas anti-N+1 antes del codigo de produccion.
+- No implementado todavía. Contrato y plan TDD en `docs/PLAN_DASHBOARD_CONSOLIDADO_GRUPO.md`.
+
 ## 2026-08-17 - Instalacion aislada Tiendas Arens
 
 - Creada una segunda instalacion Laravel en `/opt/tiendasarens-cloud` para

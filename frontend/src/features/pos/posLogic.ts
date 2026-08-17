@@ -118,6 +118,24 @@ export function requiresPosVariantSelection(variants: { color?: string | null }[
   return variants.length > 1 || variants.some((variant) => Boolean(variant.color));
 }
 
+export function resolveInitialPosPriceListId(
+  priceLists: { id: number; is_default?: boolean | null; is_active?: boolean | null }[],
+  persistedPreference: number | null | undefined,
+): number | null {
+  if (persistedPreference === null) return null;
+
+  if (
+    persistedPreference !== undefined &&
+    priceLists.some(
+      (priceList) => priceList.id === persistedPreference && priceList.is_active !== false,
+    )
+  ) {
+    return persistedPreference;
+  }
+
+  return priceLists.find((priceList) => priceList.is_default && priceList.is_active !== false)?.id ?? null;
+}
+
 /**
  * Encuentra en el carrito la linea que corresponde al mismo producto +
  * almacen + variante. Esto permite tener 1 unidad de un color y 2 de otro

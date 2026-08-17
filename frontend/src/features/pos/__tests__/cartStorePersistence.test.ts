@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   clearPersistedCart,
+  clearPersistedPriceListPreference,
   loadPersistedCart,
+  loadPersistedPriceListPreference,
   savePersistedCart,
+  savePersistedPriceListPreference,
   usePosCartStore,
   usePosCartPersistence,
 } from '../cartStore';
@@ -60,6 +63,24 @@ describe('pos cartStore persistence', () => {
 
   afterEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it('persiste la preferencia de lista de precio separada del carrito', () => {
+    expect(loadPersistedPriceListPreference(TENANT_A, CASHIER_A)).toBeUndefined();
+
+    savePersistedPriceListPreference(TENANT_A, CASHIER_A, 20);
+    expect(loadPersistedPriceListPreference(TENANT_A, CASHIER_A)).toBe(20);
+    expect(loadPersistedPriceListPreference(TENANT_B, CASHIER_B)).toBeUndefined();
+
+    clearPersistedPriceListPreference(TENANT_A, CASHIER_A);
+    expect(loadPersistedPriceListPreference(TENANT_A, CASHIER_A)).toBeUndefined();
+  });
+
+  it('persiste base como override explicito usando null', () => {
+    savePersistedPriceListPreference(TENANT_A, CASHIER_A, null);
+
+    expect(loadPersistedPriceListPreference(TENANT_A, CASHIER_A)).toBeNull();
   });
 
   it('savePersistedCart + loadPersistedCart: round-trip basico', () => {

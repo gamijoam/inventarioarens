@@ -1,5 +1,11 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { usePosCartStore, usePosCartPersistence, type Panel } from './cartStore';
+import {
+  loadPersistedPriceListPreference,
+  savePersistedPriceListPreference,
+  usePosCartStore,
+  usePosCartPersistence,
+  type Panel,
+} from './cartStore';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   CreditCard,
@@ -109,6 +115,7 @@ import {
   paymentBaseAmount,
   findMatchingVariantLine,
   requiresPosVariantSelection,
+  resolveInitialPosPriceListId,
   promotionLineUnitPrice,
   invoicePromotionPaymentIssue,
   type CurrencyCode,
@@ -693,6 +700,27 @@ export function PosTerminal() {
     activeSession ? Number(activeSession.tenant_id) : null,
     activeSession ? Number(activeSession.cashier_id) : null,
   );
+
+  useEffect(() => {
+    if (!activeSession || priceLists.length === 0 || cart.length > 0 || payments.length > 0) return;
+
+    const persistedPreference = loadPersistedPriceListPreference(
+      Number(activeSession.tenant_id),
+      Number(activeSession.cashier_id),
+    );
+    const initialPriceListId = resolveInitialPosPriceListId(priceLists, persistedPreference);
+
+    if (initialPriceListId !== selectedPriceListId) {
+      setSelectedPriceListId(initialPriceListId);
+    }
+  }, [
+    activeSession,
+    cart.length,
+    payments.length,
+    priceLists,
+    selectedPriceListId,
+    setSelectedPriceListId,
+  ]);
   const { data: recentPaidOrders = [] } = useSessionOrders(activeSession?.id ?? null, 'paid', 10);
   const activePrinterStation = useMemo(
     () =>
@@ -2047,6 +2075,7 @@ export function PosTerminal() {
     setPriceListNotice(null);
     if (cart.length === 0) {
       setSelectedPriceListId(nextId);
+      persistPriceListPreference(nextId);
       setPayments([]);
       return;
     }
@@ -2090,6 +2119,7 @@ export function PosTerminal() {
         );
       }
       setSelectedPriceListId(nextId);
+      persistPriceListPreference(nextId);
       setPayments([]);
       toast.success(
         `Ticket actualizado a ${nextList?.name ?? BASE_PRICE_LIST_LABEL}. Pagos limpiados.`,
@@ -2101,6 +2131,16 @@ export function PosTerminal() {
     } finally {
       setRepricing(false);
     }
+  }
+
+  function persistPriceListPreference(priceListId: number | null): void {
+    if (!activeSession) return;
+
+    savePersistedPriceListPreference(
+      Number(activeSession.tenant_id),
+      Number(activeSession.cashier_id),
+      priceListId,
+    );
   }
 
   async function addProduct(
