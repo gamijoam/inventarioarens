@@ -37,6 +37,12 @@ describe('sales api', () => {
     })).toBe('/sales?search=Cliente+123&status=confirmed&date_from=2026-07-01&date_to=2026-07-17&page=2&per_page=25');
   });
 
+  it('envia el filtro de alcance de promociones', () => {
+    expect(buildSalesQuery({ promotion_scope: 'combo', page: 1 })).toBe(
+      '/sales?promotion_scope=combo&page=1',
+    );
+  });
+
   it('lee ventas paginadas y normaliza montos', async () => {
     mockGetPaginated.mockResolvedValue({
       data: [{

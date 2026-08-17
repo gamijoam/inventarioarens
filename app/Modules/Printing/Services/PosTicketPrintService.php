@@ -121,6 +121,7 @@ class PosTicketPrintService
                 'sale.receivable',
                 'sale.items.product',
                 'sale.items.warehouse',
+                'sale.promotionApplications.items',
                 'payments.paymentMethod',
             ])
             ->findOrFail($order->id);
@@ -183,6 +184,13 @@ class PosTicketPrintService
         $sale = $order->sale;
         $items = $sale?->items ?? collect();
         $payments = $order->payments;
+        $promotionApplications = $sale?->promotionApplications ?? collect();
+        $promotionLabel = static fn (string $scope): string => match ($scope) {
+            'combo' => 'COMBO',
+            'invoice' => 'PROMOCION FACTURA',
+            'product_offer' => 'OFERTA',
+            default => 'PROMOCION',
+        };
 
         return [
             'tenant' => [
@@ -235,6 +243,12 @@ class PosTicketPrintService
                 'paid_local_amount' => (float) $order->paid_local_amount,
                 'balance_base_amount' => (float) ($sale?->receivable?->balance_base_amount ?? 0),
             ],
+            'promotions' => $promotionApplications->map(fn ($application): array => [
+                'scope' => $application->scope,
+                'label' => $promotionLabel($application->scope),
+                'promotion_name' => $application->promotion_name,
+                'status' => $application->status,
+            ])->values()->all(),
             'items' => $items->map(fn ($item): array => [
                 'product_name' => $item->product?->name ?? 'Producto',
                 'sku' => $item->product?->sku,
@@ -243,6 +257,12 @@ class PosTicketPrintService
                 'unit_price' => (float) $item->base_unit_price,
                 'total' => (float) $item->base_total_amount,
                 'discount' => (float) $item->discount_base_amount,
+                'promotion_labels' => $promotionApplications
+                    ->filter(fn ($application): bool => $application->scope !== 'invoice')
+                    ->filter(fn ($application): bool => $application->items->contains('sale_item_id', $item->id))
+                    ->map(fn ($application): string => $promotionLabel($application->scope).': '.$application->promotion_name)
+                    ->values()
+                    ->all(),
                 'serials' => $this->serialUnits($item->product_unit_ids ?? []),
                 'warranty' => [
                     'name' => $item->warranty_policy_name,

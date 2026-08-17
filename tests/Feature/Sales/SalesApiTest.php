@@ -16,6 +16,7 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Promotions\Models\SalePromotionApplication;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -433,6 +434,66 @@ class SalesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $saleB);
+    }
+
+    public function test_sales_index_filters_and_exposes_promotion_applications(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Promos', 'slug' => 'empresa-promos']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'BCV', 500);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.view', 'sales.create']);
+
+        $createSale = fn (): int => $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $saleWithCombo = $createSale();
+        $saleWithInvoicePromotion = $createSale();
+        $this->useTenant($tenant);
+
+        $application = fn (int $saleId, string $scope, string $name): SalePromotionApplication => SalePromotionApplication::create([
+            'sale_id' => $saleId,
+            'promotion_id' => null,
+            'slot' => $scope.':'.uniqid(),
+            'scope' => $scope,
+            'status' => SalePromotionApplication::STATUS_VALIDATED,
+            'promotion_name' => $name,
+            'benefit_type' => 'fixed_bundle_price',
+            'base_before_amount' => 100,
+            'local_before_amount' => 0,
+            'base_adjustment_amount' => 10,
+            'local_adjustment_amount' => 0,
+            'base_after_amount' => 90,
+            'local_after_amount' => 0,
+        ]);
+        $application($saleWithCombo, 'combo', 'Combo Accesorios');
+        $application($saleWithInvoicePromotion, 'invoice', 'Descuento factura');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?promotion_scope=combo')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $saleWithCombo)
+            ->assertJsonPath('data.0.promotion_applications.0.scope', 'combo')
+            ->assertJsonPath('data.0.promotion_applications.0.promotion_name', 'Combo Accesorios');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?promotion_scope=invoice')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $saleWithInvoicePromotion);
     }
 
     public function test_sale_detail_exposes_pos_payments_and_receivable_audit(): void

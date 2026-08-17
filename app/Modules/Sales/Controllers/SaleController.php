@@ -3,6 +3,7 @@
 namespace App\Modules\Sales\Controllers;
 
 use App\Modules\AccessControl\Services\ScopeResolver;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Requests\StoreSaleRequest;
 use App\Modules\Sales\Resources\SaleResource;
@@ -35,6 +36,7 @@ class SaleController extends Controller
                 'items.variant',
                 'items.warehouse',
                 'salesReturns.items',
+                'promotionApplications.items',
             ])
             ->withCount('items')
             ->latest();
@@ -47,6 +49,24 @@ class SaleController extends Controller
 
         if ($customerId = $request->integer('customer_id')) {
             $query->where('customer_id', $customerId);
+        }
+
+        $promotionScope = $request->string('promotion_scope')->trim()->toString();
+        if ($promotionScope === 'none') {
+            $query->whereDoesntHave('promotionApplications');
+        } elseif (in_array($promotionScope, [
+            'any',
+            Promotion::SCOPE_INVOICE,
+            Promotion::SCOPE_COMBO,
+            Promotion::SCOPE_PRODUCT_OFFER,
+            Promotion::SCOPE_LEGACY_PRODUCT_DISCOUNT,
+        ], true)) {
+            $query->whereHas(
+                'promotionApplications',
+                fn ($applicationQuery) => $promotionScope === 'any'
+                    ? $applicationQuery
+                    : $applicationQuery->where('scope', $promotionScope),
+            );
         }
 
         if ($dateFrom = $request->date('date_from')) {
@@ -124,6 +144,7 @@ class SaleController extends Controller
             'items.warehouse',
             'items.stockMovement',
             'salesReturns.items',
+            'promotionApplications.items',
         ]));
     }
 

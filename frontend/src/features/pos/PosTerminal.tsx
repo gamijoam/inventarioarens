@@ -109,6 +109,7 @@ import {
   paymentBaseAmount,
   findMatchingVariantLine,
   promotionLineUnitPrice,
+  invoicePromotionPaymentIssue,
   type CurrencyCode,
   type DiscountType,
   type PosCartLine,
@@ -780,6 +781,7 @@ export function PosTerminal() {
         ): application is {
           status?: string;
           promotion_name?: string;
+          payment_currency?: string | null;
           base_before_amount?: number | null;
         } =>
           typeof application === 'object' &&
@@ -844,6 +846,13 @@ export function PosTerminal() {
     () => calculatePaymentTotals(payments, cartTotals.total),
     [payments, cartTotals.total],
   );
+  const promotionPaymentIssue =
+    invoicePromotionAction === 'reject'
+      ? null
+      : invoicePromotionPaymentIssue(
+          pendingInvoicePromotion?.payment_currency ?? selectedInvoicePromotion?.payment_currency,
+          payments,
+        );
   const paymentSetupIssue = getPaymentSetupIssue(payments, allowedPaymentMethods);
   const priceIssue = firstPriceIssue(cart);
   const serialIssue = missingSerialIssue(cart);
@@ -858,6 +867,7 @@ export function PosTerminal() {
     priceIssue,
     serialIssue,
     paymentSetupIssue,
+    promotionPaymentIssue,
     priceListPaymentIssue,
   });
   const openingRate = activeRate;
@@ -4572,11 +4582,13 @@ function getCheckoutBlockReason(input: {
   priceIssue: string | null;
   serialIssue: string | null;
   paymentSetupIssue: string | null;
+  promotionPaymentIssue: string | null;
   priceListPaymentIssue: string | null;
 }): string | null {
   if (!input.canCheckout) return 'No tienes permiso pos.checkout para cobrar ventas.';
   if (!input.hasSession) return 'No hay caja abierta para cobrar.';
   if (input.cartCount === 0) return 'Agrega al menos un producto para cobrar.';
+  if (input.promotionPaymentIssue) return input.promotionPaymentIssue;
   if (input.priceListPaymentIssue) return input.priceListPaymentIssue;
   if (input.hasPriceIssue)
     return input.priceIssue ?? 'Hay productos sin precio para la lista seleccionada.';

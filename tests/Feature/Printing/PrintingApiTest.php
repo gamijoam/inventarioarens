@@ -11,6 +11,8 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Printing\Models\PrinterStation;
 use App\Modules\Printing\Models\PrintJob;
 use App\Modules\Printing\Models\PrintProfile;
+use App\Modules\Printing\Services\PrinterServer;
+use App\Modules\Promotions\Models\SalePromotionApplication;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
@@ -24,6 +26,30 @@ use Tests\TestCase;
 class PrintingApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_plain_ticket_identifies_combo_and_invoice_promotion(): void
+    {
+        $ticket = app(PrinterServer::class)->buildPlainTicket([
+            'profile' => ['paper_width_mm' => 80],
+            'tenant' => ['name' => 'Empresa A', 'slug' => 'empresa-a'],
+            'pos_order' => ['id' => 10],
+            'promotions' => [
+                ['scope' => 'combo', 'promotion_name' => 'Combo Accesorios'],
+                ['scope' => 'invoice', 'promotion_name' => 'Descuento factura'],
+            ],
+            'items' => [[
+                'product_name' => 'Audifonos',
+                'quantity' => 1,
+                'unit_price' => 90,
+                'total' => 90,
+                'promotion_labels' => ['COMBO: Combo Accesorios'],
+            ]],
+            'totals' => ['total_base_amount' => 90, 'total_local_amount' => 0, 'paid_base_amount' => 90],
+        ]);
+
+        $this->assertStringContainsString('COMBO: Combo Accesorios', $ticket);
+        $this->assertStringContainsString('PROMOCION: Descuento factura', $ticket);
+    }
 
     public function test_user_can_configure_profile_station_and_generate_pos_ticket(): void
     {
@@ -72,6 +98,22 @@ class PrintingApiTest extends TestCase
             ->json('data.id');
 
         $order = $this->paidPosOrder($tenant, $user, $branch, $register);
+        $this->useTenant($tenant);
+        SalePromotionApplication::create([
+            'sale_id' => $order->sale_id,
+            'promotion_id' => null,
+            'slot' => 'combo:print-test',
+            'scope' => 'combo',
+            'status' => SalePromotionApplication::STATUS_VALIDATED,
+            'promotion_name' => 'Combo Impreso',
+            'benefit_type' => 'fixed_bundle_price',
+            'base_before_amount' => 100,
+            'local_before_amount' => 0,
+            'base_adjustment_amount' => 10,
+            'local_adjustment_amount' => 0,
+            'base_after_amount' => 90,
+            'local_after_amount' => 0,
+        ]);
 
         $response = $this
             ->actingAs($user)
@@ -84,6 +126,9 @@ class PrintingApiTest extends TestCase
             ->assertJsonCount(2, 'data');
 
         $digitalJobId = collect($response->json('data'))->firstWhere('output', PrintJob::OUTPUT_DIGITAL)['id'];
+        $snapshot = PrintJob::findOrFail($digitalJobId)->payload_snapshot;
+        $this->assertSame('combo', $snapshot['promotions'][0]['scope']);
+        $this->assertSame('Combo Impreso', $snapshot['promotions'][0]['promotion_name']);
 
         $this
             ->actingAs($user)
@@ -91,6 +136,7 @@ class PrintingApiTest extends TestCase
             ->get("/api/printing/jobs/{$digitalJobId}/ticket.html")
             ->assertOk()
             ->assertSee('Ticket POS #'.$order->id, false)
+            ->assertSee('COMBO: Combo Impreso', false)
             ->assertSee('Documento no fiscal', false);
 
         $this

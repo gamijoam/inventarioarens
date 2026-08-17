@@ -13,6 +13,12 @@ function toQueryString(filters: SaleListFilters): string {
   if (filters.customer_id) params.set('customer_id', String(filters.customer_id));
   if (filters.date_from) params.set('date_from', filters.date_from);
   if (filters.date_to) params.set('date_to', filters.date_to);
+  if (filters.promotion_scope && filters.promotion_scope !== 'all') {
+    params.set('promotion_scope', filters.promotion_scope);
+  }
+  if (filters.promotion_scope && filters.promotion_scope !== 'all') {
+    params.set('promotion_scope', filters.promotion_scope);
+  }
   if (filters.page) params.set('page', String(filters.page));
   if (filters.per_page) params.set('per_page', String(filters.per_page));
   const q = params.toString();
@@ -50,7 +56,8 @@ export function useSale(id: number | null) {
 export function useCancelSale() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => patchOne<Record<string, never>, Sale>(`/sales/${id}/cancel`, {}),
+    mutationFn: async (id: number) =>
+      patchOne<Record<string, never>, Sale>(`/sales/${id}/cancel`, {}),
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: saleKeys.detail(id) });
