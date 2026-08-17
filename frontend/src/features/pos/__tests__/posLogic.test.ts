@@ -12,6 +12,7 @@ import {
   missingSerialIssue,
   shouldApplyInvoicePromotion,
   resolvePendingPromotionTotal,
+  invoicePromotionPaymentIssue,
   type PosCartLine,
 } from '../posLogic';
 
@@ -57,6 +58,14 @@ describe('POS cart logic', () => {
     expect(resolvePendingPromotionTotal(90, 100, 'validate')).toBe(90);
     expect(resolvePendingPromotionTotal(90, 100, 'reject')).toBe(100);
     expect(resolvePendingPromotionTotal(90, null, 'reject')).toBe(90);
+  });
+
+  it('explica cuando una promocion VES no coincide con los pagos del ticket', () => {
+    expect(invoicePromotionPaymentIssue('VES', [{ currency: 'USD', method: 'cash' }])).toContain(
+      'bolívares',
+    );
+    expect(invoicePromotionPaymentIssue('VES', [{ currency: 'VES', method: 'cash' }])).toBeNull();
+    expect(invoicePromotionPaymentIssue('ANY', [{ currency: 'USD', method: 'cash' }])).toBeNull();
   });
 
   it('calcula pagos mixtos y vuelto de efectivo', () => {

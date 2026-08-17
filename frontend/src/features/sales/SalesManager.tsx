@@ -33,6 +33,15 @@ const STATUS_OPTIONS: { value: SaleListFilters['status']; label: string }[] = [
   { value: 'cancelled', label: 'Canceladas' },
 ];
 
+const PROMOTION_OPTIONS: { value: NonNullable<SaleListFilters['promotion_scope']>; label: string }[] = [
+  { value: 'all', label: 'Promociones: todas' },
+  { value: 'any', label: 'Con promoción' },
+  { value: 'combo', label: 'Con combo' },
+  { value: 'invoice', label: 'Descuento de factura' },
+  { value: 'product_offer', label: 'Oferta por producto' },
+  { value: 'none', label: 'Sin promoción' },
+];
+
 function statusVariant(status: SaleStatus): 'default' | 'success' | 'danger' | 'warning' {
   if (status === 'confirmed') return 'success';
   if (status === 'cancelled') return 'danger';
@@ -74,6 +83,19 @@ function receivableVariant(status: string | undefined): 'default' | 'success' | 
   if (status === 'partial') return 'info';
   if (status === 'pending') return 'warning';
   return 'default';
+}
+
+function promotionScopeLabel(scope: string): string {
+  if (scope === 'combo') return 'COMBO';
+  if (scope === 'invoice') return 'FACTURA';
+  if (scope === 'product_offer') return 'OFERTA';
+  return 'PROMO';
+}
+
+function promotionApplicationsLabel(sale: Sale): string[] {
+  return (sale.promotion_applications ?? []).map(
+    (application) => `${promotionScopeLabel(application.scope)}: ${application.promotion_name}`,
+  );
 }
 
 function returnedQuantityForItem(sale: Sale, itemId: number): number {
@@ -201,6 +223,19 @@ export function SalesManager() {
               className="mt-1"
             >
               {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="w-52">
+            <Label htmlFor="sales-promotion-scope" className="text-xs text-text-muted">Promoción</Label>
+            <Select
+              id="sales-promotion-scope"
+              value={filters.promotion_scope ?? 'all'}
+              onChange={(e) => updateFilters({ promotion_scope: e.target.value as SaleListFilters['promotion_scope'] })}
+              className="mt-1"
+            >
+              {PROMOTION_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </Select>
@@ -372,7 +407,14 @@ function SaleRow({
             )}
           </div>
         </td>
-        <td className="px-3 py-2 text-text-muted">{sale.pos_order ? 'POS' : 'Manual'}</td>
+        <td className="px-3 py-2 text-text-muted">
+          <div className="flex flex-col gap-1">
+            <span>{sale.pos_order ? 'POS' : 'Manual'}</span>
+            {promotionApplicationsLabel(sale).map((label) => (
+              <Badge key={label} variant="info">{label}</Badge>
+            ))}
+          </div>
+        </td>
         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_base_amount)}</td>
         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_local_amount, 'Bs ')}</td>
         <td className="px-3 py-2 text-right tabular-nums">{sale.items_count ?? sale.items?.length ?? '-'}</td>
@@ -441,6 +483,19 @@ function SaleDetail({
         <ReceivableAudit sale={current} />
         <PosAudit sale={current} />
       </div>
+
+      {current.promotion_applications && current.promotion_applications.length > 0 && (
+        <div className="rounded-lg border border-info/30 bg-info/5 p-3">
+          <p className="mb-2 text-sm font-semibold">Promociones aplicadas</p>
+          <div className="flex flex-wrap gap-2">
+            {current.promotion_applications.map((application) => (
+              <Badge key={application.id ?? `${application.scope}-${application.promotion_name}`} variant="info">
+                {promotionScopeLabel(application.scope)}: {application.promotion_name}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
         <table className="w-full table-dense">

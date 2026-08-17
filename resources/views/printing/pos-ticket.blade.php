@@ -46,11 +46,20 @@
     @if($profile['show_branch'] ?? true)<div>Sucursal: {{ $ticket['pos_order']['branch_name'] ?? '-' }}</div>@endif
     @if($profile['show_customer'] ?? true)<div>Cliente: {{ $ticket['pos_order']['customer_name'] ?? 'Consumidor Final' }}</div>@endif
 
+    @if(!empty($ticket['promotions']))
+        <div class="line"></div>
+        <div class="bold">Promociones</div>
+        @foreach($ticket['promotions'] as $promotion)
+            <div class="small">{{ $promotion['label'] ?? 'PROMOCION' }}: {{ $promotion['promotion_name'] ?? 'Promoción' }}</div>
+        @endforeach
+    @endif
+
     <div class="line"></div>
     @foreach(($ticket['items'] ?? []) as $item)
         <div class="item">
             <div class="bold">{{ $item['product_name'] }}</div>
             @if(($profile['show_item_sku'] ?? true) && !empty($item['sku']))<div class="small muted">{{ $item['sku'] }}</div>@endif
+            @foreach($item['promotion_labels'] ?? [] as $promotionLabel)<div class="small bold">{{ $promotionLabel }}</div>@endforeach
             <div class="row"><span>{{ number_format((float) $item['quantity'], 2, ',', '.') }} x {{ $money($item['unit_price']) }}</span><span>{{ $money($item['total']) }}</span></div>
             @if(($profile['show_item_discount'] ?? true) && ($item['discount'] ?? 0) > 0)<div class="small">Desc: {{ $money($item['discount']) }}</div>@endif
             @if($profile['show_item_serials'] ?? true)

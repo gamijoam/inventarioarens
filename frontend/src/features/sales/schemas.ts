@@ -21,9 +21,25 @@ export interface SaleListFilters {
   customer_id?: number;
   date_from?: string;
   date_to?: string;
+  promotion_scope?: 'all' | 'any' | 'combo' | 'invoice' | 'product_offer' | 'none';
   page?: number;
   per_page?: number;
 }
+
+export const SalePromotionApplicationSchema = z.object({
+  id: z.number().int().positive().optional(),
+  scope: z.string(),
+  status: z.string(),
+  instance_uuid: z.string().nullable().optional(),
+  promotion_id: z.number().int().positive().nullable().optional(),
+  promotion_code: z.string().nullable().optional(),
+  promotion_name: z.string(),
+  benefit_type: z.string(),
+  payment_currency: z.string().nullable().optional(),
+  base_adjustment_amount: moneyValue,
+  base_after_amount: moneyValue,
+  items: z.array(z.object({ sale_item_id: z.number().int().positive() }).passthrough()).optional(),
+}).passthrough();
 
 const SaleCustomerSchema = z.object({
   id: z.number().int().positive(),
@@ -163,6 +179,7 @@ export const SaleSchema = z.object({
   cancelled_at: z.string().nullable().optional(),
   customer: SaleCustomerSchema.nullable().optional(),
   items: z.array(SaleItemSchema).optional(),
+  promotion_applications: z.array(SalePromotionApplicationSchema).optional(),
   pos_order: SalePosOrderSchema,
   receivable: SaleReceivableSchema,
   sales_returns: z.array(SaleReturnSummarySchema).optional(),

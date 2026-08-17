@@ -174,6 +174,27 @@ export function resolvePendingPromotionTotal(
   return roundMoney(currentTotal);
 }
 
+export function invoicePromotionPaymentIssue(
+  paymentCurrency: string | null | undefined,
+  payments: { currency?: string | null; method?: string | null; status?: string | null }[],
+): string | null {
+  if (String(paymentCurrency ?? '').toUpperCase() !== 'VES') return null;
+
+  const activePayments = payments.filter((payment) => payment.status !== 'failed');
+  const invalid =
+    activePayments.length === 0 ||
+    activePayments.some(
+      (payment) =>
+        payment.method === 'customer_credit' ||
+        payment.method === 'external_financing' ||
+        String(payment.currency ?? '').toUpperCase() !== 'VES',
+    );
+
+  return invalid
+    ? 'Esta promoción exige pago completo en bolívares (VES), sin crédito ni pagos mixtos.'
+    : null;
+}
+
 /**
  * Calcula el precio unitario (USD) que debe MOSTRAR una linea del carrito
  * cuando pertenece a una promocion cargada.

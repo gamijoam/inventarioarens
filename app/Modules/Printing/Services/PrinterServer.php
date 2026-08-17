@@ -366,11 +366,22 @@ class PrinterServer
             $lines[] = 'Cliente: '.($ticket['pos_order']['customer_name'] ?? 'Consumidor Final');
         }
 
+        if (! empty($ticket['promotions'])) {
+            $lines[] = str_repeat('-', $max);
+            $lines[] = 'PROMOCIONES';
+            foreach ($ticket['promotions'] as $promotion) {
+                $lines[] = ($promotion['label'] ?? 'PROMOCION').': '.($promotion['promotion_name'] ?? 'Promoción');
+            }
+        }
+
         $lines[] = str_repeat('-', $max);
         foreach ($ticket['items'] ?? [] as $item) {
             $lines[] = $item['product_name'] ?? 'Producto';
             if (($profile['show_item_sku'] ?? true) && ! empty($item['sku'])) {
                 $lines[] = '  '.$item['sku'];
+            }
+            foreach ($item['promotion_labels'] ?? [] as $promotionLabel) {
+                $lines[] = '  '.$promotionLabel;
             }
             $unit = (float) ($item['unit_price'] ?? 0);
             $qty = (float) ($item['quantity'] ?? 0);
