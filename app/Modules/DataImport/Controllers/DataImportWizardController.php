@@ -2,6 +2,7 @@
 
 namespace App\Modules\DataImport\Controllers;
 
+use App\Modules\DataImport\Jobs\RunDataImportEntity;
 use App\Modules\DataImport\Models\DataImport;
 use App\Modules\DataImport\Resources\DataImportResource;
 use App\Modules\DataImport\Services\DataImportService;
@@ -27,7 +28,7 @@ class DataImportWizardController extends Controller
         }
 
         $request->validate([
-            'file' => ['required', 'file', 'max:5120'], // 5 MB
+            'file' => ['required', 'file', 'max:'.((int) config('data_import.max_file_mb', 50) * 1024)],
         ]);
 
         $entityRow = $this->service->uploadFile($dataImport, $entity, $request->file('file'));
@@ -49,26 +50,22 @@ class DataImportWizardController extends Controller
         }
 
         try {
-            $entityRow = $this->service->runEntity($dataImport, $entity, $request->user());
-        } catch (\RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
-        } catch (\InvalidArgumentException $e) {
+            $this->service->prepareEntityForQueue($dataImport, $entity);
+            RunDataImportEntity::dispatch(
+                $dataImport->id,
+                $entity,
+                $request->user()->id,
+                $dataImport->tenant_id,
+            );
+        } catch (\RuntimeException|\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
         return response()->json([
-            'message' => "Importacion de {$entity} finalizada.",
+            'message' => "Importacion de {$entity} encolada.",
             'entity' => $entity,
-            'summary' => [
-                'total' => $entityRow->total_rows,
-                'ok' => $entityRow->succeeded_rows,
-                'skipped' => $entityRow->skipped_rows,
-                'failed' => $entityRow->failed_rows,
-                'status' => $entityRow->status,
-                'error_summary' => $entityRow->error_summary,
-            ],
             'session' => new DataImportResource($dataImport->fresh('entities')),
-        ]);
+        ], 202);
     }
 
     public function report(Request $request, DataImport $dataImport): Response

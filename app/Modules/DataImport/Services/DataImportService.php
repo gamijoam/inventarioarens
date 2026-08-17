@@ -16,6 +16,28 @@ use Symfony\Component\HttpFoundation\File\Exception\FileException;
 
 class DataImportService
 {
+    public function prepareEntityForQueue(DataImport $session, string $entity): DataImportEntity
+    {
+        if (! ImportStatus::isValidEntity($entity)) {
+            throw new \InvalidArgumentException("Entidad invalida: {$entity}");
+        }
+
+        $entityRow = DataImportEntity::query()
+            ->where('data_import_id', $session->id)
+            ->where('entity', $entity)
+            ->firstOrFail();
+
+        if (! $entityRow->source_path || ! is_file($entityRow->source_path)) {
+            throw new \RuntimeException("No hay archivo para procesar la entidad {$entity}.");
+        }
+
+        if ($entityRow->status === ImportStatus::ENTITY_RUNNING) {
+            throw new \RuntimeException("La entidad {$entity} ya esta en ejecucion.");
+        }
+
+        return $entityRow;
+    }
+
     public function uploadFile(DataImport $session, string $entity, UploadedFile $file): DataImportEntity
     {
         if (! ImportStatus::isValidEntity($entity)) {
@@ -52,22 +74,7 @@ class DataImportService
      */
     public function runEntity(DataImport $session, string $entity, User $user): DataImportEntity
     {
-        if (! ImportStatus::isValidEntity($entity)) {
-            throw new \InvalidArgumentException("Entidad invalida: {$entity}");
-        }
-
-        $entityRow = DataImportEntity::query()
-            ->where('data_import_id', $session->id)
-            ->where('entity', $entity)
-            ->firstOrFail();
-
-        if (! $entityRow->source_path || ! is_file($entityRow->source_path)) {
-            throw new \RuntimeException("No hay archivo para procesar la entidad {$entity}.");
-        }
-
-        if ($entityRow->status === ImportStatus::ENTITY_RUNNING) {
-            throw new \RuntimeException("La entidad {$entity} ya esta en ejecucion.");
-        }
+        $entityRow = $this->prepareEntityForQueue($session, $entity);
 
         $session->update(['status' => ImportStatus::SESSION_RUNNING, 'started_at' => now()]);
         $entityRow->update([
@@ -99,6 +106,16 @@ class DataImportService
                         'natural_key' => $result->naturalKey,
                         'errors' => $result->errors,
                     ];
+                }
+
+                if ($counts['total'] % 100 === 0) {
+                    $entityRow->update([
+                        'total_rows' => $counts['total'],
+                        'succeeded_rows' => $counts['ok'],
+                        'skipped_rows' => $counts['skipped'],
+                        'failed_rows' => $counts['failed'],
+                        'error_summary' => $errorSummary !== [] ? $errorSummary : null,
+                    ]);
                 }
             }
 
@@ -206,15 +223,25 @@ class DataImportService
             'succeeded_rows' => (int) ($aggregates->ok ?? 0),
             'skipped_rows' => (int) ($aggregates->skipped ?? 0),
             'failed_rows' => (int) ($aggregates->failed ?? 0),
-            'finished_at' => now(),
         ]);
 
         $session->refresh();
 
-        if (! $session->isActive()) {
+        $hasActiveEntities = DataImportEntity::query()
+            ->where('data_import_id', $session->id)
+            ->whereIn('status', [ImportStatus::ENTITY_PENDING, ImportStatus::ENTITY_RUNNING])
+            ->exists();
+
+        if (! $hasActiveEntities) {
             $hasFailures = $session->failed_rows > 0 && $session->succeeded_rows === 0;
             $session->update([
                 'status' => $hasFailures ? ImportStatus::SESSION_FAILED : ImportStatus::SESSION_COMPLETED,
+                'finished_at' => now(),
+            ]);
+        } elseif ($session->status !== ImportStatus::SESSION_RUNNING) {
+            $session->update([
+                'status' => ImportStatus::SESSION_RUNNING,
+                'finished_at' => null,
             ]);
         }
     }

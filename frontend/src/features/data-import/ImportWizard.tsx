@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
@@ -10,8 +10,10 @@ import {
   type SupportedEntity,
   templateUrl,
   useCreateDataImportSession,
+  useDataImportSession,
   useRunImportEntity,
   useUploadImportFile,
+  type RunSummary,
 } from './api';
 import { ImportPreviewTable } from './ImportPreviewTable';
 import { ImportRunResult } from './ImportRunResult';
@@ -22,6 +24,7 @@ interface StepState {
   sessionId: number | null;
   previewRows: Record<string, string | null>[];
   uploadedFileName: string | null;
+  result: RunSummary | null;
 }
 
 const initial: StepState = {
@@ -30,6 +33,7 @@ const initial: StepState = {
   sessionId: null,
   previewRows: [],
   uploadedFileName: null,
+  result: null,
 };
 
 export function ImportWizard() {
@@ -38,6 +42,27 @@ export function ImportWizard() {
   const createSession = useCreateDataImportSession();
   const upload = useUploadImportFile();
   const run = useRunImportEntity();
+  const runningSessionQuery = useDataImportSession(state.sessionId ?? 0, state.step === 'running');
+
+  useEffect(() => {
+    if (state.step !== 'running' || !state.entity || !runningSessionQuery.data) return;
+
+    const entity = runningSessionQuery.data.entities?.find((item) => item.entity === state.entity);
+    if (!entity || (entity.status !== 'completed' && entity.status !== 'failed')) return;
+
+    setState((current) => ({
+      ...current,
+      step: 'done',
+      result: {
+        total: entity.total_rows,
+        ok: entity.succeeded_rows,
+        skipped: entity.skipped_rows,
+        failed: entity.failed_rows,
+        status: entity.status,
+        error_summary: entity.error_summary as RunSummary['error_summary'],
+      },
+    }));
+  }, [runningSessionQuery.data, state.entity, state.step]);
 
   function pickEntity(entity: SupportedEntity) {
     setState({ ...initial, entity, step: 'upload' });
@@ -78,13 +103,8 @@ export function ImportWizard() {
         sessionId: state.sessionId ?? 0,
         entity: state.entity ?? 'branches',
       });
-      setState((s) => ({ ...s, step: 'done', previewRows: [], uploadedFileName: null }));
-      const { ok, skipped, failed } = result.summary;
-      if (failed === 0) {
-        toast.success(`Import listo: ${ok} creadas, ${skipped} omitidas.`);
-      } else {
-        toast.warning(`Import con errores: ${ok} OK, ${skipped} skip, ${failed} fail.`);
-      }
+      setState((s) => ({ ...s, step: 'running', sessionId: result.session.id }));
+      toast.success('Importacion iniciada. Puedes dejar esta ventana abierta para ver el progreso.');
     } catch (err) {
       toast.error((err as Error).message);
       setState((s) => ({ ...s, step: 'preview' }));
@@ -170,8 +190,8 @@ export function ImportWizard() {
             </div>
           )}
 
-          {state.step === 'done' && run.data && (
-            <ImportRunResult result={run.data.summary} sessionId={state.sessionId ?? 0} onReset={resetWizard} />
+          {state.step === 'done' && state.result && (
+            <ImportRunResult result={state.result} sessionId={state.sessionId ?? 0} onReset={resetWizard} />
           )}
         </div>
       )}
@@ -217,7 +237,7 @@ function FileDropzone({ onFile, fileName, loading }: FileDropzoneProps) {
       <p className="text-sm font-medium">
         {loading ? 'Subiendo...' : fileName ? `Archivo: ${fileName}` : 'Arrastra tu CSV aqui o haz click para seleccionar'}
       </p>
-      <p className="mt-1 text-xs text-gray-500">Tamano maximo: 5 MB. Hasta 5.000 filas.</p>
+      <p className="mt-1 text-xs text-gray-500">El archivo se procesa en segundo plano; el limite se configura en el servidor.</p>
     </label>
   );
 }

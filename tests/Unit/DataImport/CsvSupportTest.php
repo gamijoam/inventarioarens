@@ -124,7 +124,7 @@ class CsvSupportTest extends TestCase
     public function test_parser_throws_when_max_rows_exceeded(): void
     {
         $lines = ['sku,name'];
-        for ($i = 1; $i <= 5001; $i++) {
+        for ($i = 1; $i <= 100001; $i++) {
             $lines[] = "SKU-{$i},Item {$i}";
         }
         $path = $this->writeCsv('big.csv', implode("\n", $lines));

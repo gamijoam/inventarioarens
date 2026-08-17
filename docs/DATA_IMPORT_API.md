@@ -72,8 +72,10 @@ POST   /api/import/sessions/{id}/entities/{entity}/upload
        Sube el archivo. Crea/actualiza DataImportEntity.
 
 POST   /api/import/sessions/{id}/entities/{entity}/run
-       Ejecuta el import sincrónicamente. Devuelve summary:
-         { total, ok, skipped, failed, status, error_summary[] }
+       Encola el import y responde HTTP 202 inmediatamente:
+         { entity, session: { id, status, entities[] } }
+       El cliente debe consultar GET /sessions/{id} hasta que la entidad
+       termine en `completed` o `failed`.
 
 GET    /api/import/sessions/{id}/entities/{entity}/rows?per_page=50
        Lista filas individuales con su resultado.
@@ -117,9 +119,23 @@ Roles predefinidos:
 
 ## Limites y validaciones
 
-- Archivo: maximo 5 MB.
-- Filas por archivo: maximo 5.000 (configurable via `CsvParser::MAX_ROWS`).
-- Tiempo: ejecucion sincrona. Estimado < 30s para 5.000 filas simples.
+- Archivo: 50 MB por defecto, configurable con `DATA_IMPORT_MAX_FILE_MB`.
+- Filas por archivo: 100.000 por defecto, configurable con `DATA_IMPORT_MAX_ROWS`.
+- Tiempo: la ejecucion corre en el job de cola `imports`; el endpoint HTTP no
+  espera a que termine.
+
+## Worker de imports
+
+En produccion debe existir un worker persistente para la cola `imports`:
+
+```bash
+php artisan queue:work --queue=imports --tries=1 --timeout=3600
+```
+
+`DB_QUEUE_RETRY_AFTER` o `REDIS_QUEUE_RETRY_AFTER` debe ser mayor que `3600`,
+segun la conexion configurada. El servidor HTTP/PHP tambien debe permitir al
+menos el valor de `DATA_IMPORT_MAX_FILE_MB` en `upload_max_filesize` y
+`post_max_size`.
 
 ## Reporte CSV descargable
 
@@ -145,7 +161,8 @@ php artisan imports:cleanup --days=7 --dry-run
 
 La UI del wizard vive en `/import` (ruta autenticada). Componentes:
 
-- `frontend/src/features/data-import/ImportWizard.tsx` — wizard de 4 pasos.
+- `frontend/src/features/data-import/ImportWizard.tsx` — wizard de 4 pasos y
+  polling del job hasta obtener el resultado.
 - `frontend/src/features/data-import/DataImportPage.tsx` — tabs nuevo/historial.
 - `frontend/src/features/data-import/ImportSessionList.tsx` — tabla de sesiones.
 - `frontend/src/features/data-import/ImportPreviewTable.tsx` — preview de las primeras 10 filas.

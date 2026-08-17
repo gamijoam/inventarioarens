@@ -101,6 +101,14 @@ systemctl reload php8.4-fpm
 ```
 
 La migracion usa `inventory_arens` porque ese es el `DB_DATABASE` del `.env` de esta instalacion.
+Si se desplega la importacion asincrona, el worker de esta instalacion debe incluir la cola
+`imports` y usar un timeout de al menos una hora, por ejemplo:
+
+```bash
+php artisan queue:work --queue=imports,default --tries=1 --timeout=3600
+```
+
+Configurar tambien `DB_QUEUE_RETRY_AFTER` o `REDIS_QUEUE_RETRY_AFTER` por encima de `3600`.
 
 ### 3. Actualizar Tiendas Arens
 
