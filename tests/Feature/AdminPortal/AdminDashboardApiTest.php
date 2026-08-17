@@ -30,11 +30,11 @@ class AdminDashboardApiTest extends TestCase
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
         $user = $this->userInTenant($tenant, ['reports.view']);
         $this->seedTenant($tenant, $user);
-
-        $this
+        $response = $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
-            ->getJson('/api/admin-portal/dashboard?period=today&low_stock_threshold=3')
+            ->getJson('/api/admin-portal/dashboard?period=today&low_stock_threshold=3');
+        $response
             ->assertOk()
             ->assertJsonPath('data.tenant.slug', 'empresa-a')
             ->assertJsonPath('data.sales.confirmed_count', 1)
@@ -177,6 +177,9 @@ class AdminDashboardApiTest extends TestCase
             'paid_base_amount' => 0,
             'opened_at' => now(),
         ]);
+
+        // Fixture entities emit sync events; retain only the deterministic events below.
+        DB::table('sync_outbox')->where('tenant_id', $tenant->id)->delete();
 
         $nodeId = DB::table('sync_nodes')->insertGetId([
             'tenant_id' => $tenant->id,

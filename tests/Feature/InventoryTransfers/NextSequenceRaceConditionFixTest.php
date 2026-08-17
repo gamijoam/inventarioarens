@@ -120,6 +120,10 @@ class NextSequenceRaceConditionFixTest extends TestCase
 
     public function test_next_sequence_uses_pg_advisory_xact_lock(): void
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('El lock advisory es específico de PostgreSQL.');
+        }
+
         $this->makeTenant('seq-lock');
 
         $queries = [];
@@ -185,6 +189,10 @@ class NextSequenceRaceConditionFixTest extends TestCase
 
     public function test_advisory_lock_serializes_concurrent_transfers(): void
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('El lock advisory es específico de PostgreSQL.');
+        }
+
         $this->makeTenant('seq-concurrent');
 
         $service = app(\App\Modules\InventoryTransfers\Services\InventoryTransferService::class);
@@ -192,19 +200,15 @@ class NextSequenceRaceConditionFixTest extends TestCase
         $method = $reflection->getMethod('nextSequence');
         $method->setAccessible(true);
 
-        DB::statement('SELECT pg_advisory_xact_lock(100, ?) FOR UPDATE', [app(TenantManager::class)->require()->id]);
+        DB::statement('SELECT pg_advisory_xact_lock(100, ?)', [app(TenantManager::class)->require()->id]);
 
         $start = microtime(true);
-        try {
-            for ($i = 0; $i < 5; $i++) {
-                $method->invoke($service);
-            }
-            $elapsed = microtime(true) - $start;
-
-            $this->assertLessThan(0.5, $elapsed, '5 nextSequence() calls deben completar en menos de 500ms');
-        } finally {
-            DB::statement('SELECT pg_advisory_unlock(100, ?)', [app(TenantManager::class)->require()->id]);
+        for ($i = 0; $i < 5; $i++) {
+            $method->invoke($service);
         }
+
+        $elapsed = microtime(true) - $start;
+        $this->assertLessThan(0.5, $elapsed, '5 nextSequence() calls deben completar en menos de 500ms');
     }
 
     private function invokeNextSequence(): int

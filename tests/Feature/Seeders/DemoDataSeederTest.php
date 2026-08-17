@@ -91,7 +91,7 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(2, WarrantyClaim::withoutGlobalScopes()->where('issue_description', 'Caso demo de garantia en revision.')->count());
         $this->assertSame(2, AccountsReceivable::withoutGlobalScopes()->where('status', AccountsReceivable::STATUS_PARTIAL)->count());
         $this->assertSame(2, AccountsReceivablePayment::withoutGlobalScopes()->where('method', 'cobro demo')->count());
-        $this->assertSame(4, FinancialAdjustment::withoutGlobalScopes()->where('status', FinancialAdjustment::STATUS_APPLIED)->count());
+        $this->assertSame(6, FinancialAdjustment::withoutGlobalScopes()->where('status', FinancialAdjustment::STATUS_APPLIED)->count());
         $this->assertSame(6, PaymentReceipt::withoutGlobalScopes()->where('status', PaymentReceipt::STATUS_ISSUED)->count());
         $this->assertSame(4, PaymentReceipt::withoutGlobalScopes()->where('type', PaymentReceipt::TYPE_CUSTOMER_COLLECTION)->count());
         $this->assertSame(2, PaymentReceipt::withoutGlobalScopes()->where('type', PaymentReceipt::TYPE_SUPPLIER_PAYMENT)->count());

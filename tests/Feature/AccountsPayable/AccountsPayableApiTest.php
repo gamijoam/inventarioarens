@@ -9,6 +9,7 @@ use App\Modules\AccountsPayable\Models\AccountsPayablePaymentRequest;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Products\Models\Product;
@@ -629,17 +630,13 @@ class AccountsPayableApiTest extends TestCase
     {
         $this->useTenant($tenant);
 
-        return CashRegisterSession::create([
-            'branch_id' => $branchId,
-            'cashier_id' => $user->id,
-            'opened_by' => $user->id,
-            'status' => CashRegisterSession::STATUS_OPEN,
-            'opening_base_amount' => 100,
-            'opening_local_amount' => 0,
-            'expected_base_amount' => 100,
-            'expected_local_amount' => 0,
-            'opened_at' => now(),
-        ]);
+        return app(CashRegisterService::class)->open(
+            operator: $user,
+            branch: Branch::query()->findOrFail($branchId),
+            physicalRegister: null,
+            cashier: $user,
+            data: ['opening_base_amount' => 100, 'opening_local_amount' => 0],
+        );
     }
 
     private function grantRole(Tenant $tenant, User $user, string $roleName, array $permissions): void

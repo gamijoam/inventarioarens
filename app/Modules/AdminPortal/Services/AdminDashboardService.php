@@ -92,31 +92,37 @@ class AdminDashboardService
 
     private function inventorySummary(int $tenantId, float $threshold): array
     {
-        $stockByProduct = DB::table('stock_balances')
-            ->select('product_id')
-            ->selectRaw('COALESCE(SUM(quantity_available), 0) as available')
-            ->selectRaw('COALESCE(SUM(quantity_reserved), 0) as reserved')
-            ->selectRaw('COALESCE(SUM(quantity_damaged), 0) as damaged')
-            ->where('tenant_id', $tenantId)
-            ->groupBy('product_id');
+        $stockByProduct = function () use ($tenantId) {
+            return DB::table('stock_balances')
+                ->select('product_id')
+                ->selectRaw('COALESCE(SUM(quantity_available), 0) as available')
+                ->selectRaw('COALESCE(SUM(quantity_reserved), 0) as reserved')
+                ->selectRaw('COALESCE(SUM(quantity_damaged), 0) as damaged')
+                ->where('tenant_id', $tenantId)
+                ->groupBy('product_id');
+        };
 
-        $productsWithStock = DB::table('products')
-            ->leftJoinSub($stockByProduct, 'stock', 'stock.product_id', '=', 'products.id')
-            ->where('products.tenant_id', $tenantId)
-            ->where('products.is_active', true);
+        $productsWithStock = function () use ($stockByProduct, $tenantId) {
+            return DB::table('products')
+                ->leftJoinSub($stockByProduct(), 'stock', 'stock.product_id', '=', 'products.id')
+                ->where('products.tenant_id', $tenantId)
+                ->where('products.is_active', true);
+        };
 
         return [
-            'active_products_count' => (clone $productsWithStock)->count(),
-            'available_quantity' => round((float) (clone $productsWithStock)->sum(DB::raw('COALESCE(stock.available, 0)')), 4),
-            'reserved_quantity' => round((float) (clone $productsWithStock)->sum(DB::raw('COALESCE(stock.reserved, 0)')), 4),
-            'damaged_quantity' => round((float) (clone $productsWithStock)->sum(DB::raw('COALESCE(stock.damaged, 0)')), 4),
-            'low_stock_count' => (clone $productsWithStock)
-                ->whereRaw('COALESCE(stock.available, 0) > 0')
-                ->whereRaw('COALESCE(stock.available, 0) <= ?', [$threshold])
-                ->count(),
-            'without_stock_count' => (clone $productsWithStock)
-                ->whereRaw('COALESCE(stock.available, 0) <= 0')
-                ->count(),
+            'active_products_count' => $productsWithStock()->count(),
+            'available_quantity' => round((float) $productsWithStock()->sum(DB::raw('COALESCE(stock.available, 0)')), 4),
+            'reserved_quantity' => round((float) $productsWithStock()->sum(DB::raw('COALESCE(stock.reserved, 0)')), 4),
+            'damaged_quantity' => round((float) $productsWithStock()->sum(DB::raw('COALESCE(stock.damaged, 0)')), 4),
+            'low_stock_count' => $productsWithStock()
+                ->whereRaw('CAST(COALESCE(stock.available, 0) AS DECIMAL(20, 4)) > 0')
+                ->whereRaw('CAST(COALESCE(stock.available, 0) AS DECIMAL(20, 4)) <= ?', [$threshold])
+                ->distinct('products.id')
+                ->count('products.id'),
+            'without_stock_count' => $productsWithStock()
+                ->whereRaw('CAST(COALESCE(stock.available, 0) AS DECIMAL(20, 4)) <= 0')
+                ->distinct('products.id')
+                ->count('products.id'),
             'low_stock_threshold' => $threshold,
         ];
     }

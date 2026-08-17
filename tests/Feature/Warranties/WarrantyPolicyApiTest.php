@@ -15,9 +15,10 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyClaim;
 use App\Modules\Warranties\Models\WarrantyPolicy;
-use App\Modules\Warehouses\Models\Warehouse;
+use App\Modules\Warranties\Services\WarrantyClaimService;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,6 +121,7 @@ class WarrantyPolicyApiTest extends TestCase
             ->postJson('/api/products', [
                 'name' => 'Samsung A06',
                 'sku' => 'SAMSUNG-A06',
+                'base_price' => 100,
                 'warranty_policy_id' => $policyA->id,
             ])
             ->assertCreated()
@@ -132,6 +134,7 @@ class WarrantyPolicyApiTest extends TestCase
             ->postJson('/api/products', [
                 'name' => 'iPhone 13',
                 'sku' => 'IPHONE-13',
+                'base_price' => 100,
                 'warranty_policy_id' => $policyB->id,
             ])
             ->assertUnprocessable()
@@ -565,13 +568,13 @@ class WarrantyPolicyApiTest extends TestCase
         ]);
         $saleItem = $this->confirmedSaleItem($tenant, $user, $warehouse, $product, [$originalUnit->id]);
 
-        $claim = app(\App\Modules\Warranties\Services\WarrantyClaimService::class)->create($user, [
+        $claim = app(WarrantyClaimService::class)->create($user, [
             'sale_item_id' => $saleItem->id,
             'product_unit_id' => $originalUnit->id,
             'quantity' => 1,
             'issue_description' => 'Equipo sin imagen.',
         ]);
-        $claim = app(\App\Modules\Warranties\Services\WarrantyClaimService::class)->review($claim, $user, [
+        $claim = app(WarrantyClaimService::class)->review($claim, $user, [
             'status' => WarrantyClaim::STATUS_APPROVED,
             'diagnosis' => 'Pantalla defectuosa.',
             'resolution_type' => WarrantyClaim::RESOLUTION_REPLACEMENT,

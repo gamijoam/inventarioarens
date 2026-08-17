@@ -3,11 +3,14 @@
 namespace Tests\Feature\Performance;
 
 use App\Support\Performance\PerformanceProbe;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class PerformanceProbeJsonTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_performance_probe_logs_with_json_key_format(): void
     {
         Log::shouldReceive('info')

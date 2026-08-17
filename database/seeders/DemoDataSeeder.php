@@ -25,10 +25,10 @@ use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Services\InventoryTransferRequestService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
+use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\POS\Services\PosCheckoutService;
-use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Services\ProductEntryService;
 use App\Modules\ProductExits\Models\ProductExit;
@@ -38,14 +38,15 @@ use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\PurchaseReturns\Services\PurchaseReturnService;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Services\PurchaseOrderService;
-use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Sales\Models\SaleItem;
+use App\Modules\Sales\Services\SaleService;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Services\SalesReturnService;
+use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
-use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Modules\Warranties\Models\WarrantyClaim;
+use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Modules\Warranties\Services\WarrantyClaimService;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -247,6 +248,7 @@ class DemoDataSeeder extends Seeder
             $existing->update(['customer_id' => $customer->id]);
             $existing->sale?->update(['customer_id' => $customer->id]);
             $this->backfillExistingPosSaleItemUnit($existing, $warehouse, $product);
+
             return;
         }
 
@@ -284,8 +286,7 @@ class DemoDataSeeder extends Seeder
         Warehouse $warehouse,
         Product $product,
         Customer $customer,
-    ): void
-    {
+    ): void {
         $this->useTenant($tenant);
 
         $existing = PosOrder::query()->where('customer_name', 'Cliente Demo Financiamiento')->first();
@@ -293,6 +294,7 @@ class DemoDataSeeder extends Seeder
         if ($existing) {
             $existing->update(['customer_id' => $customer->id]);
             $existing->sale?->update(['customer_id' => $customer->id]);
+
             return;
         }
 
@@ -479,7 +481,7 @@ class DemoDataSeeder extends Seeder
         $saleItem = $posOrder->sale->items->first();
         $productUnitIds = $saleItem->product_unit_ids ?? [];
 
-        app(SalesReturnService::class)->create($user, [
+        $salesReturn = app(SalesReturnService::class)->create($user, [
             'sale_id' => $posOrder->sale->id,
             'reason' => 'Devolucion demo de venta POS pagada.',
             'items' => [[
@@ -488,6 +490,10 @@ class DemoDataSeeder extends Seeder
                 'product_unit_ids' => $productUnitIds,
             ]],
         ]);
+
+        $service = app(SalesReturnService::class);
+        $service->approve($salesReturn, $user);
+        $service->process($salesReturn->fresh(), $user, ['refund_mode' => 'none']);
     }
 
     private function backfillExistingPosSaleItemUnit(PosOrder $order, Warehouse $warehouse, Product $product): void
@@ -539,13 +545,13 @@ class DemoDataSeeder extends Seeder
             return;
         }
 
-        $sale = app(\App\Modules\Sales\Services\SaleService::class)->createDraft($user, [[
+        $sale = app(SaleService::class)->createDraft($user, [[
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity' => 1,
         ]], $customer->id);
 
-        $sale = app(\App\Modules\Sales\Services\SaleService::class)->confirm($sale, $user);
+        $sale = app(SaleService::class)->confirm($sale, $user);
 
         AccountsReceivable::query()
             ->where('sale_id', $sale->id)
