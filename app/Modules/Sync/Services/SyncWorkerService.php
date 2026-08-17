@@ -176,23 +176,91 @@ class SyncWorkerService
         $now = now();
         $ids = $events->pluck('id')->all();
 
-        DB::table('sync_outbox')
-            ->where('tenant_id', $tenant->id)
-            ->whereIn('id', $ids)
-            ->update([
-                'status' => 'processed',
-                'processed_at' => $now,
-                'locked_at' => null,
-                'last_error' => null,
-                'updated_at' => $now,
-            ]);
+        $results = is_array($data['results'] ?? null) ? $data['results'] : null;
+        if ($results === null) {
+            DB::table('sync_outbox')
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('id', $ids)
+                ->update([
+                    'status' => 'processed',
+                    'processed_at' => $now,
+                    'locked_at' => null,
+                    'last_error' => null,
+                    'updated_at' => $now,
+                ]);
+        } else {
+            $resultByUuid = collect($results)->filter(
+                fn (mixed $result): bool => is_array($result) && ! empty($result['event_uuid'])
+            )->keyBy(fn (array $result): string => (string) $result['event_uuid']);
+            $successfulIds = [];
+            $failedIds = [];
+            $failedUuids = [];
 
-        $this->touchState($tenant, $nodeCode, 'push', (int) $events->last()->id, $events->last()->event_uuid, null);
+            foreach ($events as $event) {
+                $result = $resultByUuid->get($event->event_uuid);
+                $status = (string) ($result['status'] ?? 'failed');
+
+                if (in_array($status, ['applied', 'ignored', 'duplicated', 'processed'], true)) {
+                    $successfulIds[] = $event->id;
+                } else {
+                    $failedIds[] = $event->id;
+                    $failedUuids[$event->event_uuid] = (string) ($result['error'] ?? 'El servidor no confirmó el evento.');
+                }
+            }
+
+            if ($successfulIds !== []) {
+                DB::table('sync_outbox')
+                    ->where('tenant_id', $tenant->id)
+                    ->whereIn('id', $successfulIds)
+                    ->update([
+                        'status' => 'processed',
+                        'processed_at' => $now,
+                        'locked_at' => null,
+                        'last_error' => null,
+                        'updated_at' => $now,
+                    ]);
+            }
+
+            foreach ($failedIds as $failedId) {
+                $event = $events->firstWhere('id', $failedId);
+                DB::table('sync_outbox')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('id', $failedId)
+                    ->update([
+                        'status' => 'pending',
+                        'attempts' => DB::raw('attempts + 1'),
+                        'available_at' => $now->copy()->addSeconds(30),
+                        'processed_at' => null,
+                        'locked_at' => null,
+                        'last_error' => $failedUuids[$event->event_uuid] ?? 'El servidor no confirmó el evento.',
+                        'updated_at' => $now,
+                    ]);
+            }
+        }
+
+        $processedEvents = $events->filter(function ($event) use ($results): bool {
+            if ($results === null) {
+                return true;
+            }
+
+            $result = collect($results)->firstWhere('event_uuid', $event->event_uuid);
+
+            return in_array($result['status'] ?? null, ['applied', 'ignored', 'duplicated', 'processed'], true);
+        });
+
+        if ($processedEvents->isNotEmpty()) {
+            $lastProcessed = $processedEvents->last();
+            $this->touchState($tenant, $nodeCode, 'push', (int) $lastProcessed->id, $lastProcessed->event_uuid, null);
+        }
 
         return [
-            'pushed' => (int) ($data['received'] ?? count($ids)),
+            'pushed' => $results === null
+                ? (int) ($data['received'] ?? count($ids))
+                : $processedEvents->count(),
             'duplicated_on_cloud' => (int) ($data['duplicated'] ?? 0),
-            'failed' => 0,
+            'failed' => $results === null
+                ? (int) ($data['failed'] ?? 0)
+                : $events->count() - $processedEvents->count(),
         ];
     }
 

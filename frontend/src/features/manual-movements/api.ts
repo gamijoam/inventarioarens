@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getOne, getPaginated, postOne } from '@/api/client';
+import { createIdempotencyKey, getOne, getPaginated, postOne, withIdempotencyKey } from '@/api/client';
 import {
   ManualMovementSchema,
   type CreateManualMovement,
@@ -13,6 +13,22 @@ export const manualMovementKeys = {
   list: (filters: ManualMovementFilters) => [...manualMovementKeys.all, 'list', filters] as const,
   detail: (id: number) => [...manualMovementKeys.all, 'detail', id] as const,
 };
+
+type IdempotentInput<T extends object> = T & { idempotencyKey?: string };
+
+const idempotencyKeys = new WeakMap<object, string>();
+
+function idempotencyKeyFor(input: IdempotentInput<object>): string {
+  if (input.idempotencyKey) return input.idempotencyKey;
+
+  const existing = idempotencyKeys.get(input);
+  if (existing) return existing;
+
+  const key = createIdempotencyKey();
+  idempotencyKeys.set(input, key);
+
+  return key;
+}
 
 function queryString(filters: ManualMovementFilters): string {
   const params = new URLSearchParams();
@@ -47,11 +63,18 @@ export function useManualMovement(id: number) {
 
 export function useCreateManualMovement() {
   const queryClient = useQueryClient();
-  return useMutation<ManualMovement, Error, CreateManualMovement>({
-    mutationFn: async (values) =>
-      ManualMovementSchema.parse(
-        await postOne<CreateManualMovement, unknown>('/inventory/manual-movements', values),
-      ),
+  return useMutation<ManualMovement, Error, IdempotentInput<CreateManualMovement>>({
+    mutationFn: async (values) => {
+      const { idempotencyKey: _idempotencyKey, ...payload } = values;
+
+      return ManualMovementSchema.parse(
+        await postOne<CreateManualMovement, unknown>(
+          '/inventory/manual-movements',
+          payload,
+          withIdempotencyKey(idempotencyKeyFor(values)),
+        ),
+      );
+    },
     onSuccess: async (movement) => {
       await queryClient.invalidateQueries({ queryKey: manualMovementKeys.all });
       await queryClient.invalidateQueries({ queryKey: productKeys.all });
@@ -63,11 +86,18 @@ export function useCreateManualMovement() {
 function actionMutation(path: (id: number) => string) {
   return function useAction() {
     const queryClient = useQueryClient();
-    return useMutation<ManualMovement, Error, { id: number; reason?: string }>({
-      mutationFn: async ({ id, reason }) =>
-        ManualMovementSchema.parse(
-          await postOne<{ reason?: string }, unknown>(path(id), reason ? { reason } : {}),
-        ),
+    return useMutation<ManualMovement, Error, { id: number; reason?: string; idempotencyKey?: string }>({
+      mutationFn: async (values) => {
+        const { id, reason } = values;
+
+        return ManualMovementSchema.parse(
+          await postOne<{ reason?: string }, unknown>(
+            path(id),
+            reason ? { reason } : {},
+            withIdempotencyKey(idempotencyKeyFor(values)),
+          ),
+        );
+      },
       onSuccess: async (movement) => {
         await queryClient.invalidateQueries({ queryKey: manualMovementKeys.all });
         await queryClient.invalidateQueries({ queryKey: productKeys.all });

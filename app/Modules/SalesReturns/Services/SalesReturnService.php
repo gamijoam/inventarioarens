@@ -629,6 +629,7 @@ class SalesReturnService
             'amount_local' => $localAmount,
             'source_type' => SalesReturn::class,
             'source_id' => $salesReturn->id,
+            'operation_key' => 'sales-return:'.$salesReturn->id,
             'notes' => "Saldo a favor por devolucion #{$salesReturn->id}",
         ]);
     }

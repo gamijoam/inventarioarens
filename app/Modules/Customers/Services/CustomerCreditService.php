@@ -16,6 +16,21 @@ class CustomerCreditService
         array $data,
     ): CustomerCreditTransaction {
         return DB::transaction(function () use ($customer, $user, $data): CustomerCreditTransaction {
+            $customer = Customer::query()
+                ->lockForUpdate()
+                ->findOrFail($customer->id);
+
+            $operationKey = $data['operation_key'] ?? null;
+            if ($operationKey) {
+                $existing = CustomerCreditTransaction::query()
+                    ->where('operation_key', $operationKey)
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
             if ($customer->is_generic) {
                 throw ValidationException::withMessages([
                     'customer_id' => 'El consumidor final no puede recibir saldo a favor. Selecciona un cliente registrado.',
@@ -31,6 +46,7 @@ class CustomerCreditService
                 'amount_local' => $data['amount_local'],
                 'source_type' => $data['source_type'] ?? null,
                 'source_id' => $data['source_id'] ?? null,
+                'operation_key' => $operationKey,
                 'created_by' => $user->id,
                 'notes' => $data['notes'] ?? null,
             ]);
@@ -47,6 +63,21 @@ class CustomerCreditService
     public function apply(Customer $customer, User $user, array $data): CustomerCreditTransaction
     {
         return DB::transaction(function () use ($customer, $user, $data): CustomerCreditTransaction {
+            $customer = Customer::query()
+                ->lockForUpdate()
+                ->findOrFail($customer->id);
+            $operationKey = $data['operation_key'] ?? null;
+
+            if ($operationKey) {
+                $existing = CustomerCreditTransaction::query()
+                    ->where('operation_key', $operationKey)
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
             $available = $this->availableBase($customer);
             $amountBase = round((float) $data['amount_base'], 4);
 
@@ -65,6 +96,7 @@ class CustomerCreditService
                 'amount_local' => -abs((float) ($data['amount_local'] ?? 0)),
                 'source_type' => $data['source_type'] ?? null,
                 'source_id' => $data['source_id'] ?? null,
+                'operation_key' => $operationKey,
                 'created_by' => $user->id,
                 'notes' => $data['notes'] ?? null,
             ]);

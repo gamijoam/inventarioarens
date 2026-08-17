@@ -15,9 +15,12 @@ Route::prefix('inventory')->group(function (): void {
     Route::post('transfers', [InventoryMovementController::class, 'transfer']);
 
     // Manual inventory movements
-    Route::post('manual-movements', [InventoryManualMovementController::class, 'store']);
+    Route::post('manual-movements', [InventoryManualMovementController::class, 'store'])
+        ->middleware('idempotency');
     Route::get('manual-movements', [InventoryManualMovementController::class, 'index']);
     Route::get('manual-movements/{movement}', [InventoryManualMovementController::class, 'show']);
-    Route::post('manual-movements/{movement}/approve', [InventoryManualMovementController::class, 'approve']);
-    Route::post('manual-movements/{movement}/reject', [InventoryManualMovementController::class, 'reject']);
+    Route::post('manual-movements/{movement}/approve', [InventoryManualMovementController::class, 'approve'])
+        ->middleware('idempotency');
+    Route::post('manual-movements/{movement}/reject', [InventoryManualMovementController::class, 'reject'])
+        ->middleware('idempotency');
 });

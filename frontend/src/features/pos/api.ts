@@ -2,7 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
+import {
+  api,
+  createIdempotencyKey,
+  deleteOne,
+  getMany,
+  getOne,
+  getPaginated,
+  patchOne,
+  postOne,
+  withIdempotencyKey,
+} from '@/api/client';
 import { useProducts } from '@/features/inventory-center/api';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
@@ -430,6 +440,32 @@ export interface HoldPayload {
   items: CheckoutPayload['items'];
 }
 
+type IdempotentInput<T extends object> = T & { idempotencyKey?: string };
+
+const idempotencyKeys = new WeakMap<object, string>();
+
+function idempotencyKeyFor(input: IdempotentInput<object>): string {
+  if (input.idempotencyKey) {
+    return input.idempotencyKey;
+  }
+
+  const existing = idempotencyKeys.get(input);
+  if (existing) {
+    return existing;
+  }
+
+  const key = createIdempotencyKey();
+  idempotencyKeys.set(input, key);
+
+  return key;
+}
+
+function withoutIdempotencyKey<T extends object>(input: IdempotentInput<T>): T {
+  const { idempotencyKey: _idempotencyKey, ...payload } = input;
+
+  return payload as T;
+}
+
 export interface ComboApplicationPayload {
   promotion_id: number;
   instance_uuid: string;
@@ -649,8 +685,12 @@ export function useSessionOrders(
 export function useCheckout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CheckoutPayload) =>
-      postOne<CheckoutPayload, PosOrder>('/pos/checkouts', payload),
+    mutationFn: async (input: IdempotentInput<CheckoutPayload>) =>
+      postOne<CheckoutPayload, PosOrder>(
+        '/pos/checkouts',
+        withoutIdempotencyKey(input),
+        withIdempotencyKey(idempotencyKeyFor(input)),
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
@@ -663,8 +703,12 @@ export function useCheckout() {
 export function useHoldOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: HoldPayload) =>
-      postOne<HoldPayload, PosOrder>('/pos/orders', payload),
+    mutationFn: async (input: IdempotentInput<HoldPayload>) =>
+      postOne<HoldPayload, PosOrder>(
+        '/pos/orders',
+        withoutIdempotencyKey(input),
+        withIdempotencyKey(idempotencyKeyFor(input)),
+      ),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
@@ -675,20 +719,23 @@ export function useHoldOrder() {
 export function useAddPosPayments() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      orderId,
-      payments,
-      cashRegisterSessionId,
-      items,
-      invoicePromotionAction,
-    }: {
+    mutationFn: async (request: {
       orderId: number;
       payments: CheckoutPayload['payments'];
       cashRegisterSessionId?: number | null;
       items?: ChargeItemPayload[];
       invoicePromotionAction?: 'validate' | 'reject';
-    }) =>
-      postOne<
+      idempotencyKey?: string;
+    }) => {
+      const {
+        orderId,
+        payments,
+        cashRegisterSessionId,
+        items,
+        invoicePromotionAction,
+      } = request;
+
+      return postOne<
         {
           payments: CheckoutPayload['payments'];
           cash_register_session_id?: number | null;
@@ -696,12 +743,17 @@ export function useAddPosPayments() {
           invoice_promotion_action?: 'validate' | 'reject';
         },
         PosOrder
-      >(`/pos/orders/${orderId}/payments`, {
-        payments,
-        cash_register_session_id: cashRegisterSessionId ?? null,
-        items: items && items.length > 0 ? items : undefined,
-        invoice_promotion_action: invoicePromotionAction,
-      }),
+      >(
+        `/pos/orders/${orderId}/payments`,
+        {
+          payments,
+          cash_register_session_id: cashRegisterSessionId ?? null,
+          items: items && items.length > 0 ? items : undefined,
+          invoice_promotion_action: invoicePromotionAction,
+        },
+        withIdempotencyKey(idempotencyKeyFor(request)),
+      );
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
@@ -712,8 +764,15 @@ export function useAddPosPayments() {
 export function useCancelPosOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (orderId: number) =>
-      postOne<Record<string, never>, PosOrder>(`/pos/orders/${orderId}/cancel`, {}),
+    mutationFn: async (input: number | { orderId: number; idempotencyKey?: string }) => {
+      const request = typeof input === 'number' ? { orderId: input } : input;
+
+      return postOne<Record<string, never>, PosOrder>(
+        `/pos/orders/${request.orderId}/cancel`,
+        {},
+        withIdempotencyKey(idempotencyKeyFor(request)),
+      );
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
     },

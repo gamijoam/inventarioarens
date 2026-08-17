@@ -167,6 +167,69 @@ class SyncWorkerCommandTest extends TestCase
         Http::assertSentCount(4);
     }
 
+    public function test_sync_worker_keeps_cloud_failed_events_pending_for_retry(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Empresa Sync Failed Push',
+            'slug' => 'empresa-sync-failed-push',
+        ]);
+        $eventUuid = (string) Str::uuid();
+        $now = now();
+
+        DB::table('sync_outbox')->insert([
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'target_scope' => 'tenant',
+            'event_type' => 'product.updated',
+            'aggregate_type' => 'product',
+            'aggregate_id' => 88,
+            'payload' => json_encode(['sku' => 'FAILED-88']),
+            'occurred_at' => $now,
+            'available_at' => $now,
+            'status' => 'pending',
+            'idempotency_key' => 'failed-push-88',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        Http::fake([
+            'https://cloud.test/api/sync/nodes' => Http::response([
+                'data' => ['code' => 'LOCAL-FAILED-PUSH'],
+            ], 201),
+            'https://cloud.test/api/sync/events/push' => Http::response([
+                'data' => [
+                    'received' => 0,
+                    'duplicated' => 0,
+                    'failed' => 1,
+                    'results' => [[
+                        'event_uuid' => $eventUuid,
+                        'status' => 'failed',
+                        'error' => 'Dependencia remota pendiente.',
+                    ]],
+                ],
+            ], 202),
+        ]);
+
+        $this->artisan('sync:run', [
+            'tenant' => $tenant->slug,
+            '--node' => 'LOCAL-FAILED-PUSH',
+            '--name' => 'Local Failed Push',
+            '--cloud-url' => 'https://cloud.test/api',
+            '--token' => 'token-demo',
+            '--limit' => 10,
+            '--push-only' => true,
+            '--installation' => 'LOCAL-FAILED-PUSH-PC',
+        ])->assertExitCode(1);
+
+        $this->assertDatabaseHas('sync_outbox', [
+            'tenant_id' => $tenant->id,
+            'event_uuid' => $eventUuid,
+            'status' => 'pending',
+            'last_error' => 'Dependencia remota pendiente.',
+        ]);
+        $this->assertNull(DB::table('sync_outbox')->where('event_uuid', $eventUuid)->value('processed_at'));
+    }
+
     public function test_sync_worker_applies_customer_created_from_cloud(): void
     {
         $tenant = Tenant::create([

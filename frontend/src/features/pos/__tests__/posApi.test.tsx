@@ -6,16 +6,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockGetPaginated = vi.fn();
 const mockGetOne = vi.fn();
 const mockPostOne = vi.fn();
+const mockPostOneConfig = vi.fn();
 const mockPatchOne = vi.fn();
 const mockApiGet = vi.fn();
 
 vi.mock('@/api/client', () => ({
-  api: { get: (path: string) => mockApiGet(path) },
+  api: { get: (path: string) => mockApiGet(path) as Promise<unknown> },
+  createIdempotencyKey: () => `test-idempotency-${Math.random()}`,
   getMany: vi.fn(),
-  getOne: (path: string) => mockGetOne(path),
-  getPaginated: (path: string) => mockGetPaginated(path),
-  patchOne: (path: string, body: unknown) => mockPatchOne(path, body),
-  postOne: (path: string, body: unknown) => mockPostOne(path, body),
+  getOne: (path: string) => mockGetOne(path) as Promise<unknown>,
+  getPaginated: (path: string) => mockGetPaginated(path) as Promise<unknown>,
+  patchOne: (path: string, body: unknown) => mockPatchOne(path, body) as Promise<unknown>,
+  postOne: (path: string, body: unknown, config?: unknown) => {
+    if (config !== undefined) mockPostOneConfig(path, body, config);
+    return mockPostOne(path, body) as Promise<unknown>;
+  },
+  withIdempotencyKey: (key: string) => ({ headers: { 'Idempotency-Key': key } }),
 }));
 
 import type { CashRegisterSession } from '../api';
@@ -62,6 +68,7 @@ describe('pos api', () => {
     mockGetPaginated.mockReset();
     mockGetOne.mockReset();
     mockPostOne.mockReset();
+    mockPostOneConfig.mockReset();
     mockPatchOne.mockReset();
     mockApiGet.mockReset();
   });
@@ -81,9 +88,9 @@ describe('pos api', () => {
   });
 
   it('abre el panel de busqueda desde una sugerencia (en vez de agregar directo)', () => {
-    const setProductSearch = vi.fn();
-    const setPanel = vi.fn();
-    const action = { setProductSearch, setPanel: (panel: 'product-search') => setPanel(panel) };
+    const setProductSearch = vi.fn<(value: string) => void>();
+    const setPanel = vi.fn<(panel: 'product-search') => void>();
+    const action = { setProductSearch, setPanel };
 
     openSearchFromSuggestion('adaptador', action);
 
@@ -238,7 +245,7 @@ describe('pos api', () => {
         {
           ...fallbackSession,
           cash_register_id: null,
-        } as unknown as CashRegisterSession,
+        },
       ]),
     ).toMatchObject({ id: 9, status: 'open', cash_register_id: null });
   });
@@ -675,6 +682,30 @@ describe('pos api', () => {
       items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
       payments: [],
     });
+    expect(mockPostOneConfig).toHaveBeenCalledWith('/pos/checkouts', expect.any(Object), expect.objectContaining({
+      headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+    }));
+  });
+
+  it('conserva la misma clave de idempotencia cuando se reintenta el mismo checkout', async () => {
+    mockPostOne.mockResolvedValue({ id: 11, status: 'paid', sale_id: 22 });
+
+    const payload = {
+      cash_register_session_id: 3,
+      customer_id: 5,
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
+      payments: [],
+    };
+    const { result } = renderHook(() => useCheckout(), { wrapper });
+
+    result.current.mutate(payload);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    result.current.mutate(payload);
+    await waitFor(() => expect(mockPostOne).toHaveBeenCalledTimes(2));
+
+    const firstConfig = mockPostOneConfig.mock.calls[0]![2] as { headers: Record<string, string> };
+    const secondConfig = mockPostOneConfig.mock.calls[1]![2] as { headers: Record<string, string> };
+    expect(firstConfig.headers['Idempotency-Key']).toBe(secondConfig.headers['Idempotency-Key']);
   });
 
   it('envia combos, ofertas por linea y promocion de factura en checkout', async () => {
@@ -780,6 +811,9 @@ describe('pos api', () => {
       cash_register_session_id: 9,
       items: [{ sale_item_id: 41, product_unit_ids: [101, 102] }],
     });
+    expect(mockPostOneConfig).toHaveBeenCalledWith('/pos/orders/21/payments', expect.any(Object), expect.objectContaining({
+      headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+    }));
   });
 
   it('completa el cobro de una orden pendiente SIN items cuando no hay IMEIs', async () => {

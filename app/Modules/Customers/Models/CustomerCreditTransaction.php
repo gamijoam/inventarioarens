@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'amount_local',
     'source_type',
     'source_id',
+    'operation_key',
     'created_by',
     'notes',
 ])]

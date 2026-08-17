@@ -165,6 +165,22 @@ export async function postOne<TBody, TResponse = TBody>(
   return response.data.data;
 }
 
+export function createIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function withIdempotencyKey(key: string): AxiosRequestConfig {
+  return {
+    headers: {
+      'Idempotency-Key': key,
+    },
+  };
+}
+
 export async function patchOne<TBody, TResponse = TBody>(
   path: string,
   body?: TBody,

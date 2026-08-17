@@ -15,6 +15,7 @@ use App\Modules\Customers\Models\Customer;
 use App\Modules\Customers\Models\CustomerCreditTransaction;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
@@ -2119,5 +2120,68 @@ class PosCheckoutApiTest extends TestCase
                 ]],
             ])
             ->assertStatus(409);
+    }
+
+    public function test_pending_payment_retry_with_same_idempotency_key_has_one_side_effect(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Pago Idem', 'slug' => 'empresa-pago-idem']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Pago Idem', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $checkout = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_TRANSFER,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                    'status' => PosPayment::STATUS_PENDING,
+                ]],
+            ])
+            ->assertCreated();
+
+        $orderId = $checkout->json('data.id');
+        $paymentPayload = [
+            'payments' => [[
+                'method' => PosPayment::METHOD_TRANSFER,
+                'currency' => Product::CURRENCY_USD,
+                'amount' => 100,
+                'status' => PosPayment::STATUS_CAPTURED,
+                'reference' => 'TRX-IDEM-001',
+            ]],
+        ];
+        $key = 'pending-payment-idem';
+
+        $first = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', $key)
+            ->postJson("/api/pos/orders/{$orderId}/payments", $paymentPayload)
+            ->assertOk();
+        $second = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', $key)
+            ->postJson("/api/pos/orders/{$orderId}/payments", $paymentPayload)
+            ->assertOk();
+
+        $this->assertSame($first->json('data.id'), $second->json('data.id'));
+        $this->assertSame(2, PosPayment::query()->where('pos_order_id', $orderId)->count(), 'payments');
+        $this->assertSame(1, CashRegisterMovement::query()->where('source_type', PosPayment::class)->count(), 'cash movements');
+        $this->assertSame(1, StockMovement::query()->where('reference_id', $orderId)->where('type', 'released')->count(), 'released movements');
     }
 }

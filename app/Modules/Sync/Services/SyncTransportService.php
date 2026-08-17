@@ -61,6 +61,7 @@ class SyncTransportService
         $ignored = 0;
         $failed = 0;
         $receivedEvents = [];
+        $duplicatedEventUuids = [];
 
         foreach ($events as $event) {
             $exists = DB::table('sync_inbox')
@@ -70,6 +71,7 @@ class SyncTransportService
 
             if ($exists) {
                 $duplicated++;
+                $duplicatedEventUuids[] = (string) $event['event_uuid'];
 
                 continue;
             }
@@ -105,6 +107,31 @@ class SyncTransportService
             $this->mirrorAppliedEventsToOutbox($receivedEvents, $originNode['id'] ?? null, $now);
         }
 
+        $allEventUuids = array_values(array_unique(array_merge(
+            array_map(fn (array $event): string => (string) $event['event_uuid'], $receivedEvents),
+            $duplicatedEventUuids,
+        )));
+        $remoteStatuses = DB::table('sync_inbox')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('event_uuid', $allEventUuids)
+            ->get(['event_uuid', 'status', 'last_error'])
+            ->keyBy('event_uuid');
+        $results = [];
+
+        foreach ($allEventUuids as $eventUuid) {
+            $remoteEvent = $remoteStatuses->get($eventUuid);
+            $status = $remoteEvent?->status ?? 'failed';
+            if (in_array($eventUuid, $duplicatedEventUuids, true) && $status !== 'failed') {
+                $status = 'duplicated';
+            }
+
+            $results[] = array_filter([
+                'event_uuid' => $eventUuid,
+                'status' => $status,
+                'error' => $remoteEvent?->last_error,
+            ], static fn (mixed $value): bool => $value !== null);
+        }
+
         if ($originNode) {
             $this->touchState((int) $originNode['id'], 'push', null, null, null);
         }
@@ -115,6 +142,7 @@ class SyncTransportService
             'applied' => $applied,
             'ignored' => $ignored,
             'failed' => $failed,
+            'results' => $results,
         ];
     }
 

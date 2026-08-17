@@ -320,7 +320,9 @@ class SyncApiTest extends TestCase
             ->assertAccepted()
             ->assertJsonPath('data.received', 1)
             ->assertJsonPath('data.applied', 1)
-            ->assertJsonPath('data.failed', 0);
+            ->assertJsonPath('data.failed', 0)
+            ->assertJsonPath('data.results.0.event_uuid', $eventUuid)
+            ->assertJsonPath('data.results.0.status', 'applied');
 
         $this->assertDatabaseHas('products', [
             'tenant_id' => $tenant->id,

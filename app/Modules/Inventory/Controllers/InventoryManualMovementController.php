@@ -12,6 +12,7 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class InventoryManualMovementController extends Controller
 {
@@ -112,68 +113,72 @@ class InventoryManualMovementController extends Controller
     ): InventoryManualMovementResource {
         abort_unless($request->user()?->can('inventory.manual_movements.approve'), 403);
 
-        abort_if(
-            $movement->status !== 'pending',
-            422,
-            'El movimiento ya fue procesado.'
-        );
+        return DB::transaction(function () use ($request, $movement, $inventory): InventoryManualMovementResource {
+            $movement = InventoryManualMovement::query()
+                ->lockForUpdate()
+                ->findOrFail($movement->id);
 
-        $warehouse = Warehouse::query()
-            ->findOrFail($movement->warehouse_id);
+            abort_if(
+                $movement->status !== 'pending',
+                422,
+                'El movimiento ya fue procesado.'
+            );
 
-        $product = Product::query()
-            ->findOrFail($movement->product_id);
+            $warehouse = Warehouse::query()->findOrFail($movement->warehouse_id);
+            $product = Product::query()->findOrFail($movement->product_id);
+            $referenceType = InventoryManualMovement::class;
+            $referenceId = $movement->id;
 
-        $stockMovement = match ($movement->type) {
+            $stockMovement = match ($movement->type) {
+                'adjustment_in', 'return_internal', 'found' => $inventory->manualIn(
+                    $request->user(),
+                    $warehouse,
+                    $product,
+                    $movement->quantity,
+                    $movement->reason,
+                    $movement->product_variant_id,
+                    $referenceType,
+                    $referenceId,
+                ),
+                'damaged', 'loss', 'write_off' => $inventory->manualDamaged(
+                    $request->user(),
+                    $warehouse,
+                    $product,
+                    $movement->quantity,
+                    $movement->reason,
+                    $movement->product_variant_id,
+                    $referenceType,
+                    $referenceId,
+                ),
+                default => $inventory->manualOut(
+                    $request->user(),
+                    $warehouse,
+                    $product,
+                    $movement->quantity,
+                    $movement->reason,
+                    $movement->product_variant_id,
+                    $referenceType,
+                    $referenceId,
+                ),
+            };
 
-            'adjustment_in',
-            'return_internal',
-            'found' => $inventory->manualIn(
-                $request->user(),
-                $warehouse,
-                $product,
-                $movement->quantity,
-                $movement->reason,
-                $movement->product_variant_id,
-            ),
+            $movement->update([
+                'status' => 'approved',
+                'approved_by' => $request->user()?->id,
+                'approved_at' => now(),
+                'stock_movement_id' => $stockMovement->id,
+            ]);
 
-            'damaged',
-            'loss',
-            'write_off' => $inventory->manualDamaged(
-                $request->user(),
-                $warehouse,
-                $product,
-                $movement->quantity,
-                $movement->reason,
-                $movement->product_variant_id,
-            ),
-
-            default => $inventory->manualOut(
-                $request->user(),
-                $warehouse,
-                $product,
-                $movement->quantity,
-                $movement->reason,
-                $movement->product_variant_id,
-            ),
-        };
-
-        $movement->update([
-            'status' => 'approved',
-            'approved_by' => $request->user()?->id,
-            'approved_at' => now(),
-            'stock_movement_id' => $stockMovement->id,
-        ]);
-
-        return new InventoryManualMovementResource(
-            $movement->load([
-                'product',
-                'warehouse',
-                'creator',
-                'approver',
-                'stockMovement',
-            ])
-        );
+            return new InventoryManualMovementResource(
+                $movement->load([
+                    'product',
+                    'warehouse',
+                    'creator',
+                    'approver',
+                    'stockMovement',
+                ])
+            );
+        });
     }
 
     public function reject(
@@ -182,26 +187,32 @@ class InventoryManualMovementController extends Controller
     ): InventoryManualMovementResource {
         abort_unless($request->user()?->can('inventory.manual_movements.cancel'), 403);
 
-        abort_if(
-            $movement->status !== 'pending',
-            422,
-            'El movimiento ya fue procesado.'
-        );
+        return DB::transaction(function () use ($request, $movement): InventoryManualMovementResource {
+            $movement = InventoryManualMovement::query()
+                ->lockForUpdate()
+                ->findOrFail($movement->id);
 
-        $movement->update([
-            'status' => 'rejected',
-            'rejected_by' => $request->user()?->id,
-            'rejected_at' => now(),
-            'rejection_reason' => $request->input('reason'),
-        ]);
+            abort_if(
+                $movement->status !== 'pending',
+                422,
+                'El movimiento ya fue procesado.'
+            );
 
-        return new InventoryManualMovementResource(
-            $movement->load([
-                'product',
-                'warehouse',
-                'creator',
-                'rejector',
-            ])
-        );
+            $movement->update([
+                'status' => 'rejected',
+                'rejected_by' => $request->user()?->id,
+                'rejected_at' => now(),
+                'rejection_reason' => $request->input('reason'),
+            ]);
+
+            return new InventoryManualMovementResource(
+                $movement->load([
+                    'product',
+                    'warehouse',
+                    'creator',
+                    'rejector',
+                ])
+            );
+        });
     }
 }

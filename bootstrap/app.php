@@ -56,6 +56,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Console/Commands',
         __DIR__.'/../app/Modules/DataImport/Commands',
         __DIR__.'/../app/Modules/TelegramBot/Console',
+        __DIR__.'/../app/Modules/POS/Commands',
     ])
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('images:download --limit=20')
@@ -82,6 +83,12 @@ $app = Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(10)
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/telegram-resumen.log'));
+
+        $schedule->command('inventory:expire-reservations --limit=100')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(5)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/inventory-reservations.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);

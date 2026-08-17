@@ -177,6 +177,7 @@ class PosCheckoutService
                                 'amount_local' => $resolved['amount_local'],
                                 'source_type' => PosOrder::class,
                                 'source_id' => $order->id,
+                                'operation_key' => 'pos-payment:'.$posPayment->id,
                                 'notes' => "Credito aplicado en venta POS #{$order->id}",
                             ]);
                         } else {
@@ -430,6 +431,7 @@ class PosCheckoutService
                                 'amount_local' => $resolved['amount_local'],
                                 'source_type' => PosOrder::class,
                                 'source_id' => $order->id,
+                                'operation_key' => 'pos-payment:'.$posPayment->id,
                                 'notes' => "Credito aplicado en venta POS #{$order->id}",
                             ]);
                         } else {
@@ -1023,6 +1025,10 @@ class PosCheckoutService
                 $this->reserveProductUnitsForSaleItem($item, $movement);
             }
         }
+
+        $order->update([
+            'reserved_until' => now()->addMinutes(PosOrder::RESERVATION_TTL_MINUTES),
+        ]);
     }
 
     private function releaseOrderReservation(PosOrder $order, User $cashier): void
@@ -1047,6 +1053,8 @@ class PosCheckoutService
 
             $this->releaseReservedUnitsForSaleItem($item);
         }
+
+        $order->update(['reserved_until' => null]);
     }
 
     private function orderHasReservation(PosOrder $order): bool

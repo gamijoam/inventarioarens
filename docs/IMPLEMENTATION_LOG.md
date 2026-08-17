@@ -1,5 +1,67 @@
 # Registro de implementación
 
+## 2026-08-17 - Etapa 1.5: vencimiento automático de reservas POS
+
+- Las órdenes POS abiertas guardan `reserved_until` cuando reservan inventario.
+- Se agregó `inventory:expire-reservations`, que puede procesar una empresa o todas las empresas
+  activas.
+- El comando libera cantidades, IMEIs/seriales y registra movimientos `released` con referencia a
+  la orden POS.
+- El proceso es seguro al repetirse y se agenda cada cinco minutos.
+- Verificación: POS backend `88/88`; reserva vencida `1/1`; Pint limpio.
+
+## 2026-08-17 - Etapa 1.4: sincronización confiable ante fallos
+
+- El push de sync devuelve resultados por `event_uuid` con estados `applied`, `ignored`,
+  `duplicated` o `failed`.
+- El worker solo marca como procesados los eventos confirmados; los fallidos permanecen pendientes,
+  guardan el error y reciben una nueva fecha de disponibilidad.
+- Las respuestas parciales ya no hacen desaparecer eventos locales no confirmados.
+- Se conserva fallback para respuestas antiguas que solo entregan contadores.
+- Verificación: Sync backend `161/161` ejecutados, `1` skip existente; Pint limpio.
+
+## 2026-08-17 - Etapa 1.3: créditos a favor seguros
+
+- `CustomerCreditService` bloquea el cliente antes de calcular o modificar su saldo.
+- Las emisiones y aplicaciones aceptan `operation_key` y devuelven la transacción original cuando
+  reciben un retry de la misma operación.
+- POS identifica la aplicación por el pago y las devoluciones identifican la emisión por la
+  devolución procesada.
+- Se agregó una clave única por tenant para evitar créditos duplicados.
+- Verificación: créditos `2/2`; POS y devoluciones `45/45`; Pint limpio.
+
+## 2026-08-17 - Etapa 1.2: aprobación segura de movimientos manuales
+
+- Las rutas de crear, aprobar y rechazar movimientos manuales usan el middleware de idempotencia.
+- La aprobación recarga el movimiento con `lockForUpdate()` dentro de una transacción que incluye
+  el cambio de stock y la actualización del flujo de aprobación.
+- Los movimientos de stock manuales guardan `reference_type` y `reference_id` hacia
+  `InventoryManualMovement`.
+- El frontend de movimientos manuales genera y conserva `Idempotency-Key` para crear, aprobar y
+  rechazar operaciones.
+- Se agregaron pruebas de retry con un solo efecto y rollback ante stock insuficiente.
+- Verificación: Inventory backend `67/67`; frontend manual movements `5/5`; TypeScript y ESLint
+  limpios.
+
+## 2026-08-17 - Etapa 1.1: idempotencia POS y guía de mejoras
+
+- Documentada la hoja de ruta funcional y fiscal en `docs/GUIA_MEJORAS_POS_VENEZUELA.md`.
+- El informe técnico completo está en `AUDITORIA_FISCAL_FUNCIONAL_POS_VENEZUELA_2026-08-16.md`.
+- `idempotency_keys` ahora se separa por `tenant_id`, evitando que una empresa reciba la respuesta
+  cacheada de otra.
+- La reserva de una clave usa inserción atómica; una carrera concurrente ya no continúa ejecutando
+  el controlador dos veces.
+- Las claves demasiado largas se rechazan, y las reservas se liberan cuando la operación lanza una
+  excepción o devuelve un error `5xx`.
+- Checkout, órdenes pendientes, pagos de órdenes y cancelaciones POS envían `Idempotency-Key` desde
+  el frontend y conservan la clave durante el retry de la misma intención.
+- Se agregó cobertura TDD para aislamiento por tenant, carrera de reserva, excepción, longitud de
+  clave y reintento de pagos POS sin duplicar caja/inventario.
+- Verificación afectada: backend POS/infraestructura/sync `93/93`; frontend POS `33/33`; suite
+  frontend completa `729 passed, 1 skipped`; TypeScript, ESLint y Pint limpios.
+- La suite backend SQLite completa terminó con `1293/1304` tests verdes y 6 fallas/3 errores en
+  módulos no relacionados con este cambio; la herramienta `infection/infection` aún no está instalada.
+
 ## 2026-08-15 - Comisiones V2: control de ventas dinamico
 
 - Documentado el formato y las reglas en `docs/COMISIONES_V2_CONTROL_DINAMICO.md`.

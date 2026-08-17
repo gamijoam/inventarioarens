@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'cash_register_session_id',
     'customer_id',
     'status',
+    'reserved_until',
     'cashier_id',
     'seller_id',
     'customer_name',
@@ -38,12 +39,15 @@ class PosOrder extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const RESERVATION_TTL_MINUTES = 30;
+
     protected function casts(): array
     {
         return [
             'opened_at' => 'datetime',
             'paid_at' => 'datetime',
             'closed_at' => 'datetime',
+            'reserved_until' => 'datetime',
             'total_base_amount' => 'decimal:4',
             'total_local_amount' => 'decimal:4',
             'paid_base_amount' => 'decimal:4',
