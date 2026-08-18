@@ -98,6 +98,7 @@ class ReportRegistry
                 ),
                 'defaultDimension' => 'day',
                 'averageMeasures' => ['ticket_avg' => 'sales_count'],
+                'localPairs' => ['sales_total_local' => 'sales_total'],
             ],
             'sales_by_product' => [
                 'name' => 'Ventas por producto',
@@ -147,6 +148,7 @@ class ReportRegistry
                     'company' => $this->companyDimension('pp'),
                 ],
                 'defaultDimension' => 'method',
+                'localPairs' => ['amount_local' => 'amount_base'],
             ],
             'sales_by_company' => [
                 'name' => 'Ventas por empresa',
@@ -166,6 +168,7 @@ class ReportRegistry
                     'company' => $this->companyDimension('s'),
                 ],
                 'defaultDimension' => 'company',
+                'localPairs' => ['sales_total_local' => 'sales_total'],
             ],
             'stock_by_product' => [
                 'name' => 'Stock por producto',

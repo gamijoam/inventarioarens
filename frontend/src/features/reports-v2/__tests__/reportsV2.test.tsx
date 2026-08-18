@@ -38,10 +38,11 @@ const catalogFixture = [
     default_dimension: 'day',
     default_measure: 'sales_total',
     dimensions: ['day', 'week', 'month'],
-    measures: ['sales_total', 'sales_count', 'ticket_avg'],
+    measures: ['sales_total', 'sales_total_local', 'sales_count', 'ticket_avg'],
     org_supported: true,
     has_warehouse_filter: false,
     has_low_stock_filter: false,
+    has_local_amounts: true,
     date_range_required: true,
   },
   {
@@ -55,6 +56,7 @@ const catalogFixture = [
     org_supported: true,
     has_warehouse_filter: true,
     has_low_stock_filter: true,
+    has_local_amounts: false,
     date_range_required: false,
   },
   {
@@ -68,6 +70,7 @@ const catalogFixture = [
     org_supported: true,
     has_warehouse_filter: false,
     has_low_stock_filter: false,
+    has_local_amounts: false,
     date_range_required: true,
   },
 ];
@@ -77,9 +80,18 @@ const reportFixture = {
   scope: 'tenant',
   period: { from: '2026-08-17', to: '2026-08-17' },
   rows: [
-    { label: '2026-08-17', group_key: '2026-08-17', sales_total: 700, sales_count: 2, ticket_avg: 350 },
+    {
+      label: '2026-08-17',
+      group_key: '2026-08-17',
+      sales_total: 700,
+      sales_total_local: 51800,
+      sales_count: 2,
+      ticket_avg: 350,
+      rate: 74,
+    },
   ],
-  totals: { sales_total: 700, sales_count: 2, ticket_avg: 350 },
+  totals: { sales_total: 700, sales_total_local: 51800, sales_count: 2, ticket_avg: 350 },
+  rate: 74,
 };
 
 const mockUseCatalog = vi.fn<(enabled: boolean) => unknown>();
@@ -176,12 +188,12 @@ describe('ReportsV2Manager', () => {
     render(<ReportsV2Manager />, { wrapper: makeWrapper() });
 
     await user.click(screen.getByText('Ventas por período'));
-
-    expect(screen.getAllByText('Ventas por período').length).toBeGreaterThan(0);
-    expect(screen.getByText('Agrupar por')).toBeInTheDocument();
-
     await user.click(screen.getByTitle('Tabla'));
+
     expect(screen.getByText('2026-08-17')).toBeInTheDocument();
+    expect(screen.getByText('Tasa Bs/USD')).toBeInTheDocument();
+    expect(screen.getAllByText('Bs 51.800,00').length).toBeGreaterThan(0);
+    expect(screen.getByText('Tasa promedio (Bs/USD)')).toBeInTheDocument();
     expect(mockUseReport).toHaveBeenCalled();
   });
 

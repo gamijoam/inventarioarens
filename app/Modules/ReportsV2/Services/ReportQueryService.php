@@ -43,6 +43,9 @@ class ReportQueryService
             ->values()
             ->all();
 
+        $totals = $this->totals($rows, $definition);
+        $rate = $this->attachRates($rows, $totals, $definition);
+
         return [
             'report' => [
                 'code' => $definition->code,
@@ -56,7 +59,8 @@ class ReportQueryService
                 'to' => $dateTo->toDateString(),
             ] : null,
             'rows' => $rows,
-            'totals' => $this->totals($rows, $definition),
+            'totals' => $totals,
+            'rate' => $rate,
         ];
     }
 
@@ -187,6 +191,34 @@ class ReportQueryService
         }
 
         return $out;
+    }
+
+    /**
+     * Agrega la tasa implicita (Bs/USD) por fila y devuelve la tasa global
+     * del reporte cuando existe un par local/base definido.
+     */
+    private function attachRates(array &$rows, array $totals, ReportDefinition $definition): ?float
+    {
+        if ($definition->localPairs === []) {
+            return null;
+        }
+
+        $local = array_key_first($definition->localPairs);
+        $base = $definition->localPairs[$local];
+
+        foreach ($rows as &$row) {
+            $baseValue = (float) ($row[$base] ?? 0);
+            $row['rate'] = $baseValue > 0
+                ? round((float) ($row[$local] ?? 0) / $baseValue, 6)
+                : 0;
+        }
+        unset($row);
+
+        $totalBase = (float) ($totals[$base] ?? 0);
+
+        return $totalBase > 0
+            ? round((float) ($totals[$local] ?? 0) / $totalBase, 6)
+            : null;
     }
 
     private function totals(array $rows, ReportDefinition $definition): array

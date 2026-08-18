@@ -33,6 +33,7 @@ class ReportV2Controller extends Controller
                 'org_supported' => $definition->orgSupported,
                 'has_warehouse_filter' => isset($definition->equalityFilters['warehouse_id']),
                 'has_low_stock_filter' => $definition->lowStockFilter,
+                'has_local_amounts' => $definition->localPairs !== [],
                 'date_range_required' => $definition->dateColumn !== null,
             ])
             ->values()

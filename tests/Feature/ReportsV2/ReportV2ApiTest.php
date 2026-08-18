@@ -432,6 +432,58 @@ class ReportV2ApiTest extends TestCase
             ->assertJsonPath('data.totals.sales_total_local', 7400);
     }
 
+    public function test_sales_overview_exposes_implied_exchange_rate(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0);
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=tenant')
+            ->assertOk();
+
+        $this->assertSame(74, $response->json('data.rate'));
+        $this->assertSame(74, $response->json('data.rows.0.rate'));
+    }
+
+    public function test_payment_method_report_exposes_implied_exchange_rate(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedPosPayment($tucacas, 'cash', 80);
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_by_payment_method?scope=tenant')
+            ->assertOk();
+
+        $this->assertSame(74, $response->json('data.rate'));
+        $this->assertSame(74, $response->json('data.rows.0.rate'));
+    }
+
+    public function test_catalog_exposes_has_local_amounts_flag(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2')
+            ->assertOk();
+
+        $overview = collect($response->json('data'))->firstWhere('code', 'sales_overview');
+        $stock = collect($response->json('data'))->firstWhere('code', 'stock_by_product');
+        $this->assertSame(true, $overview['has_local_amounts']);
+        $this->assertSame(false, $stock['has_local_amounts']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

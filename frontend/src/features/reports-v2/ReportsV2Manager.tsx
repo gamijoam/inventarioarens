@@ -385,11 +385,20 @@ function TotalsBar({ data, selected }: { data: ReportV2; selected: ReportV2Catal
           </div>
         </div>
       ))}
+      {selected.has_local_amounts && data.rate != null && (
+        <div className="border-primary/30 bg-primary/5 rounded-md border px-3 py-2">
+          <div className="text-text-muted text-xs uppercase">Tasa promedio (Bs/USD)</div>
+          <div className="text-primary mt-0.5 font-semibold tabular-nums">
+            Bs {formatRate(data.rate)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function ResultTable({ data, selected }: { data: ReportV2; selected: ReportV2CatalogItem }) {
+  const showRate = selected.has_local_amounts;
   return (
     <div className="border-border overflow-auto rounded-md border">
       <table className="w-full min-w-[560px] text-sm">
@@ -401,6 +410,7 @@ function ResultTable({ data, selected }: { data: ReportV2; selected: ReportV2Cat
                 {REPORT_MEASURE_LABELS[measure] ?? measure}
               </th>
             ))}
+            {showRate && <th className="px-3 py-2 text-right">Tasa Bs/USD</th>}
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
@@ -412,11 +422,16 @@ function ResultTable({ data, selected }: { data: ReportV2; selected: ReportV2Cat
                   {formatMeasure(measure, row[measure])}
                 </td>
               ))}
+              {showRate && (
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {row.rate != null ? `Bs ${formatRate(row.rate)}` : '—'}
+                </td>
+              )}
             </tr>
           ))}
           {data.rows.length === 0 && (
             <tr>
-              <td colSpan={selected.measures.length + 1} className="text-text-muted px-3 py-6 text-center">
+              <td colSpan={selected.measures.length + (showRate ? 2 : 1)} className="text-text-muted px-3 py-6 text-center">
                 Sin resultados para los filtros seleccionados.
               </td>
             </tr>
@@ -500,6 +515,8 @@ function ReportChart({
 
 function formatMeasure(measure: string, value: unknown): string {
   const numeric = Number(value ?? 0);
+  const ves = ['sales_total_local', 'amount_local'].includes(measure);
+  if (ves) return `Bs ${formatAmount(numeric)}`;
   const monetary = [
     'sales_total',
     'ticket_avg',
@@ -510,4 +527,18 @@ function formatMeasure(measure: string, value: unknown): string {
   ].includes(measure);
   if (monetary) return formatMoney(numeric);
   return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(2);
+}
+
+function formatAmount(value: number): string {
+  return new Intl.NumberFormat('es-VE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatRate(value: number): string {
+  return new Intl.NumberFormat('es-VE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value);
 }

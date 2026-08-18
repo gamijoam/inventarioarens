@@ -1,5 +1,16 @@
 # Registro de implementación
 
+## 2026-08-18 - Reportes V2: signo Bs y tasa implicita
+
+- Los montos en bolivares (`sales_total_local`, `amount_local`) se muestran con signo `Bs` y
+  formato es-VE en tablas y totales (antes aparecian como numeros planos).
+- El backend expone la `rate` implicita (Bs/USD) por fila y global cuando el reporte tiene pares
+  local/base (`localPairs` en el catalogo). La tasa sale del snapshot historico almacenado.
+- UI: columna `Tasa Bs/USD` en la tabla y tarjeta `Tasa promedio (Bs/USD)` en totales para
+  reportes con montos locales.
+- TDD: 3 tests backend (rate en ventas, rate en metodos de pago, flag `has_local_amounts`) +
+  test frontend de signo y tasa. Backend Reportes 50/50, suite frontend 747/748.
+
 ## 2026-08-18 - Reportes V2: filtro por empresa, dimension empresa y montos en Bs historicos
 
 - Filtro `company_id` en todos los reportes con `scope=organization` (valida que la empresa

@@ -11,6 +11,7 @@ export const ReportV2CatalogItemSchema = z.object({
   org_supported: z.boolean(),
   has_warehouse_filter: z.boolean(),
   has_low_stock_filter: z.boolean(),
+  has_local_amounts: z.boolean(),
   date_range_required: z.boolean(),
 });
 export type ReportV2CatalogItem = z.infer<typeof ReportV2CatalogItemSchema>;
@@ -19,6 +20,7 @@ export const ReportV2RowSchema = z
   .object({
     label: z.string(),
     group_key: z.union([z.number(), z.string()]),
+    rate: z.number().optional(),
   })
   .catchall(z.unknown());
 export type ReportV2Row = z.infer<typeof ReportV2RowSchema>;
@@ -39,6 +41,7 @@ export const ReportV2Schema = z.object({
     .nullable(),
   rows: z.array(ReportV2RowSchema),
   totals: z.record(z.unknown()),
+  rate: z.number().optional(),
 });
 export type ReportV2 = z.infer<typeof ReportV2Schema>;
 
