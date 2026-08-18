@@ -19,6 +19,11 @@ class BrandImporter extends BaseImporter
         return ['slug', 'name', 'description', 'is_active'];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        return (string) ($this->normalizeSlug($payload['slug'] ?? null) ?? '');
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $slug = $this->normalizeSlug($payload['slug'] ?? null);

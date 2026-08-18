@@ -19,6 +19,11 @@ class WarehouseImporter extends BaseImporter
         return ['code', 'name', 'branch_code', 'status'];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        return trim((string) ($payload['code'] ?? ''));
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $code = $payload['code'] ?? null;

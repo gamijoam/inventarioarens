@@ -18,6 +18,14 @@ class CustomerImporter extends BaseImporter
         return ['document_type', 'document_number', 'name', 'phone', 'email', 'fiscal_address', 'is_active'];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        $docType = strtoupper(trim((string) ($payload['document_type'] ?? '')));
+        $docNumber = trim((string) ($payload['document_number'] ?? ''));
+
+        return "{$docType}-{$docNumber}";
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $docType = strtoupper($payload['document_type'] ?? '');

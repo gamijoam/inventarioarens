@@ -19,6 +19,11 @@ class PaymentMethodImporter extends BaseImporter
         return ['code', 'name', 'method', 'currency_mode', 'requires_reference', 'is_active', 'sort_order'];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        return strtoupper(trim((string) ($payload['code'] ?? '')));
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $code = strtoupper($payload['code'] ?? '');

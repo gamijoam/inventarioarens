@@ -16,6 +16,8 @@ use Symfony\Component\HttpFoundation\File\Exception\FileException;
 
 class DataImportService
 {
+    private const ROW_BATCH_SIZE = 500;
+
     public function prepareEntityForQueue(DataImport $session, string $entity): DataImportEntity
     {
         if (! ImportStatus::isValidEntity($entity)) {
@@ -68,9 +70,11 @@ class DataImportService
     }
 
     /**
-     * Ejecuta el import de una entidad. Procesa fila por fila,
-     * cada fila en su propia transaccion para no abortar el lote
-     * si una fila falla.
+     * Ejecuta el import de una entidad. Procesa fila por fila pero agrupa
+     * los registros de historial (`data_import_rows`) en inserciones por
+     * lotes para reducir round-trips. Reanuda automáticamente: las filas
+     * cuya clave natural ya fue importada con exito se omiten sin volver
+     * a ejecutar la logica de negocio.
      */
     public function runEntity(DataImport $session, string $entity, User $user): DataImportEntity
     {
@@ -86,18 +90,46 @@ class DataImportService
             'total_rows' => 0,
             'error_summary' => null,
         ]);
-        DataImportRow::query()->where('data_import_entity_id', $entityRow->id)->delete();
 
         $importer = ImporterRegistry::get($entity);
         $counts = ['total' => 0, 'ok' => 0, 'skipped' => 0, 'failed' => 0];
         $errorSummary = [];
         $rowNumber = 0;
+        $rowBuffer = [];
+        $okKeys = $this->previousOkKeys($entityRow->id);
+
+        $flushRows = function () use (&$rowBuffer): void {
+            if ($rowBuffer === []) {
+                return;
+            }
+            DB::table('data_import_rows')->insert($rowBuffer);
+            $rowBuffer = [];
+        };
 
         try {
-            foreach ($importer->import($entityRow->source_path) as $result) {
-                $rowNumber++;
+            foreach ($importer->importRows($entityRow->source_path) as [$rowNumber, $payload]) {
                 $counts['total']++;
-                $this->recordRow($entityRow, $rowNumber, $result, $entity);
+                $key = $importer->naturalKey($payload);
+
+                if ($key !== '' && isset($okKeys[$key])) {
+                    $result = ImportRowResult::skipped('Fila ya importada previamente.', $key);
+                } else {
+                    $result = $importer->importRow($payload, $rowNumber);
+                    if ($result->isOk() && $key !== '') {
+                        $okKeys[$key] = true;
+                    }
+                }
+
+                $rowBuffer[] = [
+                    'data_import_entity_id' => $entityRow->id,
+                    'tenant_id' => $entityRow->tenant_id,
+                    'row_number' => $rowNumber,
+                    'status' => $result->status,
+                    'payload' => json_encode(['_message' => $result->message]),
+                    'errors' => $result->errors !== [] ? json_encode($result->errors) : null,
+                    'natural_key' => $result->naturalKey,
+                    'resulting_id' => $result->resultingId,
+                ];
                 $this->bumpCount($counts, $result);
 
                 if ($result->isFailed() && count($errorSummary) < 20) {
@@ -106,6 +138,10 @@ class DataImportService
                         'natural_key' => $result->naturalKey,
                         'errors' => $result->errors,
                     ];
+                }
+
+                if (count($rowBuffer) >= self::ROW_BATCH_SIZE) {
+                    $flushRows();
                 }
 
                 if ($counts['total'] % 100 === 0) {
@@ -118,6 +154,8 @@ class DataImportService
                     ]);
                 }
             }
+
+            $flushRows();
 
             $finalStatus = $counts['failed'] > 0 && $counts['ok'] === 0
                 ? ImportStatus::ENTITY_FAILED
@@ -137,6 +175,8 @@ class DataImportService
 
             return $entityRow->fresh();
         } catch (\Throwable $e) {
+            $flushRows();
+
             $entityRow->update([
                 'status' => ImportStatus::ENTITY_FAILED,
                 'finished_at' => now(),
@@ -147,6 +187,29 @@ class DataImportService
             $this->updateSessionCounts($session);
             throw $e;
         }
+    }
+
+    /**
+     * Claves naturales de filas ya importadas con exito para esta entidad.
+     * Se usan para omitir filas duplicadas en una re-importacion.
+     *
+     * @return array<string, true>
+     */
+    private function previousOkKeys(int $entityRowId): array
+    {
+        $keys = DataImportRow::query()
+            ->where('data_import_entity_id', $entityRowId)
+            ->where('status', ImportStatus::ROW_OK)
+            ->pluck('natural_key')
+            ->filter()
+            ->all();
+
+        $map = [];
+        foreach ($keys as $key) {
+            $map[$key] = true;
+        }
+
+        return $map;
     }
 
     public function generateReport(DataImport $session): string
@@ -178,20 +241,6 @@ class DataImportService
         $writer = app(CsvReportWriter::class);
 
         return $writer->write($reportData);
-    }
-
-    private function recordRow(DataImportEntity $entityRow, int $rowNumber, ImportRowResult $result, string $entity): void
-    {
-        DataImportRow::create([
-            'data_import_entity_id' => $entityRow->id,
-            'tenant_id' => $entityRow->tenant_id,
-            'row_number' => $rowNumber,
-            'status' => $result->status,
-            'payload' => ['_message' => $result->message],
-            'errors' => $result->errors !== [] ? $result->errors : null,
-            'natural_key' => $result->naturalKey,
-            'resulting_id' => $result->resultingId,
-        ]);
     }
 
     private function bumpCount(array &$counts, ImportRowResult $result): void

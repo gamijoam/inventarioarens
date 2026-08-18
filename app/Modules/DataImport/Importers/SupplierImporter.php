@@ -18,6 +18,16 @@ class SupplierImporter extends BaseImporter
         return ['document_type', 'document_number', 'name', 'phone', 'email', 'fiscal_address', 'notes', 'is_active'];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        $docType = strtoupper(trim((string) ($payload['document_type'] ?? '')));
+        $docNumber = trim((string) ($payload['document_number'] ?? ''));
+
+        return $docType !== '' && $docNumber !== ''
+            ? "{$docType}-{$docNumber}"
+            : trim((string) ($payload['name'] ?? ''));
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $docType = $payload['document_type'] ? strtoupper($payload['document_type']) : null;

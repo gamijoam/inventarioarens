@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-08-18 - Import de datos: velocidad y reanudacion
+
+- `DataImportService::runEntity` ahora inserta `data_import_rows` por lotes de 500 (antes un INSERT
+  por fila), reduciendo drasticamente los round-trips en archivos grandes.
+- Reanudacion automatica: las filas cuya clave natural ya fue importada con exito se omiten sin
+  ejecutar la logica de negocio. Al re-subir el mismo archivo, ignora lo ya cargado y procesa solo
+  lo nuevo; no se borran filas historicas al re-ejecutar.
+- Se agrego `ImporterInterface::naturalKey()` y `BaseImporter::importRows()`/`importRow()` para que
+  el orquestador pueda decidir el salto antes de procesar cada fila; los 11 importers implementan su
+  clave natural (sku, code, slug, documento, etc.).
+- `ProductPriceImporter` precarga mapas de productos, listas, tipos de tasa y precios existentes una
+  sola vez por ejecucion, eliminando consultas repetidas por fila.
+- Los workers del VPS ya escuchan `--queue=imports,default` con `--timeout=3600`; no fue necesario
+  cambiar la config de colas.
+- TDD: `tests/Feature/DataImport/DataImportResumeAndBatchTest.php` (5 tests, 21 aserciones).
+  Suite DataImport completa 82/82 verde.
+
 ## 2026-08-17 - Dashboard consolidado de grupo
 
 - Implementado el plan `docs/PLAN_DASHBOARD_CONSOLIDADO_GRUPO.md`: vista de Jefe para Owners de

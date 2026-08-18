@@ -20,6 +20,39 @@ abstract class BaseImporter implements ImporterInterface
      */
     abstract protected function processRow(array $payload, int $rowNumber): ImportRowResult;
 
+    public function import(string $filePath): Generator
+    {
+        foreach ($this->importRows($filePath) as [$rowNumber, $payload]) {
+            yield $this->importRow($payload, $rowNumber);
+        }
+    }
+
+    /**
+     * Itera el CSV devolviendo el numero de fila y el payload normalizado
+     * ANTES de procesarlo. Permite al orquestador decidir si debe saltar
+     * la fila (reanudacion) sin ejecutar la logica de negocio.
+     *
+     * @return Generator<int, array{0: int, 1: array<string, string|null>}>
+     */
+    public function importRows(string $filePath): Generator
+    {
+        $parser = new CsvParser;
+
+        foreach ($parser->parse($filePath) as $row) {
+            yield [$row['row_number'], $row['payload']];
+        }
+    }
+
+    /**
+     * Procesa una fila individual normalizada.
+     *
+     * @param  array<string, string|null>  $payload
+     */
+    public function importRow(array $payload, int $rowNumber): ImportRowResult
+    {
+        return $this->processRow($payload, $rowNumber);
+    }
+
     protected function normalizeSlug(?string $value): ?string
     {
         if ($value === null) {
@@ -56,15 +89,5 @@ abstract class BaseImporter implements ImporterInterface
         }
 
         return is_numeric($normalized) ? (float) $normalized : null;
-    }
-
-    public function import(string $filePath): Generator
-    {
-        $parser = new CsvParser;
-
-        foreach ($parser->parse($filePath) as $row) {
-            $result = $this->processRow($row['payload'], $row['row_number']);
-            yield $result;
-        }
     }
 }
