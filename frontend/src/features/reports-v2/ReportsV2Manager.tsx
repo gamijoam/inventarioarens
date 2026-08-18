@@ -381,7 +381,7 @@ function TotalsBar({ data, selected }: { data: ReportV2; selected: ReportV2Catal
             {REPORT_MEASURE_LABELS[measure] ?? measure}
           </div>
           <div className="text-text-primary mt-0.5 font-semibold tabular-nums">
-            {formatMeasure(measure, data.totals[measure])}
+            {formatMeasure(measure, data.totals[measure], data.rate)}
           </div>
         </div>
       ))}
@@ -419,7 +419,7 @@ function ResultTable({ data, selected }: { data: ReportV2; selected: ReportV2Cat
               <td className="px-3 py-2 font-medium">{row.label}</td>
               {selected.measures.map((measure) => (
                 <td key={measure} className="px-3 py-2 text-right tabular-nums">
-                  {formatMeasure(measure, row[measure])}
+                  {formatMeasure(measure, row[measure], row.rate)}
                 </td>
               ))}
               {showRate && (
@@ -513,19 +513,27 @@ function ReportChart({
   );
 }
 
-function formatMeasure(measure: string, value: unknown): string {
+const VES_MEASURES = new Set(['sales_total_local', 'amount_local', 'ves_paid', 'ves_equiv']);
+const USD_MEASURES = new Set([
+  'sales_total',
+  'amount',
+  'amount_base',
+  'usd_paid',
+  'usd_equiv',
+  'stock_value',
+  'balance',
+]);
+
+function formatMeasure(measure: string, value: unknown, rate?: number): string {
   const numeric = Number(value ?? 0);
-  const ves = ['sales_total_local', 'amount_local'].includes(measure);
-  if (ves) return `Bs ${formatAmount(numeric)}`;
-  const monetary = [
-    'sales_total',
-    'ticket_avg',
-    'amount',
-    'amount_base',
-    'stock_value',
-    'balance',
-  ].includes(measure);
-  if (monetary) return formatMoney(numeric);
+  if (VES_MEASURES.has(measure)) {
+    const formatted = `Bs ${formatAmount(numeric)}`;
+    if (measure === 'sales_total_local' && rate && rate > 0) {
+      return `${formatted} (~$${formatAmount(numeric / rate)})`;
+    }
+    return formatted;
+  }
+  if (USD_MEASURES.has(measure)) return formatMoney(numeric);
   return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(2);
 }
 

@@ -192,7 +192,7 @@ describe('ReportsV2Manager', () => {
 
     expect(screen.getByText('2026-08-17')).toBeInTheDocument();
     expect(screen.getByText('Tasa Bs/USD')).toBeInTheDocument();
-    expect(screen.getAllByText('Bs 51.800,00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bs 51.800,00 (~$700,00)').length).toBeGreaterThan(0);
     expect(screen.getByText('Tasa promedio (Bs/USD)')).toBeInTheDocument();
     expect(mockUseReport).toHaveBeenCalled();
   });

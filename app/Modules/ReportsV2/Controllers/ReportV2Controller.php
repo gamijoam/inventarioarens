@@ -22,20 +22,27 @@ class ReportV2Controller extends Controller
 
         $reports = collect($registry->all())
             ->filter(fn (ReportDefinition $definition): bool => $user?->can($definition->permission) ?? false)
-            ->map(fn (ReportDefinition $definition): array => [
-                'code' => $definition->code,
-                'name' => $definition->name,
-                'domain' => $definition->domain,
-                'default_dimension' => $definition->defaultDimension,
-                'default_measure' => $definition->defaultMeasure,
-                'dimensions' => array_keys($definition->dimensions),
-                'measures' => array_keys($definition->measures),
-                'org_supported' => $definition->orgSupported,
-                'has_warehouse_filter' => isset($definition->equalityFilters['warehouse_id']),
-                'has_low_stock_filter' => $definition->lowStockFilter,
-                'has_local_amounts' => $definition->localPairs !== [],
-                'date_range_required' => $definition->dateColumn !== null,
-            ])
+            ->map(function (ReportDefinition $definition): array {
+                $visibleMeasures = array_values(array_diff(
+                    array_keys($definition->measures),
+                    $definition->hiddenMeasures,
+                ));
+
+                return [
+                    'code' => $definition->code,
+                    'name' => $definition->name,
+                    'domain' => $definition->domain,
+                    'default_dimension' => $definition->defaultDimension,
+                    'default_measure' => $definition->defaultMeasure,
+                    'dimensions' => array_keys($definition->dimensions),
+                    'measures' => $visibleMeasures,
+                    'org_supported' => $definition->orgSupported,
+                    'has_warehouse_filter' => isset($definition->equalityFilters['warehouse_id']),
+                    'has_low_stock_filter' => $definition->lowStockFilter,
+                    'has_local_amounts' => $definition->localPairs !== [],
+                    'date_range_required' => $definition->dateColumn !== null,
+                ];
+            })
             ->values()
             ->all();
 

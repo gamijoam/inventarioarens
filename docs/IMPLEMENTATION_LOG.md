@@ -1,5 +1,19 @@
 # Registro de implementación
 
+## 2026-08-18 - Reportes V2: moneda por método de pago y equivalente en USD
+
+- Etiquetas amigables en todas las columnas (Total $, Total Bs, Pagado $, Pagado Bs, Equiv. $,
+  Equiv. Bs) en vez de nombres tecnicos como `amount_local`.
+- `Ventas por método de pago` ahora separa por moneda real del pago: `Pagado $` (USD real),
+  `Pagado Bs` (Bs real), `Equiv. $` (equivalente en $ de lo pagado en Bs) y `Equiv. Bs`.
+  Los metodos en Bs (Pago Movil, transferencia Bs, etc.) muestran `Pagado Bs` y su `Equiv. $`,
+  con `Pagado $` en cero.
+- Los montos en Bs muestran su equivalente en USD inline (`Bs 51.800,00 (~$700,00)`) en
+  ventas por periodo y por empresa; la tasa se mantiene por fila y global.
+- Backend: medidas condicionales por `currency` en pos_payments, `hiddenMeasures` para totales
+  calculados, y `localPairs` para la tasa. TDD: 26 tests ReportesV2 + suite backend 51/51 y
+  frontend 747/748.
+
 ## 2026-08-18 - Reportes V2: signo Bs y tasa implicita
 
 - Los montos en bolivares (`sales_total_local`, `amount_local`) se muestran con signo `Bs` y

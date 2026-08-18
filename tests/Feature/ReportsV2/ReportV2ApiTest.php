@@ -171,9 +171,34 @@ class ReportV2ApiTest extends TestCase
             ->assertOk();
 
         $rows = collect($response->json('data.rows'));
-        $this->assertSame(80, $rows->firstWhere('label', 'cash')['amount_base']);
-        $this->assertSame(20, $rows->firstWhere('label', 'mobile_payment')['amount_base']);
-        $this->assertSame(100, $response->json('data.totals.amount_base'));
+        $this->assertSame(80, $rows->firstWhere('label', 'cash')['usd_paid']);
+        $this->assertSame(20, $rows->firstWhere('label', 'mobile_payment')['usd_paid']);
+        $this->assertSame(100, $response->json('data.totals.usd_paid'));
+        $this->assertSame(0, $response->json('data.totals.ves_paid'));
+        $this->assertSame(7400, $response->json('data.totals.ves_equiv'));
+        $this->assertSame(0, $response->json('data.totals.usd_equiv'));
+    }
+
+    public function test_payment_method_report_splits_actual_currency_vs_equivalent(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedPosPayment($tucacas, 'PAGO_MOVIL', 100, 'VES');
+
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_by_payment_method?scope=tenant')
+            ->assertOk();
+
+        $row = collect($response->json('data.rows'))->firstWhere('label', 'PAGO_MOVIL');
+        $this->assertSame(0, $row['usd_paid']);
+        $this->assertSame(7400, $row['ves_paid']);
+        $this->assertSame(100, $row['usd_equiv']);
+        $this->assertSame(0, $row['ves_equiv']);
+        $this->assertSame(74, $row['rate']);
     }
 
     public function test_finance_reports_return_balances_per_party(): void
@@ -400,7 +425,7 @@ class ReportV2ApiTest extends TestCase
         $this->assertSame(700, $response->json('data.totals.sales_total'));
     }
 
-    public function test_payment_method_report_includes_historical_local_amount(): void
+    public function test_payment_method_report_includes_historical_local_equivalent(): void
     {
         $group = $this->group();
         $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
@@ -412,8 +437,8 @@ class ReportV2ApiTest extends TestCase
             ->withHeader('X-Tenant', $tucacas->slug)
             ->getJson('/api/reports/v2/sales_by_payment_method?scope=tenant')
             ->assertOk()
-            ->assertJsonPath('data.totals.amount_base', 80)
-            ->assertJsonPath('data.totals.amount_local', 5920);
+            ->assertJsonPath('data.totals.usd_paid', 80)
+            ->assertJsonPath('data.totals.ves_equiv', 5920);
     }
 
     public function test_sales_overview_includes_historical_local_total(): void
@@ -559,18 +584,22 @@ class ReportV2ApiTest extends TestCase
         return [$warehouse, $productLow, $productHigh];
     }
 
-    private function seedPosPayment(Tenant $tenant, string $method, float $amount): void
+    private function seedPosPayment(Tenant $tenant, string $method, float $usdAmount, string $currency = 'USD'): void
     {
         $this->useTenant($tenant);
-        $sale = Sale::create(['status' => Sale::STATUS_CONFIRMED, 'total_base_amount' => $amount, 'confirmed_at' => now()]);
-        $order = PosOrder::create(['sale_id' => $sale->id, 'status' => PosOrder::STATUS_PAID, 'paid_base_amount' => $amount, 'paid_at' => now()]);
+        $rate = 74.0;
+        $base = $usdAmount;
+        $local = round($base * $rate, 2);
+        $amount = $currency === 'VES' ? $local : $base;
+        $sale = Sale::create(['status' => Sale::STATUS_CONFIRMED, 'total_base_amount' => $base, 'total_local_amount' => $local, 'confirmed_at' => now()]);
+        $order = PosOrder::create(['sale_id' => $sale->id, 'status' => PosOrder::STATUS_PAID, 'paid_base_amount' => $base, 'paid_at' => now()]);
         PosPayment::create([
             'pos_order_id' => $order->id,
             'method' => $method,
-            'currency' => 'USD',
+            'currency' => $currency,
             'amount' => $amount,
-            'amount_base' => $amount,
-            'amount_local' => round($amount * 74, 2),
+            'amount_base' => $base,
+            'amount_local' => $local,
             'status' => 'captured',
         ]);
     }

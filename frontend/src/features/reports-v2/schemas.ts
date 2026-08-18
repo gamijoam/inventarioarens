@@ -65,14 +65,19 @@ export const REPORT_DIMENSION_LABELS: Record<string, string> = {
 };
 
 export const REPORT_MEASURE_LABELS: Record<string, string> = {
-  sales_total: 'Ventas totales',
+  sales_total: 'Total $',
+  sales_total_local: 'Total Bs',
   sales_count: 'Nº de ventas',
   ticket_avg: 'Ticket promedio',
   units: 'Unidades',
-  amount: 'Monto',
-  amount_base: 'Monto (base)',
+  amount: 'Monto $',
+  amount_base: 'Monto $',
+  usd_paid: 'Pagado $',
+  ves_paid: 'Pagado Bs',
+  usd_equiv: 'Equiv. $',
+  ves_equiv: 'Equiv. Bs',
   orders_count: 'Nº de órdenes',
-  stock_qty: 'Unidades disponibles',
+  stock_qty: 'Unidades',
   stock_value: 'Valor de inventario',
   balance: 'Saldo',
   count: 'Nº de cuentas',
