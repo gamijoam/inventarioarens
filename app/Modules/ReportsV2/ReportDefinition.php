@@ -16,6 +16,7 @@ final class ReportDefinition
      * @param  array<string, string>  $measures  codigo => expr SQL sobre la base
      * @param  array<string, array{expr: string, label: string, join?: string}>  $dimensions
      * @param  array<string, string>  $equalityFilters  parametro => columna SQL
+     * @param  array<string, string>  $averageMeasures  medida promedio => medida de peso (para totales)
      */
     public function __construct(
         public readonly string $code,
@@ -32,6 +33,7 @@ final class ReportDefinition
         public readonly string $defaultDimension,
         public readonly array $equalityFilters = [],
         public readonly bool $lowStockFilter = false,
+        public readonly array $averageMeasures = [],
     ) {}
 
     /**

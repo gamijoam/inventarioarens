@@ -324,6 +324,26 @@ class ReportV2ApiTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_sales_overview_ticket_avg_total_is_weighted_average(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0);
+        $this->seedSales($tucacas, 0, now()->subDays(2));
+        $this->seedSales($tucacas, 0, now()->subDays(5));
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=tenant&dimension=day')
+            ->assertOk();
+
+        $this->assertSame(300, $response->json('data.totals.sales_total'));
+        $this->assertSame(3, $response->json('data.totals.sales_count'));
+        $this->assertSame(100, $response->json('data.totals.ticket_avg'));
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

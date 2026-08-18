@@ -79,6 +79,7 @@ class ReportRegistry
                 'defaultMeasure' => 'sales_total',
                 'dimensions' => $this->periodDimensions('s.confirmed_at'),
                 'defaultDimension' => 'day',
+                'averageMeasures' => ['ticket_avg' => 'sales_count'],
             ],
             'sales_by_product' => [
                 'name' => 'Ventas por producto',

@@ -180,6 +180,19 @@ class ReportQueryService
     {
         $totals = [];
         foreach (array_keys($definition->measures) as $code) {
+            if (isset($definition->averageMeasures[$code])) {
+                $weight = $definition->averageMeasures[$code];
+                $weighted = 0.0;
+                $totalWeight = 0.0;
+                foreach ($rows as $row) {
+                    $rowWeight = (float) ($row[$weight] ?? 0);
+                    $weighted += (float) ($row[$code] ?? 0) * $rowWeight;
+                    $totalWeight += $rowWeight;
+                }
+                $totals[$code] = $totalWeight > 0 ? round($weighted / $totalWeight, 4) : 0.0;
+
+                continue;
+            }
             $totals[$code] = round(array_sum(array_column($rows, $code)), 4);
         }
 
