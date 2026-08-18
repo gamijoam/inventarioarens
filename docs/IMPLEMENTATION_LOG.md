@@ -1,5 +1,30 @@
 # Registro de implementación
 
+## 2026-08-18 - Reportes V2: Fase 3 (export PDF y Excel)
+
+- Instalado `maatwebsite/excel` (PhpSpreadsheet) para exportacion real de Excel.
+- `GET /api/reports/v2/{report}/export?format=csv|xlsx|pdf` con los mismos filtros/permisos del
+  reporte. `ReportExportService` reutiliza el runner agregado y genera CSV (en memoria), XLSX
+  (`ReportExcelExport` + maatwebsite) y PDF (dompdf + vista Blade dedicada).
+- Requests refactorizados en `BaseReportRequest` (autorizacion compartida) + `ReportV2Request` +
+  `ReportExportRequest`. Se corrigio un fatal por colisionar `format()` con `Illuminate\Http\Request`.
+- Frontend: botones CSV / Excel / PDF en el builder (`downloadReportV2` con blob) junto al export
+  CSV en cliente.
+- TDD: 5 tests de export en `ReportV2ApiTest` (CSV, XLSX, PDF, permiso, formato invalido).
+  Backend ReportesV2+Reportes+Finanzas+Dashboard 41/41; suite frontend 746/747.
+
+## 2026-08-18 - Reportes V2: Fase 2 (frontend con graficas)
+
+- Instalada la dependencia `recharts` para graficas profesionales.
+- Nuevo feature `frontend/src/features/reports-v2/`: catalogo de plantillas agrupado por dominio
+  (Ventas/Inventario/Finanzas), builder con dimension, rango de fechas, almacen, bajo stock y ambito
+  (empresa/grupo), vista tabla + graficas (barras/linea/torta) y export CSV en cliente.
+- `GET /api/reports/v2` (catalogo) agregado al backend; autorizado por permiso del reporte.
+- Ruta `/reports` ahora tiene pestanas `Reportes V2` (default) y `Clasicos`.
+- Tests frontend `reportsV2.test.tsx` (5) y backend catalog (11/11). Suite frontend 746/747,
+  typecheck y eslint del feature limpios.
+- Pendiente Fase 3: export PDF y Excel (maatwebsite/excel) server-side.
+
 ## 2026-08-18 - Reportes V2: Fase 1 (backend modular)
 
 - Nuevo modulo `app/Modules/ReportsV2` con catalogo declarativo de reportes (`ReportRegistry`) y

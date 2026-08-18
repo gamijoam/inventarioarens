@@ -227,6 +227,103 @@ class ReportV2ApiTest extends TestCase
         $this->assertLessThanOrEqual(4, $queriesWithFour);
     }
 
+    public function test_catalog_lists_reports_accessible_by_permission(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2')
+            ->assertOk();
+
+        $codes = collect($response->json('data'))->pluck('code')->all();
+        $this->assertContains('sales_overview', $codes);
+        $this->assertContains('stock_by_product', $codes);
+        $this->assertContains('receivables_by_customer', $codes);
+
+        $salesByCompany = collect($response->json('data'))->firstWhere('code', 'sales_by_company');
+        $this->assertSame(true, $salesByCompany['org_supported']);
+    }
+
+    public function test_export_csv_streams_header_and_rows(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0);
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->get('/api/reports/v2/sales_overview/export?format=csv')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+        $content = $response->getContent();
+        $this->assertStringContainsString('sales_total', $content);
+        $this->assertStringContainsString('Totales', $content);
+        $this->assertStringContainsString('100', $content);
+    }
+
+    public function test_export_xlsx_returns_spreadsheet(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0);
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->get('/api/reports/v2/sales_overview/export?format=xlsx')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    public function test_export_pdf_returns_pdf(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0);
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->get('/api/reports/v2/sales_overview/export?format=pdf')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_export_requires_permission(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $cashier = $this->userInSpinoff($tucacas, 'Vendedor');
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->get('/api/reports/v2/sales_overview/export?format=csv')
+            ->assertForbidden();
+    }
+
+    public function test_export_rejects_unknown_format(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->get('/api/reports/v2/sales_overview/export?format=docx')
+            ->assertStatus(422);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
