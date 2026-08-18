@@ -58,6 +58,20 @@ class ReportRegistry
     }
 
     /**
+     * Dimension de empresa (tenant) sobre el alias base del reporte.
+     *
+     * @return array{expr: string, label: string, join: string}
+     */
+    private function companyDimension(string $alias): array
+    {
+        return [
+            'expr' => 't.id',
+            'label' => 't.name',
+            'join' => "join tenants t on t.id = {$alias}.tenant_id",
+        ];
+    }
+
+    /**
      * @return array<string, array<string, mixed>>
      */
     private function definitionsData(): array
@@ -73,11 +87,15 @@ class ReportRegistry
                 'statusSql' => "s.status = 'confirmed'",
                 'measures' => [
                     'sales_total' => 'coalesce(sum(s.total_base_amount), 0)',
+                    'sales_total_local' => 'coalesce(sum(s.total_local_amount), 0)',
                     'sales_count' => 'count(s.id)',
                     'ticket_avg' => 'coalesce(avg(s.total_base_amount), 0)',
                 ],
                 'defaultMeasure' => 'sales_total',
-                'dimensions' => $this->periodDimensions('s.confirmed_at'),
+                'dimensions' => array_merge(
+                    $this->periodDimensions('s.confirmed_at'),
+                    ['company' => $this->companyDimension('s')],
+                ),
                 'defaultDimension' => 'day',
                 'averageMeasures' => ['ticket_avg' => 'sales_count'],
             ],
@@ -106,6 +124,7 @@ class ReportRegistry
                         'label' => 'u.name',
                         'join' => 'left join users u on u.id = s.created_by',
                     ],
+                    'company' => $this->companyDimension('si'),
                 ],
                 'defaultDimension' => 'product',
             ],
@@ -119,11 +138,13 @@ class ReportRegistry
                 'statusSql' => "po.status = 'paid'",
                 'measures' => [
                     'amount_base' => 'sum(pp.amount_base)',
+                    'amount_local' => 'coalesce(sum(pp.amount_local), 0)',
                     'orders_count' => 'count(distinct po.id)',
                 ],
                 'defaultMeasure' => 'amount_base',
                 'dimensions' => [
                     'method' => ['expr' => 'pp.method', 'label' => 'pp.method'],
+                    'company' => $this->companyDimension('pp'),
                 ],
                 'defaultDimension' => 'method',
             ],
@@ -137,15 +158,12 @@ class ReportRegistry
                 'statusSql' => "s.status = 'confirmed'",
                 'measures' => [
                     'sales_total' => 'coalesce(sum(s.total_base_amount), 0)',
+                    'sales_total_local' => 'coalesce(sum(s.total_local_amount), 0)',
                     'sales_count' => 'count(s.id)',
                 ],
                 'defaultMeasure' => 'sales_total',
                 'dimensions' => [
-                    'company' => [
-                        'expr' => 't.id',
-                        'label' => 't.name',
-                        'join' => 'join tenants t on t.id = s.tenant_id',
-                    ],
+                    'company' => $this->companyDimension('s'),
                 ],
                 'defaultDimension' => 'company',
             ],
@@ -172,6 +190,7 @@ class ReportRegistry
                         'label' => 'w.name',
                         'join' => 'join warehouses w on w.id = sb.warehouse_id and w.tenant_id = sb.tenant_id',
                     ],
+                    'company' => $this->companyDimension('sb'),
                 ],
                 'defaultDimension' => 'product',
                 'equalityFilters' => ['warehouse_id' => 'sb.warehouse_id'],
@@ -196,6 +215,7 @@ class ReportRegistry
                         'label' => 'w.name',
                         'join' => 'join warehouses w on w.id = sb.warehouse_id and w.tenant_id = sb.tenant_id',
                     ],
+                    'company' => $this->companyDimension('sb'),
                 ],
                 'defaultDimension' => 'warehouse',
             ],
@@ -214,6 +234,7 @@ class ReportRegistry
                 'defaultMeasure' => 'balance',
                 'dimensions' => [
                     'customer' => ['expr' => 'c.id', 'label' => 'c.name'],
+                    'company' => $this->companyDimension('ar'),
                 ],
                 'defaultDimension' => 'customer',
             ],
@@ -232,6 +253,7 @@ class ReportRegistry
                 'defaultMeasure' => 'balance',
                 'dimensions' => [
                     'supplier' => ['expr' => 'sup.id', 'label' => 'sup.name'],
+                    'company' => $this->companyDimension('ap'),
                 ],
                 'defaultDimension' => 'supplier',
             ],

@@ -26,7 +26,10 @@ class ReportQueryService
         $definition = $this->registry->get($code) ?? throw new \InvalidArgumentException("Reporte no encontrado: {$code}");
 
         $scope = ($filters['scope'] ?? 'tenant') === 'organization' ? 'organization' : 'tenant';
-        $tenantIds = $this->tenantIds($scope);
+        $companyId = isset($filters['company_id']) && $filters['company_id'] !== null
+            ? (int) $filters['company_id']
+            : null;
+        $tenantIds = $this->tenantIds($scope, $companyId);
         $dimension = $definition->resolveDimension($filters);
         $dimensionDef = $definition->dimensions[$dimension];
         $limit = max(1, min((int) ($filters['limit'] ?? 200), 1000));
@@ -124,7 +127,7 @@ class ReportQueryService
     /**
      * @return array<int, int>
      */
-    private function tenantIds(string $scope): array
+    private function tenantIds(string $scope, ?int $companyId): array
     {
         $current = $this->tenants->current();
         if (! $current) {
@@ -134,11 +137,21 @@ class ReportQueryService
         if ($scope === 'organization') {
             $group = $current->isGroup() ? $current : ($current->parent()->first() ?? $current);
 
-            return $group->spinoffs()
+            $spinoffIds = $group->spinoffs()
                 ->where('status', 'active')
                 ->pluck('id')
                 ->map(fn ($id): int => (int) $id)
                 ->all();
+
+            if ($companyId !== null) {
+                if (! in_array($companyId, $spinoffIds, true)) {
+                    throw new \InvalidArgumentException('La empresa seleccionada no pertenece al grupo.');
+                }
+
+                return [$companyId];
+            }
+
+            return $spinoffIds;
         }
 
         return [(int) $current->id];

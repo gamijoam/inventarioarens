@@ -344,6 +344,94 @@ class ReportV2ApiTest extends TestCase
         $this->assertSame(100, $response->json('data.totals.ticket_avg'));
     }
 
+    public function test_org_report_filters_by_single_company(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $yaracal = $this->spinoff($group, 'Yaracal', 'yaracal');
+        $this->seedSales($tucacas, 0);
+        $this->seedSales($yaracal, 500);
+        $owner = $this->ownerOf($group, [$tucacas, $yaracal]);
+
+        $response = $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson("/api/reports/v2/sales_by_company?scope=organization&company_id={$tucacas->id}")
+            ->assertOk();
+
+        $this->assertCount(1, $response->json('data.rows'));
+        $this->assertSame(100, $response->json('data.totals.sales_total'));
+        $this->assertSame(1, $response->json('data.totals.sales_count'));
+    }
+
+    public function test_org_report_rejects_company_outside_group(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0);
+        $foreign = Tenant::create(['name' => 'Otra', 'slug' => 'otra-empresa']);
+        $owner = $this->ownerOf($group, [$tucacas]);
+
+        $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson("/api/reports/v2/sales_by_company?scope=organization&company_id={$foreign->id}")
+            ->assertNotFound();
+    }
+
+    public function test_org_reports_support_company_dimension(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $yaracal = $this->spinoff($group, 'Yaracal', 'yaracal');
+        $this->seedSales($tucacas, 0);
+        $this->seedSales($yaracal, 500);
+        $owner = $this->ownerOf($group, [$tucacas, $yaracal]);
+
+        $response = $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=organization&dimension=company')
+            ->assertOk();
+
+        $rows = collect($response->json('data.rows'));
+        $this->assertSame(100, $rows->firstWhere('label', 'Tucacas')['sales_total']);
+        $this->assertSame(600, $rows->firstWhere('label', 'Yaracal')['sales_total']);
+        $this->assertSame(700, $response->json('data.totals.sales_total'));
+    }
+
+    public function test_payment_method_report_includes_historical_local_amount(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedPosPayment($tucacas, 'cash', 80);
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_by_payment_method?scope=tenant')
+            ->assertOk()
+            ->assertJsonPath('data.totals.amount_base', 80)
+            ->assertJsonPath('data.totals.amount_local', 5920);
+    }
+
+    public function test_sales_overview_includes_historical_local_total(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0);
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=tenant')
+            ->assertOk()
+            ->assertJsonPath('data.totals.sales_total', 100)
+            ->assertJsonPath('data.totals.sales_total_local', 7400);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -395,9 +483,11 @@ class ReportV2ApiTest extends TestCase
     {
         $this->useTenant($tenant);
         $user = User::factory()->create();
-        $sale = Sale::create([
+        $base = 100 + $offset;
+        Sale::create([
             'status' => Sale::STATUS_CONFIRMED,
-            'total_base_amount' => 100 + $offset,
+            'total_base_amount' => $base,
+            'total_local_amount' => round($base * 74, 2),
             'created_by' => $user->id,
             'confirmed_at' => $confirmedAt ?? now(),
         ]);
@@ -428,7 +518,7 @@ class ReportV2ApiTest extends TestCase
             'currency' => 'USD',
             'amount' => $amount,
             'amount_base' => $amount,
-            'amount_local' => null,
+            'amount_local' => round($amount * 74, 2),
             'status' => 'captured',
         ]);
     }

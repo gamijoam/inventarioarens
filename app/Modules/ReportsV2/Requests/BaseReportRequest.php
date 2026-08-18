@@ -66,6 +66,7 @@ abstract class BaseReportRequest extends FormRequest
             'warehouse_id' => ['nullable', 'integer'],
             'low_stock_only' => ['nullable', 'boolean'],
             'low_stock_threshold' => ['nullable', 'numeric', 'min:0'],
+            'company_id' => ['nullable', 'integer'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ];
     }
@@ -88,6 +89,9 @@ abstract class BaseReportRequest extends FormRequest
         }
         if ($this->filled('low_stock_threshold')) {
             $filters['low_stock_threshold'] = (float) $this->input('low_stock_threshold');
+        }
+        if ($this->filled('company_id')) {
+            $filters['company_id'] = (int) $this->input('company_id');
         }
 
         return $filters;

@@ -84,11 +84,16 @@ const reportFixture = {
 
 const mockUseCatalog = vi.fn<(enabled: boolean) => unknown>();
 const mockUseReport = vi.fn<(code: string, params: unknown, enabled: boolean) => unknown>();
+const mockUseGroupSpinoffs = vi.fn<(id: number, enabled: boolean) => unknown>();
 
 vi.mock('../api', () => ({
   useReportV2Catalog: (enabled: boolean) => mockUseCatalog(enabled),
   useReportV2: (code: string, params: unknown, enabled: boolean) =>
     mockUseReport(code, params, enabled),
+}));
+
+vi.mock('@/features/access/tenantGroupsApi', () => ({
+  useGroupSpinoffs: (id: number, enabled: boolean) => mockUseGroupSpinoffs(id, enabled),
 }));
 
 vi.mock('@/stores/session', () => ({
@@ -140,12 +145,18 @@ describe('ReportsV2Manager', () => {
   beforeEach(() => {
     mockUseCatalog.mockReset();
     mockUseReport.mockReset();
+    mockUseGroupSpinoffs.mockReset();
     mockUseCatalog.mockReturnValue({ data: catalogFixture, isLoading: false, isError: false });
     mockUseReport.mockReturnValue({
       data: reportFixture,
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
+    });
+    mockUseGroupSpinoffs.mockReturnValue({
+      data: [{ id: 4, name: 'OscarCell Yaracall', slug: 'oscarcell-yaracall' }],
+      isLoading: false,
+      isError: false,
     });
   });
 
@@ -182,5 +193,21 @@ describe('ReportsV2Manager', () => {
     await user.click(screen.getByTitle('Barras'));
 
     expect(container.querySelector('svg')).not.toBeNull();
+  });
+
+  it('filtra por una empresa especifica en ambito grupo', async () => {
+    const user = userEvent.setup();
+    render(<ReportsV2Manager />, { wrapper: makeWrapper() });
+
+    await user.click(screen.getByText('Ventas por período'));
+
+    expect(screen.getByText('Todas')).toBeInTheDocument();
+
+    const companySelect = screen.getByText('Todas').closest('select')!;
+    await user.selectOptions(companySelect, '4');
+
+    const lastCall = mockUseReport.mock.calls.at(-1);
+    expect(lastCall?.[0]).toBe('sales_overview');
+    expect(lastCall?.[1]).toMatchObject({ scope: 'organization', companyId: 4 });
   });
 });

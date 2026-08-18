@@ -1,5 +1,18 @@
 # Registro de implementación
 
+## 2026-08-18 - Reportes V2: filtro por empresa, dimension empresa y montos en Bs historicos
+
+- Filtro `company_id` en todos los reportes con `scope=organization` (valida que la empresa
+  pertenezca al grupo, si no 404). Frontend: selector Empresa (Todas + hijas) via `useGroupSpinoffs`.
+- Dimension `company` agregada a todas las plantillas (ventas, stock, CxC, CxP, metodos de pago)
+  para desglosar el resultado por empresa.
+- Montos historicos en Bs: `sales_total_local` (sales.total_local_amount) en ventas por
+  periodo/empresa y `amount_local` (pos_payments.amount_local) en ventas por metodo de pago.
+  Ambos son snapshots almacenados con la tasa de ese dia; no cambian si cambia la tasa.
+- TDD: 5 tests backend nuevos (filtro por empresa, rechazo fuera del grupo, dimension empresa,
+  local en metodos de pago y en ventas) + 1 test frontend de filtro. Backend Reportes 47/47,
+  suite frontend 747/748.
+
 ## 2026-08-18 - Reportes V2: Fase 3 (export PDF y Excel)
 
 - Instalado `maatwebsite/excel` (PhpSpreadsheet) para exportacion real de Excel.

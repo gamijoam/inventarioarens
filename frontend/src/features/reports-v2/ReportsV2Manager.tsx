@@ -28,6 +28,7 @@ import { cn } from '@/lib/cn';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import { useSessionStore } from '@/stores/session';
+import { useGroupSpinoffs } from '@/features/access/tenantGroupsApi';
 
 import { useReportV2, useReportV2Catalog, downloadReportV2, type ReportV2Params } from './api';
 import {
@@ -58,7 +59,11 @@ export function ReportsV2Manager() {
   const [scope, setScope] = useState<Scope>('tenant');
   const [warehouseId, setWarehouseId] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [companyId, setCompanyId] = useState('');
   const [chartKind, setChartKind] = useState<ChartKind>('bar');
+
+  const groupId = isOnGroup ? tenant?.id : null;
+  const { data: spinoffs = [] } = useGroupSpinoffs(groupId ?? 0, Boolean(groupId));
 
   const selected = catalog.find((item) => item.code === selectedCode) ?? null;
 
@@ -71,6 +76,7 @@ export function ReportsV2Manager() {
     } else {
       setScope('tenant');
     }
+    setCompanyId('');
   }
 
   const params = useMemo<ReportV2Params>(() => {
@@ -80,8 +86,9 @@ export function ReportsV2Manager() {
     if (dateTo) p.dateTo = dateTo;
     if (warehouseId) p.warehouseId = Number(warehouseId);
     if (lowStockOnly) p.lowStockOnly = true;
+    if (companyId) p.companyId = Number(companyId);
     return p;
-  }, [scope, dimension, dateFrom, dateTo, warehouseId, lowStockOnly]);
+  }, [scope, dimension, dateFrom, dateTo, warehouseId, lowStockOnly, companyId]);
 
   const { data, isLoading, isError, refetch } = useReportV2(
     selected?.code ?? '',
@@ -238,6 +245,18 @@ export function ReportsV2Manager() {
                     <Select value={scope} onChange={(e) => setScope(e.target.value as Scope)}>
                       <option value="tenant">Esta empresa</option>
                       <option value="organization">Todo el grupo</option>
+                    </Select>
+                  </Field>
+                )}
+                {selected.org_supported && canViewOrganization && scope === 'organization' && (
+                  <Field label="Empresa">
+                    <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+                      <option value="">Todas</option>
+                      {spinoffs.map((spinoff) => (
+                        <option key={spinoff.id} value={spinoff.id}>
+                          {spinoff.name}
+                        </option>
+                      ))}
                     </Select>
                   </Field>
                 )}

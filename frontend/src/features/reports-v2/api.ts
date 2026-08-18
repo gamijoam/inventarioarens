@@ -27,6 +27,7 @@ export interface ReportV2Params {
   warehouseId?: number;
   lowStockOnly?: boolean;
   lowStockThreshold?: number;
+  companyId?: number;
   limit?: number;
 }
 
@@ -41,6 +42,7 @@ export function buildReportV2Query(params: ReportV2Params): string {
   if (params.lowStockThreshold !== undefined) {
     query.set('low_stock_threshold', String(params.lowStockThreshold));
   }
+  if (params.companyId) query.set('company_id', String(params.companyId));
   if (params.limit) query.set('limit', String(params.limit));
   return query.toString();
 }
