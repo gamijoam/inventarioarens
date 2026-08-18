@@ -123,6 +123,7 @@ class BasePermissions
         'cash_register.close',
         'cash_register.review',
         'reports.view',
+        'reports.organization.view',
         'reports.sales.view',
         'reports.cash.view',
         'reports.inventory.view',

@@ -157,6 +157,7 @@ export const PERMISSIONS = {
 
   // Reports
   REPORTS_VIEW: 'reports.view',
+  REPORTS_ORGANIZATION_VIEW: 'reports.organization.view',
   REPORTS_SALES_VIEW: 'reports.sales.view',
   REPORTS_CASH_VIEW: 'reports.cash.view',
   REPORTS_INVENTORY_VIEW: 'reports.inventory.view',

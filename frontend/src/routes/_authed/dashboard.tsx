@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Boxes,
+  Building2,
   CalendarDays,
   Landmark,
   Receipt,
@@ -20,6 +21,11 @@ import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatMoney } from '@/lib/money';
+import { PERMISSIONS } from '@/permissions/constants';
+import { useCan } from '@/permissions/useCan';
+import { useSessionStore } from '@/stores/session';
+import { OrganizationDashboardView } from '@/features/dashboard/OrganizationDashboardView';
+import { useOrganizationDashboard } from '@/features/dashboard/organizationApi';
 
 export const Route = createFileRoute('/_authed/dashboard')({
   component: DashboardPage,
@@ -45,14 +51,14 @@ interface DashboardSummary {
   inventory: {
     low_stock_count: number;
     low_stock_threshold: number;
-    low_stock_items: Array<{
+    low_stock_items: {
       product_id: number;
       product_name: string | null;
       sku: string | null;
       warehouse_id: number;
       warehouse_name: string | null;
       quantity_available: number;
-    }>;
+    }[];
   };
   finance: {
     accounts_receivable_balance_base_amount: number;
@@ -63,11 +69,19 @@ interface DashboardSummary {
 }
 
 type Period = 'today' | 'week' | 'month' | 'custom';
+type DashboardScope = 'tenant' | 'organization';
 
 function DashboardPage() {
   const [period, setPeriod] = useState<Period>('today');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  const tenant = useSessionStore((s) => s.tenant);
+  const roles = useSessionStore((s) => s.roles);
+  const canViewOrganization = useCan(PERMISSIONS.REPORTS_ORGANIZATION_VIEW);
+  const isGroupOwner = Boolean(tenant?.is_group) && roles.includes('Owner') && canViewOrganization;
+
+  const [scope, setScope] = useState<DashboardScope>(isGroupOwner ? 'organization' : 'tenant');
 
   const query = new URLSearchParams();
   if (period !== 'custom') query.set('period', period);
@@ -76,11 +90,25 @@ function DashboardPage() {
     query.set('date_to', dateTo);
   }
 
-  const { data, isLoading, isError } = useQuery({
+  const tenantSummary = useQuery({
     queryKey: ['dashboard', 'summary', period, dateFrom, dateTo],
     queryFn: () => getOne<DashboardSummary>(`/dashboard/summary?${query.toString()}`),
     refetchInterval: 30_000,
+    enabled: scope === 'tenant',
   });
+
+  const organizationSummary = useOrganizationDashboard({
+    period,
+    dateFrom,
+    dateTo,
+  });
+
+  const isOrganization = scope === 'organization';
+  const tenantData = isOrganization ? null : tenantSummary.data;
+  const orgData = isOrganization ? organizationSummary.data : null;
+  const data = orgData ?? tenantData;
+  const isLoading = isOrganization ? organizationSummary.isLoading : tenantSummary.isLoading;
+  const isError = isOrganization ? organizationSummary.isError : tenantSummary.isError;
 
   return (
     <PageLayout
@@ -115,9 +143,32 @@ function DashboardPage() {
               </Field>
             </>
           )}
+          {isGroupOwner && (
+            <Field label="Ámbito">
+              <Select
+                value={scope}
+                onChange={(event) => setScope(event.target.value as DashboardScope)}
+              >
+                {tenant?.is_group ? (
+                  <option value="organization">Todo el grupo</option>
+                ) : (
+                  <option value="tenant">Esta empresa</option>
+                )}
+                {tenant?.is_group ? (
+                  <option value="tenant">Esta empresa</option>
+                ) : (
+                  <option value="organization">Todo el grupo</option>
+                )}
+              </Select>
+            </Field>
+          )}
           {data && (
             <div className="text-text-muted flex items-center gap-2 text-sm md:ml-auto">
-              <CalendarDays className="size-4" />
+              {isOrganization ? (
+                <Building2 className="size-4" />
+              ) : (
+                <CalendarDays className="size-4" />
+              )}
               {data.period.from} al {data.period.to}
             </div>
           )}
@@ -133,132 +184,138 @@ function DashboardPage() {
         />
       )}
 
-      {data && (
-        <>
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            <MetricCard
-              title="Ventas"
-              icon={ShoppingCart}
-              value={formatMoney(data.sales.total_base_amount)}
-              helper={`${data.sales.confirmed_count} confirmadas`}
-              tone="primary"
-            />
-            <MetricCard
-              title="POS cobrado"
-              icon={Wallet}
-              value={formatMoney(data.pos.paid_base_amount)}
-              helper={`${data.pos.paid_orders_count} tickets pagados`}
-              tone="success"
-            />
-            <MetricCard
-              title="Cajas abiertas"
-              icon={Receipt}
-              value={String(data.cash_register.open_sessions_count)}
-              helper="Turnos activos"
-              tone="info"
-            />
-            <MetricCard
-              title="Bajo stock"
-              icon={Boxes}
-              value={String(data.inventory.low_stock_count)}
-              helper={`Umbral ${data.inventory.low_stock_threshold}`}
-              tone={data.inventory.low_stock_count > 0 ? 'danger' : 'default'}
-            />
-            <MetricCard
-              title="CxC abierta"
-              icon={Wallet}
-              value={formatMoney(data.finance.accounts_receivable_balance_base_amount)}
-              helper={`${data.finance.accounts_receivable_count} cuentas`}
-              tone="warning"
-            />
-            <MetricCard
-              title="CxP abierta"
-              icon={Landmark}
-              value={formatMoney(data.finance.accounts_payable_balance_base_amount)}
-              helper={`${data.finance.accounts_payable_count} cuentas`}
-              tone="danger"
-            />
-          </section>
+      {orgData && <OrganizationDashboardView data={orgData} />}
 
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Alertas de inventario</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.inventory.low_stock_items.length === 0 ? (
-                  <EmptyState
-                    icon={<AlertTriangle className="size-8" />}
-                    title="Sin alertas de stock"
-                    description="No hay productos por debajo del umbral configurado."
-                  />
-                ) : (
-                  <div className="border-border overflow-auto rounded-md border">
-                    <table className="w-full min-w-[560px] text-sm">
-                      <thead className="bg-bg text-text-muted text-left text-xs uppercase">
-                        <tr>
-                          <th className="px-3 py-2">Producto</th>
-                          <th className="px-3 py-2">Almacén</th>
-                          <th className="px-3 py-2 text-right">Disponible</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-border divide-y">
-                        {data.inventory.low_stock_items.map((item) => (
-                          <tr key={`${item.product_id}-${item.warehouse_id}`}>
-                            <td className="px-3 py-2">
-                              <div className="font-medium">
-                                {item.product_name ?? `Producto #${item.product_id}`}
-                              </div>
-                              <div className="text-text-muted text-xs">{item.sku ?? '-'}</div>
-                            </td>
-                            <td className="px-3 py-2">
-                              {item.warehouse_name ?? `Almacén #${item.warehouse_id}`}
-                            </td>
-                            <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                              {item.quantity_available}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Lectura ejecutiva</CardTitle>
-              </CardHeader>
-              <CardContent className="text-text-secondary space-y-3 text-sm">
-                <p>
-                  El periodo seleccionado concentra ventas confirmadas, tickets POS pagados, cajas
-                  abiertas y saldos financieros abiertos. Para auditoría detallada usa el módulo
-                  Reportes.
-                </p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <Info
-                    label="Balance operativo"
-                    value={formatMoney(
-                      data.finance.accounts_receivable_balance_base_amount -
-                        data.finance.accounts_payable_balance_base_amount,
-                    )}
-                  />
-                  <Info
-                    label="Ventas promedio"
-                    value={formatMoney(
-                      data.sales.confirmed_count > 0
-                        ? data.sales.total_base_amount / data.sales.confirmed_count
-                        : 0,
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-        </>
-      )}
+      {tenantData && <TenantDashboardSummary data={tenantData} />}
     </PageLayout>
+  );
+}
+
+function TenantDashboardSummary({ data }: { data: DashboardSummary }) {
+  return (
+    <>
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <MetricCard
+          title="Ventas"
+          icon={ShoppingCart}
+          value={formatMoney(data.sales.total_base_amount)}
+          helper={`${data.sales.confirmed_count} confirmadas`}
+          tone="primary"
+        />
+        <MetricCard
+          title="POS cobrado"
+          icon={Wallet}
+          value={formatMoney(data.pos.paid_base_amount)}
+          helper={`${data.pos.paid_orders_count} tickets pagados`}
+          tone="success"
+        />
+        <MetricCard
+          title="Cajas abiertas"
+          icon={Receipt}
+          value={String(data.cash_register.open_sessions_count)}
+          helper="Turnos activos"
+          tone="info"
+        />
+        <MetricCard
+          title="Bajo stock"
+          icon={Boxes}
+          value={String(data.inventory.low_stock_count)}
+          helper={`Umbral ${data.inventory.low_stock_threshold}`}
+          tone={data.inventory.low_stock_count > 0 ? 'danger' : 'default'}
+        />
+        <MetricCard
+          title="CxC abierta"
+          icon={Wallet}
+          value={formatMoney(data.finance.accounts_receivable_balance_base_amount)}
+          helper={`${data.finance.accounts_receivable_count} cuentas`}
+          tone="warning"
+        />
+        <MetricCard
+          title="CxP abierta"
+          icon={Landmark}
+          value={formatMoney(data.finance.accounts_payable_balance_base_amount)}
+          helper={`${data.finance.accounts_payable_count} cuentas`}
+          tone="danger"
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Alertas de inventario</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.inventory.low_stock_items.length === 0 ? (
+              <EmptyState
+                icon={<AlertTriangle className="size-8" />}
+                title="Sin alertas de stock"
+                description="No hay productos por debajo del umbral configurado."
+              />
+            ) : (
+              <div className="border-border overflow-auto rounded-md border">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead className="bg-bg text-text-muted text-left text-xs uppercase">
+                    <tr>
+                      <th className="px-3 py-2">Producto</th>
+                      <th className="px-3 py-2">Almacén</th>
+                      <th className="px-3 py-2 text-right">Disponible</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-border divide-y">
+                    {data.inventory.low_stock_items.map((item) => (
+                      <tr key={`${item.product_id}-${item.warehouse_id}`}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium">
+                            {item.product_name ?? `Producto #${item.product_id}`}
+                          </div>
+                          <div className="text-text-muted text-xs">{item.sku ?? '-'}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          {item.warehouse_name ?? `Almacén #${item.warehouse_id}`}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                          {item.quantity_available}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Lectura ejecutiva</CardTitle>
+          </CardHeader>
+          <CardContent className="text-text-secondary space-y-3 text-sm">
+            <p>
+              El periodo seleccionado concentra ventas confirmadas, tickets POS pagados, cajas
+              abiertas y saldos financieros abiertos. Para auditoría detallada usa el módulo
+              Reportes.
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Info
+                label="Balance operativo"
+                value={formatMoney(
+                  data.finance.accounts_receivable_balance_base_amount -
+                    data.finance.accounts_payable_balance_base_amount,
+                )}
+              />
+              <Info
+                label="Ventas promedio"
+                value={formatMoney(
+                  data.sales.confirmed_count > 0
+                    ? data.sales.total_base_amount / data.sales.confirmed_count
+                    : 0,
+                )}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 # Plan: Dashboard Consolidado del Grupo
 
-Estado: **pendiente de implementacion**.
+Estado: **implementado (2026-08-17)**.
 
 Este documento registra la decision funcional y tecnica para que el Owner de un grupo pueda
 consultar todas sus empresas hijas sin cambiar de tenant repetidamente.

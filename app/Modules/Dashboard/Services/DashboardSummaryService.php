@@ -14,7 +14,7 @@ class DashboardSummaryService
 {
     public function summary(array $filters): array
     {
-        [$dateFrom, $dateTo] = $this->dateRange($filters);
+        [$dateFrom, $dateTo] = self::resolveDateRange($filters);
         $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
 
         $metrics = $this->aggregatedMetrics($dateFrom, $dateTo, $threshold);
@@ -115,7 +115,7 @@ class DashboardSummaryService
         return $metrics;
     }
 
-    private function dateRange(array $filters): array
+    public static function resolveDateRange(array $filters): array
     {
         if (($filters['date_from'] ?? null) && ($filters['date_to'] ?? null)) {
             return [

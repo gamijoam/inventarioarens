@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-08-17 - Dashboard consolidado de grupo
+
+- Implementado el plan `docs/PLAN_DASHBOARD_CONSOLIDADO_GRUPO.md`: vista de Jefe para Owners de
+  grupos que consulta todas las empresas hijas sin cambiar de tenant.
+- Agregado el permiso `reports.organization.view` a `BasePermissions` (Owner y Administrador lo
+  heredan); el permiso no se incluyo en Gerente/Vendedor/Almacen/Auditor.
+- `GET /api/dashboard/summary?scope=organization` autorizado solo para el Owner estricto del grupo
+  (`User::isStrictOwnerOf`) y validado contra el permiso en el contexto de team del grupo.
+- `OrganizationDashboardService` consolida en una sola query SQL con `GROUP BY tenant_id` ventas,
+  POS, cajas, CxC, CxP y bajo stock de todos los spinoffs; el numero de queries no crece con la
+  cantidad de empresas (test de anti-N+1 incluido).
+- `DashboardSummaryService::resolveDateRange` quedó estático y compartido por ambos servicios.
+- Frontend: selector de ambito `Esta empresa / Todo el grupo` visible para Owners de grupo;
+  `OrganizationDashboardView` muestra KPIs consolidados, tabla comparativa por empresa y boton
+  para entrar a cada sucursal (`switchTo`).
+- TDD: `tests/Feature/Dashboard/OrganizationDashboardTest.php` (9 tests, 46 aserciones) y
+  `frontend/src/features/dashboard/__tests__/organizationDashboard.test.tsx` (6 tests).
+- Verificacion: backend Dashboard 12/12, suite frontend 740/741 (1 skipped preexistente).
+
 ## 2026-08-17 - Plan futuro: dashboard consolidado de grupo
 
 - Registrada la propuesta de una Vista Consolidada / Vista de Jefe para Owners de grupos.
