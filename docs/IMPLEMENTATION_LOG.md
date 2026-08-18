@@ -1,5 +1,19 @@
 # Registro de implementación
 
+## 2026-08-18 - Reportes V2: Fase 1 (backend modular)
+
+- Nuevo modulo `app/Modules/ReportsV2` con catalogo declarativo de reportes (`ReportRegistry`) y
+  runner unico `ReportQueryService` que ejecuta una sola query SQL agregada (anti-N+1).
+- 8 reportes iniciales: ventas por periodo/producto/metodo de pago/empresa, stock por
+  producto/almacen, CxC por cliente y CxP por proveedor.
+- `GET /api/reports/v2/{code}` con `scope=tenant|organization`, `dimension`, rango de fechas,
+  `warehouse_id`, `low_stock_only` y `limit`.
+- Scope organization disponible para el Owner del grupo (`reports.organization.view` + Owner estricto);
+  las metricas se agregan sobre los spinoffs (comparativa entre empresas).
+- TDD: `tests/Feature/ReportsV2/ReportV2ApiTest.php` (10 tests, 33 aserciones) cubre tenant, org,
+  cross-tenant, permisos, filtros y anti-N+1. Suite Reportes+Finanzas+Dashboard 35/35.
+- Pendiente (fases siguientes): builder frontend con graficas (Recharts) y export CSV/Excel/PDF.
+
 ## 2026-08-18 - Sidebar agrupado por secciones
 
 - El menu lateral paso de ~19 opciones planas a 6 secciones con encabezados: Operacion, Ventas,

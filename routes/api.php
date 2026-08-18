@@ -72,6 +72,9 @@ Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Reports/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/ReportsV2/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Kardex/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
