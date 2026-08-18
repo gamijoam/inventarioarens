@@ -1,5 +1,15 @@
 # Registro de implementación
 
+## 2026-08-18 - Sidebar agrupado por secciones
+
+- El menu lateral paso de ~19 opciones planas a 6 secciones con encabezados: Operacion, Ventas,
+  Finanzas, Inventario, Analitica y Configuracion.
+- Reorden logico: operativo del dia primero, luego finanzas, inventario, analitica y administracion.
+- Se mantienen los submenus desplegables de Inventario y Acceso y el filtro de Organizaciones.
+- Cambio visual puro en `frontend/src/components/layout/Sidebar.tsx` (sin cambios de rutas ni permisos).
+- Test `Sidebar.test.tsx` actualizado con el nuevo orden + cobertura de encabezados de seccion.
+- Suite frontend 741/742 (1 skipped preexistente); typecheck limpio.
+
 ## 2026-08-18 - Import de datos: velocidad y reanudacion
 
 - `DataImportService::runEntity` ahora inserta `data_import_rows` por lotes de 500 (antes un INSERT

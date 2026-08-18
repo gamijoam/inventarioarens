@@ -76,27 +76,43 @@ describe('<Sidebar>', () => {
     expect(labels).toEqual([
       'Dashboard',
       'POS',
-      'Promociones',
-      'Ventas',
-      'Comisiones',
-      'Devoluciones',
-      'Clientes',
       'Cajas',
+      'Ventas',
+      'Devoluciones',
+      'Promociones',
+      'Comisiones',
+      'Clientes',
       'Cuentas por cobrar',
+      'Cuentas por pagar',
+      'Metodos de pago',
+      'Proveedores',
       'Inventario',
       'Compras',
-      'Proveedores',
-      'Cuentas por pagar',
       'Traslados',
       'Solicitudes inter-empresa',
       'Garantías',
       'Reportes',
-      'Impresion',
-      'Metodos de pago',
       'Importar datos',
+      'Impresion',
       'Acceso',
       'Configuración',
     ]);
+  });
+
+  it('muestra las etiquetas de seccion como encabezados agrupadores', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    const { container } = render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    const headers = Array.from(container.querySelectorAll('div'))
+      .map((node) => node.textContent?.trim())
+      .filter((text): text is string => Boolean(text) && /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(text ?? ''));
+
+    ['Operación', 'Ventas', 'Finanzas', 'Inventario', 'Analítica', 'Configuración'].forEach(
+      (section) => {
+        expect(headers).toContain(section);
+      },
+    );
   });
 
   it('muestra Acceso con permisos alternativos y oculta Organizaciones sin grupos propios', () => {

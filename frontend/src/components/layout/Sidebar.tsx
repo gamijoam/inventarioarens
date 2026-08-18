@@ -49,6 +49,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   permission?: string;
   permissionAny?: string[];
+  // Etiqueta de seccion que agrupa visualmente items relacionados.
+  section?: string;
   // Sub-items opcionales (menu anidado).
   children?: NavItem[];
   // Si es true, el item solo se muestra si el user autenticado es
@@ -61,58 +63,95 @@ interface UsersSearch {
   scope: 'tenant' | 'organization';
 }
 
+const SECTION_LABELS = {
+  OPERACION: 'Operación',
+  VENTAS: 'Ventas',
+  FINANZAS: 'Finanzas',
+  INVENTARIO: 'Inventario',
+  ANALITICA: 'Analítica',
+  CONFIGURACION: 'Configuración',
+} as const;
+
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW },
-  {
-    to: '/promotions',
-    label: 'Promociones',
-    icon: Tag,
-    permission: PERMISSIONS.PROMOTIONS_VIEW,
-  },
-  { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW },
-  {
-    to: '/commissions',
-    label: 'Comisiones',
-    icon: BadgeDollarSign,
-    permissionAny: [PERMISSIONS.COMMISSIONS_VIEW_OWN, PERMISSIONS.COMMISSIONS_VIEW_ALL],
-  },
-  {
-    to: '/sales-returns',
-    label: 'Devoluciones',
-    icon: RotateCcw,
-    permission: PERMISSIONS.SALES_RETURNS_VIEW,
-  },
-  { to: '/customers', label: 'Clientes', icon: Users, permission: PERMISSIONS.CUSTOMERS_VIEW },
+  // ===== Operación =====
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: SECTION_LABELS.OPERACION },
+  { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW, section: SECTION_LABELS.OPERACION },
   {
     to: '/cash-register',
     label: 'Cajas',
     icon: Banknote,
     permission: PERMISSIONS.CASH_REGISTER_VIEW,
+    section: SECTION_LABELS.OPERACION,
   },
+
+  // ===== Ventas =====
+  { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW, section: SECTION_LABELS.VENTAS },
+  {
+    to: '/sales-returns',
+    label: 'Devoluciones',
+    icon: RotateCcw,
+    permission: PERMISSIONS.SALES_RETURNS_VIEW,
+    section: SECTION_LABELS.VENTAS,
+  },
+  {
+    to: '/promotions',
+    label: 'Promociones',
+    icon: Tag,
+    permission: PERMISSIONS.PROMOTIONS_VIEW,
+    section: SECTION_LABELS.VENTAS,
+  },
+  {
+    to: '/commissions',
+    label: 'Comisiones',
+    icon: BadgeDollarSign,
+    permissionAny: [PERMISSIONS.COMMISSIONS_VIEW_OWN, PERMISSIONS.COMMISSIONS_VIEW_ALL],
+    section: SECTION_LABELS.VENTAS,
+  },
+  { to: '/customers', label: 'Clientes', icon: Users, permission: PERMISSIONS.CUSTOMERS_VIEW, section: SECTION_LABELS.VENTAS },
+
+  // ===== Finanzas =====
   {
     to: '/receivables',
     label: 'Cuentas por cobrar',
     icon: Wallet,
     permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW,
+    section: SECTION_LABELS.FINANZAS,
   },
+  {
+    to: '/payables',
+    label: 'Cuentas por pagar',
+    icon: Receipt,
+    permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW,
+    section: SECTION_LABELS.FINANZAS,
+  },
+  {
+    to: '/payment-methods',
+    label: 'Metodos de pago',
+    icon: CreditCard,
+    permission: PERMISSIONS.PAYMENT_METHODS_VIEW,
+    section: SECTION_LABELS.FINANZAS,
+  },
+  {
+    to: '/suppliers',
+    label: 'Proveedores',
+    icon: Building,
+    permission: PERMISSIONS.SUPPLIERS_VIEW,
+    section: SECTION_LABELS.FINANZAS,
+  },
+
+  // ===== Inventario =====
   {
     to: '/inventory',
     label: 'Inventario',
     icon: Boxes,
     permission: PERMISSIONS.PRODUCTS_VIEW,
+    section: SECTION_LABELS.INVENTARIO,
     children: [
       {
         to: '/inventory',
         label: 'Productos',
         icon: Package,
         permission: PERMISSIONS.PRODUCTS_VIEW,
-      },
-      {
-        to: '/inventory/manual-movements',
-        label: 'Movimientos manuales',
-        icon: ClipboardList,
-        permission: PERMISSIONS.INVENTORY_MANUAL_MOVEMENTS_VIEW,
       },
       {
         to: '/inventory/catalogs',
@@ -127,6 +166,12 @@ const NAV_ITEMS: NavItem[] = [
         permission: PERMISSIONS.CURRENCY_VIEW,
       },
       {
+        to: '/inventory/manual-movements',
+        label: 'Movimientos manuales',
+        icon: ClipboardList,
+        permission: PERMISSIONS.INVENTORY_MANUAL_MOVEMENTS_VIEW,
+      },
+      {
         to: '/inventory/admin',
         label: 'Administración',
         icon: Settings,
@@ -134,61 +179,53 @@ const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { to: '/purchases', label: 'Compras', icon: ShoppingBag, permission: PERMISSIONS.PURCHASES_VIEW },
-  {
-    to: '/suppliers',
-    label: 'Proveedores',
-    icon: Building,
-    permission: PERMISSIONS.SUPPLIERS_VIEW,
-  },
-  {
-    to: '/payables',
-    label: 'Cuentas por pagar',
-    icon: Receipt,
-    permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW,
-  },
+  { to: '/purchases', label: 'Compras', icon: ShoppingBag, permission: PERMISSIONS.PURCHASES_VIEW, section: SECTION_LABELS.INVENTARIO },
   {
     to: '/transfers',
     label: 'Traslados',
     icon: Truck,
     permission: PERMISSIONS.INVENTORY_TRANSFERS_VIEW,
+    section: SECTION_LABELS.INVENTARIO,
   },
   {
     to: '/inventory-transfer-requests',
     label: 'Solicitudes inter-empresa',
     icon: Building2,
     permission: PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_VIEW,
+    section: SECTION_LABELS.INVENTARIO,
   },
   {
     to: '/warranties',
     label: 'Garantías',
     icon: ShieldQuestion,
     permission: PERMISSIONS.WARRANTIES_VIEW,
+    section: SECTION_LABELS.INVENTARIO,
   },
+
+  // ===== Analítica =====
   {
     to: '/reports',
     label: 'Reportes',
     icon: BarChart3,
     permissionAny: [PERMISSIONS.REPORTS_VIEW, PERMISSIONS.FINANCE_REPORTS_VIEW],
-  },
-  {
-    to: '/printing',
-    label: 'Impresion',
-    icon: Printer,
-    permission: PERMISSIONS.PRINTING_VIEW,
-  },
-  {
-    to: '/payment-methods',
-    label: 'Metodos de pago',
-    icon: CreditCard,
-    permission: PERMISSIONS.PAYMENT_METHODS_VIEW,
+    section: SECTION_LABELS.ANALITICA,
   },
   {
     to: '/import',
     label: 'Importar datos',
     icon: Upload,
     permission: PERMISSIONS.DATA_IMPORT_VIEW,
+    section: SECTION_LABELS.ANALITICA,
   },
+  {
+    to: '/printing',
+    label: 'Impresion',
+    icon: Printer,
+    permission: PERMISSIONS.PRINTING_VIEW,
+    section: SECTION_LABELS.ANALITICA,
+  },
+
+  // ===== Configuración =====
   // Submenu de Acceso (Fase A+B: usuarios; Fase C: roles y permisos;
   // Fase E: catalogo de permisos standalone).
   {
@@ -196,6 +233,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Acceso',
     icon: ShieldCheck,
     permissionAny: [PERMISSIONS.USERS_VIEW, PERMISSIONS.ROLES_VIEW, PERMISSIONS.TENANTS_VIEW],
+    section: SECTION_LABELS.CONFIGURACION,
     children: [
       { to: '/users', label: 'Usuarios', icon: Users, permission: PERMISSIONS.USERS_VIEW },
       {
@@ -224,6 +262,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Configuración',
     icon: Settings2,
     permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
+    section: SECTION_LABELS.CONFIGURACION,
     children: [
       {
         to: '/settings/telegram',
@@ -287,13 +326,23 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">
         <ul className="space-y-0.5">
-          {visibleItems.map((item) => {
+          {visibleItems.map((item, index) => {
+            const prevSection = visibleItems[index - 1]?.section;
+            const isNewSection = item.section != null && item.section !== prevSection;
+            const sectionHeader =
+              !collapsed && isNewSection ? (
+                <div className="text-text-muted px-2.5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider">
+                  {item.section}
+                </div>
+              ) : null;
+
             // Si el item tiene children, renderiza submenu anidado.
             if (item.children && item.children.length > 0) {
               const isParentActive =
                 currentPath === item.to || currentPath.startsWith(`${item.to}/`);
               return (
                 <li key={item.to}>
+                  {sectionHeader}
                   <NavItemAccess item={item}>
                     <Group
                       item={item}
@@ -334,6 +383,7 @@ export function Sidebar() {
 
             return (
               <li key={item.to}>
+                {sectionHeader}
                 <NavItemAccess item={item}>{linkContent}</NavItemAccess>
               </li>
             );
