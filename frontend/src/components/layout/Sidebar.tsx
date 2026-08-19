@@ -13,7 +13,6 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
-  BoxesIcon,
   ChevronDown,
   Settings,
   Building,
@@ -38,7 +37,7 @@ import { cn } from '@/lib/cn';
 import { Can } from '@/components/permissions/Can';
 import { useTenantGroups } from '@/features/access/tenantGroupsApi';
 import { PERMISSIONS } from '@/permissions/constants';
-import { APP_NAME } from '@/config/branding';
+import { APP_SHORT_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
 import { useCanAny } from '@/permissions/useCan';
 import { useSessionStore } from '@/stores/session';
@@ -327,12 +326,18 @@ export function Sidebar() {
     >
       {/* Brand */}
       <div className="border-border flex h-14 items-center gap-2 border-b px-3">
-        <div className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
-          <BoxesIcon className="size-5" aria-hidden="true" />
+        <div
+          className={cn(
+            'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-wide',
+            'shadow-sm',
+          )}
+          aria-hidden="true"
+        >
+          SDI
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{APP_NAME}</p>
+            <p className="truncate text-sm font-semibold">{APP_SHORT_NAME}</p>
           </div>
         )}
       </div>
@@ -427,15 +432,6 @@ export function Sidebar() {
           )}
         </button>
       </div>
-
-      {/* Package attribution al fondo */}
-      {!collapsed && (
-        <div className="border-border text-text-muted border-t p-3 text-xs">
-          <Package className="mb-1 size-4" aria-hidden="true" />
-          <p>Multi-tenant SaaS</p>
-          <p>Laravel + PostgreSQL</p>
-        </div>
-      )}
     </aside>
   );
 }
