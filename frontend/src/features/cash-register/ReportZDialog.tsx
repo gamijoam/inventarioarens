@@ -1,4 +1,5 @@
 import { Download, Printer } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
 import {
@@ -12,8 +13,9 @@ import {
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatMoney } from '@/lib/money';
+import { usePrinterStations } from '@/features/printing/api';
 
-import { downloadReportZPdf, openReportZPdf, useReportZ } from './reportZApi';
+import { downloadReportZPdf, openReportZPdf, printReportZThermal, useReportZ } from './reportZApi';
 
 interface ReportZDialogProps {
   sessionId: number;
@@ -23,6 +25,26 @@ interface ReportZDialogProps {
 
 export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogProps) {
   const { data, isLoading, isError } = useReportZ(open ? sessionId : null, open);
+  const { data: stations = [] } = usePrinterStations({ enabled: open });
+  const activeStation = stations.find((station) => station.is_active) ?? null;
+
+  async function printThermal(): Promise<void> {
+    if (!data) return;
+    if (!activeStation) {
+      toast.error('No hay una estación de impresión activa configurada en /printing.');
+      return;
+    }
+    try {
+      const result = await printReportZThermal(data, activeStation);
+      if (result.ok === false) {
+        toast.error(result.message ?? 'No se pudo imprimir el Reporte Z.');
+        return;
+      }
+      toast.success('Reporte Z enviado a la impresora térmica.');
+    } catch {
+      toast.error('No se pudo contactar el agente de impresión local.');
+    }
+  }
 
   const formatBs = (value: number): string =>
     `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
@@ -116,6 +138,9 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
         <DialogFooter>
           <Button variant="outline" disabled={!data} onClick={() => void openReportZPdf(sessionId)}>
             <Printer className="size-4" /> Imprimir
+          </Button>
+          <Button variant="outline" disabled={!data || !activeStation} onClick={() => void printThermal()}>
+            <Printer className="size-4" /> Imprimir térmica
           </Button>
           <Button disabled={!data} onClick={() => void downloadReportZPdf(sessionId)}>
             <Download className="size-4" /> Descargar PDF

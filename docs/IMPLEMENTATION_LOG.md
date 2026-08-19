@@ -1,5 +1,14 @@
 # Registro de implementación
 
+## 2026-08-18 - Reporte Z: impresion termica via agente local
+
+- `PrinterServer` (agente `printer:serve`) ahora renderiza el Reporte Z en texto plano termico
+  (`buildPlainReportZ`) cuando el payload trae `doc: 'report_z'`; branch en `printThermal` y en el
+  fallback digital.
+- Frontend: `printReportZThermal(z, station)` envia el Z al agente (`127.0.0.1:17777/print`) y el
+  `ReportZDialog` agrega el boton `Imprimir termica` usando la estacion activa de `/printing`.
+- TDD: `PrinterServerReportZTest` (2 tests). Printing 32/33 (1 skip preexistente); frontend 749/750.
+
 ## 2026-08-18 - Reporte Z de caja: Fase 2 (frontend)
 
 - Modulo `frontend/src/features/cash-register/`: `reportZApi` (consulta del Z, abrir/descargar PDF)

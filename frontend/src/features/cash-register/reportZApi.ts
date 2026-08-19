@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { api, getOne } from '@/api/client';
+import type { PrinterStation } from '@/features/printing/api';
+
+export const PRINTER_AGENT_URL = 'http://127.0.0.1:17777/print';
 
 export const ReportZSchema = z.object({
   z_number: z.number().int().nullable(),
@@ -77,4 +80,62 @@ export async function downloadReportZPdf(sessionId: number): Promise<void> {
   anchor.download = `reporte-z-${sessionId}.pdf`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+export interface ReportZPrintResult {
+  ok?: boolean;
+  status?: string;
+  message?: string;
+}
+
+/**
+ * Envia el Reporte Z al agente local de impresion termica (printer:serve).
+ */
+export async function printReportZThermal(
+  z: ReportZ,
+  station: PrinterStation,
+): Promise<ReportZPrintResult> {
+  const payload = {
+    output: 'thermal',
+    station: {
+      printer_type: station.printer_type,
+      printer_name: station.printer_name ?? null,
+      network_host: station.network_host ?? null,
+      network_port: station.network_port ?? null,
+      digital_directory: station.digital_directory ?? null,
+    },
+    copy: false,
+    payload: {
+      doc: 'report_z',
+      z_number: z.z_number,
+      tenant: { name: z.tenant.name, slug: z.tenant.slug },
+      cash_register: z.cash_register,
+      branch: z.branch,
+      cashier: z.cashier,
+      opened_at: z.opened_at,
+      closed_at: z.closed_at,
+      totals: z.totals,
+      payments: z.payments,
+      profile: {
+        paper_width_mm: station.profile?.paper_width_mm ?? 58,
+        cut_paper: station.profile?.cut_paper ?? true,
+        open_cash_drawer: station.profile?.open_cash_drawer ?? false,
+        legal_text: station.profile?.legal_text ?? 'Documento no fiscal',
+        show_non_fiscal_text: station.profile?.show_non_fiscal_text ?? true,
+        footer_text: station.profile?.footer_text ?? null,
+      },
+    },
+  };
+
+  const response = await fetch(PRINTER_AGENT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Agente local respondio ${response.status}`);
+  }
+
+  return response.json() as Promise<ReportZPrintResult>;
 }

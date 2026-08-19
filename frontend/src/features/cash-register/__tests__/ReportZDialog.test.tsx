@@ -9,6 +9,11 @@ vi.mock('../reportZApi', () => ({
   useReportZ: (sessionId: number | null, enabled: boolean) => mockUseReportZ(sessionId, enabled),
   openReportZPdf: vi.fn(),
   downloadReportZPdf: vi.fn(),
+  printReportZThermal: vi.fn(),
+}));
+
+vi.mock('@/features/printing/api', () => ({
+  usePrinterStations: () => ({ data: [], isLoading: false, isError: false }),
 }));
 
 const zFixture = {
@@ -63,5 +68,6 @@ describe('ReportZDialog', () => {
 
     expect(screen.getByText('Imprimir')).toBeInTheDocument();
     expect(screen.getByText('Descargar PDF')).toBeInTheDocument();
+    expect(screen.getByText('Imprimir térmica')).toBeInTheDocument();
   });
 });
