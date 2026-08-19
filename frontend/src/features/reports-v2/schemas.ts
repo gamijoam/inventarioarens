@@ -20,7 +20,7 @@ export const ReportV2RowSchema = z
   .object({
     label: z.string(),
     group_key: z.union([z.number(), z.string()]),
-    rate: z.number().optional(),
+    rate: z.number().nullable().optional(),
   })
   .catchall(z.unknown());
 export type ReportV2Row = z.infer<typeof ReportV2RowSchema>;
@@ -41,7 +41,7 @@ export const ReportV2Schema = z.object({
     .nullable(),
   rows: z.array(ReportV2RowSchema),
   totals: z.record(z.unknown()),
-  rate: z.number().optional(),
+  rate: z.number().nullable().optional(),
 });
 export type ReportV2 = z.infer<typeof ReportV2Schema>;
 

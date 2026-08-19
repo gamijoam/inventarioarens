@@ -82,14 +82,26 @@ class ReportRegistry
                 'domain' => 'ventas',
                 'permission' => 'reports.sales.view',
                 'orgSupported' => true,
-                'base' => 'sales s',
+                'base' => "sales s left join (
+                    select po.sale_id, po.tenant_id,
+                      coalesce(sum(case when pp.currency = 'USD' then pp.amount_base else 0 end), 0) as usd_paid,
+                      coalesce(sum(case when pp.currency = 'VES' then pp.amount_local else 0 end), 0) as ves_paid,
+                      coalesce(sum(case when pp.currency = 'VES' then pp.amount_base else 0 end), 0) as usd_equiv,
+                      coalesce(sum(case when pp.currency = 'USD' then pp.amount_local else 0 end), 0) as ves_equiv
+                    from pos_payments pp join pos_orders po on po.id = pp.pos_order_id and po.tenant_id = pp.tenant_id
+                    group by po.sale_id, po.tenant_id
+                  ) pay on pay.sale_id = s.id and pay.tenant_id = s.tenant_id",
                 'dateColumn' => 's.confirmed_at',
                 'statusSql' => "s.status = 'confirmed'",
                 'measures' => [
                     'sales_total' => 'coalesce(sum(s.total_base_amount), 0)',
-                    'sales_total_local' => 'coalesce(sum(s.total_local_amount), 0)',
+                    'usd_paid' => 'coalesce(sum(pay.usd_paid), 0)',
+                    'ves_paid' => 'coalesce(sum(pay.ves_paid), 0)',
+                    'usd_equiv' => 'coalesce(sum(pay.usd_equiv), 0)',
                     'sales_count' => 'count(s.id)',
                     'ticket_avg' => 'coalesce(avg(s.total_base_amount), 0)',
+                    'total_usd' => 'coalesce(sum(pay.usd_paid + pay.usd_equiv), 0)',
+                    'total_ves' => 'coalesce(sum(pay.ves_paid + pay.ves_equiv), 0)',
                 ],
                 'defaultMeasure' => 'sales_total',
                 'dimensions' => array_merge(
@@ -98,7 +110,8 @@ class ReportRegistry
                 ),
                 'defaultDimension' => 'day',
                 'averageMeasures' => ['ticket_avg' => 'sales_count'],
-                'localPairs' => ['sales_total_local' => 'sales_total'],
+                'localPairs' => ['total_ves' => 'total_usd'],
+                'hiddenMeasures' => ['total_usd', 'total_ves'],
             ],
             'sales_by_product' => [
                 'name' => 'Ventas por producto',
@@ -159,20 +172,33 @@ class ReportRegistry
                 'domain' => 'ventas',
                 'permission' => 'reports.sales.view',
                 'orgSupported' => true,
-                'base' => 'sales s',
+                'base' => "sales s left join (
+                    select po.sale_id, po.tenant_id,
+                      coalesce(sum(case when pp.currency = 'USD' then pp.amount_base else 0 end), 0) as usd_paid,
+                      coalesce(sum(case when pp.currency = 'VES' then pp.amount_local else 0 end), 0) as ves_paid,
+                      coalesce(sum(case when pp.currency = 'VES' then pp.amount_base else 0 end), 0) as usd_equiv,
+                      coalesce(sum(case when pp.currency = 'USD' then pp.amount_local else 0 end), 0) as ves_equiv
+                    from pos_payments pp join pos_orders po on po.id = pp.pos_order_id and po.tenant_id = pp.tenant_id
+                    group by po.sale_id, po.tenant_id
+                  ) pay on pay.sale_id = s.id and pay.tenant_id = s.tenant_id",
                 'dateColumn' => 's.confirmed_at',
                 'statusSql' => "s.status = 'confirmed'",
                 'measures' => [
                     'sales_total' => 'coalesce(sum(s.total_base_amount), 0)',
-                    'sales_total_local' => 'coalesce(sum(s.total_local_amount), 0)',
+                    'usd_paid' => 'coalesce(sum(pay.usd_paid), 0)',
+                    'ves_paid' => 'coalesce(sum(pay.ves_paid), 0)',
+                    'usd_equiv' => 'coalesce(sum(pay.usd_equiv), 0)',
                     'sales_count' => 'count(s.id)',
+                    'total_usd' => 'coalesce(sum(pay.usd_paid + pay.usd_equiv), 0)',
+                    'total_ves' => 'coalesce(sum(pay.ves_paid + pay.ves_equiv), 0)',
                 ],
                 'defaultMeasure' => 'sales_total',
                 'dimensions' => [
                     'company' => $this->companyDimension('s'),
                 ],
                 'defaultDimension' => 'company',
-                'localPairs' => ['sales_total_local' => 'sales_total'],
+                'localPairs' => ['total_ves' => 'total_usd'],
+                'hiddenMeasures' => ['total_usd', 'total_ves'],
             ],
             'stock_by_product' => [
                 'name' => 'Stock por producto',

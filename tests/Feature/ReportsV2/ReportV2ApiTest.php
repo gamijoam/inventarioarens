@@ -440,27 +440,51 @@ class ReportV2ApiTest extends TestCase
             ->assertJsonPath('data.totals.usd_equiv', 0);
     }
 
-    public function test_sales_overview_includes_historical_local_total(): void
+    public function test_sales_overview_splits_actual_currency_from_payments(): void
     {
         $group = $this->group();
         $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
-        $this->seedSales($tucacas, 0);
+        $this->seedPosPayment($tucacas, 'cash', 100);
+        $this->seedPosPayment($tucacas, 'PAGO_MOVIL', 50, 'VES');
         $manager = $this->userInSpinoff($tucacas, 'Gerente');
 
-        $this
+        $response = $this
             ->actingAs($manager)
             ->withHeader('X-Tenant', $tucacas->slug)
             ->getJson('/api/reports/v2/sales_overview?scope=tenant')
-            ->assertOk()
-            ->assertJsonPath('data.totals.sales_total', 100)
-            ->assertJsonPath('data.totals.sales_total_local', 7400);
+            ->assertOk();
+
+        $this->assertSame(150, $response->json('data.totals.sales_total'));
+        $this->assertSame(100, $response->json('data.totals.usd_paid'));
+        $this->assertSame(3700, $response->json('data.totals.ves_paid'));
+        $this->assertSame(50, $response->json('data.totals.usd_equiv'));
+    }
+
+    public function test_sales_by_company_splits_actual_currency_from_payments(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedPosPayment($tucacas, 'cash', 100);
+        $this->seedPosPayment($tucacas, 'PAGO_MOVIL', 50, 'VES');
+        $owner = $this->ownerOf($group, [$tucacas]);
+
+        $response = $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->getJson('/api/reports/v2/sales_by_company?scope=organization')
+            ->assertOk();
+
+        $this->assertSame(150, $response->json('data.totals.sales_total'));
+        $this->assertSame(100, $response->json('data.totals.usd_paid'));
+        $this->assertSame(3700, $response->json('data.totals.ves_paid'));
+        $this->assertSame(50, $response->json('data.totals.usd_equiv'));
     }
 
     public function test_sales_overview_exposes_implied_exchange_rate(): void
     {
         $group = $this->group();
         $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
-        $this->seedSales($tucacas, 0);
+        $this->seedPosPayment($tucacas, 'cash', 100);
         $manager = $this->userInSpinoff($tucacas, 'Gerente');
 
         $response = $this

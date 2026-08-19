@@ -373,7 +373,7 @@ function ChartKindButton({
 }
 
 function TotalsBar({ data, selected }: { data: ReportV2; selected: ReportV2CatalogItem }) {
-  const isPaymentMethods = selected.measures.includes('usd_paid');
+  const isPaymentMethods = selected.code === 'sales_by_payment_method';
   return (
     <div className="flex flex-wrap gap-3">
       {selected.measures.map((measure) => (
@@ -382,7 +382,7 @@ function TotalsBar({ data, selected }: { data: ReportV2; selected: ReportV2Catal
             {REPORT_MEASURE_LABELS[measure] ?? measure}
           </div>
           <div className="text-text-primary mt-0.5 font-semibold tabular-nums">
-            {formatMeasure(measure, data.totals[measure], data.rate)}
+            {formatMeasure(measure, data.totals[measure], data.rate ?? undefined)}
           </div>
         </div>
       ))}
@@ -420,7 +420,7 @@ function ResultTable({ data, selected }: { data: ReportV2; selected: ReportV2Cat
               <td className="px-3 py-2 font-medium">{row.label}</td>
               {selected.measures.map((measure) => (
                 <td key={measure} className="px-3 py-2 text-right tabular-nums">
-                  {formatMeasure(measure, row[measure], row.rate)}
+                  {formatMeasure(measure, row[measure], row.rate ?? undefined)}
                 </td>
               ))}
               {showRate && (
@@ -542,8 +542,9 @@ function formatMeasure(measure: string, value: unknown, rate?: number): string {
 }
 
 function formatRateCell(row: ReportV2['rows'][number]): string {
-  // La tasa es relevante solo para pagos en bolivares; para pagos en USD se omite.
-  if (Number(row.usd_paid ?? 0) > 0) return '—';
+  // La tasa es relevante solo cuando hay pagos en bolivares; si no hay Bs se omite.
+  const hasBs = Number(row.ves_paid ?? 0) > 0 || Number(row.usd_equiv ?? 0) > 0;
+  if (!hasBs) return '—';
   return row.rate != null ? `Bs ${formatRate(row.rate)}` : '—';
 }
 

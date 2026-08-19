@@ -1,5 +1,14 @@
 # Registro de implementación
 
+## 2026-08-18 - Reportes V2: separacion de moneda en ventas y fix de reportes sin tasa
+
+- Fix: los reportes sin montos locales (ventas por producto, stock, CxC, CxP) devolvian `rate: null`
+  y el schema Zod lo rechazaba, mostrando "no se ve nada". `rate` ahora acepta `null`.
+- `Ventas por período` y `Ventas por empresa` ahora separan la moneda real como en metodos de pago:
+  `Total $`, `Pagado $`, `Pagado Bs`, `Equiv. $`, `Nº de ventas` (+ `Ticket promedio` en periodo).
+  La separacion viene de los pagos (`pos_payments.currency`) agregados por venta.
+- TDD: 27 tests ReportesV2; backend 52/52 y frontend 747/748.
+
 ## 2026-08-18 - Reportes V2: sin equivalente en Bs para pagos en USD
 
 - En `Ventas por método de pago` se elimina la columna `Equiv. Bs` y la tasa solo se muestra
