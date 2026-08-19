@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Banknote, Building2, Eye, EyeOff, Loader2, Plus, Store } from 'lucide-react';
+import { Banknote, Building2, Eye, EyeOff, FileText, Loader2, Plus, Store } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -28,6 +28,7 @@ import {
   useOpenCashSession,
 } from './api';
 import { useUsers } from '@/features/users/api';
+import { openReportZPdf } from '@/features/cash-register/reportZApi';
 import { CashRegisterCommandCenter } from './CashRegisterCommandCenter';
 
 type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
@@ -553,6 +554,11 @@ function SessionsBoard({
                 {canClose && session.status === 'open' && (
                   <Button size="sm" variant="outline" onClick={() => onCloseForm({ sessionId: session.id, usd: '', ves: '', notes: '', counts: [], blind: false })}>
                     Cerrar turno
+                  </Button>
+                )}
+                {session.status === 'closed' && (
+                  <Button size="sm" variant="outline" onClick={() => void openReportZPdf(session.id)}>
+                    <FileText className="size-4" /> Reporte Z
                   </Button>
                 )}
               </div>

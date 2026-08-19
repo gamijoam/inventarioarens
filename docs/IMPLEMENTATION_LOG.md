@@ -1,5 +1,14 @@
 # Registro de implementación
 
+## 2026-08-18 - Reporte Z de caja: Fase 2 (frontend)
+
+- Modulo `frontend/src/features/cash-register/`: `reportZApi` (consulta del Z, abrir/descargar PDF)
+  y `ReportZDialog` (muestra numero Z, totales USD/VES, desglose por metodo de pago y conteo,
+  con botones Imprimir y Descargar PDF).
+- Command Center de caja: boton `Reporte Z` por turno cerrado que abre el dialogo.
+- Setup de caja (POS): boton `Reporte Z` en turnos cerrados que abre el PDF termico 58/80mm.
+- TDD: `ReportZDialog.test.tsx` (2 tests). Suite frontend 749/750.
+
 ## 2026-08-18 - Reporte Z de caja (Fase 1 backend + ticket termico)
 
 - Nueva migracion `add_z_number_to_cash_register_sessions`: columnas `z_number` (consecutivo por
