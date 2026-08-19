@@ -2073,6 +2073,9 @@ export function PosTerminal() {
           product_variant_name: line.product_variant_name ?? null,
           quantity: line.quantity,
           price_list_id: line.price_list_id ?? null,
+          price_list_name: line.price_list_name ?? null,
+          name: line.name,
+          unit_price: line.unit_price,
         }))}
         onCreated={() => toast.success('Cotizacion creada. El ticket se mantiene para cobrar.')}
       />

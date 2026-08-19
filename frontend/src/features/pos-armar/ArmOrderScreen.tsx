@@ -951,6 +951,9 @@ export function ArmOrderScreen() {
             product_variant_name: line.product_variant_name,
             quantity: line.quantity,
             price_list_id: line.price_list_id,
+            price_list_name: line.price_list_name,
+            name: line.product.name,
+            unit_price: line.unit_price,
           }))}
           onCreated={() => toast.success('Cotizacion creada. El carrito se mantiene para enviar a caja.')}
         />

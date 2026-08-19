@@ -23,6 +23,9 @@ export interface QuotationCartItem {
   product_variant_name?: string | null;
   quantity: number;
   price_list_id?: number | null;
+  price_list_name?: string | null;
+  name?: string | null;
+  unit_price?: number | null;
 }
 
 interface QuotationCreateDialogProps {
@@ -293,16 +296,27 @@ function QuotationCreateDialogInner({
                 {cartItems.map((item, idx) => (
                   <div
                     key={idx}
-                    className="border-border bg-bg/30 flex items-center justify-between rounded border p-3 text-sm"
+                    className="border-border bg-bg/30 grid grid-cols-1 items-center gap-2 rounded border p-3 text-sm sm:grid-cols-[1fr_auto_auto]"
                   >
                     <div>
-                      <div className="font-medium">Producto #{item.product_id}</div>
+                      <div className="font-medium">{item.name ?? `Producto #${item.product_id}`}</div>
                       {item.product_variant_name && (
                         <div className="text-text-muted text-xs">{item.product_variant_name}</div>
                       )}
+                      <div className="text-text-muted text-xs">
+                        {item.price_list_name
+                          ? `Lista: ${item.price_list_name}`
+                          : item.price_list_id
+                            ? `Lista #${item.price_list_id}`
+                            : 'Precio base'}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-medium">Cant. {item.quantity}</div>
+                    <div className="text-right tabular-nums">
+                      {item.unit_price != null ? `$${item.unit_price.toFixed(2)}` : '—'}
+                      <span className="text-text-muted block text-xs">x {item.quantity}</span>
+                    </div>
+                    <div className="text-right font-medium tabular-nums">
+                      {item.unit_price != null ? `$${(item.unit_price * item.quantity).toFixed(2)}` : '—'}
                     </div>
                   </div>
                 ))}

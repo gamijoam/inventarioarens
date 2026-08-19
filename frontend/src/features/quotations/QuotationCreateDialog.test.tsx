@@ -55,7 +55,7 @@ describe('QuotationCreateDialog', () => {
       expect(screen.getByText(/Producto #100/)).toBeInTheDocument();
     });
     expect(screen.getByText('Azul')).toBeInTheDocument();
-    expect(screen.getByText(/Cant\. 2/)).toBeInTheDocument();
+    expect(screen.getByText(/x 2/)).toBeInTheDocument();
 
     await userEvent.type(
       screen.getByPlaceholderText('Nombre del cliente (o dejar vacio)'),

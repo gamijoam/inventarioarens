@@ -618,8 +618,10 @@ describe('<ArmOrderScreen>', () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('create-quotation'));
-    expect(screen.getByRole('heading', { name: 'Nueva cotizacion' })).toBeInTheDocument();
-    expect(screen.getByText(/Producto #41/)).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Nueva cotizacion' })).toBeInTheDocument();
+    expect(within(dialog).getByText('Adaptador USB-C')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/\$12\.50/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByTestId('quote-create-submit'));
     await waitFor(() => expect(mocks.createQuotation).toHaveBeenCalledTimes(1));
