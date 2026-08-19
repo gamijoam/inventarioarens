@@ -7150,3 +7150,25 @@ Regla:
 - **Deploy**: commit `10547ec5`; backend (pull + migrate `2026_08_19_090000` + optimize:clear) y bundle
   admin en `app.miinventariofacil.com` y `app.tiendasarens.com`; verificada la columna
   `product_variant_id` en ambas DBs y HTTP 200 en ambos dominios.
+
+## 2026-08-19 - Informacion de la empresa (razon social, RIF, domicilio) configurable en documentos
+
+- **Problema** (bloqueador P0 de `AUDITORIA_FISCAL_FUNCIONAL_POS_VENEZUELA_2026-08-16.md`): no existia
+  identidad fiscal del emisor (Tenant/Branch sin RIF ni razon social), y el ticket/guias solo mostraban
+  el nombre del tenant.
+- **CompanySettings** (`app/Modules/Tenancy/Services/CompanySettings.php`): lee
+  `tenant_settings.settings.company` con defaults tipados (razon_social, rif, domicilio_fiscal,
+  ciudad, estado, telefono, correo, website, regimen) y `show_on.sale_ticket|guide|report_z`.
+- **TenantSettingController**: valida `settings.company` (campos tipados + booleans) y restringe la
+  edicion de la seccion empresa a usuarios con permiso `settings.manage` (Owner/Administrador).
+- **Impresion**: `PosTicketPrintService`, `ReportZService` y `TransferGuidePdfService` inyectan
+  `company` + `show_company`; los templates `pos-ticket`, `report-z-ticket` y `guide` renderizan el
+  bloque de empresa (razon social, RIF, domicilio, ciudad/estado, telefono) solo si el flag
+  correspondiente esta activo y hay RIF.
+- **Frontend**: nueva seccion **Ajustes > Empresa** (`/settings/company`) con formulario de datos
+  legales + 3 toggles de visibilidad por documento. Permiso `settings.manage`.
+- **TDD**: `CompanySettingsApiTest` (7 tests: round-trip, defaults, 403 sin settings.manage, RIF en
+  ticket on/off, RIF en guia on/off) + `CompanySettingsPanel.test` (2). Backend Tenancy/Printing/
+  CashRegister/Transfers 138/138; frontend 765/765; `tsc` limpio.
+- **Deploy**: commit `62b3710` en `app.miinventariofacil.com` y `app.tiendasarens.com` (backend pull +
+  optimize:clear; bundle admin rsync). HTTP 200 + asset nuevo verificado.
