@@ -7172,3 +7172,17 @@ Regla:
   CashRegister/Transfers 138/138; frontend 765/765; `tsc` limpio.
 - **Deploy**: commit `62b3710` en `app.miinventariofacil.com` y `app.tiendasarens.com` (backend pull +
   optimize:clear; bundle admin rsync). HTTP 200 + asset nuevo verificado.
+
+## 2026-08-19 - Info de la empresa: sync VPS -> local (tenant_settings.company)
+
+- La seccion `company` de `tenant_settings` ahora se sincroniza al resto de nodos:
+  - `SyncCatalogOutboxService::tenantSettingsUpdated` emite `tenant_settings.updated` (solo company).
+  - `TenantSettingController` emite el evento al guardar settings.
+  - `SyncInitialSnapshotService::queueTenantSettings` incluye company en la foto inicial (primer
+    descarga de una empresa en un nodo local).
+  - `SyncEventApplier::applyTenantSettings` aplica company en el nodo destino preservando las
+    secciones locales (telegram, etc.). Idempotente.
+- Frontend: placeholder generico "Nombre de la empresa" en razon social.
+- TDD: `TenantSettingsSyncTest` (3 tests: snapshot incluye company, outbox al actualizar, applier
+  merge preservando secciones locales). Sync/Tenancy 25/25.
+- Deploy: commit `a71be384` en ambas apps (pull + optimize:clear + bundle admin). HTTP 200.
