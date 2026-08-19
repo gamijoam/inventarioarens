@@ -23,6 +23,8 @@ class UpdateCommissionPlanRequest extends FormRequest
             'credit_policy' => ['sometimes', 'required', Rule::in([CommissionPlan::CREDIT_PROPORTIONAL_COLLECTIONS, CommissionPlan::CREDIT_SALE_CONFIRMATION])],
             'maturation_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
             'allow_self_stacking' => ['sometimes', 'boolean'],
+            'include_combos' => ['sometimes', 'boolean'],
+            'include_discounts' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],

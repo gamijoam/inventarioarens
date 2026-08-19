@@ -18,6 +18,8 @@ vi.mock('./api', () => ({
     credit_policy: 'sale_confirmation',
     maturation_days: 0,
     allow_self_stacking: false,
+    include_combos: true,
+    include_discounts: true,
     is_active: true,
     starts_at: null,
     ends_at: null,
@@ -50,5 +52,13 @@ describe('CommissionsManager simulator', () => {
       percentage: 1,
       exchange_rate_type_id: 5,
     });
+  });
+
+  it('muestra los toggles de combos y descuentos en el nuevo plan', async () => {
+    render(<CommissionsManager />);
+    await userEvent.click(screen.getByRole('button', { name: 'Nuevo plan' }));
+
+    expect(screen.getByText('Incluir comisión en ventas de combos')).toBeInTheDocument();
+    expect(screen.getByText('Incluir comisión en ventas con descuento')).toBeInTheDocument();
   });
 });

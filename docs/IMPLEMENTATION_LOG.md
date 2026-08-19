@@ -1,5 +1,15 @@
 # Registro de implementación
 
+## 2026-08-18 - Comisiones: incluir/excluir combos y descuentos
+
+- `commission_plans` gana dos banderas `include_combos` e `include_discounts` (default true).
+- `CommissionLedgerService` omite lineas de combos (promocion `scope=combo`) cuando
+  `include_combos=false`, y lineas con descuento (manual o promocion no-combo) cuando
+  `include_discounts=false`. Cache del scope de promocion para evitar N+1.
+- Requests, Resource y modelo actualizados; defaults del modelo en true.
+- Frontend: form de planes con dos checkboxes y resumen por plan (Combos/Descuentos).
+- TDD: `CommissionInclusionTest` (5 tests). Comisiones 20/20; suite frontend 750/751.
+
 ## 2026-08-18 - Reporte Z: impresion termica via agente local
 
 - `PrinterServer` (agente `printer:serve`) ahora renderiza el Reporte Z en texto plano termico

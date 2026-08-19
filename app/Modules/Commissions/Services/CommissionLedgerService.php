@@ -10,6 +10,7 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Products\Models\Product;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Sync\Services\SyncOutboxService;
@@ -18,6 +19,13 @@ use Illuminate\Validation\ValidationException;
 
 class CommissionLedgerService
 {
+    /**
+     * Cache del scope de cada promocion por pedido/request para evitar N+1.
+     *
+     * @var array<int, string|null>
+     */
+    private array $promotionScopeCache = [];
+
     public function __construct(private readonly SyncOutboxService $syncOutbox) {}
 
     public function recordPaidOrder(PosOrder $order): void
@@ -157,6 +165,16 @@ class CommissionLedgerService
             return;
         }
 
+        $isCombo = $this->isComboLine($saleItem);
+        if (! $plan->include_combos && $isCombo) {
+            return;
+        }
+
+        $hasDiscount = $this->hasDiscount($saleItem, $isCombo);
+        if (! $plan->include_discounts && $hasDiscount) {
+            return;
+        }
+
         [$eligibleBase, $rateTypeId, $rateTypeCode, $rate] = $this->eligibleSnapshot($saleItem, $plan);
         $eligibleBase = round($eligibleBase * $ratio, 4);
         $entry = CommissionEntry::create([
@@ -183,6 +201,32 @@ class CommissionLedgerService
             'available_at' => $earnedAt->copy()->addDays($plan->maturation_days),
         ]);
         $this->recordSyncEvent($entry);
+    }
+
+    private function isComboLine(SaleItem $item): bool
+    {
+        if ($item->promotion_id === null) {
+            return false;
+        }
+
+        return $this->promotionScope((int) $item->promotion_id) === Promotion::SCOPE_COMBO;
+    }
+
+    private function hasDiscount(SaleItem $item, bool $isCombo): bool
+    {
+        if ((float) $item->discount_amount > 0 || (float) $item->discount_base_amount > 0) {
+            return true;
+        }
+
+        // Una promocion que no es combo (oferta de producto, factura o descuento
+        // heredado) implica un descuento sobre la linea.
+        return $item->promotion_id !== null && ! $isCombo;
+    }
+
+    private function promotionScope(int $promotionId): ?string
+    {
+        return $this->promotionScopeCache[$promotionId]
+            ??= Promotion::query()->whereKey($promotionId)->value('scope');
     }
 
     private function eligibleSnapshot(SaleItem $item, CommissionPlan $plan): array

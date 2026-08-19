@@ -30,6 +30,8 @@ const initialForm: CommissionPlanInput = {
   credit_policy: 'proportional_collections',
   maturation_days: 7,
   allow_self_stacking: false,
+  include_combos: true,
+  include_discounts: true,
   is_active: true,
   starts_at: null,
   ends_at: null,
@@ -152,6 +154,8 @@ export function CommissionsManager() {
                     <span>Tasa: {plan.conversion_policy === 'sale_snapshot' ? 'la registrada en la venta' : plan.exchange_rate_type?.code}</span>
                     <span>Crédito: {plan.credit_policy === 'proportional_collections' ? 'al recibir cada cobro' : 'al confirmar venta'}</span>
                     <span>Acumulación: {plan.allow_self_stacking ? 'permitida' : 'sin doble comisión'}</span>
+                    <span>Combos: {plan.include_combos ? 'incluye comisión' : 'excluidos'}</span>
+                    <span>Descuentos: {plan.include_discounts ? 'incluye comisión' : 'excluidos'}</span>
                   </div>
                 </article>
               ))}
@@ -226,6 +230,8 @@ export function CommissionsManager() {
               <Field label="Tipo de tasa"><Select disabled={form.conversion_policy === 'sale_snapshot'} value={form.exchange_rate_type_id ?? ''} onChange={(event) => setForm({ ...form, exchange_rate_type_id: event.target.value ? Number(event.target.value) : null })}><option value="">Seleccionar</option>{rateTypes.filter((item) => item.is_active !== false).map((item) => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}</Select></Field>
               <Field label="Ventas a crédito"><Select value={form.credit_policy} onChange={(event) => setForm({ ...form, credit_policy: event.target.value as CommissionPlanInput['credit_policy'] })}><option value="proportional_collections">Generar proporcionalmente al cobrar</option><option value="sale_confirmation">Generar al confirmar la venta</option></Select></Field>
               <label className="border-border flex items-center gap-3 rounded-lg border p-3 text-sm"><Checkbox checked={form.allow_self_stacking} onCheckedChange={(checked) => setForm({ ...form, allow_self_stacking: checked === true })} /><span>Permitir vendedor + cajero si es la misma persona</span></label>
+              <label className="border-border flex items-center gap-3 rounded-lg border p-3 text-sm"><Checkbox checked={form.include_combos} onCheckedChange={(checked) => setForm({ ...form, include_combos: checked === true })} /><span>Incluir comisión en ventas de combos</span></label>
+              <label className="border-border flex items-center gap-3 rounded-lg border p-3 text-sm"><Checkbox checked={form.include_discounts} onCheckedChange={(checked) => setForm({ ...form, include_discounts: checked === true })} /><span>Incluir comisión en ventas con descuento</span></label>
             </div>
             <div>
               <Label>Personas asignadas</Label>

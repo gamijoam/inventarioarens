@@ -24,6 +24,8 @@ class CommissionPlanResource extends JsonResource
             'credit_policy' => $this->credit_policy,
             'maturation_days' => $this->maturation_days,
             'allow_self_stacking' => $this->allow_self_stacking,
+            'include_combos' => (bool) $this->include_combos,
+            'include_discounts' => (bool) $this->include_discounts,
             'is_active' => $this->is_active,
             'starts_at' => $this->starts_at?->toJSON(),
             'ends_at' => $this->ends_at?->toJSON(),
