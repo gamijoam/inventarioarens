@@ -7186,3 +7186,21 @@ Regla:
 - TDD: `TenantSettingsSyncTest` (3 tests: snapshot incluye company, outbox al actualizar, applier
   merge preservando secciones locales). Sync/Tenancy 25/25.
 - Deploy: commit `a71be384` en ambas apps (pull + optimize:clear + bundle admin). HTTP 200.
+
+## 2026-08-19 - Modulo de Cotizaciones (PDF, conversion a venta, creacion desde POS y Armar pedido)
+
+- **Nuevo**: modulo `Quotations` (tablas `quotations` + `quotation_items`) con snapshot de precios
+  USD/VES, cliente, almacen, vencimiento y notas. Documento no fiscal.
+- **Endpoints**: CRUD `/api/quotations`, `POST /{id}/convert` (crea orden POS pendiente reusando
+  `PosCheckoutService::holdOrder`) y `GET /{id}/pdf` + `pdf.html`.
+- **Permisos**: `quotations.{view,create,update,delete,convert}` (Owner/Admin todos; Gerente y
+  Vendedor los 5; Almacen/Auditor solo view).
+- **PDF**: `resources/views/quotations/quotation-pdf.blade.php` con datos de la empresa
+  (`show_on.quotation`, nuevo toggle en Ajustes > Empresa) e items con variante.
+- **Frontend**: seccion **Cotizaciones** en Ventas (lista, detalle, PDF, convertir, cancelar) y
+  botones "Cotizacion" en el POS y "Crear cotizacion" en `/pos/armar` (desde el carrito).
+- **TDD**: `QuotationApiTest` (9: crear, variante ajena, filtros, 403, cross-tenant 404, convertir,
+  draft no convertible, PDF con empresa, cancelar) + `QuotationCreateDialog.test` + boton en
+  `ArmOrderScreen.test`. Backend 25/25; frontend 767/768; tsc y Pint limpios.
+- **Deploy**: commit `35128eb5` en ambas apps; migracion `2026_08_19_150000_create_quotations_tables`
+  aplicada; bundle admin publicado; HTTP 200 + tablas verificadas.
