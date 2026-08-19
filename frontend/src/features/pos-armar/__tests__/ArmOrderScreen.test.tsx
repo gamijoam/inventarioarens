@@ -7,6 +7,16 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   createCustomer: vi.fn(),
   createQuotation: vi.fn(),
+  convertQuotation: vi.fn(),
+  quotations: [] as Array<{
+    id: number;
+    sequence: number;
+    document_number: string;
+    customer_name: string | null;
+    status: string;
+    total_base_amount: number;
+    valid_until: string | null;
+  }>,
   getProductVariants: vi.fn(),
   quoteProductForPos: vi.fn<(productId: number, priceListId: number) => Promise<unknown>>(),
   getProductForPos: vi.fn<(productId: number, warehouseId: number) => Promise<unknown>>(),
@@ -178,6 +188,9 @@ vi.mock('../OnScreenKeyboard', () => ({
 
 vi.mock('@/features/quotations/api', () => ({
   useCreateQuotation: () => ({ mutateAsync: mocks.createQuotation }),
+  useQuotations: () => ({ data: mocks.quotations, isLoading: false }),
+  useConvertQuotation: () => ({ mutateAsync: mocks.convertQuotation }),
+  openQuotationPdf: vi.fn(),
 }));
 vi.mock('@/features/customers/api', () => ({
   useCustomers: () => ({ data: [] }),
@@ -632,5 +645,29 @@ describe('<ArmOrderScreen>', () => {
     expect(payload.items[0]).toEqual(
       expect.objectContaining({ product_id: 41, quantity: 1 }),
     );
+  });
+
+  it('abre el listado de cotizaciones desde el boton Ver cotizaciones', async () => {
+    mocks.quotations.splice(0, mocks.quotations.length, {
+      id: 9,
+      sequence: 9,
+      document_number: 'COT-000009',
+      customer_name: 'Cliente X',
+      status: 'issued',
+      total_base_amount: 25,
+      valid_until: null,
+    });
+    mocks.convertQuotation.mockResolvedValue({
+      quotation: { document_number: 'COT-000009' },
+      pos_order: { id: 77 },
+    });
+    render(<ArmOrderScreen />);
+
+    fireEvent.click(screen.getByTestId('view-quotations'));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('COT-000009')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByTestId('quotation-picker-convert-9'));
+    await waitFor(() => expect(mocks.convertQuotation).toHaveBeenCalledWith(9));
   });
 });

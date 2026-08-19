@@ -42,6 +42,7 @@ import { PromotionsPanel } from '@/features/pos/PromotionsPanel';
 import { TapButton } from '@/features/pos/TapButton';
 import { VariantPicker, type VariantPickerValue } from '@/features/pos/VariantPicker';
 import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
+import { QuotationPickerDialog } from '@/features/quotations/QuotationPickerDialog';
 import { expandPromotionItems, promotionLineUnitPrice } from '@/features/pos/posLogic';
 import { createClientId } from '@/lib/clientId';
 import { PERMISSIONS } from '@/permissions/constants';
@@ -113,6 +114,7 @@ export function ArmOrderScreen() {
   const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
   const holdOrder = useHoldOrder();
   const [quotationOpen, setQuotationOpen] = useState(false);
+  const [quotationsOpen, setQuotationsOpen] = useState(false);
   const createCustomer = useCreateCustomerForPos();
   const canCreateCustomer = useCan(PERMISSIONS.CUSTOMERS_CREATE);
   const canViewPromotions = useCan(PERMISSIONS.POS_PROMOTIONS_VIEW);
@@ -937,6 +939,15 @@ export function ArmOrderScreen() {
                 <FileText className="size-5" />
                 Crear cotizacion
               </Button>
+              <Button
+                variant="ghost"
+                className="h-11 w-full text-base"
+                onClick={() => setQuotationsOpen(true)}
+                data-testid="view-quotations"
+              >
+                <FileText className="size-5" />
+                Ver cotizaciones
+              </Button>
             </div>
           </aside>
         </div>
@@ -956,6 +967,12 @@ export function ArmOrderScreen() {
             unit_price: line.unit_price,
           }))}
           onCreated={() => toast.success('Cotizacion creada. El carrito se mantiene para enviar a caja.')}
+        />
+
+        <QuotationPickerDialog
+          open={quotationsOpen}
+          onOpenChange={setQuotationsOpen}
+          onConverted={() => toast.success('Orden pendiente lista para cobrar.')}
         />
 
         <Dialog open={promotionDialogOpen} onOpenChange={setPromotionDialogOpen}>

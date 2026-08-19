@@ -58,6 +58,7 @@ import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
+import { QuotationPickerDialog } from '@/features/quotations/QuotationPickerDialog';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import {
@@ -363,6 +364,7 @@ export function PosTerminal() {
   const { signOut } = useAuth();
   const [exitingPos, setExitingPos] = useState(false);
   const [quotationOpen, setQuotationOpen] = useState(false);
+  const [quotationsOpen, setQuotationsOpen] = useState(false);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
@@ -1446,6 +1448,14 @@ export function PosTerminal() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setQuotationsOpen(true)}
+              data-testid="pos-view-quotations"
+            >
+              <FileText className="size-4" /> Ver cotizaciones
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setProductSearch(query);
                 setPanel('product-search');
@@ -2078,6 +2088,12 @@ export function PosTerminal() {
           unit_price: line.unit_price,
         }))}
         onCreated={() => toast.success('Cotizacion creada. El ticket se mantiene para cobrar.')}
+      />
+
+      <QuotationPickerDialog
+        open={quotationsOpen}
+        onOpenChange={setQuotationsOpen}
+        onConverted={() => toast.success('Orden pendiente lista para cobrar.')}
       />
     </PosShell>
   );
