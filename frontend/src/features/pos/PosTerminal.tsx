@@ -9,6 +9,7 @@ import {
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   CreditCard,
+  FileText,
   Gift,
   Loader2,
   Minus,
@@ -56,6 +57,7 @@ import { isInvoiceDiscountType, type Promotion } from '@/features/promotions/sch
 import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
+import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import {
@@ -360,6 +362,7 @@ export function PosTerminal() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [exitingPos, setExitingPos] = useState(false);
+  const [quotationOpen, setQuotationOpen] = useState(false);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
@@ -1434,6 +1437,15 @@ export function PosTerminal() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setQuotationOpen(true)}
+              disabled={cart.length === 0}
+              data-testid="pos-create-quotation"
+            >
+              <FileText className="size-4" /> Cotizacion
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setProductSearch(query);
                 setPanel('product-search');
@@ -2049,6 +2061,21 @@ export function PosTerminal() {
           </PanelShell>
         )}
       </div>
+
+      <QuotationCreateDialog
+        open={quotationOpen}
+        onOpenChange={setQuotationOpen}
+        defaultWarehouseId={cart[0]?.warehouse_id ?? null}
+        defaultCustomerName={customerName && customerName !== 'Consumidor Final' ? customerName : undefined}
+        initialItems={cart.map((line) => ({
+          product_id: line.product_id,
+          product_variant_id: line.product_variant_id ?? null,
+          product_variant_name: line.product_variant_name ?? null,
+          quantity: line.quantity,
+          price_list_id: line.price_list_id ?? null,
+        }))}
+        onCreated={() => toast.success('Cotizacion creada. El ticket se mantiene para cobrar.')}
+      />
     </PosShell>
   );
 

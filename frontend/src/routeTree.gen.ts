@@ -24,6 +24,7 @@ import { Route as AuthedSalesReturnsRouteImport } from './routes/_authed/sales-r
 import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
+import { Route as AuthedQuotationsRouteImport } from './routes/_authed/quotations'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
 import { Route as AuthedPromotionsRouteImport } from './routes/_authed/promotions'
 import { Route as AuthedPrintingRouteImport } from './routes/_authed/printing'
@@ -41,6 +42,7 @@ import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$u
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
 import { Route as AuthedSettingsTelegramRouteImport } from './routes/_authed/settings/telegram'
 import { Route as AuthedSettingsCompanyRouteImport } from './routes/_authed/settings/company'
+import { Route as AuthedQuotationsQuotationIdRouteImport } from './routes/_authed/quotations.$quotationId'
 import { Route as AuthedPosArmarRouteImport } from './routes/_authed/pos_.armar'
 import { Route as AuthedInventoryManualMovementsRouteImport } from './routes/_authed/inventory/manual-movements'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
@@ -126,6 +128,11 @@ const AuthedReportsRoute = AuthedReportsRouteImport.update({
 const AuthedReceivablesRoute = AuthedReceivablesRouteImport.update({
   id: '/receivables',
   path: '/receivables',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedQuotationsRoute = AuthedQuotationsRouteImport.update({
+  id: '/quotations',
+  path: '/quotations',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPurchasesRoute = AuthedPurchasesRouteImport.update({
@@ -215,6 +222,12 @@ const AuthedSettingsCompanyRoute = AuthedSettingsCompanyRouteImport.update({
   path: '/settings/company',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedQuotationsQuotationIdRoute =
+  AuthedQuotationsQuotationIdRouteImport.update({
+    id: '/$quotationId',
+    path: '/$quotationId',
+    getParentRoute: () => AuthedQuotationsRoute,
+  } as any)
 const AuthedPosArmarRoute = AuthedPosArmarRouteImport.update({
   id: '/pos_/armar',
   path: '/pos/armar',
@@ -297,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/printing': typeof AuthedPrintingRoute
   '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
+  '/quotations': typeof AuthedQuotationsRouteWithChildren
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
   '/sales': typeof AuthedSalesRoute
@@ -316,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
+  '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/company': typeof AuthedSettingsCompanyRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
@@ -342,6 +357,7 @@ export interface FileRoutesByTo {
   '/printing': typeof AuthedPrintingRoute
   '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
+  '/quotations': typeof AuthedQuotationsRouteWithChildren
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
   '/sales': typeof AuthedSalesRoute
@@ -361,6 +377,7 @@ export interface FileRoutesByTo {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
+  '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/company': typeof AuthedSettingsCompanyRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
@@ -389,6 +406,7 @@ export interface FileRoutesById {
   '/_authed/printing': typeof AuthedPrintingRoute
   '/_authed/promotions': typeof AuthedPromotionsRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
+  '/_authed/quotations': typeof AuthedQuotationsRouteWithChildren
   '/_authed/receivables': typeof AuthedReceivablesRoute
   '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/sales': typeof AuthedSalesRoute
@@ -408,6 +426,7 @@ export interface FileRoutesById {
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/_authed/pos_/armar': typeof AuthedPosArmarRoute
+  '/_authed/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/_authed/settings/company': typeof AuthedSettingsCompanyRoute
   '/_authed/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
@@ -436,6 +455,7 @@ export interface FileRouteTypes {
     | '/printing'
     | '/promotions'
     | '/purchases'
+    | '/quotations'
     | '/receivables'
     | '/reports'
     | '/sales'
@@ -455,6 +475,7 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/inventory/manual-movements'
     | '/pos/armar'
+    | '/quotations/$quotationId'
     | '/settings/company'
     | '/settings/telegram'
     | '/transfers/$transferId'
@@ -481,6 +502,7 @@ export interface FileRouteTypes {
     | '/printing'
     | '/promotions'
     | '/purchases'
+    | '/quotations'
     | '/receivables'
     | '/reports'
     | '/sales'
@@ -500,6 +522,7 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/inventory/manual-movements'
     | '/pos/armar'
+    | '/quotations/$quotationId'
     | '/settings/company'
     | '/settings/telegram'
     | '/transfers/$transferId'
@@ -527,6 +550,7 @@ export interface FileRouteTypes {
     | '/_authed/printing'
     | '/_authed/promotions'
     | '/_authed/purchases'
+    | '/_authed/quotations'
     | '/_authed/receivables'
     | '/_authed/reports'
     | '/_authed/sales'
@@ -546,6 +570,7 @@ export interface FileRouteTypes {
     | '/_authed/inventory/currency'
     | '/_authed/inventory/manual-movements'
     | '/_authed/pos_/armar'
+    | '/_authed/quotations/$quotationId'
     | '/_authed/settings/company'
     | '/_authed/settings/telegram'
     | '/_authed/transfers/$transferId'
@@ -672,6 +697,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedReceivablesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/quotations': {
+      id: '/_authed/quotations'
+      path: '/quotations'
+      fullPath: '/quotations'
+      preLoaderRoute: typeof AuthedQuotationsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/purchases': {
       id: '/_authed/purchases'
       path: '/purchases'
@@ -791,6 +823,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsCompanyRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/quotations/$quotationId': {
+      id: '/_authed/quotations/$quotationId'
+      path: '/$quotationId'
+      fullPath: '/quotations/$quotationId'
+      preLoaderRoute: typeof AuthedQuotationsQuotationIdRouteImport
+      parentRoute: typeof AuthedQuotationsRoute
+    }
     '/_authed/pos_/armar': {
       id: '/_authed/pos_/armar'
       path: '/pos/armar'
@@ -893,6 +932,17 @@ const AuthedInventoryTransferRequestsRouteWithChildren =
     AuthedInventoryTransferRequestsRouteChildren,
   )
 
+interface AuthedQuotationsRouteChildren {
+  AuthedQuotationsQuotationIdRoute: typeof AuthedQuotationsQuotationIdRoute
+}
+
+const AuthedQuotationsRouteChildren: AuthedQuotationsRouteChildren = {
+  AuthedQuotationsQuotationIdRoute: AuthedQuotationsQuotationIdRoute,
+}
+
+const AuthedQuotationsRouteWithChildren =
+  AuthedQuotationsRoute._addFileChildren(AuthedQuotationsRouteChildren)
+
 interface AuthedTransfersRouteChildren {
   AuthedTransfersTransferIdRoute: typeof AuthedTransfersTransferIdRoute
 }
@@ -940,6 +990,7 @@ interface AuthedRouteChildren {
   AuthedPrintingRoute: typeof AuthedPrintingRoute
   AuthedPromotionsRoute: typeof AuthedPromotionsRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
+  AuthedQuotationsRoute: typeof AuthedQuotationsRouteWithChildren
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedSalesRoute: typeof AuthedSalesRoute
@@ -977,6 +1028,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPrintingRoute: AuthedPrintingRoute,
   AuthedPromotionsRoute: AuthedPromotionsRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
+  AuthedQuotationsRoute: AuthedQuotationsRouteWithChildren,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
   AuthedReportsRoute: AuthedReportsRoute,
   AuthedSalesRoute: AuthedSalesRoute,

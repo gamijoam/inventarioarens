@@ -63,6 +63,7 @@ class TenantSettingController extends Controller
             'settings.company.show_on.sale_ticket' => ['sometimes', 'boolean'],
             'settings.company.show_on.guide' => ['sometimes', 'boolean'],
             'settings.company.show_on.report_z' => ['sometimes', 'boolean'],
+            'settings.company.show_on.quotation' => ['sometimes', 'boolean'],
         ]);
 
         $setting = $tenant->setting

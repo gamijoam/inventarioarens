@@ -22,12 +22,14 @@ interface ShowOnState {
   sale_ticket: boolean;
   guide: boolean;
   report_z: boolean;
+  quotation: boolean;
 }
 
 const SHOW_ON_LABELS: Array<{ key: keyof ShowOnState; label: string; hint: string }> = [
   { key: 'sale_ticket', label: 'Ticket de venta', hint: 'Aparece en el ticket POS al imprimir' },
   { key: 'guide', label: 'Guías de traslado', hint: 'Aparece en la guía de traslado (PDF)' },
   { key: 'report_z', label: 'Reporte Z', hint: 'Aparece en el reporte Z de cierre de turno' },
+  { key: 'quotation', label: 'Cotizaciones', hint: 'Aparece en el PDF de cotización' },
 ];
 
 export function CompanySettingsPanel() {
@@ -47,6 +49,7 @@ export function CompanySettingsPanel() {
     sale_ticket: true,
     guide: true,
     report_z: true,
+    quotation: true,
   });
   const [saving, setSaving] = useState(false);
 
@@ -65,6 +68,7 @@ export function CompanySettingsPanel() {
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
       report_z: data.show_on?.report_z ?? true,
+      quotation: data.show_on?.quotation ?? true,
     });
   }, [data]);
 

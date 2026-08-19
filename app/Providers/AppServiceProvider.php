@@ -41,6 +41,8 @@ use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\PurchaseReturns\Policies\PurchaseReturnPolicy;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Policies\PurchaseOrderPolicy;
+use App\Modules\Quotations\Models\Quotation;
+use App\Modules\Quotations\Policies\QuotationPolicy;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Policies\SalePolicy;
 use App\Modules\SalesReturns\Models\SalesReturn;
@@ -90,6 +92,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProductEntry::class, ProductEntryPolicy::class);
         Gate::policy(ProductExit::class, ProductExitPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(Quotation::class, QuotationPolicy::class);
         Gate::policy(PurchaseReturn::class, PurchaseReturnPolicy::class);
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(Sale::class, SalePolicy::class);

@@ -129,3 +129,6 @@ Route::middleware(['api.auth', 'tenant'])->group(base_path('app/Modules/Inventor
 
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/DataImport/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/Quotations/routes.php'));

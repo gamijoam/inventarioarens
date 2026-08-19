@@ -28,6 +28,7 @@ import {
   Printer,
   Upload,
   ClipboardList,
+  FileText,
   Settings2,
   Send,
   BadgeDollarSign,
@@ -86,6 +87,13 @@ const NAV_ITEMS: NavItem[] = [
 
   // ===== Ventas =====
   { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW, section: SECTION_LABELS.VENTAS },
+  {
+    to: '/quotations',
+    label: 'Cotizaciones',
+    icon: FileText,
+    permission: PERMISSIONS.QUOTATIONS_VIEW,
+    section: SECTION_LABELS.VENTAS,
+  },
   {
     to: '/sales-returns',
     label: 'Devoluciones',

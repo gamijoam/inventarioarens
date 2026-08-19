@@ -246,6 +246,11 @@ export const PERMISSIONS = {
   DATA_IMPORT_CREATE: 'data_import.create',
   DATA_IMPORT_EXECUTE: 'data_import.execute',
   DATA_IMPORT_DELETE: 'data_import.delete',
+  QUOTATIONS_VIEW: 'quotations.view',
+  QUOTATIONS_CREATE: 'quotations.create',
+  QUOTATIONS_UPDATE: 'quotations.update',
+  QUOTATIONS_DELETE: 'quotations.delete',
+  QUOTATIONS_CONVERT: 'quotations.convert',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

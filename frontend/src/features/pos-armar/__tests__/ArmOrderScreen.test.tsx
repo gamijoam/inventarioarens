@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   navigate: vi.fn(),
   createCustomer: vi.fn(),
+  createQuotation: vi.fn(),
   getProductVariants: vi.fn(),
   quoteProductForPos: vi.fn<(productId: number, priceListId: number) => Promise<unknown>>(),
   getProductForPos: vi.fn<(productId: number, warehouseId: number) => Promise<unknown>>(),
@@ -173,6 +174,19 @@ vi.mock('@/features/pos/VariantPicker', () => ({
 
 vi.mock('../OnScreenKeyboard', () => ({
   OnScreenKeyboard: () => <div data-testid="keyboard" />,
+}));
+
+vi.mock('@/features/quotations/api', () => ({
+  useCreateQuotation: () => ({ mutateAsync: mocks.createQuotation }),
+}));
+vi.mock('@/features/customers/api', () => ({
+  useCustomers: () => ({ data: [] }),
+}));
+vi.mock('@/features/inventory-center/api', () => ({
+  useWarehouses: () => ({ data: [{ id: 7, code: 'MAIN', name: 'Principal' }] }),
+}));
+vi.mock('@/features/transfers/api', () => ({
+  useProductsForTransfer: () => ({ data: [] }),
 }));
 
 import { ArmOrderScreen } from '../ArmOrderScreen';
@@ -592,5 +606,29 @@ describe('<ArmOrderScreen>', () => {
       expect.objectContaining({ name: 'Maria Lopez', document_number: '12345678' }),
     );
     expect(await screen.findByText('Maria Lopez')).toBeInTheDocument();
+  });
+
+  it('abre el dialog de cotizacion con los items del carrito', async () => {
+    mocks.createQuotation.mockResolvedValue({ id: 10, document_number: 'COT-000001' });
+    render(<ArmOrderScreen />);
+
+    fireEvent.click(screen.getByTestId('product-41'));
+    expect(
+      await within(screen.getByRole('complementary')).findByText('1 x $12.50'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('create-quotation'));
+    expect(screen.getByRole('heading', { name: 'Nueva cotizacion' })).toBeInTheDocument();
+    expect(screen.getByText(/Producto #41/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('quote-create-submit'));
+    await waitFor(() => expect(mocks.createQuotation).toHaveBeenCalledTimes(1));
+    const payload = mocks.createQuotation.mock.calls[0]?.[0] as {
+      items: Array<{ product_id: number; quantity: number }>;
+    };
+    expect(payload.items).toHaveLength(1);
+    expect(payload.items[0]).toEqual(
+      expect.objectContaining({ product_id: 41, quantity: 1 }),
+    );
   });
 });

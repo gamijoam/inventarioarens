@@ -18,6 +18,7 @@ export const CompanySettingsSchema = z.object({
       sale_ticket: z.boolean().optional(),
       guide: z.boolean().optional(),
       report_z: z.boolean().optional(),
+      quotation: z.boolean().optional(),
     })
     .optional(),
 });

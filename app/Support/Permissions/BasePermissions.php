@@ -164,6 +164,11 @@ class BasePermissions
         'data_import.create',
         'data_import.execute',
         'data_import.delete',
+        'quotations.view',
+        'quotations.create',
+        'quotations.update',
+        'quotations.delete',
+        'quotations.convert',
     ];
 
     public const ROLE_PERMISSIONS = [
@@ -284,6 +289,11 @@ class BasePermissions
             'warranties.review',
             'warranties.resolve',
             'warranties.deliver',
+            'quotations.view',
+            'quotations.create',
+            'quotations.update',
+            'quotations.delete',
+            'quotations.convert',
             'users.view',
             'sync.issue_token',
             'ai.use',
@@ -337,6 +347,11 @@ class BasePermissions
             'warranties.view',
             'warranties.create',
             'ai.use',
+            'quotations.view',
+            'quotations.create',
+            'quotations.update',
+            'quotations.delete',
+            'quotations.convert',
         ],
         'Almacen' => [
             'products.view',
@@ -383,6 +398,7 @@ class BasePermissions
             'warranty_policies.view',
             'warranties.view',
             'warranties.create',
+            'quotations.view',
         ],
         'Transportista' => [
             'products.view',
@@ -428,6 +444,7 @@ class BasePermissions
             'kardex.view',
             'warranty_policies.view',
             'warranties.view',
+            'quotations.view',
             'users.view',
             'data_import.view',
         ],

@@ -29,6 +29,7 @@ class CompanySettings
             'sale_ticket' => true,
             'guide' => true,
             'report_z' => true,
+            'quotation' => true,
         ],
     ];
 
