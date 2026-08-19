@@ -573,6 +573,8 @@ export const ProductMovementSchema = z.object({
   quantity: z.union([z.string(), z.number()]),
   unit_cost: z.string().nullable().optional(),
   reference: z.string().nullable().optional(),
+  reference_type: z.string().nullable().optional(),
+  reference_id: z.union([z.string(), z.number()]).nullable().optional(),
   created_at: z.string(),
   user_name: z.string().nullable().optional(),
 });

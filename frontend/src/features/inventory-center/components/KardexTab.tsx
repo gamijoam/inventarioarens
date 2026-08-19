@@ -44,71 +44,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { formatRelative } from '@/lib/format';
 import { formatCost } from '@/lib/money';
 import { useSessionStore } from '@/stores/session';
-
-/**
- * Mapea tipos de StockMovement a labels legibles para el kardex.
- * Si el type no esta en el mapa, devuelve el type crudo (con guiones a espacios).
- */
-const MOVEMENT_TYPE_LABELS: Record<string, string> = {
-  purchase: 'Compra',
-  purchase_return: 'Devolucion de compra',
-  sale: 'Venta',
-  sale_return: 'Devolucion de venta',
-  adjustment_in: 'Ajuste +',
-  adjustment_out: 'Ajuste -',
-  transfer_in: 'Traslado +',
-  transfer_out: 'Traslado -',
-  transfer_request_in: 'Transferencia inter-empresa +',
-  transfer_request_out: 'Transferencia inter-empresa -',
-  return_in: 'Devolucion +',
-  return_out: 'Devolucion -',
-  damaged: 'Danado',
-  reserved: 'Reservado',
-  released: 'Liberado',
-};
-
-function movementTypeLabel(type: string): string {
-  return MOVEMENT_TYPE_LABELS[type] ?? type.replace(/_/g, ' ');
-}
-
-/**
- * Tipos que representan ENTRADAS (verde en el badge).
- */
-const IN_TYPES = new Set([
-  'purchase', 'sale_return', 'adjustment_in',
-  'transfer_in', 'transfer_request_in', 'return_in',
-  'released',
-]);
-
-/**
- * Mapea reference_type del backend a una ruta del frontend cuando es
- * clickeable. Si retorna null, se muestra como texto plano.
- */
-function referenceLink(
-  refType: string | null | undefined,
-  refId: number | string | null | undefined,
-): { label: string; to: string } | null {
-  if (!refType || refId == null) return null;
-  if (refType === 'InventoryTransferRequest') {
-    return {
-      label: 'Solicitud inter-empresa',
-      to: `/inventory-transfer-requests/${refId}`,
-    };
-  }
-  if (refType === 'InventoryTransfer') {
-    return {
-      label: 'Traslado',
-      to: `/transfers/${refId}`,
-    };
-  }
-  if (refType === 'PurchaseOrder') {
-    return { label: 'Orden de compra', to: `/purchases/${refId}` };
-  }
-  if (refType === 'Sale' || refType === 'PosOrder') {
-    return { label: 'Venta', to: `/sales/${refId}` };
-  }
-  return null;
-}
+import { movementTypeLabel, MOVEMENT_IN_TYPES, referenceTypeLabel, referenceLink } from '../movementLabels';
 
 // Shape real del kardex: data es un objeto con metadata + movements[].
 const KardexMovementSchema = z.object({
@@ -250,7 +186,7 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
                   <td className="px-3 py-2 text-text-muted">{formatRelative(e.date)}</td>
                   <td className="px-3 py-2">
                     <Badge
-                      variant={IN_TYPES.has(e.type) ? 'success' : 'warning'}
+                      variant={MOVEMENT_IN_TYPES.has(e.type) ? 'success' : 'warning'}
                       data-testid={`kardex-type-${e.id}`}
                     >
                       {movementTypeLabel(e.type)}
@@ -286,8 +222,8 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
                         );
                       }
                       return (
-                        <span>
-                          {e.reference_type ?? '—'}
+                        <span data-testid={`kardex-ref-${e.id}`}>
+                          {referenceTypeLabel(e.reference_type)}
                           {e.reference_id != null ? ` #${e.reference_id}` : ''}
                         </span>
                       );
