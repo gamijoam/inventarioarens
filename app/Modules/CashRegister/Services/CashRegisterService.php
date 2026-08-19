@@ -203,6 +203,8 @@ class CashRegisterService
                 }
             }
 
+            app(ReportZService::class)->assignZNumber($session);
+
             $this->recordSessionSyncEvent($session->refresh(), 'cash.session.closed');
 
             return $session->refresh()->load(['branch', 'cashRegister', 'movements', 'counts']);

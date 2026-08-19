@@ -14,6 +14,7 @@ use App\Modules\CashRegister\Requests\StoreCashRegisterMovementRequest;
 use App\Modules\CashRegister\Resources\CashRegisterSessionDetailResource;
 use App\Modules\CashRegister\Resources\CashRegisterSessionResource;
 use App\Modules\CashRegister\Services\CashRegisterService;
+use App\Modules\CashRegister\Services\ReportZService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -140,5 +141,43 @@ class CashRegisterSessionController extends Controller
         return CashRegisterSessionResource::make(
             $cashRegister->close($cashRegisterSession, $request->validated(), $request->user())
         );
+    }
+
+    public function reportZ(CashRegisterSession $cashRegisterSession, Request $request, ReportZService $service): JsonResponse
+    {
+        $this->authorizeReportZ($cashRegisterSession, $request);
+
+        return response()->json([
+            'data' => $service->build($cashRegisterSession),
+        ]);
+    }
+
+    public function reportZPdf(CashRegisterSession $cashRegisterSession, Request $request, ReportZService $service): Response
+    {
+        $this->authorizeReportZ($cashRegisterSession, $request);
+
+        return response($service->renderPdf($cashRegisterSession), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "attachment; filename=\"reporte-z-{$cashRegisterSession->z_number}.pdf\"",
+        ]);
+    }
+
+    public function reportZTicket(CashRegisterSession $cashRegisterSession, Request $request, ReportZService $service): Response
+    {
+        $this->authorizeReportZ($cashRegisterSession, $request);
+
+        return response($service->renderHtml($cashRegisterSession), 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+        ]);
+    }
+
+    private function authorizeReportZ(CashRegisterSession $session, Request $request): void
+    {
+        abort_unless(
+            $request->user()?->can('cash_register.view') || $request->user()?->can('reports.cash.view'),
+            Response::HTTP_FORBIDDEN
+        );
+
+        abort_unless($session->status === CashRegisterSession::STATUS_CLOSED, Response::HTTP_UNPROCESSABLE_ENTITY, 'El Reporte Z solo se emite para turnos cerrados.');
     }
 }

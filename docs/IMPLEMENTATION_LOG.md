@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-08-18 - Reporte Z de caja (Fase 1 backend + ticket termico)
+
+- Nueva migracion `add_z_number_to_cash_register_sessions`: columnas `z_number` (consecutivo por
+  caja) y `z_emitted_at`.
+- `ReportZService`: asigna el numero Z consecutivo por caja al cerrar el turno y construye el
+  reporte (tenant, caja, sucursal, cajero, apertura/cierre, totales USD/VES, desglose por metodo
+  de pago y arqueo).
+- `CashRegisterService::close` emite el Z al cerrar.
+- Endpoints: `GET /api/cash-register/sessions/{id}/report-z` (JSON),
+  `.../report-z.pdf` (PDF dompdf) y `.../report-z.ticket.html` (ticket termico 58/80mm).
+- Vista termica `resources/views/printing/report-z-ticket.blade.php` reutiliza el estilo y ancho
+  de perfil del modulo Printing.
+- El Z solo se emite para turnos cerrados y con permiso `cash_register.view` / `reports.cash.view`.
+- TDD: `tests/Feature/CashRegister/ReportZTest.php` (8 tests). Suite CashRegister 28/28.
+- Pendiente Fase 2: frontend (boton/imprimir Z al cerrar caja) y envio al agente de impresion local.
+
 ## 2026-08-18 - Reportes V2: separacion de moneda en ventas y fix de reportes sin tasa
 
 - Fix: los reportes sin montos locales (ventas por producto, stock, CxC, CxP) devolvian `rate: null`

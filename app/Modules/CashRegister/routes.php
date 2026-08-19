@@ -12,6 +12,9 @@ Route::prefix('cash-register')->group(function (): void {
     Route::post('sessions', [CashRegisterSessionController::class, 'open']);
     Route::get('sessions/{cashRegisterSession}', [CashRegisterSessionController::class, 'show']);
     Route::get('sessions/{cashRegisterSession}/detail', [CashRegisterSessionController::class, 'detail']);
+    Route::get('sessions/{cashRegisterSession}/report-z', [CashRegisterSessionController::class, 'reportZ']);
+    Route::get('sessions/{cashRegisterSession}/report-z.pdf', [CashRegisterSessionController::class, 'reportZPdf']);
+    Route::get('sessions/{cashRegisterSession}/report-z.ticket.html', [CashRegisterSessionController::class, 'reportZTicket']);
     Route::post('sessions/{cashRegisterSession}/movements', [CashRegisterSessionController::class, 'movement']);
     Route::patch('sessions/{cashRegisterSession}/close', [CashRegisterSessionController::class, 'close']);
     Route::post('sessions/{cashRegisterSession}/review', [CashRegisterSessionController::class, 'review']);
