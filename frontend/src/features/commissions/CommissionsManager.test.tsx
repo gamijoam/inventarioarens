@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommissionsManager } from './CommissionsManager';
 
 const simulate = vi.fn();
+const mockCreatePlan = vi.fn();
+const mockUpdatePlan = vi.fn();
 
 vi.mock('./api', () => ({
   useCommissionPlans: () => ({ data: [{
@@ -28,7 +30,8 @@ vi.mock('./api', () => ({
     updated_at: null,
   }], isLoading: false }),
   useCommissionSimulation: () => ({ mutateAsync: simulate, data: undefined, isPending: false }),
-  useCreateCommissionPlan: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateCommissionPlan: () => ({ mutateAsync: mockCreatePlan, isPending: false }),
+  useUpdateCommissionPlan: () => ({ mutateAsync: mockUpdatePlan, isPending: false }),
   useDeactivateCommissionPlan: () => ({ mutateAsync: vi.fn() }),
 }));
 
@@ -60,5 +63,22 @@ describe('CommissionsManager simulator', () => {
 
     expect(screen.getByText('Incluir comisión en ventas de combos')).toBeInTheDocument();
     expect(screen.getByText('Incluir comisión en ventas con descuento')).toBeInTheDocument();
+  });
+
+  it('edita un plan existente prellenado y guarda los cambios', async () => {
+    mockUpdatePlan.mockReset().mockResolvedValue({});
+    render(<CommissionsManager />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Editar Vendedores 1%' }));
+
+    expect(screen.getByText('Editar plan de comisiones')).toBeInTheDocument();
+    const nameInput = screen.getByPlaceholderText('Ej. Vendedores 3%');
+    expect((nameInput as HTMLInputElement).value).toBe('Vendedores 1%');
+
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, 'Vendedores 2%');
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(mockUpdatePlan).toHaveBeenCalledWith(expect.objectContaining({ id: 1, name: 'Vendedores 2%' }));
   });
 });

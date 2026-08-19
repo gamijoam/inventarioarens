@@ -1,5 +1,13 @@
 # Registro de implementación
 
+## 2026-08-18 - Comisiones: edicion de planes desde la UI
+
+- Bug: los planes de comisiones existentes no se podian editar (la UI solo permitia crearlos o
+  desactivarlos). El backend ya tenia `PATCH /commission-plans/{id}`.
+- `CommissionsManager`: boton `Editar` por plan que abre el formulario prellenado (incluidas las
+  personas asignadas) y guarda via `useUpdateCommissionPlan`; titulo y boton cambian al editar.
+- TDD: test de edicion prellenada + guardado. Suite frontend 751/752.
+
 ## 2026-08-18 - Comisiones: incluir/excluir combos y descuentos
 
 - `commission_plans` gana dos banderas `include_combos` e `include_discounts` (default true).
