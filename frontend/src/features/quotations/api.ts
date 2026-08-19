@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getMany, getOne, postOne, patchOne, deleteOne } from '@/api/client';
+import { api, getMany, getOne, postOne, patchOne, deleteOne } from '@/api/client';
 import { z } from 'zod';
 
 export const QuotationItemSchema = z.object({
@@ -137,4 +137,16 @@ export function useConvertQuotation() {
 
 export function quotationPdfUrl(id: number): string {
   return `/api/quotations/${id}/pdf`;
+}
+
+/**
+ * Abre el PDF de la cotizacion en una pestana nueva. Se descarga via el
+ * cliente axios (que envia X-Tenant + cookie) porque un <a href> directo
+ * no lleva el header y el middleware ResolveTenant responde 404.
+ */
+export async function openQuotationPdf(id: number): Promise<void> {
+  const response = await api.get(`/quotations/${id}/pdf`, { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data as Blob);
+  window.open(url, '_blank');
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

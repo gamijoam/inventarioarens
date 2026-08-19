@@ -18,7 +18,7 @@ import {
   useQuotations,
   useCancelQuotation,
   useConvertQuotation,
-  quotationPdfUrl,
+  openQuotationPdf,
 } from './api';
 import { QuotationCreateDialog } from './QuotationCreateDialog';
 
@@ -130,16 +130,19 @@ export function QuotationsManager() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
-                          <a
-                            href={quotationPdfUrl(q.id)}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
                             className="inline-flex items-center gap-1 rounded p-1.5 text-sm hover:bg-bg"
                             title="Descargar PDF"
                             data-testid={`quotation-pdf-${q.id}`}
+                            onClick={() => {
+                              void openQuotationPdf(q.id).catch(() =>
+                                toast.error('No se pudo abrir el PDF de la cotizacion.'),
+                              );
+                            }}
                           >
                             <Download className="size-4" />
-                          </a>
+                          </button>
                           {q.status === 'issued' && canConvert && (
                             <Button
                               type="button"

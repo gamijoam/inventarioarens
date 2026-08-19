@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatMoney } from '@/lib/money';
 import { useCan } from '@/permissions/useCan';
 import { PERMISSIONS } from '@/permissions/constants';
-import { useQuotation, useCancelQuotation, useConvertQuotation, quotationPdfUrl } from '@/features/quotations/api';
+import { useQuotation, useCancelQuotation, useConvertQuotation, openQuotationPdf } from '@/features/quotations/api';
 import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
 
 export const Route = createFileRoute('/_authed/quotations/$quotationId')({
@@ -71,16 +71,17 @@ function QuotationDetailPage() {
       }
       actions={
         <div className="flex items-center gap-2">
-          <a
-            href={quotationPdfUrl(quotation.id)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex"
+          <Button
+            variant="outline"
+            data-testid="quotation-pdf"
+            onClick={() => {
+              void openQuotationPdf(quotation.id).catch(() =>
+                toast.error('No se pudo abrir el PDF de la cotizacion.'),
+              );
+            }}
           >
-            <Button variant="outline" data-testid="quotation-pdf">
-              <Download className="size-4" /> PDF
-            </Button>
-          </a>
+            <Download className="size-4" /> PDF
+          </Button>
           {quotation.status === 'issued' && canConvert && (
             <Button onClick={() => setConfirmConvert(true)} data-testid="quotation-convert">
               <RefreshCw className="size-4" /> Convertir a venta
