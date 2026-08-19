@@ -88,3 +88,14 @@ export const UpdateUserInputSchema = z.object({
   name: z.string().min(1, 'Requerido.').max(150),
 });
 export type UpdateUserInput = z.input<typeof UpdateUserInputSchema>;
+
+export const ChangePasswordInputSchema = z
+  .object({
+    new_password: z.string().min(8, 'Minimo 8 caracteres.').regex(/[a-zA-Z]/, 'Debe contener letras.').regex(/[0-9]/, 'Debe contener numeros.'),
+    confirm_password: z.string().min(1, 'Repite la contrasena.'),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: 'Las contrasenas no coinciden.',
+    path: ['confirm_password'],
+  });
+export type ChangePasswordInput = z.input<typeof ChangePasswordInputSchema>;

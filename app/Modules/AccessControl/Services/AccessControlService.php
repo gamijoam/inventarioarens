@@ -4,6 +4,7 @@ namespace App\Modules\AccessControl\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Services\TenantSpinoffService;
@@ -223,6 +224,29 @@ class AccessControlService
         ]);
 
         return $user;
+    }
+
+    public function updatePassword(User $user, string $newPassword, User $actor): User
+    {
+        if ($user->is($actor)) {
+            throw ValidationException::withMessages([
+                'new_password' => 'No puedes cambiar tu propia contrasena desde la administracion de usuarios. Usa el perfil.',
+            ]);
+        }
+
+        $user->fill(['password' => $newPassword]);
+        $user->save();
+
+        // Revoca tokens activos del usuario para forzar re-login con la nueva clave.
+        AuthToken::query()
+            ->where('user_id', $user->id)
+            ->update(['revoked_at' => now()]);
+
+        $this->audit->record('access.user.password_changed', $user, $actor, [], [
+            'email' => $user->email,
+        ]);
+
+        return $this->tenantUser($user->id);
     }
 
     public function updateStatus(User $user, string $status, User $actor): User

@@ -22,6 +22,7 @@ Route::apiResource('users', TenantUserController::class)
     ->only(['index', 'store', 'show', 'update']);
 Route::patch('users/{tenantUser}/status', [TenantUserController::class, 'status']);
 Route::patch('users/{tenantUser}/roles', [TenantUserController::class, 'roles']);
+Route::post('users/{tenantUser}/password', [TenantUserController::class, 'changePassword']);
 Route::get('users/{tenantUser}/permissions', [TenantUserController::class, 'permissions']);
 
 Route::get('tenants/{tenant}/users/{user}/overrides', [UserOverrideController::class, 'index']);

@@ -7,6 +7,7 @@ use App\Modules\AccessControl\Requests\StoreTenantUserRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserRolesRequest;
 use App\Modules\AccessControl\Requests\UpdateTenantUserStatusRequest;
+use App\Modules\AccessControl\Requests\UpdateUserPasswordRequest;
 use App\Modules\AccessControl\Resources\TenantUserResource;
 use App\Modules\AccessControl\Services\AccessControlService;
 use App\Modules\Tenancy\Models\Tenant;
@@ -76,6 +77,21 @@ class TenantUserController extends Controller
 
         return TenantUserResource::make(
             $this->service->updateUser($this->service->tenantUser($tenantUser), $request->validated(), $request->user())
+        );
+    }
+
+    public function changePassword(UpdateUserPasswordRequest $request, int $tenantUser): TenantUserResource
+    {
+        $this->authorizePermission($request, 'users.update');
+
+        $user = $this->service->tenantUser($tenantUser);
+
+        return TenantUserResource::make(
+            $this->service->updatePassword(
+                $user,
+                $request->validated('new_password'),
+                $request->user()
+            )
         );
     }
 
