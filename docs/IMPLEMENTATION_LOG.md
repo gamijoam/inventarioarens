@@ -1,5 +1,13 @@
 # Registro de implementación
 
+## 2026-08-18 - Reportes V2: sin equivalente en Bs para pagos en USD
+
+- En `Ventas por método de pago` se elimina la columna `Equiv. Bs` y la tasa solo se muestra
+  para metodos pagados en bolivares; para pagos en USD las columnas `Pagado Bs`, `Equiv. $` y
+  `Tasa` quedan en `—` (irrelevantes).
+- Backend: se quita la medida `ves_equiv` del reporte de metodos. TDD: backend 51/51, suite
+  frontend 747/748.
+
 ## 2026-08-18 - Reportes V2: moneda por método de pago y equivalente en USD
 
 - Etiquetas amigables en todas las columnas (Total $, Total Bs, Pagado $, Pagado Bs, Equiv. $,

@@ -75,7 +75,6 @@ export const REPORT_MEASURE_LABELS: Record<string, string> = {
   usd_paid: 'Pagado $',
   ves_paid: 'Pagado Bs',
   usd_equiv: 'Equiv. $',
-  ves_equiv: 'Equiv. Bs',
   orders_count: 'Nº de órdenes',
   stock_qty: 'Unidades',
   stock_value: 'Valor de inventario',

@@ -175,7 +175,6 @@ class ReportV2ApiTest extends TestCase
         $this->assertSame(20, $rows->firstWhere('label', 'mobile_payment')['usd_paid']);
         $this->assertSame(100, $response->json('data.totals.usd_paid'));
         $this->assertSame(0, $response->json('data.totals.ves_paid'));
-        $this->assertSame(7400, $response->json('data.totals.ves_equiv'));
         $this->assertSame(0, $response->json('data.totals.usd_equiv'));
     }
 
@@ -197,7 +196,6 @@ class ReportV2ApiTest extends TestCase
         $this->assertSame(0, $row['usd_paid']);
         $this->assertSame(7400, $row['ves_paid']);
         $this->assertSame(100, $row['usd_equiv']);
-        $this->assertSame(0, $row['ves_equiv']);
         $this->assertSame(74, $row['rate']);
     }
 
@@ -425,7 +423,7 @@ class ReportV2ApiTest extends TestCase
         $this->assertSame(700, $response->json('data.totals.sales_total'));
     }
 
-    public function test_payment_method_report_includes_historical_local_equivalent(): void
+    public function test_payment_method_report_marks_usd_payment_without_bs_equivalents(): void
     {
         $group = $this->group();
         $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
@@ -438,7 +436,8 @@ class ReportV2ApiTest extends TestCase
             ->getJson('/api/reports/v2/sales_by_payment_method?scope=tenant')
             ->assertOk()
             ->assertJsonPath('data.totals.usd_paid', 80)
-            ->assertJsonPath('data.totals.ves_equiv', 5920);
+            ->assertJsonPath('data.totals.ves_paid', 0)
+            ->assertJsonPath('data.totals.usd_equiv', 0);
     }
 
     public function test_sales_overview_includes_historical_local_total(): void

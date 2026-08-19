@@ -141,7 +141,6 @@ class ReportRegistry
                     'usd_paid' => "coalesce(sum(case when pp.currency = 'USD' then pp.amount_base else 0 end), 0)",
                     'ves_paid' => "coalesce(sum(case when pp.currency = 'VES' then pp.amount_local else 0 end), 0)",
                     'usd_equiv' => "coalesce(sum(case when pp.currency = 'VES' then pp.amount_base else 0 end), 0)",
-                    'ves_equiv' => "coalesce(sum(case when pp.currency = 'USD' then pp.amount_local else 0 end), 0)",
                     'orders_count' => 'count(distinct po.id)',
                     'total_usd' => 'coalesce(sum(pp.amount_base), 0)',
                     'total_ves' => 'coalesce(sum(pp.amount_local), 0)',

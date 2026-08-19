@@ -373,6 +373,7 @@ function ChartKindButton({
 }
 
 function TotalsBar({ data, selected }: { data: ReportV2; selected: ReportV2CatalogItem }) {
+  const isPaymentMethods = selected.measures.includes('usd_paid');
   return (
     <div className="flex flex-wrap gap-3">
       {selected.measures.map((measure) => (
@@ -385,7 +386,7 @@ function TotalsBar({ data, selected }: { data: ReportV2; selected: ReportV2Catal
           </div>
         </div>
       ))}
-      {selected.has_local_amounts && data.rate != null && (
+      {selected.has_local_amounts && data.rate != null && !isPaymentMethods && (
         <div className="border-primary/30 bg-primary/5 rounded-md border px-3 py-2">
           <div className="text-text-muted text-xs uppercase">Tasa promedio (Bs/USD)</div>
           <div className="text-primary mt-0.5 font-semibold tabular-nums">
@@ -424,7 +425,7 @@ function ResultTable({ data, selected }: { data: ReportV2; selected: ReportV2Cat
               ))}
               {showRate && (
                 <td className="px-3 py-2 text-right tabular-nums">
-                  {row.rate != null ? `Bs ${formatRate(row.rate)}` : '—'}
+                  {formatRateCell(row)}
                 </td>
               )}
             </tr>
@@ -513,7 +514,7 @@ function ReportChart({
   );
 }
 
-const VES_MEASURES = new Set(['sales_total_local', 'amount_local', 'ves_paid', 'ves_equiv']);
+const VES_MEASURES = new Set(['sales_total_local', 'amount_local', 'ves_paid']);
 const USD_MEASURES = new Set([
   'sales_total',
   'amount',
@@ -527,14 +528,23 @@ const USD_MEASURES = new Set([
 function formatMeasure(measure: string, value: unknown, rate?: number): string {
   const numeric = Number(value ?? 0);
   if (VES_MEASURES.has(measure)) {
+    if (numeric === 0) return '—';
     const formatted = `Bs ${formatAmount(numeric)}`;
     if (measure === 'sales_total_local' && rate && rate > 0) {
       return `${formatted} (~$${formatAmount(numeric / rate)})`;
     }
     return formatted;
   }
-  if (USD_MEASURES.has(measure)) return formatMoney(numeric);
+  if (USD_MEASURES.has(measure)) {
+    return numeric === 0 ? '—' : formatMoney(numeric);
+  }
   return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(2);
+}
+
+function formatRateCell(row: ReportV2['rows'][number]): string {
+  // La tasa es relevante solo para pagos en bolivares; para pagos en USD se omite.
+  if (Number(row.usd_paid ?? 0) > 0) return '—';
+  return row.rate != null ? `Bs ${formatRate(row.rate)}` : '—';
 }
 
 function formatAmount(value: number): string {
