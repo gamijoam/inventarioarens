@@ -17,6 +17,7 @@ use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReturns\Models\SalesReturnItem;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
@@ -304,6 +305,7 @@ class SyncEventApplier
                 'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
                 'cash.session.opened', 'cash.session.closed' => $this->applyCashSession($tenant, $payload, $event),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
+                'tenant_settings.updated' => $this->applyTenantSettings($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
                 'inventory_transfer_request.accepted' => $this->applyInventoryTransferRequestAccepted($tenant, $payload),
                 'inventory_transfer_request.rejected' => $this->applyInventoryTransferRequestRejected($tenant, $payload),
@@ -1205,6 +1207,44 @@ class SyncEventApplier
                 ]
             );
         }
+    }
+
+    /**
+     * Aplica la seccion `company` de tenant_settings en el nodo destino.
+     * Merge por seccion: preserva el resto de settings locales del nodo.
+     */
+    private function applyTenantSettings(Tenant $tenant, array $payload): string
+    {
+        $company = $payload['company'] ?? [];
+        if (! is_array($company) || $company === []) {
+            return 'ignored';
+        }
+
+        $now = now();
+        $existing = DB::table('tenant_settings')->where('tenant_id', $tenant->id)->first();
+
+        if ($existing) {
+            $settings = json_decode((string) $existing->settings, true) ?? [];
+            $settings['company'] = array_replace_recursive(CompanySettings::DEFAULTS, $company);
+
+            DB::table('tenant_settings')
+                ->where('tenant_id', $tenant->id)
+                ->update([
+                    'settings' => json_encode($settings),
+                    'updated_at' => $now,
+                ]);
+        } else {
+            DB::table('tenant_settings')->insert([
+                'tenant_id' => $tenant->id,
+                'settings' => json_encode([
+                    'company' => array_replace_recursive(CompanySettings::DEFAULTS, $company),
+                ]),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        return 'applied';
     }
 
     private function applyInventoryTransfer(Tenant $tenant, array $payload): string

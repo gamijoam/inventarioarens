@@ -111,7 +111,7 @@ export function CompanySettingsPanel() {
               id="company-razon-social"
               value={razonSocial}
               onChange={(e) => setRazonSocial(e.target.value)}
-              placeholder="Comercial Arens, C.A."
+              placeholder="Nombre de la empresa"
               maxLength={255}
             />
           </div>

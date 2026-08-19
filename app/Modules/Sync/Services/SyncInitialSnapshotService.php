@@ -4,6 +4,7 @@ namespace App\Modules\Sync\Services;
 
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ class SyncInitialSnapshotService
         $summary = [
             'branch.created' => $this->queueBranches($tenant, $targetNodeId, $snapshotKey),
             'warehouse.created' => $this->queueWarehouses($tenant, $targetNodeId, $snapshotKey),
+            'tenant_settings.updated' => $this->queueTenantSettings($tenant, $targetNodeId, $snapshotKey),
             'exchange_rate_type.created' => $this->queueExchangeRateTypes($tenant, $targetNodeId, $snapshotKey),
             'exchange_rate.created' => $this->queueExchangeRates($tenant, $targetNodeId, $snapshotKey),
             'payment_method.created' => $this->queuePaymentMethods($tenant, $targetNodeId, $snapshotKey),
@@ -51,6 +53,26 @@ class SyncInitialSnapshotService
             ->where('target_node_id', $targetNodeId)
             ->where('idempotency_key', 'like', 'initial-snapshot:%')
             ->delete();
+    }
+
+    private function queueTenantSettings(Tenant $tenant, int $targetNodeId, string $installationCode): int
+    {
+        $company = CompanySettings::getForTenant($tenant);
+
+        $this->record(
+            $tenant,
+            $targetNodeId,
+            $installationCode,
+            'tenant_settings.updated',
+            'tenant_settings',
+            $tenant->id,
+            [
+                'tenant_id' => $tenant->id,
+                'company' => $company,
+            ],
+        );
+
+        return 1;
     }
 
     private function queueBranches(Tenant $tenant, int $targetNodeId, string $installationCode): int

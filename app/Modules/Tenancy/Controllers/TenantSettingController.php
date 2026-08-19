@@ -2,6 +2,7 @@
 
 namespace App\Modules\Tenancy\Controllers;
 
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Models\TenantSetting;
 use App\Modules\Tenancy\Services\CompanySettings;
@@ -22,6 +23,8 @@ use Illuminate\Validation\ValidationException;
  */
 class TenantSettingController extends Controller
 {
+    public function __construct(private readonly SyncCatalogOutboxService $syncCatalog) {}
+
     public function show(Request $request): JsonResponse
     {
         $tenant = app(TenantManager::class)->require();
@@ -90,6 +93,10 @@ class TenantSettingController extends Controller
         // no envia (solo actualiza la seccion 'telegram' o 'company').
         $merged = array_replace_recursive($current, $incoming);
         $setting->update(['settings' => $merged]);
+
+        // Propaga la seccion company al resto de nodos (VPS -> local) para
+        // que los tickets/guias locales reflejen la identidad de la empresa.
+        $this->syncCatalog->tenantSettingsUpdated($tenant, $setting->fresh());
 
         return response()->json([
             'data' => [

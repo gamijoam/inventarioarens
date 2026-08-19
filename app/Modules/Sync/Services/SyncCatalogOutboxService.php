@@ -31,6 +31,8 @@ use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Models\TenantSetting;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyPolicy;
 use Carbon\CarbonInterface;
@@ -755,6 +757,29 @@ class SyncCatalogOutboxService
             aggregateId: $request->id,
             payload: $this->serializeTransferRequest($request),
             idempotencyKey: $this->eventKey('inventory_transfer_request.cancelled', 'inventory_transfer_request', $request->id, $request->updated_at),
+        );
+    }
+
+    /**
+     * Emite la seccion `company` de tenant_settings para que el nodo local
+     * refleje la identidad fiscal de la empresa (razon social, RIF, etc.)
+     * en sus tickets/guias. Solo se propaga la seccion company; el resto de
+     * settings (telegram, etc.) es local a cada nodo.
+     */
+    public function tenantSettingsUpdated(Tenant $tenant, ?TenantSetting $setting = null): void
+    {
+        $setting ??= $tenant->setting;
+        $company = CompanySettings::getForTenant($tenant);
+
+        $this->outbox->record(
+            eventType: 'tenant_settings.updated',
+            aggregateType: 'tenant_settings',
+            aggregateId: $tenant->id,
+            payload: [
+                'tenant_id' => $tenant->id,
+                'company' => $company,
+            ],
+            idempotencyKey: $this->eventKey('tenant_settings.updated', 'tenant_settings', $tenant->id, $setting?->updated_at),
         );
     }
 
