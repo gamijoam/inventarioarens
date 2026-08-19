@@ -78,6 +78,17 @@ Route::get('assets/{path}', function (string $path) {
     ]);
 })->where('path', '[a-zA-Z0-9._/-]+')->name('spa.assets');
 
+// Favicon de la SPA (el catch-all SPA no debe devolver index.html aqui).
+Route::get('favicon.svg', function () {
+    $full = base_path('frontend/dist/favicon.svg');
+    abort_unless(is_file($full), 404);
+
+    return response()->file($full, [
+        'Content-Type' => 'image/svg+xml',
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+})->name('spa.favicon');
+
 // Proxy local de imagenes (Fase 3 - multi-imagen offline-first).
 // El SPA usa <img src="/api/images/{uuid}"> para mostrar imagenes. Este
 // endpoint es PUBLIC (sin auth, sin CSRF check) porque los <img> del browser
