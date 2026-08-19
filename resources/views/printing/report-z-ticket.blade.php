@@ -26,6 +26,16 @@
 <body>
     <div class="center">
         <div class="bold">{{ $profile['logo_text'] ?: ($z['tenant']['name'] ?? 'Sistema de Inventario') }}</div>
+        @if(!empty($z['tenant']['show_company']) && !empty($z['tenant']['company']['rif']))
+            <div class="small">{{ $z['tenant']['company']['razon_social'] ?: ($z['tenant']['name'] ?? '') }}</div>
+            <div class="small">RIF: {{ $z['tenant']['company']['rif'] }}</div>
+            @if(!empty($z['tenant']['company']['domicilio_fiscal']))
+                <div class="small">{{ $z['tenant']['company']['domicilio_fiscal'] }}</div>
+            @endif
+            @if(!empty($z['tenant']['company']['telefono']))
+                <div class="small">Telf: {{ $z['tenant']['company']['telefono'] }}</div>
+            @endif
+        @endif
         @if(!empty($profile['header_text']))
             <div>{!! nl2br(e($profile['header_text'])) !!}</div>
         @endif

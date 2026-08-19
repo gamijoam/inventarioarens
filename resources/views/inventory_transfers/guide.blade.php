@@ -141,6 +141,21 @@
     </style>
 </head>
 <body>
+    @if(!empty($show_company) && !empty($company['rif']))
+        <div class="header">
+            <div class="label" style="text-transform: uppercase; font-size: 8pt; color: #888; letter-spacing: 0.5px;">Datos de la empresa</div>
+            <h1 style="margin: 2pt 0; font-size: 16pt; color: #2563eb;">{{ $company['razon_social'] ?? '' }}</h1>
+            <div class="doc">RIF: {{ $company['rif'] }}</div>
+            <div class="meta">
+                @if(!empty($company['domicilio_fiscal'])){{ $company['domicilio_fiscal'] }}@endif
+                @if(!empty($company['ciudad']) || !empty($company['estado']))
+                    {{ trim(($company['ciudad'] ?? '').' '.($company['estado'] ?? '')) }}
+                @endif
+                @if(!empty($company['telefono'])) · Telf: {{ $company['telefono'] }}@endif
+            </div>
+        </div>
+    @endif
+
     <div class="header">
         <h1>Guia de Traslado</h1>
         <div class="doc">{{ $transfer->document_number ?? 'TRF-' . str_pad((string) $transfer->sequence, 6, '0', STR_PAD_LEFT) }}</div>

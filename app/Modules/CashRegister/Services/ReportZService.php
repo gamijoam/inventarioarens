@@ -7,6 +7,7 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Printing\Models\PrintProfile;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\CompanySettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
@@ -39,13 +40,18 @@ class ReportZService
         $paidOrders = $session->posOrders->where('status', PosOrder::STATUS_PAID);
         $payments = $paidOrders->flatMap->payments->where('status', PosPayment::STATUS_CAPTURED);
 
+        $tenant = Tenant::query()->withoutGlobalScopes()->whereKey($session->tenant_id)->first();
+        $company = $tenant ? CompanySettings::getForTenant($tenant) : CompanySettings::defaults();
+
         return [
             'z_number' => $session->z_number,
             'emitted_at' => $session->z_emitted_at?->toISOString(),
             'status' => $session->status,
             'tenant' => [
-                'name' => Tenant::query()->withoutGlobalScopes()->whereKey($session->tenant_id)->value('name') ?? '',
-                'slug' => Tenant::query()->withoutGlobalScopes()->whereKey($session->tenant_id)->value('slug') ?? '',
+                'name' => $tenant?->name ?? '',
+                'slug' => $tenant?->slug ?? '',
+                'company' => $company,
+                'show_company' => (bool) ($company['show_on']['report_z'] ?? false),
             ],
             'branch' => $session->branch?->name,
             'cash_register' => $session->cashRegister?->name,

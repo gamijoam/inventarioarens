@@ -3,6 +3,8 @@
 namespace App\Modules\InventoryTransfers\Services;
 
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\CompanySettings;
 use Barryvdh\DomPDF\ServiceProvider;
 use Illuminate\Support\Facades\View;
 
@@ -28,6 +30,9 @@ class TransferGuidePdfService
      */
     public function renderHtml(InventoryTransfer $transfer): string
     {
+        $tenant = Tenant::query()->withoutGlobalScopes()->whereKey($transfer->tenant_id)->first();
+        $company = $tenant ? CompanySettings::getForTenant($tenant) : CompanySettings::defaults();
+
         return View::make('inventory_transfers.guide', [
             'transfer' => $transfer->loadMissing([
                 'fromWarehouse',
@@ -37,6 +42,8 @@ class TransferGuidePdfService
                 'driver',
             ]),
             'generatedAt' => now(),
+            'company' => $company,
+            'show_company' => (bool) ($company['show_on']['guide'] ?? false),
         ])->render();
     }
 

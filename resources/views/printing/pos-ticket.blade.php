@@ -30,6 +30,19 @@
             <div class="copy">COPIA</div>
         @endif
         <div class="bold">{{ $profile['logo_text'] ?: ($ticket['tenant']['name'] ?? 'Sistema de Inventario') }}</div>
+        @if(!empty($ticket['tenant']['show_company']) && !empty($ticket['tenant']['company']['rif']))
+            <div class="small">{{ $ticket['tenant']['company']['razon_social'] ?: ($ticket['tenant']['name'] ?? '') }}</div>
+            <div class="small">RIF: {{ $ticket['tenant']['company']['rif'] }}</div>
+            @if(!empty($ticket['tenant']['company']['domicilio_fiscal']))
+                <div class="small">{{ $ticket['tenant']['company']['domicilio_fiscal'] }}</div>
+            @endif
+            @if(!empty($ticket['tenant']['company']['ciudad']) || !empty($ticket['tenant']['company']['estado']))
+                <div class="small">{{ trim(($ticket['tenant']['company']['ciudad'] ?? '').' '.($ticket['tenant']['company']['estado'] ?? '')) }}</div>
+            @endif
+            @if(!empty($ticket['tenant']['company']['telefono']))
+                <div class="small">Telf: {{ $ticket['tenant']['company']['telefono'] }}</div>
+            @endif
+        @endif
         @if(!empty($profile['header_text']))
             <div>{!! nl2br(e($profile['header_text'])) !!}</div>
         @endif

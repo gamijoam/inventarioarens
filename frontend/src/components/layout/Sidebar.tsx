@@ -265,6 +265,12 @@ const NAV_ITEMS: NavItem[] = [
     section: SECTION_LABELS.CONFIGURACION,
     children: [
       {
+        to: '/settings/company',
+        label: 'Empresa',
+        icon: Building2,
+        permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
+      },
+      {
         to: '/settings/telegram',
         label: 'Telegram',
         icon: Send,
