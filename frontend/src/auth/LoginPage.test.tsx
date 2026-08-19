@@ -24,15 +24,14 @@ vi.mock('@/auth/useAuth', () => ({
 import { LoginPage } from './LoginPage';
 
 describe('<LoginPage>', () => {
-  it('renders the administrative presentation without changing the login contract', () => {
+  it('renders the redesigned login keeping the contract and testids', () => {
     render(<LoginPage />);
 
     expect(screen.getByTestId('login-page')).toHaveAttribute('data-app-mode', 'admin');
-    expect(screen.getByText('Control administrativo')).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Entra a tu espacio de trabajo' }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId('login-submit')).toHaveTextContent('Entrar al sistema');
+    expect(screen.getByText('SDI')).toBeInTheDocument();
+    expect(screen.getByText('SISTEMA DE INVENTARIO')).toBeInTheDocument();
+    expect(screen.getByTestId('login-submit')).toHaveTextContent('LOGIN');
     expect(screen.getByTestId('login-submit')).toBeDisabled();
+    expect(screen.getByTestId('login-forgot')).toBeInTheDocument();
   });
 });
