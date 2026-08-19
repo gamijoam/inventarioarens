@@ -7116,3 +7116,37 @@ Regla:
 - Verificacion del corte: backend focalizado `94/94`; frontend de promociones/POS `172/172`;
   TypeScript y ESLint focalizado correctos. Prettier pasa en los archivos modificados; conserva
   avisos preexistentes en otros archivos POS no tocados.
+
+## 2026-08-19 - Traslados por variante (interno, logístico e inter-empresa) + sync + E2E
+
+- **Problema**: los traslados movian stock solo a nivel de producto (bucket sin variante), por lo que
+  "4 telefones Azul + 5 Naranja" no se podian trasladar: fallaba con stock insuficiente o el stock
+  llegaba al bucket base.
+- **Migracion**: `product_variant_id` en `inventory_transfer_items` e `inventory_transfer_request_items`.
+- **InventoryMovementService**: `transfer`, `reserve`, `release`, `dispatchReservedTransfer`,
+  `receiveTransfer`, `transferRequestOut/In` aceptan `productVariantId` y mueven el saldo por
+  `stock_balances.(product_id, product_variant_id)`.
+- **Traslado interno/simple/logistico**: `validateItems` valida que la variante pertenezca al
+  producto; create/prepare/dispatch/receive/cancel y la auto-reserva persisten y mueven la variante.
+- **Inter-empresa**: items con `product_variant_id` (variante del solicitante); al aceptar se
+  resuelve la variante local por identidad natural `(sku_variant|color)` via `localVariantId` y el
+  stock sale/entra por variante en cada empresa.
+- **Sync**: payload de items de traslado y de `stock_movement` ahora incluyen
+  `product_variant_id` + `product_variant_color`; el applier resuelve la variante del nodo destino
+  por `(producto, color)` (`variantIdBySku`/`variantIdForProduct`), y `createCloudProductExit/Entry`
+  replican saldos por variante.
+- **product-entries**: acepta `product_variant_id` para sembrar stock por variante (request, service,
+  item).
+- **Frontend**: `VariantSelect` (selector por linea con stock disponible) en el dialog de nuevo
+  traslado y en el de solicitud inter-empresa; schemas Zod con `product_variant_id`.
+- **Tests backend (TDD)**: `InventoryTransferVariantsTest` (5), `InventoryTransferRequestVariantsTest`
+  (2), `InventoryTransferVariantSyncTest` (1, 11 assertions), entrada por variante en
+  `ProductEntryApiTest`. Suite afectada verde (fallos preexistentes en SQLite: `NextSequenceRaceConditionFixTest`
+  Postgres-only y el test de 30 IMEIs de ProductEntries).
+- **E2E Playwright**: `frontend/e2e/transfers.variants.ui.spec.ts` — abre navegador, loguea como demo,
+  crea producto con 2 variantes, siembra stock 4/5 y simula el traslado 2 Azul + 3 Naranja; valida
+  `product_variant_id` y cantidades en la respuesta. Verde.
+- **Frontend**: 111/111 vitest; `tsc --noEmit` limpio.
+- **Deploy**: commit `10547ec5`; backend (pull + migrate `2026_08_19_090000` + optimize:clear) y bundle
+  admin en `app.miinventariofacil.com` y `app.tiendasarens.com`; verificada la columna
+  `product_variant_id` en ambas DBs y HTTP 200 en ambos dominios.
