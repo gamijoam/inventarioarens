@@ -108,6 +108,7 @@ export const TransferRequestItemSchema = z.object({
   origin_product: ProductLiteSchema.nullable().optional(),
   destination_product_id: z.number().int().positive().nullable().optional(),
   destination_product: ProductLiteSchema.nullable().optional(),
+  product_variant_id: z.number().int().nullable().optional(),
   quantity: z.union([z.number(), z.string()]).transform((v) => Number(v)),
   product_unit_ids: z.array(z.number().int()).nullable().optional(),
   serial_units: z.array(SerialUnitSchema).nullable().optional(),
@@ -197,6 +198,7 @@ const positiveNumber = z.coerce.number().positive();
 
 export const StoreTransferRequestItemSchema = z.object({
   product_id: positiveNumber,
+  product_variant_id: z.coerce.number().int().positive().optional(),
   quantity: positiveNumber,
   product_unit_ids: z.array(z.coerce.number().int().positive()).optional(),
 });

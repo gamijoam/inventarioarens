@@ -106,6 +106,7 @@ export const TransferItemSchema = z.object({
   id: z.number().int().positive(),
   inventory_transfer_id: z.number().int().positive().optional(),
   product_id: z.number().int().positive(),
+  product_variant_id: z.number().int().nullable().optional(),
   product: TransferProductSchema.nullable().optional(),
   warehouse_id: z.number().int().positive().nullable().optional(),
   warehouse: TransferWarehouseSchema.nullable().optional(),
@@ -282,6 +283,7 @@ const positiveNumber = z.coerce.number().positive();
 
 export const StoreTransferItemSchema = z.object({
   product_id: positiveNumber,
+  product_variant_id: z.coerce.number().int().positive().optional(),
   quantity: positiveNumber,
   product_unit_ids: z.array(z.coerce.number().int().positive()).optional(),
   serial_units: z

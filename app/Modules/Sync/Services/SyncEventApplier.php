@@ -839,6 +839,28 @@ class SyncEventApplier
         return $query->value('id');
     }
 
+    private function variantIdForProduct(int $productId, mixed $variantSku, mixed $variantColor = null): ?int
+    {
+        $variantSku = $this->nullableString($variantSku);
+        $variantColor = $this->nullableString($variantColor);
+
+        if ($variantSku === null && $variantColor === null) {
+            return null;
+        }
+
+        $query = DB::table('product_variants')->where('product_id', $productId);
+
+        if ($variantSku !== null) {
+            $query->where('sku_variant', $variantSku);
+        } elseif ($variantColor !== null) {
+            $query->where('color', $variantColor);
+        } else {
+            return null;
+        }
+
+        return $query->value('id');
+    }
+
     /**
      * Aplica un `purchase_order.received` en la nube. Convierte la orden de
      * compra local en una entrada de stock (`product_entries` + items +
@@ -1231,16 +1253,23 @@ class SyncEventApplier
         // Reemplazar items para que coincidan exactamente con el payload.
         foreach ($payload['items'] ?? [] as $itemPayload) {
             $product = $this->productBySku($tenant, $this->requiredString($itemPayload, 'sku'));
-            // Upsert por (tenant_id, inventory_transfer_id, product_id) en lugar
-            // del id local: el id del local puede chocar con data existente en
+            $variantId = $this->variantIdBySku(
+                $tenant,
+                (int) $product->id,
+                $itemPayload['product_variant_sku'] ?? null,
+                $itemPayload['product_variant_color'] ?? null,
+            );
+            // Upsert por (tenant_id, inventory_transfer_id, product_id, product_variant_id)
+            // en lugar del id local: el id del local puede chocar con data existente en
             // la nube (seed u otros locales). La llave semantica es
-            // "un item por producto por traslado" y eso es lo que usamos.
+            // "un item por producto (y variante) por traslado" y eso es lo que usamos.
             $this->upsertAndGetId(
                 'inventory_transfer_items',
                 [
                     'tenant_id' => $tenant->id,
                     'inventory_transfer_id' => $transferId,
                     'product_id' => $product->id,
+                    'product_variant_id' => $variantId,
                 ],
                 [
                     'quantity' => $itemPayload['quantity'] ?? 0,
@@ -1427,12 +1456,14 @@ class SyncEventApplier
                 ->delete();
 
             foreach ($items as $itemPayload) {
+                $localOriginProductId = $this->localEntityId('product', (int) $payload['origin_tenant_id'], (int) ($itemPayload['origin_product_id'] ?? 0));
                 DB::table('inventory_transfer_request_items')->insert([
                     'inventory_transfer_request_id' => $requestId,
-                    'origin_product_id' => $this->localEntityId('product', (int) $payload['origin_tenant_id'], (int) ($itemPayload['origin_product_id'] ?? 0)),
+                    'origin_product_id' => $localOriginProductId,
                     'destination_product_id' => isset($itemPayload['destination_product_id'])
                         ? $this->localEntityId('product', (int) ($payload['destination_tenant_id'] ?? 0), (int) $itemPayload['destination_product_id'])
                         : null,
+                    'product_variant_id' => $this->variantIdForProduct($localOriginProductId, $itemPayload['product_variant_sku'] ?? null, $itemPayload['product_variant_color'] ?? null),
                     'quantity' => $itemPayload['quantity'] ?? 0,
                     'product_unit_ids' => isset($itemPayload['product_unit_ids'])
                         ? json_encode($itemPayload['product_unit_ids'])
@@ -1493,6 +1524,7 @@ class SyncEventApplier
                 quantity: $quantity,
                 documentNumber: $destinationExitDocNumber,
                 serialUnits: $itemPayload['serial_units'] ?? [],
+                productVariantId: $this->variantIdForProduct($senderProductId, $itemPayload['product_variant_sku'] ?? null, $itemPayload['product_variant_color'] ?? null),
             );
 
             $tenantManager->set(Tenant::query()->findOrFail($receiverTenantId));
@@ -1504,6 +1536,7 @@ class SyncEventApplier
                 quantity: $quantity,
                 documentNumber: $originEntryDocNumber,
                 serialUnits: $itemPayload['serial_units'] ?? [],
+                productVariantId: $this->variantIdForProduct($receiverProductId, $itemPayload['product_variant_sku'] ?? null, $itemPayload['product_variant_color'] ?? null),
             );
 
             DB::table('inventory_transfer_request_items')
@@ -1535,6 +1568,7 @@ class SyncEventApplier
         float $quantity,
         string $documentNumber,
         array $serialUnits,
+        ?int $productVariantId = null,
     ): int {
         $now = now();
 
@@ -1593,6 +1627,7 @@ class SyncEventApplier
             ->where('tenant_id', $tenantId)
             ->where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
+            ->where('product_variant_id', $productVariantId)
             ->lockForUpdate()
             ->first();
 
@@ -1601,6 +1636,7 @@ class SyncEventApplier
                 ->where('tenant_id', $tenantId)
                 ->where('warehouse_id', $warehouseId)
                 ->where('product_id', $productId)
+                ->where('product_variant_id', $productVariantId)
                 ->update([
                     'quantity_available' => (float) $stockBalance->quantity_available - $quantity,
                 ]);
@@ -1609,6 +1645,7 @@ class SyncEventApplier
                 'tenant_id' => $tenantId,
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
+                'product_variant_id' => $productVariantId,
                 'quantity_available' => -$quantity,
                 'quantity_reserved' => 0,
                 'quantity_damaged' => 0,
@@ -1619,6 +1656,7 @@ class SyncEventApplier
             'tenant_id' => $tenantId,
             'warehouse_id' => $warehouseId,
             'product_id' => $productId,
+            'product_variant_id' => $productVariantId,
             'type' => 'exit',
             'quantity' => $quantity,
             'unit_cost' => null,
@@ -1635,6 +1673,7 @@ class SyncEventApplier
             'product_exit_id' => $exitId,
             'warehouse_id' => $warehouseId,
             'product_id' => $productId,
+            'product_variant_id' => $productVariantId,
             'quantity' => $quantity,
             'stock_movement_id' => $movementId,
             'product_unit_ids' => $productUnitIds !== [] ? json_encode($productUnitIds) : null,
@@ -1670,6 +1709,7 @@ class SyncEventApplier
         float $quantity,
         string $documentNumber,
         array $serialUnits,
+        ?int $productVariantId = null,
     ): int {
         $now = now();
 
@@ -1702,6 +1742,7 @@ class SyncEventApplier
             ->where('tenant_id', $tenantId)
             ->where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
+            ->where('product_variant_id', $productVariantId)
             ->lockForUpdate()
             ->first();
 
@@ -1710,6 +1751,7 @@ class SyncEventApplier
                 ->where('tenant_id', $tenantId)
                 ->where('warehouse_id', $warehouseId)
                 ->where('product_id', $productId)
+                ->where('product_variant_id', $productVariantId)
                 ->update([
                     'quantity_available' => (float) $stockBalance->quantity_available + $quantity,
                 ]);
@@ -1718,6 +1760,7 @@ class SyncEventApplier
                 'tenant_id' => $tenantId,
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
+                'product_variant_id' => $productVariantId,
                 'quantity_available' => $quantity,
                 'quantity_reserved' => 0,
                 'quantity_damaged' => 0,
@@ -1728,6 +1771,7 @@ class SyncEventApplier
             'tenant_id' => $tenantId,
             'warehouse_id' => $warehouseId,
             'product_id' => $productId,
+            'product_variant_id' => $productVariantId,
             'type' => 'entry',
             'quantity' => $quantity,
             'unit_cost' => null,
@@ -1744,6 +1788,7 @@ class SyncEventApplier
             'product_entry_id' => $entryId,
             'warehouse_id' => $warehouseId,
             'product_id' => $productId,
+            'product_variant_id' => $productVariantId,
             'quantity' => $quantity,
             'unit_cost' => null,
             'stock_movement_id' => $movementId,

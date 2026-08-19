@@ -4,6 +4,7 @@ namespace App\Modules\InventoryTransferRequests\Models;
 
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'inventory_transfer_request_id',
     'origin_product_id',
     'destination_product_id',
+    'product_variant_id',
     'quantity',
     'product_unit_ids',
     'serial_units',
@@ -45,6 +47,11 @@ class InventoryTransferRequestItem extends Model
     public function destinationProduct(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'destination_product_id')->withoutGlobalScopes();
+    }
+
+    public function productVariant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class);
     }
 
     public function outStockMovement(): BelongsTo

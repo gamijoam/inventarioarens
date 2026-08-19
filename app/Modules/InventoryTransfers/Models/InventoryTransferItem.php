@@ -5,6 +5,7 @@ namespace App\Modules\InventoryTransfers\Models;
 use App\Models\User;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'inventory_transfer_id',
     'product_id',
+    'product_variant_id',
     'quantity',
     'requested_quantity',
     'prepared_quantity',
@@ -81,6 +83,11 @@ class InventoryTransferItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function productVariant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class);
     }
 
     public function outStockMovement(): BelongsTo

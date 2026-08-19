@@ -16,6 +16,7 @@ use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\InventoryTransfers\Models\TenantTransferSetting;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -102,6 +103,7 @@ class InventoryTransferService
                         reason: "Transferencia {$transfer->document_number}: {$transfer->reason}",
                         referenceType: InventoryTransfer::class,
                         referenceId: $transfer->id,
+                        productVariantId: $item['product_variant_id'] ?? null,
                     );
                 } catch (InsufficientStockException|InvalidStockQuantityException $exception) {
                     throw ValidationException::withMessages([
@@ -115,6 +117,7 @@ class InventoryTransferService
                 InventoryTransferItem::create([
                     'inventory_transfer_id' => $transfer->id,
                     'product_id' => $product->id,
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
                     'quantity' => $quantity,
                     'requested_quantity' => $quantity,
                     'prepared_quantity' => $quantity,
@@ -292,6 +295,7 @@ class InventoryTransferService
                         reason: "Preparacion {$transfer->guide_number}: {$transfer->reason}",
                         referenceType: InventoryTransfer::class,
                         referenceId: $transfer->id,
+                        productVariantId: $item->product_variant_id,
                     );
 
                     $this->syncCatalog->stockMovementCreated($movement);
@@ -420,6 +424,7 @@ class InventoryTransferService
                     reason: "Despacho {$transfer->guide_number}: {$transfer->reason}",
                     referenceType: InventoryTransfer::class,
                     referenceId: $transfer->id,
+                    productVariantId: $item->product_variant_id,
                 );
 
                 $this->syncCatalog->stockMovementCreated($movement);
@@ -569,6 +574,7 @@ class InventoryTransferService
                         reason: "Recepcion {$transfer->guide_number}: {$transfer->reason}",
                         referenceType: InventoryTransfer::class,
                         referenceId: $transfer->id,
+                        productVariantId: $item->product_variant_id,
                     );
 
                     $movementId = $movement->id;
@@ -705,6 +711,7 @@ class InventoryTransferService
                         reason: "Cancelacion {$transfer->guide_number}: {$reason}",
                         referenceType: InventoryTransfer::class,
                         referenceId: $transfer->id,
+                        productVariantId: $item->product_variant_id,
                     );
 
                     $this->syncCatalog->stockMovementCreated($movement);
@@ -1194,6 +1201,7 @@ class InventoryTransferService
             InventoryTransferItem::create([
                 'inventory_transfer_id' => $transfer->id,
                 'product_id' => $product->id,
+                'product_variant_id' => $item['product_variant_id'] ?? null,
                 'quantity' => $quantity,
                 'requested_quantity' => $quantity,
                 'prepared_quantity' => 0,
@@ -1273,6 +1281,7 @@ class InventoryTransferService
                     reason: "Reserva automatica {$transfer->guide_number}: {$transfer->reason}",
                     referenceType: InventoryTransfer::class,
                     referenceId: $transfer->id,
+                    productVariantId: $item->product_variant_id,
                 );
                 $this->syncCatalog->stockMovementCreated($movement);
 
@@ -1314,6 +1323,19 @@ class InventoryTransferService
             $product = Product::query()->findOrFail($item['product_id']);
             $unitIds = $item['product_unit_ids'] ?? [];
             $quantity = (float) $item['quantity'];
+
+            $variantId = $item['product_variant_id'] ?? null;
+            if ($variantId !== null) {
+                $belongsToProduct = ProductVariant::query()
+                    ->where('id', (int) $variantId)
+                    ->where('product_id', $product->id)
+                    ->exists();
+                if (! $belongsToProduct) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.product_variant_id" => 'La variante seleccionada no pertenece al producto indicado.',
+                    ]);
+                }
+            }
 
             foreach ($unitIds as $unitIndex => $unitId) {
                 if (isset($selectedUnitIds[$unitId])) {

@@ -15,6 +15,7 @@ class InventoryTransferRequestItemResource extends JsonResource
             'origin_product' => $this->whenLoaded('originProduct'),
             'destination_product_id' => $this->destination_product_id,
             'destination_product' => $this->whenLoaded('destinationProduct'),
+            'product_variant_id' => $this->product_variant_id,
             'quantity' => (float) $this->quantity,
             'product_unit_ids' => $this->product_unit_ids,
             'serial_units' => $this->serial_units,

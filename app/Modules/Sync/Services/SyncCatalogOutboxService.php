@@ -789,6 +789,9 @@ class SyncCatalogOutboxService
                 'id' => $item->id,
                 'origin_product_id' => $item->origin_product_id,
                 'destination_product_id' => $item->destination_product_id,
+                'product_variant_id' => $item->product_variant_id,
+                'product_variant_sku' => $item->productVariant?->sku_variant,
+                'product_variant_color' => $item->productVariant?->color,
                 'quantity' => (string) $item->quantity,
                 'product_unit_ids' => $item->product_unit_ids ?? [],
                 'serial_units' => $item->serial_units ?? [],
@@ -1177,7 +1180,7 @@ class SyncCatalogOutboxService
 
     private function recordStockMovement(string $eventType, StockMovement $movement): void
     {
-        $movement->loadMissing(['product', 'warehouse']);
+        $movement->loadMissing(['product', 'warehouse', 'variant']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -1193,6 +1196,8 @@ class SyncCatalogOutboxService
                 'reason' => $movement->reason,
                 'reference_type' => $movement->reference_type,
                 'reference_id' => $movement->reference_id,
+                'product_variant_sku' => $movement->variant?->sku_variant,
+                'product_variant_color' => $movement->variant?->color,
                 'created_at' => $movement->created_at?->toISOString(),
             ],
             idempotencyKey: $this->eventKey($eventType, 'stock_movement', $movement->id, $movement->updated_at),
@@ -1205,6 +1210,7 @@ class SyncCatalogOutboxService
             'fromWarehouse:id,code,name',
             'toWarehouse:id,code,name',
             'items.product:id,sku',
+            'items.productVariant:id,sku_variant,color',
         ]);
 
         $this->outbox->record(
@@ -1233,6 +1239,9 @@ class SyncCatalogOutboxService
                 'items' => $transfer->items->map(fn ($item): array => [
                     'id' => $item->id,
                     'sku' => $item->product?->sku,
+                    'product_variant_id' => $item->product_variant_id,
+                    'product_variant_sku' => $item->productVariant?->sku_variant,
+                    'product_variant_color' => $item->productVariant?->color,
                     'quantity' => (string) $item->quantity,
                     'requested_quantity' => $item->requested_quantity === null ? null : (string) $item->requested_quantity,
                     'prepared_quantity' => $item->prepared_quantity === null ? null : (string) $item->prepared_quantity,

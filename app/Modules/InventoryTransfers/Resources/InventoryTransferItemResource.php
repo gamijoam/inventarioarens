@@ -12,6 +12,7 @@ class InventoryTransferItemResource extends JsonResource
         return [
             'id' => $this->id,
             'product_id' => $this->product_id,
+            'product_variant_id' => $this->product_variant_id,
             'product' => $this->whenLoaded('product'),
             'quantity' => (float) $this->quantity,
             'requested_quantity' => $this->requested_quantity === null ? null : (float) $this->requested_quantity,

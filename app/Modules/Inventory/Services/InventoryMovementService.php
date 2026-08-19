@@ -179,6 +179,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->decreaseAvailable(
             type: 'transfer_request_out',
@@ -189,6 +190,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -206,6 +208,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->increaseAvailable(
             'transfer_request_in',
@@ -217,6 +220,7 @@ class InventoryMovementService
             $reason,
             $referenceType,
             $referenceId,
+            $productVariantId,
         );
     }
 
@@ -276,17 +280,18 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
-            $balance = $this->balanceFor($warehouse, $product);
+            $balance = $this->balanceFor($warehouse, $product, $productVariantId);
             $this->ensureEnough((float) $balance->quantity_reserved, $quantity, 'reserved');
 
             $balance->quantity_reserved = (float) $balance->quantity_reserved - $quantity;
             $balance->save();
 
-            return $this->recordMovement('transfer_out', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
+            return $this->recordMovement('transfer_out', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
         });
     }
 
@@ -298,6 +303,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->increaseAvailable(
             type: 'transfer_in',
@@ -309,6 +315,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -345,15 +352,16 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): array {
-        return DB::transaction(function () use ($fromWarehouse, $toWarehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): array {
+        return DB::transaction(function () use ($fromWarehouse, $toWarehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): array {
             $this->validateOperation($fromWarehouse, $product, $quantity);
             $this->assertSameTenant($toWarehouse);
 
-            $fromBalance = $this->balanceFor($fromWarehouse, $product);
+            $fromBalance = $this->balanceFor($fromWarehouse, $product, $productVariantId);
             $this->ensureEnough((float) $fromBalance->quantity_available, $quantity, 'available');
 
-            $toBalance = $this->balanceFor($toWarehouse, $product);
+            $toBalance = $this->balanceFor($toWarehouse, $product, $productVariantId);
 
             $fromBalance->quantity_available = (float) $fromBalance->quantity_available - $quantity;
             $fromBalance->save();
@@ -362,8 +370,8 @@ class InventoryMovementService
             $toBalance->save();
 
             return [
-                $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId),
-                $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId),
+                $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId),
+                $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId),
             ];
         });
     }
