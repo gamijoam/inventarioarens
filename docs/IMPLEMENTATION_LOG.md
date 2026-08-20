@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-08-20 - POS: busqueda en lista (nombres completos) + modal de detalle de producto
+
+- **Problema**: el area de busqueda del POS usaba una grilla de tarjetas pequenas
+  (`xl:grid-cols-3`) donde los nombres largos se truncaban ("LAVADOR...") y el badge de
+  stock se encimaba. Ademas no habia forma de ver la informacion completa de un producto
+  (descripcion corta/larga, categoria, tags, variantes) desde el POS.
+- **Rediseno de busqueda (Opcion A — lista)**: `ProductSearchPanel` pasa de grilla a lista
+  de filas. Cada fila: imagen (thumb 56px), nombre completo con `whitespace-normal`/`break-words`
+  (ya no se corta), SKU, aviso de stock bajo, badge de stock y precio. El boton "Agregar"
+  sigue en la fila entera (tap) y el icono `i` abre el detalle.
+- **ProductDetailDialog** (nuevo, `frontend/src/features/pos/ProductDetailDialog.tsx`):
+  se abre con el icono `Info` de cada fila. Muestra imagen grande, nombre, SKU y codigo de
+  barras, marca, categoria(s), tags, descripcion corta, descripcion larga (HTML pasado a
+  texto plano con `stripHtml` para evitar XSS — no hay sanitizador en el repo), variantes
+  (color + stock por almacen via `useProductVariants`) y precio base. Boton "Agregar al
+  ticket" reutiliza `onSelect` → `addProduct` (abre el `VariantPicker` si el producto lo
+  requiere).
+- TDD: `ProductDetailDialog.test.tsx` (4 tests: datos/descripcion/tags/variantes, onAdd,
+  onClose). Suite frontend 787/788; `tsc --noEmit` limpio; `build:admin` y `build:pos` OK.
+- Commit `5c051754`, deploy del bundle admin en `app.miinventariofacil.com` y
+  `app.tiendasarens.com`. El cliente Electron POS se actualiza con su propio release
+  (`pnpm run electron:build:pos` + workflow release.yml).
+
 ## 2026-08-20 - Imagen de producto: mostrar URL externa en admin + descargar URL a la galería
 
 - Problema: el campo `image_url` (URL externa de fabricante/proveedor) se guardaba bien en
