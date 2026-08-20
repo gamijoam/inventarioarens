@@ -1,5 +1,38 @@
 # Registro de implementación
 
+## 2026-08-20 - Almacen predeterminado en POS + fix "no me deja cambiar de almacen" + almacen en compras
+
+- **Almacen predeterminado (patron tasas)**:
+  - Migracion `add_is_default_to_warehouses_table`: columna `is_default` (default false) +
+    indice `(tenant_id, is_default)`.
+  - `WarehouseController`: swap en store/update dentro de transaccion (si llega
+    `is_default=true` limpia los demas), igual que `ExchangeRateTypeController`. Index
+    ordena el predeterminado primero.
+  - Modelo (`is_default` cast boolean + fillable), Requests y `WarehouseResource` exponen
+    el flag. `TenantRegistrationService` crea el primer almacen con `is_default=true`.
+  - Sync: `SyncCatalogOutboxService::recordWarehouse` y `SyncEventApplier::applyWarehouse`
+    replican `is_default`.
+  - `PosBootstrapController` expone `is_default` en warehouses y ordena default primero.
+  - Backfill en produccion: un almacen default por tenant (ambas DBs). En TUCACAS quedó
+    "TIENDA TUCACAS (001)".
+  - Frontend: `WarehousesManager` con badge "Predeterminado" en la tabla y Switch "Marcar
+    como predeterminado" en el form (patron ExchangeRateTypesManager/PriceListsManager).
+- **Fix bug POS "no me deja cambiar de almacen"**: el `useEffect` de arranque de
+  `PosTerminal` forzaba SIEMPRE `warehouses[0].id` (o el default) cada vez que
+  `warehouseId` difería, por lo que cualquier cambio manual se revertía al instante.
+  Ahora solo auto-setea cuando NO hay un almacen válido seleccionado (`hasValidCurrent`),
+  y al abrir prefiere el `is_default` si existe.
+- **Compras: mostrar a qué almacen fue la mercancia**: `PurchaseOrderResource` agrega
+  `warehouses` (almacenes distintos de los items) y el index eager-load
+  `items.warehouse`. Frontend: columna "Almacen" en el listado con badges por codigo.
+- TDD: `WarehouseDefaultTest` (4: swap en create, swap en update, orden del index +
+  is_default expuesto, aislamiento cross-tenant), caso nuevo en `PurchaseOrderApiTest`
+  (index y show exponen warehouses, 17/17), schema frontend `is_default` (41). Backend:
+  POS 86/86, compras 17/17, warehouses 4/4. Frontend 787/788, tsc limpio, builds
+  admin+pos OK.
+- Commit `0c809d9c`, deploy en `app.miinventariofacil.com` y `app.tiendasarens.com` con
+  migracion + optimize:clear + rsync + backfill.
+
 ## 2026-08-20 - POS: busqueda en lista (nombres completos) + modal de detalle de producto
 
 - **Problema**: el area de busqueda del POS usaba una grilla de tarjetas pequenas
