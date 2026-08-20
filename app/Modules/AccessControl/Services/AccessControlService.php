@@ -196,6 +196,10 @@ class AccessControlService
                 $user->syncRoles($roles);
             }
 
+            if ($tenant->isGroup() && in_array('Owner', $roles, true)) {
+                $this->propagateGroupOwnership($user, $tenant, true);
+            }
+
             $user = $this->tenantUser($user->id);
 
             $this->audit->record('access.user.attached', $user, $actor, $oldValues, [
@@ -313,6 +317,10 @@ class AccessControlService
             }
 
             $user->syncRoles($roles);
+
+            if ($targetTenant->isGroup() && in_array('Owner', $roles, true)) {
+                $this->propagateGroupOwnership($user, $targetTenant, true);
+            }
 
             $user = $this->tenantUser($user->id);
 
@@ -595,6 +603,43 @@ class AccessControlService
             ->sort()
             ->values()
             ->all();
+    }
+
+    /**
+     * Cuando un usuario es Owner de un grupo, se le asocia como miembro activo
+     * (con rol Administrador) a TODAS las empresas hijas del grupo para que
+     * pueda verlas en el login y en /users?scope=organization y operarlas.
+     * Mismo comportamiento que el creador original del spinoff.
+     */
+    private function propagateGroupOwnership(User $user, Tenant $group, bool $isOwner): void
+    {
+        if (! $group->isGroup()) {
+            return;
+        }
+
+        $previousTeamId = function_exists('getPermissionsTeamId') ? getPermissionsTeamId() : null;
+
+        try {
+            foreach ($group->spinoffs()->get() as $spinoff) {
+                $user->tenants()->syncWithoutDetaching([$spinoff->id => ['status' => 'active']]);
+
+                if ($isOwner) {
+                    setPermissionsTeamId($spinoff->id);
+                    $adminRole = Role::query()
+                        ->where('name', 'Administrador')
+                        ->where($this->teamColumn(), $spinoff->id)
+                        ->first();
+
+                    if ($adminRole) {
+                        $user->assignRole($adminRole);
+                    }
+                }
+            }
+        } finally {
+            if ($previousTeamId !== null && function_exists('setPermissionsTeamId')) {
+                setPermissionsTeamId($previousTeamId);
+            }
+        }
     }
 
     private function userHasCriticalAdminRole(User $user): bool
