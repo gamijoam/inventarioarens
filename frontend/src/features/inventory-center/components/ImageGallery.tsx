@@ -77,20 +77,29 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
     );
   }
 
-  function handleDownloadFromUrl(url: string) {
-    const trimmed = url.trim();
-    if (!trimmed) return;
-    uploadFromUrl.mutate(
-      { url: trimmed },
-      {
-        onSuccess: () => {
-          toast.success('Imagen descargada de la URL');
-          setUrlInput('');
-          setUrlOpen(false);
-        },
-        onError: (err) => toast.error(errorMessage(err) ?? 'Error al descargar'),
-      },
+  async function handleDownloadFromUrls(text: string) {
+    const urls = text
+      .split(/\r?\n/)
+      .map((u) => u.trim())
+      .filter(Boolean);
+    if (urls.length === 0) return;
+
+    const results = await Promise.allSettled(
+      urls.map((url) => uploadFromUrl.mutateAsync({ url })),
     );
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - ok;
+
+    if (failed === 0) {
+      toast.success(`Se descargaron ${ok} imagen(es) de la(s) URL(s)`);
+    } else {
+      toast.error(`${ok} descargada(s), ${failed} fallaron`);
+    }
+
+    if (ok > 0) {
+      setUrlInput('');
+      setUrlOpen(false);
+    }
   }
 
   function handleSetPrimary(image: ProductImage) {
@@ -279,21 +288,23 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
             </button>
           ) : (
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
+              <div className="flex items-start gap-2">
+                <textarea
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleDownloadFromUrl(urlInput);
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                      void handleDownloadFromUrls(urlInput);
+                    }
                   }}
-                  placeholder="https://ejemplo.com/imagen.jpg"
-                  className="h-9 flex-1 rounded border border-border bg-bg px-3 text-sm focus:border-primary focus:outline-none"
+                  placeholder={'https://ejemplo.com/imagen1.jpg\nhttps://ejemplo.com/imagen2.jpg'}
+                  rows={3}
+                  className="flex-1 rounded border border-border bg-bg px-3 py-2 text-sm focus:border-primary focus:outline-none"
                   data-testid="from-url-input"
                 />
                 <button
                   type="button"
-                  onClick={() => handleDownloadFromUrl(urlInput)}
+                  onClick={() => void handleDownloadFromUrls(urlInput)}
                   disabled={uploadFromUrl.isPending || !urlInput.trim()}
                   className="inline-flex h-9 items-center gap-1.5 rounded bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50"
                   data-testid="from-url-submit"
@@ -314,7 +325,8 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
                 </button>
               </div>
               <p className="text-[11px] text-text-muted">
-                Descarga la imagen a tu galería y la guarda como foto propia (WebP, con sync).
+                Puedes pegar varias URLs, una por línea. Las descarga a tu galería como fotos
+                propias (WebP, con sync). Ctrl+Enter para descargar.
               </p>
             </div>
           )}
