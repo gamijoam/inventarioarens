@@ -1,5 +1,29 @@
 # Registro de implementación
 
+## 2026-08-20 - Imagen de producto: mostrar URL externa en admin + descargar URL a la galería
+
+- Problema: el campo `image_url` (URL externa de fabricante/proveedor) se guardaba bien en
+  `products.image_url` pero el frontend administrativo NUNCA la mostraba (solo el POS la usaba
+  como fallback). El listado y el detalle de producto ignoraban el campo, asi que el usuario
+  pegaba un link y "no se veía nada".
+- **Opcion A (mostrar la URL en el admin)**:
+  - Listado de productos (`inventory/index.tsx`): nueva columna de miniatura que usa
+    `primary_image_url` → `images[0].thumb_url` → `image_url` como fallback.
+  - Detalle del producto (`$productId.tsx` + `ProductGalleryPanel`): nuevo prop `fallbackUrl`
+    que muestra la imagen externa cuando el producto no tiene fotos en la galería.
+- **Opcion B (descargar la URL a la galería — robusta)**:
+  - Backend: `POST /api/products/{id}/images/from-url` (antes de la ruta `{image}`).
+    `ProductImageService::fromUrl()` descarga la URL a un temp, valida (respuesta ok, no vacío,
+    ≤5MB) y delega en el pipeline `upload()`: variantes WebP, deduplicación por sha256, outbox
+    sync y propagación a spinoffs. Errores → 422 con mensaje en español.
+  - Frontend: botón "Descargar imagen de una URL" en `ImageGallery` (input + descargar +
+    cancelar) usando el hook `useUploadProductImageFromUrl`. Invalida galería y producto.
+- TDD: `ProductImageFromUrlTest` (5: happy path con Http::fake, URL fallida 422, no-imagen 422,
+  URL inválida 422, sin permiso 403/422). Frontend: fallback en `ProductGalleryPanel` (3) y
+  `ImageGalleryFromUrl` (2).
+- Backend Products 13/13 verde; suite frontend 782/783; `tsc --noEmit` limpio; `build:admin` OK;
+  Pint aplicado. Commit `68346a08`, deploy en `app.miinventariofacil.com` y `app.tiendasarens.com`.
+
 ## 2026-08-18 - Comisiones: edicion de planes desde la UI
 
 - Bug: los planes de comisiones existentes no se podian editar (la UI solo permitia crearlos o
