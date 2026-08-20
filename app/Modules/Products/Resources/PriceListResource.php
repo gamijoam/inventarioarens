@@ -17,6 +17,12 @@ class PriceListResource extends JsonResource
             'code' => $this->code,
             'description' => $this->description,
             'markup_percentage' => $this->markup_percentage !== null ? (float) $this->markup_percentage : null,
+            'base_price_list_id' => $this->base_price_list_id,
+            'base_price_list' => $this->whenLoaded('basePriceList', fn () => $this->basePriceList ? [
+                'id' => $this->basePriceList->id,
+                'name' => $this->basePriceList->name,
+                'code' => $this->basePriceList->code,
+            ] : null),
             'payment_exchange_rate_type_id' => $this->payment_exchange_rate_type_id,
             'payment_exchange_rate_type' => $this->whenLoaded('paymentExchangeRateType', fn () => $this->paymentExchangeRateType ? [
                 'id' => $this->paymentExchangeRateType->id,

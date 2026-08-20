@@ -1246,22 +1246,36 @@ class SharedCatalogPropagationService
 
     public function ensurePriceListCopyFor(PriceList $master, Tenant $spinoff): PriceList
     {
-        $master->loadMissing('paymentExchangeRateType');
+        $master->loadMissing(['paymentExchangeRateType', 'basePriceList']);
         $localPaymentRateTypeId = $master->paymentExchangeRateType
             ? $this->ensureExchangeRateTypeCopyFor($master->paymentExchangeRateType, $spinoff)->id
             : null;
+
+        // La lista base de la copia debe apuntar a la copia (en el spinoff) de
+        // la lista base original, identificada por su code.
+        $localBasePriceListId = null;
+        if ($master->basePriceList) {
+            $baseCopy = PriceList::query()
+                ->withoutGlobalScopes()
+                ->where('tenant_id', $spinoff->id)
+                ->where('code', $master->basePriceList->code)
+                ->first();
+            $localBasePriceListId = $baseCopy?->id;
+        }
 
         $copy = $this->upsertCopy($master, $spinoff, [
             'name' => null,
             'code' => null,
             'description' => null,
             'markup_percentage' => null,
+            'base_price_list_id' => null,
             'payment_exchange_rate_type_id' => null,
             'is_default' => null,
             'is_active' => null,
             'sort_order' => null,
         ], [
             'payment_exchange_rate_type_id' => $localPaymentRateTypeId,
+            'base_price_list_id' => $localBasePriceListId,
         ]);
 
         $this->recordSpinoffEvent(
@@ -1274,6 +1288,7 @@ class SharedCatalogPropagationService
                 'name' => $master->name,
                 'description' => $master->description,
                 'markup_percentage' => $master->markup_percentage === null ? null : (string) $master->markup_percentage,
+                'base_price_list_code' => $master->basePriceList?->code,
                 'is_default' => (bool) $master->is_default,
                 'is_active' => (bool) $master->is_active,
                 'sort_order' => (int) $master->sort_order,

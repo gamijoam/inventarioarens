@@ -34,7 +34,7 @@ class ProductPriceService
         $markup = $productPrice ? null : $priceList?->markup_percentage;
         $price = $productPrice
             ? (float) $productPrice->price
-            : (float) $product->base_price * (1 + ((float) $markup / 100));
+            : $this->listPriceUsd($product, $priceList, 0);
         $rateType = $this->rateTypeFor($product, $productPrice);
         $rate = $rateType ? $this->activeRateFor($rateType) : null;
         $requiresRate = $productPrice
@@ -109,7 +109,8 @@ class ProductPriceService
                 ->whereHas('priceList', fn ($query) => $query->where('is_active', true))
                 ->first();
 
-            if (! $price && $this->priceListFor($priceListId)?->markup_percentage === null) {
+            if (! $price && $this->priceListFor($priceListId)?->markup_percentage === null
+                && ! $this->priceListFor($priceListId)?->base_price_list_id) {
                 throw ValidationException::withMessages([
                     'price_list_id' => 'Este producto no tiene precio en esta lista.',
                 ]);
@@ -142,6 +143,44 @@ class ProductPriceService
             ->when($priceListId !== null, fn ($query) => $query->whereKey($priceListId))
             ->when($priceListId === null, fn ($query) => $query->where('is_default', true))
             ->first();
+    }
+
+    /**
+     * Precio USD de un producto en una lista de precios. Si la lista declara
+     * una `base_price_list_id`, se resuelve el precio de la lista base (que
+     * puede encadenarse) y se le aplica el margen de la lista actual.
+     * Guard de profundidad para evitar ciclos (A -> B -> A).
+     */
+    private function listPriceUsd(Product $product, ?PriceList $priceList, int $depth): float
+    {
+        if ($depth >= 5 || ! $priceList) {
+            return (float) $product->base_price;
+        }
+
+        // Si el producto tiene un precio propio en esta lista, ese precio manda
+        // (sin encadenar). Se reutiliza quote() para respetar la conversion VES.
+        $productPrice = ProductPrice::query()
+            ->where('product_id', $product->id)
+            ->where('price_list_id', $priceList->id)
+            ->where('is_active', true)
+            ->first();
+
+        if ($productPrice) {
+            return (float) $this->quote($product, $priceList->id, self::PRICE_SOURCE_LIST)['price_usd'];
+        }
+
+        $baseUsd = (float) $product->base_price;
+
+        if ($priceList->base_price_list_id) {
+            $baseList = $this->priceListFor($priceList->base_price_list_id);
+            if ($baseList) {
+                $baseUsd = $this->listPriceUsd($product, $baseList, $depth + 1);
+            }
+        }
+
+        $markup = (float) ($priceList->markup_percentage ?? 0);
+
+        return round($baseUsd * (1 + $markup / 100), 4);
     }
 
     private function rateTypeFor(Product $product, ?ProductPrice $productPrice): ?ExchangeRateType

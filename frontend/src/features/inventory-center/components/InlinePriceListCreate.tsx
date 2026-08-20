@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
-import { useCreatePriceList } from '@/features/inventory-center/api';
+import { useCreatePriceList, usePriceLists } from '@/features/inventory-center/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { catalogKeys } from '@/features/inventory-center/queries';
 import { ValidationError } from '@/types/api';
@@ -30,6 +30,8 @@ export function InlinePriceListCreate({ onCreated }: { onCreated: (id: number) =
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
+  const [markup, setMarkup] = useState('');
+  const [basePriceListId, setBasePriceListId] = useState('');
   const [isDefault, setIsDefault] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [sortOrder, setSortOrder] = useState('0');
@@ -38,11 +40,14 @@ export function InlinePriceListCreate({ onCreated }: { onCreated: (id: number) =
 
   const qc = useQueryClient();
   const create = useCreatePriceList();
+  const { data: priceLists = [] } = usePriceLists(false);
 
   const reset = () => {
     setName('');
     setCode('');
     setDescription('');
+    setMarkup('');
+    setBasePriceListId('');
     setIsDefault(false);
     setIsActive(true);
     setSortOrder('0');
@@ -68,6 +73,8 @@ export function InlinePriceListCreate({ onCreated }: { onCreated: (id: number) =
         name: name.trim(),
         code: code.trim().toUpperCase(),
         description: description.trim() || null,
+        markup_percentage: markup === '' ? null : Number(markup),
+        base_price_list_id: basePriceListId ? Number(basePriceListId) : null,
         is_default: isDefault,
         is_active: isActive,
         sort_order: sort,
@@ -158,6 +165,38 @@ export function InlinePriceListCreate({ onCreated }: { onCreated: (id: number) =
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
                 placeholder="Opcional."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ipl-base">Precio base</Label>
+              <select
+                id="ipl-base"
+                value={basePriceListId}
+                onChange={(e) => setBasePriceListId(e.target.value)}
+                className="border-border bg-surface h-10 w-full rounded border px-3 text-sm"
+              >
+                <option value="">Precio base del producto</option>
+                {priceLists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name} ({l.code})
+                  </option>
+                ))}
+              </select>
+              <p className="text-text-muted text-xs">
+                Toma como base el precio de otra lista (ej. Detal) y le aplica el incremento.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ipl-markup">Incremento (%)</Label>
+              <Input
+                id="ipl-markup"
+                type="number"
+                min={0}
+                max={999.99}
+                step="0.01"
+                value={markup}
+                onChange={(e) => setMarkup(e.target.value)}
+                placeholder="Ej. 16 (IVA sobre Detal)"
               />
             </div>
             <div className="flex items-center gap-4">

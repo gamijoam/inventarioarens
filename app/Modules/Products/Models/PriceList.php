@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'code',
     'description',
     'markup_percentage',
+    'base_price_list_id',
     'payment_exchange_rate_type_id',
     'is_default',
     'is_active',
@@ -54,6 +55,11 @@ class PriceList extends Model
     public function productPrices(): HasMany
     {
         return $this->hasMany(ProductPrice::class);
+    }
+
+    public function basePriceList(): BelongsTo
+    {
+        return $this->belongsTo(PriceList::class, 'base_price_list_id')->withoutGlobalScopes();
     }
 
     public function paymentExchangeRateType(): BelongsTo

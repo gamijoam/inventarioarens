@@ -956,7 +956,7 @@ class SyncCatalogOutboxService
 
     private function recordPriceList(string $eventType, PriceList $priceList): void
     {
-        $priceList->loadMissing(['paymentMethods', 'paymentExchangeRateType']);
+        $priceList->loadMissing(['paymentMethods', 'paymentExchangeRateType', 'basePriceList']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -967,6 +967,7 @@ class SyncCatalogOutboxService
                 'name' => $priceList->name,
                 'description' => $priceList->description,
                 'markup_percentage' => $priceList->markup_percentage === null ? null : (string) $priceList->markup_percentage,
+                'base_price_list_code' => $priceList->basePriceList?->code,
                 'is_default' => (bool) $priceList->is_default,
                 'is_active' => (bool) $priceList->is_active,
                 'sort_order' => (int) $priceList->sort_order,

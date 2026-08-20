@@ -863,6 +863,19 @@ class SyncEventApplier
         return $query->value('id');
     }
 
+    private function priceListIdByCode(Tenant $tenant, mixed $code): ?int
+    {
+        $code = $this->nullableString($code);
+        if ($code === null) {
+            return null;
+        }
+
+        return DB::table('price_lists')
+            ->where('tenant_id', $tenant->id)
+            ->where('code', mb_strtoupper($code))
+            ->value('id');
+    }
+
     /**
      * Aplica un `purchase_order.received` en la nube. Convierte la orden de
      * compra local en una entrada de stock (`product_entries` + items +
@@ -2081,6 +2094,7 @@ class SyncEventApplier
                 'markup_percentage' => array_key_exists('markup_percentage', $payload) && $payload['markup_percentage'] !== null
                     ? (float) $payload['markup_percentage']
                     : null,
+                'base_price_list_id' => $this->priceListIdByCode($tenant, $payload['base_price_list_code'] ?? null),
                 'is_default' => $isDefault,
                 'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
                 'sort_order' => (int) ($payload['sort_order'] ?? 0),

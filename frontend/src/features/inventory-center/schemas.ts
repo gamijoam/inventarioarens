@@ -689,6 +689,15 @@ export const PriceListSchema = z.object({
   name: z.string(),
   description: z.string().nullable().optional(),
   markup_percentage: z.number().nullable().optional(),
+  base_price_list_id: z.number().int().nullable().optional(),
+  base_price_list: z
+    .object({
+      id: z.number().int(),
+      name: z.string(),
+      code: z.string(),
+    })
+    .nullable()
+    .optional(),
   payment_exchange_rate_type_id: z.number().int().positive().nullable().optional(),
   payment_exchange_rate_type: z
     .object({
@@ -886,6 +895,7 @@ export const StorePriceListSchema = z
       .optional()
       .transform((s) => (s?.trim() ? s.trim() : null)),
     markup_percentage: z.number().min(0).max(999.99).nullable().optional(),
+    base_price_list_id: z.coerce.number().int().positive().nullable().optional(),
     payment_exchange_rate_type_id: z.coerce.number().int().positive().nullable().optional(),
     is_default: z.boolean().optional(),
     is_active: z.boolean().default(true),
