@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-08-20 - POS: rediseno visual del panel Caja (CashPanel)
+
+- El panel que se abria al tocar "Caja" tenia un layout plano (grid de PanelCards sin
+  jerarquia). Redisenado con el mismo lenguaje visual del OpenCashScreen:
+  - Hero de turno activo con gradiente indigo + radial: icono cartera, nombre de caja,
+    sesion #, badge de estado, y stats de Sucursal / Apertura / Cajero.
+  - `MetricCard` ahora acepta icono: Fondo inicial (monedas) y Esperado (check verde).
+  - Banner de **Diferencia de cierre** (verde sobra / rojo falta) cuando la sesion ya
+    fue contada.
+  - Secciones "Movimiento extra" y "Cerrar caja" en 2 columnas, con `PanelCard`
+    extendido (icon + `tone='danger'`) y botones con iconos.
+  - Eliminado `InfoLine` (sin uso). `CashPanel` exportado para tests.
+- TDD: `CashPanel.test.tsx` (5: hero, metricas, diferencia, no-diferencia, acciones).
+  Suite frontend 793/794, tsc limpio, builds admin+pos OK.
+- Commit `e694621a`, deploy en ambas apps.
+
 ## 2026-08-20 - POS: fusion de botones "Caja" y "Cerrar turno" + iconos en la shell
 
 - **Problema**: la shell del POS tenia dos botones ("Caja" y "Cerrar turno") que abrian
