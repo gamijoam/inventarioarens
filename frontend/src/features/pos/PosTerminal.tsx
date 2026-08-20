@@ -8,7 +8,11 @@ import {
 } from './cartStore';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  CircleCheck,
   ClipboardList,
+  Coins,
   CreditCard,
   FileText,
   Gift,
@@ -21,6 +25,7 @@ import {
   Receipt,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Tag,
   Trash2,
   UserRound,
@@ -4274,7 +4279,7 @@ function HoldPanel(props: {
   );
 }
 
-function CashPanel(props: {
+export function CashPanel(props: {
   session: CashRegisterSession;
   canMove: boolean;
   canClose: boolean;
@@ -4285,109 +4290,180 @@ function CashPanel(props: {
   onAddMovement: () => void;
   onCloseSession: () => void;
 }) {
+  const session = props.session;
+  const isOpen = session.status === 'open';
+  const difference = Number(session.difference_base_amount ?? 0);
+  const hasCounted =
+    session.counted_base_amount !== null && session.counted_base_amount !== undefined;
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <MetricCard label="Fondo inicial" value={money(props.session.opening_base_amount ?? 0)} />
-          <MetricCard
-            label="Esperado"
-            value={money(props.session.expected_base_amount ?? 0)}
-            tone="success"
-          />
+    <div className="space-y-4">
+      {/* Hero: turno activo */}
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#17112f] via-[#241761] to-[#4338ca] p-5 text-white shadow-lg">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.22),transparent_45%)]" />
+        <div className="relative flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-lg backdrop-blur">
+              <Wallet className="size-6" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">
+                Turno activo
+              </p>
+              <h3 className="text-lg leading-tight font-bold">
+                {session.cash_register?.name ?? 'Caja POS'}
+              </h3>
+              <p className="text-sm text-white/70">Sesión #{session.id}</p>
+            </div>
+          </div>
+          <Badge
+            variant={isOpen ? 'success' : 'info'}
+            className="bg-white/15 text-white shadow-sm backdrop-blur"
+          >
+            {isOpen ? 'Turno abierto' : session.status}
+          </Badge>
         </div>
-        <PanelCard
-          eyebrow="Turno activo"
-          title={props.session.cash_register?.name ?? 'Caja POS'}
-          description={`Sesion #${props.session.id} abierta para venta directa.`}
-        >
-          <div className="grid gap-2 text-sm sm:grid-cols-2">
-            <InfoLine label="Sucursal" value={props.session.branch?.name ?? 'Sin sucursal'} />
-            <InfoLine label="Estado" value={props.session.status} />
-          </div>
-        </PanelCard>
+        <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <HeroStat label="Sucursal" value={session.branch?.name ?? '—'} />
+          <HeroStat label="Apertura" value={formatPosTime(session.opened_at)} />
+          <HeroStat label="Cajero" value={session.cashier?.name ?? '—'} />
+        </div>
+      </section>
+
+      {/* Métricas clave */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <MetricCard
+          icon={<Coins className="size-4 text-text-muted" aria-hidden="true" />}
+          label="Fondo inicial"
+          value={money(session.opening_base_amount ?? 0)}
+        />
+        <MetricCard
+          icon={<CircleCheck className="size-4 text-success" aria-hidden="true" />}
+          label="Esperado"
+          value={money(session.expected_base_amount ?? 0)}
+          tone="success"
+        />
       </div>
-      {props.canMove && (
-        <PanelCard
-          eyebrow="Caja"
-          title="Movimiento extra"
-          description="Registra entradas, salidas o ajustes de efectivo fuera de una venta."
+
+      {hasCounted && (
+        <div
+          className={cn(
+            'flex items-center justify-between rounded-2xl border p-4 text-sm font-semibold',
+            difference >= 0
+              ? 'border-success/40 bg-success/10 text-success'
+              : 'border-danger/40 bg-danger/10 text-danger',
+          )}
+          data-testid="pos-cash-difference"
         >
-          <div className="space-y-3">
-            <LabeledControl label="Tipo">
-              <Select
-                value={props.movement.type}
-                onChange={(event) =>
-                  props.onMovementChange({ ...props.movement, type: event.target.value })
-                }
+          <span>Diferencia de cierre</span>
+          <span>{money(difference)}</span>
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {props.canMove && (
+          <PanelCard
+            eyebrow="Caja"
+            title="Movimiento extra"
+            description="Entradas, salidas o ajustes de efectivo fuera de una venta."
+            icon={<SlidersHorizontal className="size-4 text-text-muted" aria-hidden="true" />}
+          >
+            <div className="space-y-3">
+              <LabeledControl label="Tipo">
+                <Select
+                  value={props.movement.type}
+                  onChange={(event) =>
+                    props.onMovementChange({ ...props.movement, type: event.target.value })
+                  }
+                >
+                  <option value="inflow">Entrada</option>
+                  <option value="outflow">Salida</option>
+                  <option value="adjustment">Ajuste</option>
+                </Select>
+              </LabeledControl>
+              <LabeledControl label="Monto USD">
+                <Input
+                  type="number"
+                  min="0"
+                  value={props.movement.amount}
+                  onChange={(event) =>
+                    props.onMovementChange({ ...props.movement, amount: event.target.value })
+                  }
+                  placeholder="0.00"
+                  data-testid="pos-cash-movement-amount"
+                />
+              </LabeledControl>
+              <LabeledControl label="Motivo">
+                <Input
+                  value={props.movement.notes}
+                  onChange={(event) =>
+                    props.onMovementChange({ ...props.movement, notes: event.target.value })
+                  }
+                  placeholder="Motivo del movimiento"
+                  data-testid="pos-cash-movement-notes"
+                />
+              </LabeledControl>
+              <Button
+                className="h-11 w-full"
+                onClick={props.onAddMovement}
+                data-testid="pos-cash-movement-submit"
               >
-                <option value="inflow">Entrada</option>
-                <option value="outflow">Salida</option>
-                <option value="adjustment">Ajuste</option>
-              </Select>
-            </LabeledControl>
-            <LabeledControl label="Monto USD">
-              <Input
-                type="number"
-                min="0"
-                value={props.movement.amount}
-                onChange={(event) =>
-                  props.onMovementChange({ ...props.movement, amount: event.target.value })
-                }
-                placeholder="Monto USD"
-                data-testid="pos-cash-movement-amount"
-              />
-            </LabeledControl>
-            <LabeledControl label="Motivo">
-              <Input
-                value={props.movement.notes}
-                onChange={(event) =>
-                  props.onMovementChange({ ...props.movement, notes: event.target.value })
-                }
-                placeholder="Motivo"
-                data-testid="pos-cash-movement-notes"
-              />
-            </LabeledControl>
-            <Button
-              className="h-11 w-full"
-              onClick={props.onAddMovement}
-              data-testid="pos-cash-movement-submit"
-            >
-              Registrar movimiento
-            </Button>
-          </div>
-        </PanelCard>
-      )}
-      {props.canClose && (
-        <PanelCard
-          eyebrow="Cierre"
-          title="Cerrar caja"
-          description="Ingresa el efectivo contado para comparar contra el esperado."
-        >
-          <div className="space-y-3">
-            <LabeledControl label="Efectivo contado USD">
-              <Input
-                type="number"
-                min="0"
-                value={props.closingAmount}
-                onChange={(event) => props.onClosingAmount(event.target.value)}
-                placeholder="Efectivo contado USD"
-                data-testid="pos-cash-closing-amount"
-              />
-            </LabeledControl>
-            <Button
-              className="h-11 w-full"
-              variant="outline"
-              onClick={props.onCloseSession}
-              data-testid="pos-cash-close-submit"
-            >
-              Cerrar turno
-            </Button>
-          </div>
-        </PanelCard>
-      )}
+                Registrar movimiento
+              </Button>
+            </div>
+          </PanelCard>
+        )}
+
+        {props.canClose && (
+          <PanelCard
+            eyebrow="Cierre"
+            title="Cerrar caja"
+            description="Ingresa el efectivo contado para comparar contra el esperado."
+            tone="danger"
+            icon={<ArrowDownToLine className="size-4 text-danger" aria-hidden="true" />}
+          >
+            <div className="space-y-3">
+              <LabeledControl label="Efectivo contado USD">
+                <Input
+                  type="number"
+                  min="0"
+                  value={props.closingAmount}
+                  onChange={(event) => props.onClosingAmount(event.target.value)}
+                  placeholder="0.00"
+                  data-testid="pos-cash-closing-amount"
+                />
+              </LabeledControl>
+              <Button
+                className="h-11 w-full"
+                variant="outline"
+                onClick={props.onCloseSession}
+                data-testid="pos-cash-close-submit"
+              >
+                <ArrowUpFromLine className="size-4" aria-hidden="true" />
+                Cerrar turno
+              </Button>
+            </div>
+          </PanelCard>
+        )}
+      </div>
     </div>
   );
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur">
+      <p className="text-[10px] font-semibold tracking-wide text-white/55 uppercase">{label}</p>
+      <p className="mt-0.5 truncate text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function formatPosTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function ReceiptPanel({
@@ -4608,6 +4684,8 @@ function PanelCard({
   title,
   description,
   action,
+  icon,
+  tone = 'default',
   children,
   className,
 }: {
@@ -4615,22 +4693,31 @@ function PanelCard({
   title: string;
   description?: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: 'default' | 'danger';
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <section
-      className={cn('border-border bg-surface rounded-[1.5rem] border p-4 shadow-sm', className)}
+      className={cn(
+        'border-border bg-surface rounded-2xl border p-4 shadow-sm',
+        tone === 'danger' && 'border-danger/30',
+        className,
+      )}
     >
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          {eyebrow ? (
-            <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">
-              {eyebrow}
-            </p>
-          ) : null}
-          <h3 className="mt-1 text-lg font-semibold tracking-tight">{title}</h3>
-          {description ? <p className="text-text-muted mt-1 text-sm">{description}</p> : null}
+        <div className="flex items-start gap-2.5">
+          {icon ? <span className="mt-0.5 shrink-0">{icon}</span> : null}
+          <div>
+            {eyebrow ? (
+              <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">
+                {eyebrow}
+              </p>
+            ) : null}
+            <h3 className="mt-1 text-lg font-semibold tracking-tight">{title}</h3>
+            {description ? <p className="text-text-muted mt-1 text-sm">{description}</p> : null}
+          </div>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
@@ -4665,24 +4752,20 @@ function MetricCard({
   label,
   value,
   tone = 'default',
+  icon,
 }: {
   label: string;
   value: string;
   tone?: 'default' | 'success';
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="border-border bg-surface rounded-[1.5rem] border p-4 shadow-sm">
-      <p className="text-text-muted text-xs font-semibold tracking-wide uppercase">{label}</p>
+    <div className="border-border bg-surface rounded-2xl border p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-text-muted text-xs font-semibold tracking-wide uppercase">{label}</p>
+        {icon ? <span className="shrink-0">{icon}</span> : null}
+      </div>
       <p className={cn('mt-2 text-2xl font-bold', tone === 'success' && 'text-success')}>{value}</p>
-    </div>
-  );
-}
-
-function InfoLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-border bg-bg/50 rounded-2xl border px-3 py-2">
-      <p className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold">{value}</p>
     </div>
   );
 }
