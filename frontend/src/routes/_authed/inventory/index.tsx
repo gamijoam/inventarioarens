@@ -412,6 +412,34 @@ function useColumns(
           />
         ),
       }),
+      columnHelper.display({
+        id: 'image',
+        header: () => null,
+        cell: (info) => {
+          const row = info.row.original;
+          const src = row.primary_image_url ?? row.images?.[0]?.thumb_url ?? row.image_url;
+          if (!src) {
+            return (
+              <div className="flex size-10 items-center justify-center rounded border border-border bg-bg text-[10px] text-text-muted">
+                —
+              </div>
+            );
+          }
+          return (
+            <div className="size-10 overflow-hidden rounded border border-border bg-bg">
+              <img
+                src={src}
+                alt={row.name}
+                className="size-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          );
+        },
+      }),
       columnHelper.accessor('sku', {
         header: 'SKU',
         cell: (info) => (

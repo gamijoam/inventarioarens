@@ -11,6 +11,7 @@ use App\Modules\Sync\Services\SyncImageService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -141,6 +142,77 @@ class ProductImageService
         $this->outbox->imageUploaded($persistedImage->fresh(['variants']));
 
         return $persistedImage->fresh(['variants', 'product']);
+    }
+
+    /**
+     * Descarga una imagen desde una URL externa y la guarda en la galeria del
+     * producto (como una imagen subida normalmente). Reutiliza todo el pipeline
+     * de `upload()`: variantes WebP, deduplicacion por sha256, sync y
+     * propagacion a spinoffs.
+     *
+     * Lanza RuntimeException con mensajes en espanol si la URL no responde,
+     * no es una imagen, esta vacia o excede los limites.
+     */
+    public function fromUrl(Product $product, string $url, ?string $alt = null, ?User $uploadedBy = null): ProductImage
+    {
+        if (! $this->tenants->current()) {
+            throw new RuntimeException('No hay tenant activo en el request.');
+        }
+
+        if ($uploadedBy === null) {
+            $uploadedBy = auth()->user();
+        }
+
+        $tmp = $this->downloadToTemp($url);
+        try {
+            // mime null: deja que UploadedFile detecte el tipo real con finfo
+            // (mas confiable que el Content-Type del servidor remoto).
+            $file = new UploadedFile($tmp['path'], $tmp['name'], null, null, true);
+
+            return $this->upload($product, $file, $alt, $uploadedBy);
+        } finally {
+            @unlink($tmp['path']);
+        }
+    }
+
+    /**
+     * Descarga el binario de una URL a un archivo temporal y valida pre-requisitos
+     * basicos (respuesta ok, no vacio, tamano dentro del limite del processor).
+     *
+     * @return array{path: string, name: string}
+     */
+    private function downloadToTemp(string $url): array
+    {
+        try {
+            $response = Http::timeout(30)->get($url);
+        } catch (\Throwable) {
+            throw new RuntimeException('No se pudo descargar la imagen de la URL proporcionada.');
+        }
+
+        if ($response->failed()) {
+            throw new RuntimeException('No se pudo descargar la imagen: la URL no respondió correctamente.');
+        }
+
+        $bytes = $response->body();
+        if ($bytes === '' || $bytes === null) {
+            throw new RuntimeException('La imagen descargada está vacía.');
+        }
+        if (strlen($bytes) > ImageProcessor::MAX_INPUT_SIZE) {
+            throw new RuntimeException('La imagen excede el tamaño máximo de 5 MB.');
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'prod_url_');
+        if ($tmp === false) {
+            throw new RuntimeException('No se pudo crear archivo temporal.');
+        }
+        file_put_contents($tmp, $bytes);
+
+        $name = 'imagen-web';
+        if (preg_match('#\.(jpe?g|png|webp)$#i', (string) parse_url($url, PHP_URL_PATH), $m) === 1) {
+            $name .= '.'.strtolower($m[1]);
+        }
+
+        return ['path' => $tmp, 'name' => $name];
     }
 
     /**

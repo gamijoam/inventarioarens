@@ -46,6 +46,16 @@ describe('ProductGalleryPanel', () => {
     const { container } = render(<ProductGalleryPanel images={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
+  it('muestra fallbackUrl como imagen de respaldo cuando no hay galeria', () => {
+    render(<ProductGalleryPanel images={[]} fallbackUrl="https://cdn.example.com/foto.jpg" />);
+    expect(screen.getByText('Imágenes')).toBeInTheDocument();
+    const img = screen.getByAltText('Imagen del producto');
+    expect(img).toHaveAttribute('src', 'https://cdn.example.com/foto.jpg');
+  });
+  it('no renderiza si no hay galeria ni fallbackUrl', () => {
+    const { container } = render(<ProductGalleryPanel images={[]} fallbackUrl={null} />);
+    expect(container).toBeEmptyDOMElement();
+  });
   it('muestra la imagen principal y el badge Principal', () => {
     render(
       <ProductGalleryPanel

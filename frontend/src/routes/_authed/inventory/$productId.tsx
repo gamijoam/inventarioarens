@@ -174,7 +174,10 @@ function ProductDetailPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {/* Galeria de imagenes a la izquierda (col 1) */}
             <div className="lg:col-span-1">
-              <ProductGalleryPanel images={product.images ?? galleryImages} />
+              <ProductGalleryPanel
+                images={product.images ?? galleryImages}
+                fallbackUrl={product.image_url}
+              />
             </div>
 
             {/* Datos y relaciones a la derecha (cols 2-3) */}
