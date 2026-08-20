@@ -1833,7 +1833,12 @@ export function PosTerminal() {
           <PanelShell
             title={panelTitle(panel)}
             onClose={() => setPanel(null)}
-            wide={panel === 'pay' || panel === 'customer' || panel === 'promotions'}
+            wide={
+              panel === 'pay' ||
+              panel === 'customer' ||
+              panel === 'promotions' ||
+              panel === 'cash'
+            }
             actions={
               <>
                 <Button
@@ -4538,19 +4543,18 @@ export function CashPanel(props: {
                 <Input
                   type="number"
                   min="0"
-                  value={calculatedForm.ves}
-                  readOnly={props.closeForm.counts.length > 0}
+                  value={props.closeForm.ves}
                   onChange={(event) =>
                     props.onCloseForm({ ...props.closeForm, ves: event.target.value })
                   }
-                  placeholder="Efectivo contado VES"
+                  placeholder="Efectivo contado Bs (VES)"
                   data-testid="pos-cash-closing-ves"
                 />
               </div>
 
               <div className="space-y-3 rounded-lg border border-border/70 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">Conteo por denominaciones</p>
+                  <p className="text-sm font-semibold">Conteo por denominaciones (USD)</p>
                   {props.closeForm.counts.length > 0 && (
                     <Button
                       type="button"
@@ -4563,10 +4567,10 @@ export function CashPanel(props: {
                   )}
                 </div>
                 <p className="text-xs text-text-muted">
-                  Si registras denominaciones, los totales anteriores se calculan automáticamente.
+                  Si registras denominaciones, el total en USD se calcula automáticamente. El
+                  efectivo en bolívares se ingresa manualmente.
                 </p>
                 <DenominationGrid currency="USD" form={props.closeForm} onForm={props.onCloseForm} />
-                <DenominationGrid currency="VES" form={props.closeForm} onForm={props.onCloseForm} />
               </div>
 
               <div className="grid gap-2 rounded-lg border border-border/70 p-2 text-sm sm:grid-cols-2">

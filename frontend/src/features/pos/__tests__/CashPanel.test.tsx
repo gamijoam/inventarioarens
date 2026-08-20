@@ -133,4 +133,43 @@ describe('CashPanel', () => {
     fireEvent.click(screen.getByTestId('pos-cash-close-submit'));
     expect(props.onCloseSession).toHaveBeenCalledTimes(1);
   });
+
+  it('la cantidad de una denominacion se ingresa tal cual (1 en el 10 = 1, no 100)', () => {
+    const onCloseForm = vi.fn();
+    render(
+      <CashPanel
+        session={makeSession()}
+        {...makeProps({ onCloseForm })}
+      />,
+    );
+
+    const qty = screen.getByLabelText('Cantidad de 10 USD');
+    fireEvent.change(qty, { target: { value: '1' } });
+
+    expect(onCloseForm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        counts: [{ currency: 'USD', denomination: 10, quantity: 1 }],
+      }),
+    );
+  });
+
+  it('el total en USD suma las denominaciones ingresadas', () => {
+    render(
+      <CashPanel
+        session={makeSession()}
+        {...makeProps({
+          closeForm: makeCloseForm({
+            counts: [
+              { currency: 'USD', denomination: 10, quantity: 1 },
+              { currency: 'USD', denomination: 50, quantity: 2 },
+            ],
+          }),
+        })}
+      />,
+    );
+
+    // 10*1 + 50*2 = 110
+    const usdInput = screen.getByTestId('pos-cash-closing-amount') as HTMLInputElement;
+    expect(usdInput.value).toBe('110');
+  });
 });

@@ -799,7 +799,31 @@ export function DenominationGrid({ currency, form, onForm }: { currency: CashCou
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {CASH_DENOMINATIONS[currency].map((denomination) => {
           const count = form.counts.find((item) => item.currency === currency && item.denomination === denomination)?.quantity ?? 0;
-          return <label key={denomination} className="space-y-1 text-xs text-text-muted"><span>{denomination}</span><Input type="number" min="0" step="1" value={count} onChange={(event) => onForm({ ...form, counts: [...form.counts.filter((item) => !(item.currency === currency && item.denomination === denomination)), { currency, denomination, quantity: Math.max(0, Number(event.target.value) || 0) }] })} /></label>;
+          return (
+            <label key={denomination} className="space-y-1 text-xs text-text-muted">
+              <span>{denomination}</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={count === 0 ? '' : String(count)}
+                onChange={(event) => {
+                  const raw = event.target.value.replace(/[^\d]/g, '');
+                  const quantity = Math.max(0, raw === '' ? 0 : Number(raw));
+                  onForm({
+                    ...form,
+                    counts: [
+                      ...form.counts.filter(
+                        (item) => !(item.currency === currency && item.denomination === denomination),
+                      ),
+                      { currency, denomination, quantity },
+                    ],
+                  });
+                }}
+                aria-label={`Cantidad de ${denomination} ${currency}`}
+              />
+            </label>
+          );
         })}
       </div>
     </div>
