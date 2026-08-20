@@ -31,9 +31,9 @@ import { useUsers } from '@/features/users/api';
 import { openReportZPdf } from '@/features/cash-register/reportZApi';
 import { CashRegisterCommandCenter } from './CashRegisterCommandCenter';
 
-type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
-type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string; counts: CashCount[]; blind: boolean };
-const CASH_DENOMINATIONS: Record<CashCount['currency'], number[]> = {
+export type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
+export type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string; counts: CashCount[]; blind: boolean };
+export const CASH_DENOMINATIONS: Record<CashCount['currency'], number[]> = {
   USD: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100],
   VES: [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000],
 };
@@ -768,7 +768,7 @@ function RegistersCard({ registers, branchOptions, loading, form, creating, onFo
   );
 }
 
-function closeDifference(session: CashRegisterSession, form: CloseForm, rate: number | null) {
+export function closeDifference(session: CashRegisterSession, form: CloseForm, rate: number | null) {
   const usd = Number(form.usd || 0);
   const ves = Number(form.ves || 0);
   const vesBase = rate && rate > 0 ? ves / rate : 0;
@@ -781,18 +781,18 @@ function closeDifference(session: CashRegisterSession, form: CloseForm, rate: nu
   return { declaredBase, expectedUsd, expectedVes, cashUsd, cashVes };
 }
 
-function hasDifference(base: number, local: number): boolean {
+export function hasDifference(base: number, local: number): boolean {
   return Math.abs(base) >= 0.01 || Math.abs(local) >= 0.01;
 }
 
-function cashCountTotals(counts: CashCount[]): Record<CashCount['currency'], number> {
+export function cashCountTotals(counts: CashCount[]): Record<CashCount['currency'], number> {
   return counts.reduce((totals, count) => {
     totals[count.currency] += count.denomination * count.quantity;
     return totals;
   }, { USD: 0, VES: 0 });
 }
 
-function DenominationGrid({ currency, form, onForm }: { currency: CashCount['currency']; form: CloseForm; onForm: (value: CloseForm) => void }) {
+export function DenominationGrid({ currency, form, onForm }: { currency: CashCount['currency']; form: CloseForm; onForm: (value: CloseForm) => void }) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{currency}</p>
@@ -819,7 +819,7 @@ function money(value: number | string | null | undefined): string {
   return `$${Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function localMoney(value: number | string | null | undefined): string {
+export function localMoney(value: number | string | null | undefined): string {
   return `Bs ${Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

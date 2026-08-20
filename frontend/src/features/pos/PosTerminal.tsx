@@ -14,6 +14,8 @@ import {
   ClipboardList,
   Coins,
   CreditCard,
+  Eye,
+  EyeOff,
   FileText,
   Gift,
   Info,
@@ -65,6 +67,14 @@ import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { ProductDetailDialog } from './ProductDetailDialog';
+import {
+  DenominationGrid,
+  cashCountTotals,
+  closeDifference,
+  hasDifference,
+  localMoney,
+  type CloseForm,
+} from './CashRegisterSetup';
 import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
 import { QuotationPickerDialog } from '@/features/quotations/QuotationPickerDialog';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
@@ -493,7 +503,14 @@ export function PosTerminal() {
   const [openingBranchId, setOpeningBranchId] = useState<number | ''>('');
   const [openingRegisterId, setOpeningRegisterId] = useState<number | ''>('');
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
-  const [closingAmount, setClosingAmount] = useState('');
+  const [cashCloseForm, setCashCloseForm] = useState<CloseForm>({
+    sessionId: null,
+    usd: '',
+    ves: '',
+    notes: '',
+    counts: [],
+    blind: true,
+  });
   const [creditDueDate, setCreditDueDate] = useState('');
   const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
   const [variantPickerQuantity, setVariantPickerQuantity] = useState(1);
@@ -1938,9 +1955,11 @@ export function PosTerminal() {
                 canMove={canMoveCash}
                 canClose={canCloseCash}
                 movement={cashMovement}
-                closingAmount={closingAmount}
+                closeForm={cashCloseForm}
+                rate={activeRate?.rate ?? null}
+                closing={closeCash.isPending}
                 onMovementChange={setCashMovement}
-                onClosingAmount={setClosingAmount}
+                onCloseForm={setCashCloseForm}
                 onAddMovement={() => {
                   if (!Number(cashMovement.amount)) return toast.error('Ingresa un monto.');
                   addCashMovement.mutate({
@@ -1956,18 +1975,53 @@ export function PosTerminal() {
                   setCashMovement({ type: 'outflow', amount: '', notes: '' });
                 }}
                 onCloseSession={() => {
-                  if (!Number(closingAmount)) return toast.error('Ingresa el efectivo contado.');
+                  const totals = cashCountTotals(cashCloseForm.counts);
+                  const usd = cashCloseForm.counts.length
+                    ? totals.USD
+                    : Number(cashCloseForm.usd || 0);
+                  const ves = cashCloseForm.counts.length
+                    ? totals.VES
+                    : Number(cashCloseForm.ves || 0);
+                  const diff = closeDifference(activeSession, cashCloseForm, activeRate?.rate ?? null);
+
+                  if (usd < 0 || ves < 0) {
+                    return toast.error('El efectivo contado no puede ser negativo.');
+                  }
+                  if (ves > 0 && !activeRate) {
+                    return toast.error(
+                      'Configura una tasa activa USD/VES antes de cerrar con efectivo VES.',
+                    );
+                  }
+                  if (hasDifference(diff.cashUsd, diff.cashVes) && !cashCloseForm.notes.trim()) {
+                    return toast.error('Indica una nota para justificar la diferencia de caja.');
+                  }
+
                   setCashSessionClosed(true);
                   closeCash.mutate(
                     {
                       sessionId: activeSession.id,
                       payload: {
-                        counted_currency: 'USD',
-                        counted_amount: Number(closingAmount),
-                        closing_notes: 'Cierre desde POS',
+                        counted_base_amount: usd,
+                        counted_local_amount: ves,
+                        counted_cash_usd: usd,
+                        counted_cash_ves: ves,
+                        exchange_rate_type_id:
+                          ves > 0 ? (activeRate?.exchange_rate_type_id ?? null) : null,
+                        counts: cashCloseForm.counts.length ? cashCloseForm.counts : undefined,
+                        counting_mode: cashCloseForm.blind ? 'blind' : 'standard',
+                        closing_notes: cashCloseForm.notes.trim() || null,
                       },
                     },
                     {
+                      onSuccess: () =>
+                        setCashCloseForm({
+                          sessionId: null,
+                          usd: '',
+                          ves: '',
+                          notes: '',
+                          counts: [],
+                          blind: true,
+                        }),
                       onError: (error) => {
                         setCashSessionClosed(false);
                         toast.error(errorMessage(error));
@@ -4284,17 +4338,29 @@ export function CashPanel(props: {
   canMove: boolean;
   canClose: boolean;
   movement: { type: string; amount: string; notes: string };
-  closingAmount: string;
+  closeForm: CloseForm;
+  rate: number | null;
+  closing: boolean;
   onMovementChange: (value: { type: string; amount: string; notes: string }) => void;
-  onClosingAmount: (value: string) => void;
+  onCloseForm: (value: CloseForm) => void;
   onAddMovement: () => void;
   onCloseSession: () => void;
 }) {
   const session = props.session;
   const isOpen = session.status === 'open';
+  const blind = props.closeForm.blind;
   const difference = Number(session.difference_base_amount ?? 0);
   const hasCounted =
     session.counted_base_amount !== null && session.counted_base_amount !== undefined;
+
+  // Arqueo de cierre (misma logica que el modulo Cajas).
+  const totals = cashCountTotals(props.closeForm.counts);
+  const calculatedForm = props.closeForm.counts.length
+    ? { ...props.closeForm, usd: String(totals.USD), ves: String(totals.VES) }
+    : props.closeForm;
+  const diff = closeDifference(session, calculatedForm, props.rate);
+  const needsNote = hasDifference(diff.cashUsd, diff.cashVes);
+  const canSubmitClose = !props.closing && (!needsNote || props.closeForm.notes.trim().length > 0);
 
   return (
     <div className="space-y-4">
@@ -4330,22 +4396,24 @@ export function CashPanel(props: {
         </div>
       </section>
 
-      {/* Métricas clave */}
+      {/* Métricas clave (el esperado se oculta en modo ciego) */}
       <div className="grid gap-3 sm:grid-cols-2">
         <MetricCard
           icon={<Coins className="size-4 text-text-muted" aria-hidden="true" />}
           label="Fondo inicial"
           value={money(session.opening_base_amount ?? 0)}
         />
-        <MetricCard
-          icon={<CircleCheck className="size-4 text-success" aria-hidden="true" />}
-          label="Esperado"
-          value={money(session.expected_base_amount ?? 0)}
-          tone="success"
-        />
+        {!blind && (
+          <MetricCard
+            icon={<CircleCheck className="size-4 text-success" aria-hidden="true" />}
+            label="Esperado"
+            value={money(session.expected_base_amount ?? 0)}
+            tone="success"
+          />
+        )}
       </div>
 
-      {hasCounted && (
+      {!blind && hasCounted && (
         <div
           className={cn(
             'flex items-center justify-between rounded-2xl border p-4 text-sm font-semibold',
@@ -4418,27 +4486,147 @@ export function CashPanel(props: {
           <PanelCard
             eyebrow="Cierre"
             title="Cerrar caja"
-            description="Ingresa el efectivo contado para comparar contra el esperado."
+            description={
+              blind
+                ? 'El monto esperado está oculto. Cuenta el efectivo sin referencia.'
+                : 'Ingresa el efectivo contado para comparar contra el esperado.'
+            }
             tone="danger"
             icon={<ArrowDownToLine className="size-4 text-danger" aria-hidden="true" />}
           >
             <div className="space-y-3">
-              <LabeledControl label="Efectivo contado USD">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-text-muted">
+                  {blind ? 'Cierre ciego activo.' : 'Puedes contar con referencia o usar cierre ciego.'}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={blind ? 'primary' : 'outline'}
+                  onClick={() =>
+                    props.onCloseForm({
+                      ...props.closeForm,
+                      blind: !blind,
+                      usd: blind ? props.closeForm.usd : '',
+                      ves: blind ? props.closeForm.ves : '',
+                      counts: blind ? props.closeForm.counts : [],
+                    })
+                  }
+                  data-testid="pos-cash-blind-toggle"
+                >
+                  {blind ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                  {blind ? 'Cierre ciego activo' : 'Usar cierre ciego'}
+                </Button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
                 <Input
                   type="number"
                   min="0"
-                  value={props.closingAmount}
-                  onChange={(event) => props.onClosingAmount(event.target.value)}
-                  placeholder="0.00"
+                  value={calculatedForm.usd}
+                  readOnly={props.closeForm.counts.length > 0}
+                  onChange={(event) =>
+                    props.onCloseForm({ ...props.closeForm, usd: event.target.value })
+                  }
+                  placeholder="Efectivo contado USD"
                   data-testid="pos-cash-closing-amount"
                 />
-              </LabeledControl>
+                <Input
+                  type="number"
+                  min="0"
+                  value={calculatedForm.ves}
+                  readOnly={props.closeForm.counts.length > 0}
+                  onChange={(event) =>
+                    props.onCloseForm({ ...props.closeForm, ves: event.target.value })
+                  }
+                  placeholder="Efectivo contado VES"
+                  data-testid="pos-cash-closing-ves"
+                />
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">Conteo por denominaciones</p>
+                  {props.closeForm.counts.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => props.onCloseForm({ ...props.closeForm, counts: [] })}
+                    >
+                      Limpiar conteo
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-text-muted">
+                  Si registras denominaciones, los totales anteriores se calculan automáticamente.
+                </p>
+                <DenominationGrid currency="USD" form={props.closeForm} onForm={props.onCloseForm} />
+                <DenominationGrid currency="VES" form={props.closeForm} onForm={props.onCloseForm} />
+              </div>
+
+              <div className="grid gap-2 rounded-lg border border-border/70 p-2 text-sm sm:grid-cols-2">
+                <div>
+                  <p className="text-text-muted text-xs uppercase">Declarado USD equivalente</p>
+                  <p className="font-semibold">{money(diff.declaredBase)}</p>
+                </div>
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Esperado USD</p>
+                    <p className="font-semibold">{money(diff.expectedUsd)}</p>
+                  </div>
+                )}
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Diferencia física USD</p>
+                    <p className="font-semibold">{money(diff.cashUsd)}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-text-muted text-xs uppercase">Contado VES</p>
+                  <p className="font-semibold">{localMoney(Number(calculatedForm.ves || 0))}</p>
+                </div>
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Esperado VES</p>
+                    <p className="font-semibold">{localMoney(diff.expectedVes)}</p>
+                  </div>
+                )}
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Diferencia física VES</p>
+                    <p className="font-semibold">{localMoney(diff.cashVes)}</p>
+                  </div>
+                )}
+                {blind && (
+                  <p className="bg-primary/5 rounded p-2 text-xs text-text-muted sm:col-span-2">
+                    La diferencia se calculará al confirmar el cierre y quedará visible para el
+                    responsable.
+                  </p>
+                )}
+              </div>
+
+              <Input
+                value={props.closeForm.notes}
+                onChange={(event) =>
+                  props.onCloseForm({ ...props.closeForm, notes: event.target.value })
+                }
+                placeholder={needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre'}
+                data-testid="pos-cash-closing-notes"
+              />
+
               <Button
                 className="h-11 w-full"
-                variant="outline"
+                variant="danger"
+                disabled={!canSubmitClose}
                 onClick={props.onCloseSession}
                 data-testid="pos-cash-close-submit"
               >
+                {props.closing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                 <ArrowUpFromLine className="size-4" aria-hidden="true" />
                 Cerrar turno
               </Button>

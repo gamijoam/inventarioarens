@@ -1,11 +1,15 @@
 /**
- * Tests del CashPanel rediseñado del POS (panel "Caja").
+ * Tests del CashPanel del POS (panel "Caja").
+ * - Cierre ciego por defecto: oculta Esperado y diferencias.
+ * - Modo standard (toggle) muestra Esperado y diferencias.
+ * - Movimientos y cierre de turno.
  */
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CashPanel } from '../PosTerminal';
 import type { CashRegisterSession } from '../api';
+import type { CloseForm } from '../CashRegisterSetup';
 
 function makeSession(overrides: Partial<CashRegisterSession> = {}): CashRegisterSession {
   return {
@@ -27,16 +31,33 @@ function makeSession(overrides: Partial<CashRegisterSession> = {}): CashRegister
   } as CashRegisterSession;
 }
 
-const baseProps = {
-  canMove: true,
-  canClose: true,
-  movement: { type: 'outflow', amount: '', notes: '' },
-  closingAmount: '',
-  onMovementChange: vi.fn(),
-  onClosingAmount: vi.fn(),
-  onAddMovement: vi.fn(),
-  onCloseSession: vi.fn(),
-};
+function makeCloseForm(overrides: Partial<CloseForm> = {}): CloseForm {
+  return {
+    sessionId: 7,
+    usd: '',
+    ves: '',
+    notes: '',
+    counts: [],
+    blind: true,
+    ...overrides,
+  };
+}
+
+function makeProps(overrides: Record<string, unknown> = {}) {
+  return {
+    canMove: true,
+    canClose: true,
+    movement: { type: 'outflow', amount: '', notes: '' },
+    closeForm: makeCloseForm(),
+    rate: null,
+    closing: false,
+    onMovementChange: vi.fn(),
+    onCloseForm: vi.fn(),
+    onAddMovement: vi.fn(),
+    onCloseSession: vi.fn(),
+    ...overrides,
+  };
+}
 
 describe('CashPanel', () => {
   beforeEach(() => {
@@ -44,7 +65,7 @@ describe('CashPanel', () => {
   });
 
   it('muestra el hero del turno activo con caja, sesion, sucursal y cajero', () => {
-    render(<CashPanel session={makeSession()} {...baseProps} />);
+    render(<CashPanel session={makeSession()} {...makeProps()} />);
 
     expect(screen.getByText('Turno activo')).toBeInTheDocument();
     expect(screen.getByText('Caja 1')).toBeInTheDocument();
@@ -54,39 +75,62 @@ describe('CashPanel', () => {
     expect(screen.getByText('Turno abierto')).toBeInTheDocument();
   });
 
-  it('muestra fondo inicial y esperado formateados', () => {
-    render(<CashPanel session={makeSession()} {...baseProps} />);
+  it('por defecto el cierre es ciego: oculta Esperado y diferencias', () => {
+    render(<CashPanel session={makeSession()} {...makeProps()} />);
 
     expect(screen.getByText('Fondo inicial')).toBeInTheDocument();
-    expect(screen.getByText('Esperado')).toBeInTheDocument();
-    expect(screen.getByText(/\$100\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/\$250\.50/)).toBeInTheDocument();
+    expect(screen.getByText('Cierre ciego activo')).toBeInTheDocument();
+    expect(screen.queryByText('Esperado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperado USD')).not.toBeInTheDocument();
+    expect(screen.queryByText('Diferencia física USD')).not.toBeInTheDocument();
   });
 
-  it('muestra la diferencia de cierre cuando la sesion ya fue contada', () => {
+  it('en modo standard muestra el esperado y la diferencia de cierre', () => {
+    const props = makeProps({
+      closeForm: makeCloseForm({ blind: false }),
+    });
     render(
       <CashPanel
         session={makeSession({ counted_base_amount: 240, difference_base_amount: -10.5 })}
-        {...baseProps}
+        {...props}
       />,
     );
 
+    expect(screen.getByText('Esperado')).toBeInTheDocument();
     expect(screen.getByTestId('pos-cash-difference')).toBeInTheDocument();
-    expect(screen.getByText(/-?\$10\.50/)).toBeInTheDocument();
+    expect(screen.getByText(/10\.50/)).toBeInTheDocument();
   });
 
-  it('no muestra diferencia si aun no se conto', () => {
-    render(<CashPanel session={makeSession()} {...baseProps} />);
+  it('el toggle de cierre ciego cambia el modo', () => {
+    const onCloseForm = vi.fn();
+    const props = makeProps({ onCloseForm });
+    render(<CashPanel session={makeSession()} {...props} />);
+
+    fireEvent.click(screen.getByTestId('pos-cash-blind-toggle'));
+
+    expect(onCloseForm).toHaveBeenCalledWith(expect.objectContaining({ blind: false }));
+  });
+
+  it('no muestra diferencia si aun no se conto (modo standard)', () => {
+    render(
+      <CashPanel
+        session={makeSession()}
+        {...makeProps({ closeForm: makeCloseForm({ blind: false }) })}
+      />,
+    );
     expect(screen.queryByTestId('pos-cash-difference')).not.toBeInTheDocument();
   });
 
   it('registra movimiento y cierra turno desde sus secciones', () => {
-    render(<CashPanel session={makeSession()} {...baseProps} />);
+    const props = makeProps({
+      closeForm: makeCloseForm({ notes: 'cierre normal' }),
+    });
+    render(<CashPanel session={makeSession()} {...props} />);
 
     fireEvent.click(screen.getByTestId('pos-cash-movement-submit'));
-    expect(baseProps.onAddMovement).toHaveBeenCalledTimes(1);
+    expect(props.onAddMovement).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByTestId('pos-cash-close-submit'));
-    expect(baseProps.onCloseSession).toHaveBeenCalledTimes(1);
+    expect(props.onCloseSession).toHaveBeenCalledTimes(1);
   });
 });
