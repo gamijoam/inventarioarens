@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class WarehouseController extends Controller
@@ -24,6 +25,7 @@ class WarehouseController extends Controller
         return WarehouseResource::collection(
             Warehouse::query()
                 ->with('branch')
+                ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->paginate($perPage)
         );
@@ -33,7 +35,15 @@ class WarehouseController extends Controller
     {
         Gate::authorize('create', Warehouse::class);
 
-        $warehouse = Warehouse::create($request->validated())->refresh();
+        $warehouse = DB::transaction(function () use ($request): Warehouse {
+            $data = $request->validated();
+
+            if (($data['is_default'] ?? false) === true) {
+                Warehouse::query()->update(['is_default' => false]);
+            }
+
+            return Warehouse::create($data)->refresh();
+        });
 
         return WarehouseResource::make($warehouse->load('branch'))
             ->response()
@@ -51,7 +61,17 @@ class WarehouseController extends Controller
     {
         Gate::authorize('update', $warehouse);
 
-        $warehouse->update($request->validated());
+        DB::transaction(function () use ($request, $warehouse): void {
+            $data = $request->validated();
+
+            if (($data['is_default'] ?? false) === true) {
+                Warehouse::query()
+                    ->whereKeyNot($warehouse->id)
+                    ->update(['is_default' => false]);
+            }
+
+            $warehouse->update($data);
+        });
 
         return WarehouseResource::make($warehouse->refresh()->load('branch'));
     }

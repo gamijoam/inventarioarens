@@ -680,6 +680,7 @@ export const WarehouseSchema = z.object({
   branch_name: z.string().nullable().optional(),
   status: z.string().optional(),
   is_active: z.boolean().optional(),
+  is_default: z.boolean().optional(),
 });
 export type Warehouse = z.infer<typeof WarehouseSchema>;
 
@@ -833,10 +834,12 @@ export const StoreWarehouseSchema = z
       .transform((s) => s.trim().toUpperCase())
       .refine((s) => s.length > 0, 'El codigo es obligatorio.'),
     status: z.enum(['active', 'inactive']).default('active'),
+    is_default: z.boolean().default(false),
   })
   .transform((data) => ({
     ...data,
     status: data.status ?? 'active',
+    is_default: data.is_default ?? false,
   }));
 export type StoreWarehouseValues = z.output<typeof StoreWarehouseSchema>;
 

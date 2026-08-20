@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['branch_id', 'name', 'code', 'status'])]
+#[Fillable(['branch_id', 'name', 'code', 'status', 'is_default'])]
 class Warehouse extends Model
 {
     use BelongsToTenant, Syncable;
@@ -20,6 +20,13 @@ class Warehouse extends Model
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_INACTIVE = 'inactive';
+
+    protected function casts(): array
+    {
+        return [
+            'is_default' => 'boolean',
+        ];
+    }
 
     protected function syncOutboxMethod(string $action): ?string
     {

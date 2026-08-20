@@ -451,6 +451,7 @@ class SyncCatalogOutboxService
                 'code' => $warehouse->code,
                 'name' => $warehouse->name,
                 'status' => $warehouse->status,
+                'is_default' => (bool) $warehouse->is_default,
                 'branch_code' => $warehouse->branch?->code,
             ],
             idempotencyKey: $this->eventKey($eventType, 'warehouse', $warehouse->id, $warehouse->updated_at),

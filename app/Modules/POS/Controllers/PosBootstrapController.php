@@ -30,14 +30,16 @@ class PosBootstrapController extends Controller
         $response = [
             'warehouses' => Warehouse::query()
                 ->with('branch:id,name,code')
+                ->orderByDesc('is_default')
                 ->orderBy('name')
-                ->get(['id', 'branch_id', 'code', 'name', 'status'])
+                ->get(['id', 'branch_id', 'code', 'name', 'status', 'is_default'])
                 ->map(fn (Warehouse $warehouse) => [
                     'id' => $warehouse->id,
                     'branch_id' => $warehouse->branch_id,
                     'code' => $warehouse->code,
                     'name' => $warehouse->name,
                     'status' => $warehouse->status,
+                    'is_default' => (bool) $warehouse->is_default,
                     'branch_name' => $warehouse->branch?->name,
                     'branch_code' => $warehouse->branch?->code,
                 ])

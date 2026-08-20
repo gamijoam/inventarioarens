@@ -198,6 +198,9 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
                 <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Items
                 </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Almacén
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -306,10 +309,23 @@ function Row({
           </div>
         </td>
         <td className="text-text-muted px-3 py-2 tabular-nums">{purchase.items_count ?? '-'}</td>
+        <td className="px-3 py-2">
+          {purchase.warehouses && purchase.warehouses.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {purchase.warehouses.map((w) => (
+                <Badge key={w.id} variant="default" className="text-[10px]">
+                  {w.code}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <span className="text-text-muted/60 text-xs">Sin almacén</span>
+          )}
+        </td>
       </tr>
       {isExpanded && (
         <tr className="border-border bg-bg/20 border-b">
-          <td colSpan={9} className="px-3 py-4">
+          <td colSpan={10} className="px-3 py-4">
             <ExpandedDetail
               purchaseId={purchase.id}
               purchase={purchase}

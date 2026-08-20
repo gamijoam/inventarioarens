@@ -378,6 +378,7 @@ class SyncEventApplier
                 'branch_id' => $branch->id,
                 'name' => $this->requiredString($payload, 'name'),
                 'status' => $payload['status'] ?? 'active',
+                'is_default' => array_key_exists('is_default', $payload) ? (bool) $payload['is_default'] : false,
                 'updated_at' => now(),
             ]
         );

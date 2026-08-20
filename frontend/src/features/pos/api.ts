@@ -741,6 +741,7 @@ export const BootstrapWarehouseSchema = z
     status: z.string().nullish(),
     branch_name: z.string().nullish(),
     branch_code: z.string().nullish(),
+    is_default: z.boolean().optional(),
   })
   .transform((value) => ({
     id: value.id,
@@ -750,6 +751,7 @@ export const BootstrapWarehouseSchema = z
     status: value.status ?? 'active',
     branch_name: value.branch_name ?? null,
     branch_code: value.branch_code ?? null,
+    is_default: value.is_default ?? false,
   }));
 export type BootstrapWarehouse = z.infer<typeof BootstrapWarehouseSchema>;
 

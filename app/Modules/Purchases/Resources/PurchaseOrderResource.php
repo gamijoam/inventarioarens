@@ -27,6 +27,17 @@ class PurchaseOrderResource extends JsonResource
             'received_base_amount' => $this->received_base_amount,
             'received_local_amount' => $this->received_local_amount,
             'items_count' => $this->items_count ?? $this->whenCounted('items'),
+            'warehouses' => $this->whenLoaded('items', fn () => collect($this->items)
+                ->pluck('warehouse')
+                ->filter()
+                ->unique('id')
+                ->values()
+                ->map(fn ($w) => [
+                    'id' => $w->id,
+                    'code' => $w->code,
+                    'name' => $w->name,
+                ])
+                ->all()),
             'created_by' => $this->created_by,
             'received_at' => $this->received_at?->toISOString(),
             'cancelled_at' => $this->cancelled_at?->toISOString(),

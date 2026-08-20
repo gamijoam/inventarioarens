@@ -93,6 +93,7 @@ class TenantRegistrationService
                         'name' => $data['warehouse']['name'],
                         'code' => $data['warehouse']['code'],
                         'status' => Warehouse::STATUS_ACTIVE,
+                        'is_default' => true,
                     ]);
                 }
 

@@ -547,18 +547,24 @@ export function PosTerminal() {
     [standaloneWarehouses],
   );
 
-  const warehouses: { id: number; code: string; name: string; branch_id: number | null }[] =
-    useMemo(() => {
-      if (bootstrapHasWarehouses) {
-        return bootstrapRefs.refs?.warehouses ?? [];
-      }
-      return standaloneWarehousesList as {
-        id: number;
-        code: string;
-        name: string;
-        branch_id: number | null;
-      }[];
-    }, [bootstrapHasWarehouses, bootstrapRefs.refs?.warehouses, standaloneWarehousesList]);
+  const warehouses: {
+    id: number;
+    code: string;
+    name: string;
+    branch_id: number | null;
+    is_default?: boolean;
+  }[] = useMemo(() => {
+    if (bootstrapHasWarehouses) {
+      return bootstrapRefs.refs?.warehouses ?? [];
+    }
+    return standaloneWarehousesList as {
+      id: number;
+      code: string;
+      name: string;
+      branch_id: number | null;
+      is_default?: boolean;
+    }[];
+  }, [bootstrapHasWarehouses, bootstrapRefs.refs?.warehouses, standaloneWarehousesList]);
   const branches = useMemo(
     () => (bootstrapRefs.refs?.branches?.length ? bootstrapRefs.refs.branches : standaloneBranches),
     [bootstrapRefs.refs, standaloneBranches],
@@ -928,16 +934,22 @@ export function PosTerminal() {
   confirmPaidSaleRef.current = confirmPaidSale;
 
   useEffect(() => {
-    // Sprint POS 5 fix: validar que warehouses[0]?.id sea un numero positivo
-    // antes de setearlo. Antes el codigo era:
-    //   if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
-    // que lanzaba NaN si warehouses[0] era undefined (caso bootstrap fallo).
-    const firstId = warehouses[0]?.id;
+    // Solo auto-setea el almacen cuando NO hay uno valido seleccionado.
+    // Antes este efecto forzaba SIEMPRE el primer almacen (o el predeterminado)
+    // cuando warehouseId difería, lo que revertia inmediatamente cualquier
+    // cambio manual del cajero ("no me deja cambiar de almacen").
+    const defaultWh = warehouses.find((w) => w.is_default === true);
+    const firstId = defaultWh?.id ?? warehouses[0]?.id;
+    const hasValidCurrent =
+      typeof warehouseId === 'number' &&
+      Number.isFinite(warehouseId) &&
+      warehouseId > 0 &&
+      warehouses.some((w) => w.id === warehouseId);
     if (
       typeof firstId === 'number' &&
       Number.isFinite(firstId) &&
       firstId > 0 &&
-      firstId !== warehouseId
+      !hasValidCurrent
     ) {
       setWarehouseId(firstId);
     }

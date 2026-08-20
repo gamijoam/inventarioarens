@@ -27,6 +27,7 @@ class StoreWarehouseRequest extends FormRequest
                 Rule::unique('warehouses', 'code')->where('tenant_id', $tenantId),
             ],
             'status' => ['sometimes', 'string', Rule::in([Warehouse::STATUS_ACTIVE, Warehouse::STATUS_INACTIVE])],
+            'is_default' => ['sometimes', 'boolean'],
         ];
     }
 

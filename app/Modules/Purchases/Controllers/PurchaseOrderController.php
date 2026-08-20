@@ -42,7 +42,7 @@ class PurchaseOrderController extends Controller
 
         return PurchaseOrderResource::collection(
             PurchaseOrder::query()
-                ->with(['supplier', 'accountPayable'])
+                ->with(['supplier', 'accountPayable', 'items.warehouse:id,tenant_id,code,name'])
                 ->withCount('items')
                 ->when($search !== '', function ($query) use ($normalizedSearch): void {
                     $query->where(function ($query) use ($normalizedSearch): void {
