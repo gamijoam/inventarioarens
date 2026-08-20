@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-08-20 - POS: cierre de caja ciego con USD+VES y denominaciones (como el modulo Cajas)
+
+- **Problema**: el cierre del POS solo pedía "Efectivo contado USD" y enviaba
+  `counted_currency:'USD'`+`counted_amount` (legacy). Si el turno tenía ventas en VES, el
+  backend asumía VES=0 y generaba una diferencia sin poder declarar el efectivo. Además
+  mostraba el "Esperado" siempre (sin modo ciego), cosa que el usuario (Owner) marcó como
+  incorrecto: el cierre debe ser ciego (no revelar qué hay ni cuánto falta).
+- **Solucion**: el `CashPanel` ahora replica el arqueo del módulo Cajas (`ClosePanel`):
+  - **Toggle "Cierre ciego"** (por defecto ACTIVO): oculta Esperado y diferencias hasta
+    confirmar. Al apagarlo (standard) muestra Esperado USD/VES y Diferencia física.
+  - Campos **Efectivo contado USD y VES** + **conteo por denominaciones** (USD/VES).
+  - **Nota de cierre** obligatoria si hay diferencia; botón deshabilitado si falta.
+  - Payload completo: `counted_base_amount`, `counted_local_amount`, `counted_cash_usd`,
+    `counted_cash_ves`, `exchange_rate_type_id`, `counts`, `counting_mode` (blind/standard)
+    y `closing_notes` — idéntico al cierre del módulo Cajas.
+- Helpers de arqueo exportados desde `CashRegisterSetup.tsx` para reutilizar:
+  `CashCount`, `CloseForm`, `CASH_DENOMINATIONS`, `DenominationGrid`, `cashCountTotals`,
+  `closeDifference`, `hasDifference`, `localMoney`.
+- TDD: `CashPanel.test` actualizado (6: hero, ciego por defecto oculta esperado, standard
+  muestra esperado+diferencia, toggle, sin diferencia, movimientos+cierre). Suite frontend
+  794/795, tsc limpio, builds admin+pos OK.
+- Commit `f165428f`, deploy en ambas apps (rsync verificado, bundle `index-DAJ83omP.js`).
+
 ## 2026-08-20 - POS: rediseno visual del panel Caja (CashPanel)
 
 - El panel que se abria al tocar "Caja" tenia un layout plano (grid de PanelCards sin
