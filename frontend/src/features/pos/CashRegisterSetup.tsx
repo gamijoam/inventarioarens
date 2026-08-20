@@ -165,7 +165,7 @@ export function CashRegisterSetup() {
       toast.error('Configura una tasa activa USD/VES antes de cerrar con efectivo VES.');
       return;
     }
-    if (hasDifference(diff.cashUsd, diff.cashVes) && !closeForm.notes.trim()) {
+    if (hasDifference(diff.cashUsd, diff.cashVes) && !closeForm.blind && !closeForm.notes.trim()) {
       toast.error('Indica una nota para justificar la diferencia de caja.');
       return;
     }
@@ -669,8 +669,8 @@ function ClosePanel({ session, form, rate, closing, onForm, onClose }: {
         {!activeForm.blind && <Metric label="Diferencia física VES" value={localMoney(diff.cashVes)} />}
         {activeForm.blind && <p className="rounded bg-primary/5 p-2 text-xs text-text-muted sm:col-span-2">La diferencia se calculará al confirmar el cierre y quedará visible para el responsable.</p>}
       </div>
-      <Input value={activeForm.notes} onChange={(event) => onForm({ ...activeForm, notes: event.target.value })} placeholder={needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre'} />
-      <Button variant="danger" disabled={closing || (needsNote && !activeForm.notes.trim())} onClick={() => onClose(session)}>
+      <Input value={activeForm.notes} onChange={(event) => onForm({ ...activeForm, notes: event.target.value })} placeholder={activeForm.blind ? 'Notas de cierre (opcional)' : (needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre')} />
+      <Button variant="danger" disabled={closing || (!activeForm.blind && needsNote && !activeForm.notes.trim())} onClick={() => onClose(session)}>
         {closing && <Loader2 className="size-4 animate-spin" />} Cerrar turno
       </Button>
     </div>

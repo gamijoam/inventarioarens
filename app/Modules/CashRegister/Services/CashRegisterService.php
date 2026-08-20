@@ -173,7 +173,8 @@ class CashRegisterService
             $differenceCashUsd = round($countedPhysical['USD'] - (float) ($session->expected_cash_usd ?? $session->opening_base_amount), 4);
             $differenceCashVes = round($countedPhysical['VES'] - (float) ($session->expected_cash_ves ?? $session->opening_local_amount), 4);
 
-            if ((abs($differenceCashUsd) >= 0.01 || abs($differenceCashVes) >= 0.01)
+            if (($data['counting_mode'] ?? CashRegisterSession::COUNTING_STANDARD) !== CashRegisterSession::COUNTING_BLIND
+                && (abs($differenceCashUsd) >= 0.01 || abs($differenceCashVes) >= 0.01)
                 && mb_strlen(trim((string) ($data['closing_notes'] ?? ''))) < 3) {
                 throw ValidationException::withMessages([
                     'closing_notes' => 'Debes justificar la diferencia de efectivo USD/VES antes de cerrar.',

@@ -172,4 +172,32 @@ describe('CashPanel', () => {
     const usdInput = screen.getByTestId('pos-cash-closing-amount') as HTMLInputElement;
     expect(usdInput.value).toBe('110');
   });
+
+  it('en modo ciego el boton de cerrar NO se bloquea por diferencia aunque no haya nota', () => {
+    render(
+      <CashPanel
+        session={makeSession()}
+        {...makeProps({
+          closeForm: makeCloseForm({ usd: '51', notes: '' }),
+        })}
+      />,
+    );
+
+    const submit = screen.getByTestId('pos-cash-close-submit') as HTMLButtonElement;
+    expect(submit).not.toBeDisabled();
+  });
+
+  it('en modo standard con diferencia y sin nota, el boton de cerrar esta deshabilitado', () => {
+    render(
+      <CashPanel
+        session={makeSession()}
+        {...makeProps({
+          closeForm: makeCloseForm({ usd: '51', notes: '', blind: false }),
+        })}
+      />,
+    );
+
+    const submit = screen.getByTestId('pos-cash-close-submit') as HTMLButtonElement;
+    expect(submit).toBeDisabled();
+  });
 });

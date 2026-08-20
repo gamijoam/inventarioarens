@@ -639,6 +639,45 @@ class CashRegisterApiTest extends TestCase
             ->assertJsonValidationErrors(['closing_notes']);
     }
 
+    public function test_blind_close_does_not_require_closing_note_despite_difference(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.close']);
+
+        $sessionId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        // Modo ciego: hay diferencia (51 declarado vs 0 esperado) pero NO se exige nota,
+        // para no revelarle al cajero que existe descuadre.
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/cash-register/sessions/{$sessionId}/close", [
+                'counted_base_amount' => 51,
+                'counted_local_amount' => 0,
+                'counted_cash_usd' => 51,
+                'counted_cash_ves' => 0,
+                'counting_mode' => CashRegisterSession::COUNTING_BLIND,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.counting_mode', CashRegisterSession::COUNTING_BLIND)
+            ->assertJsonPath('data.status', CashRegisterSession::STATUS_CLOSED);
+
+        $this->assertDatabaseHas('cash_register_sessions', [
+            'id' => $sessionId,
+            'counted_cash_usd' => 51.0,
+        ]);
+    }
+
     public function test_cashier_cannot_add_movement_to_another_cashiers_session(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

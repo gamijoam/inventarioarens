@@ -1984,9 +1984,7 @@ export function PosTerminal() {
                   const usd = cashCloseForm.counts.length
                     ? totals.USD
                     : Number(cashCloseForm.usd || 0);
-                  const ves = cashCloseForm.counts.length
-                    ? totals.VES
-                    : Number(cashCloseForm.ves || 0);
+                  const ves = Number(cashCloseForm.ves || 0);
                   const diff = closeDifference(activeSession, cashCloseForm, activeRate?.rate ?? null);
 
                   if (usd < 0 || ves < 0) {
@@ -1997,7 +1995,13 @@ export function PosTerminal() {
                       'Configura una tasa activa USD/VES antes de cerrar con efectivo VES.',
                     );
                   }
-                  if (hasDifference(diff.cashUsd, diff.cashVes) && !cashCloseForm.notes.trim()) {
+                  // En modo ciego NO se exige nota por diferencia: eso revelaria al
+                  // cajero que hay descuadre. La nota solo es obligatoria en standard.
+                  if (
+                    !cashCloseForm.blind &&
+                    hasDifference(diff.cashUsd, diff.cashVes) &&
+                    !cashCloseForm.notes.trim()
+                  ) {
                     return toast.error('Indica una nota para justificar la diferencia de caja.');
                   }
 
@@ -4365,7 +4369,9 @@ export function CashPanel(props: {
     : props.closeForm;
   const diff = closeDifference(session, calculatedForm, props.rate);
   const needsNote = hasDifference(diff.cashUsd, diff.cashVes);
-  const canSubmitClose = !props.closing && (!needsNote || props.closeForm.notes.trim().length > 0);
+  // En modo ciego la nota NO es obligatoria por diferencia (no se le revela al
+  // cajero que hay descuadre). Solo en standard se exige para justificar.
+  const canSubmitClose = !props.closing && (blind || !needsNote || props.closeForm.notes.trim().length > 0);
 
   return (
     <div className="space-y-4">
@@ -4619,7 +4625,9 @@ export function CashPanel(props: {
                 onChange={(event) =>
                   props.onCloseForm({ ...props.closeForm, notes: event.target.value })
                 }
-                placeholder={needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre'}
+                placeholder={
+                  blind ? 'Notas de cierre (opcional)' : needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre'
+                }
                 data-testid="pos-cash-closing-notes"
               />
 
