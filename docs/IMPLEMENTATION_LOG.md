@@ -1,5 +1,21 @@
 # Registro de implementación
 
+## 2026-08-20 - POS: fusion de botones "Caja" y "Cerrar turno" + iconos en la shell
+
+- **Problema**: la shell del POS tenia dos botones ("Caja" y "Cerrar turno") que abrian
+  exactamente el mismo panel `cash` (`onOpenCash` y `onOpenClose` ambos hacian
+  `setPanel('cash')`). El `CashPanel` ya contiene las tres secciones: info del turno,
+  movimientos extra de caja y cerrar caja.
+- **Solucion**: fusion en un unico boton "Caja" (permiso `CASH_REGISTER_VIEW`; el cierre
+  dentro del panel sigue controlado por `canClose`). Se elimina `onOpenClose` de
+  `PosShellActionCallbacks` y la accion 'close'.
+- **Diseño**: `PosShellAction` ahora acepta `icon?: ReactNode` y la shell renderiza icono +
+  etiqueta con `inline-flex gap`. Acciones POS: Caja (Wallet), Pendientes (ClipboardList),
+  Recibo (Receipt).
+- TDD: `posShellActions.test.ts` actualizado (3 acciones, sin 'close'); suite frontend
+  788/789, tsc limpio, builds admin+pos OK.
+- Commit `b06e072f`, deploy en ambas apps.
+
 ## 2026-08-20 - Almacen predeterminado en POS + fix "no me deja cambiar de almacen" + almacen en compras
 
 - **Almacen predeterminado (patron tasas)**:
