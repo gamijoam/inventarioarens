@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-08-20 - Fix cierre de caja: VES perdido con denominaciones + nota reveladora en ciego
+
+- **Problema 1 (VES no se guardaba)**: en el handler de cierre del POS, si se usaba el conteo
+  por denominaciones (USD), `ves` tomaba `totals.VES` (= 0 al no haber denominaciones VES) y
+  pisaba el bolivar manual ingresado. Confirmado en produccion: sesion cerrada de Tucacas con
+  `counted_cash_usd=51` pero `counted_cash_ves=0` aunque el usuario habia declarado Bs.
+  Fix: `ves` siempre sale del campo manual "Efectivo contado Bs (VES)".
+- **Problema 2 (nota revela descuadre en cierre ciego)**: backend y frontend exigian nota por
+  diferencia aunque el modo fuera `blind`, lo que le revelaba al cajero que hay descuadre.
+  Ahora la nota obligatoria aplica SOLO en modo `standard`:
+  - Backend `CashRegisterService::close()`: no exige `closing_notes` si `counting_mode=blind`.
+  - POS `CashPanel` y modulo Cajas: en blind la nota es opcional y el boton "Cerrar turno" no
+    se bloquea por diferencia.
+- TDD: `CashPanel.test` agrega 2 casos (blind con diferencia sin nota => boton habilitado;
+  standard con diferencia sin nota => deshabilitado). `CashRegisterApiTest` agrega
+  `test_blind_close_does_not_require_closing_note_despite_difference`.
+  Backend CashRegister 21/21, frontend 798/799, tsc limpio, builds admin+pos OK.
+- Commit `d5b9ba8a`, deploy en ambas apps (bundle `index-DNpS-vRk.js`).
+
 ## 2026-08-20 - POS Caja: modal mas grande, Bs manual (sin denominaciones VES), fix input cantidad
 
 - El panel "cash" ahora usa el `PanelShell` en modo `wide` (`sm:max-w-5xl`) en vez del
