@@ -42,8 +42,8 @@ function emptyItem(): PurchaseItemRowValue {
     product_id: null,
     product_variant_id: null,
     product_info: null,
-    quantity: 1,
-    unit_cost: 0,
+    quantity: '',
+    unit_cost: '',
     serial_units: [],
   };
 }
@@ -77,8 +77,10 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
   const totals = useMemo(() => {
     let base = 0;
     for (const item of items) {
-      if (Number.isFinite(item.quantity) && Number.isFinite(item.unit_cost)) {
-        base += item.quantity * item.unit_cost;
+      const quantity = Number(item.quantity);
+      const cost = Number(item.unit_cost);
+      if (Number.isFinite(quantity) && Number.isFinite(cost)) {
+        base += quantity * cost;
       }
     }
     return { base };
@@ -172,8 +174,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
         warehouse_id: it.warehouse_id ?? 0,
         product_id: it.product_id ?? 0,
         product_variant_id: it.product_variant_id ?? undefined,
-        quantity: it.quantity,
-        unit_cost: it.unit_cost,
+        quantity: Number(it.quantity) || 0,
+        unit_cost: Number(it.unit_cost) || 0,
         serial_units: serialUnits,
       };
     });
