@@ -1,5 +1,22 @@
 # Registro de implementación
 
+## 2026-08-20 - POS Caja: modal mas grande, Bs manual (sin denominaciones VES), fix input cantidad
+
+- El panel "cash" ahora usa el `PanelShell` en modo `wide` (`sm:max-w-5xl`) en vez del
+  estrecho `sm:max-w-xl`, dejando el modal de Caja mucho mas grande.
+- Se elimina el **conteo por denominaciones en Bs (VES)**: el efectivo en bolivares se
+  ingresa manualmente (campo "Efectivo contado Bs (VES)", siempre editable). Solo queda
+  el conteo de denominaciones en **USD**.
+- **Fix del input de cantidad** de denominaciones: antes `type="number"` autocompletaba
+  mal (ej. escribir 1 en el 10 -> 100). Ahora `type="text"` + `inputMode="numeric"` +
+  `pattern="[0-9]*"`, muestra `''` cuando la cantidad es 0 y parsea estrictamente
+  (solo digitos). Aplica tambien en el modulo Cajas (componente compartido
+  `DenominationGrid`).
+- TDD: `CashPanel.test` agrega 2 casos (cantidad 1 en el 10 = 1; total USD suma
+  denominaciones 10*1 + 50*2 = 110). Suite frontend 796/797, tsc limpio, builds
+  admin+pos OK.
+- Commit `3e9921e1`, deploy en ambas apps (bundle `index-CNuy6H0Q.js`).
+
 ## 2026-08-20 - POS: cierre de caja ciego con USD+VES y denominaciones (como el modulo Cajas)
 
 - **Problema**: el cierre del POS solo pedía "Efectivo contado USD" y enviaba
