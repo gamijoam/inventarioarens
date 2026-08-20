@@ -8,6 +8,7 @@ import {
 } from './cartStore';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
+  ClipboardList,
   CreditCard,
   FileText,
   Gift,
@@ -273,7 +274,6 @@ export interface PosShellActionCallbacks {
   onOpenCash: () => void;
   onOpenPending: () => void;
   onOpenReceipt: () => void;
-  onOpenClose: () => void;
 }
 
 export function buildPosShellActions(
@@ -290,27 +290,27 @@ export function buildPosShellActions(
       onClick: callbacks.onOpenPending,
       badge: pendingCount,
       alert: pendingAlert,
+      icon: <ClipboardList className="size-4" aria-hidden="true" />,
     },
     {
       id: 'receipt',
       label: 'Recibo',
       permission: PERMISSIONS.POS_VIEW,
       onClick: callbacks.onOpenReceipt,
+      icon: <Receipt className="size-4" aria-hidden="true" />,
     },
   ];
 
   if (!sellerOnlyMode) {
+    // Caja agrupa todo lo del cash register: abrir sesion, movimientos extra
+    // y cerrar turno (el CashPanel ya ofrece esas secciones). Antes existia
+    // un boton separado 'Cerrar turno' que abria exactamente el mismo panel.
     actions.unshift({
       id: 'cash',
       label: 'Caja',
       permission: PERMISSIONS.CASH_REGISTER_VIEW,
       onClick: callbacks.onOpenCash,
-    });
-    actions.push({
-      id: 'close',
-      label: 'Cerrar turno',
-      permission: PERMISSIONS.CASH_REGISTER_CLOSE,
-      onClick: callbacks.onOpenClose,
+      icon: <Wallet className="size-4" aria-hidden="true" />,
     });
   }
 
@@ -799,7 +799,6 @@ export function PosTerminal() {
         setPanel('hold');
       },
       onOpenReceipt: () => setPanel('receipt'),
-      onOpenClose: () => setPanel('cash'),
     },
     sellerOnlyMode,
     pendingCount,

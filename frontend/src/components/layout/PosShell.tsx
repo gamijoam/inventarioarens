@@ -24,6 +24,10 @@ export interface PosShellAction {
   onClick: () => void;
   disabled?: boolean;
   /**
+   * Icono opcional que se muestra a la izquierda de la etiqueta.
+   */
+  icon?: ReactNode;
+  /**
    * Contador mostrado como badge junto a la etiqueta (p. ej. ordenes
    * pendientes). Se renderiza solo si es > 0.
    */
@@ -54,7 +58,7 @@ function hasRequiredPermission(
 
 function cnAction(alert: boolean | undefined, disabled: boolean | undefined): string {
   const base =
-    'border-border bg-bg text-text-secondary hover:text-text-primary relative rounded-md border px-3 py-2 text-xs font-medium transition-colors';
+    'border-border bg-bg text-text-secondary hover:text-text-primary relative inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors';
   if (disabled) return `${base} cursor-not-allowed opacity-50`;
   if (alert) return `${base} border-primary/70 bg-primary/10 text-primary font-semibold shadow-sm`;
   return base;
@@ -150,6 +154,7 @@ export function PosShell({
                       className="bg-danger absolute -top-1 -left-1 size-2.5 animate-pulse rounded-full"
                     />
                   )}
+                  {action.icon}
                   {action.label}
                   {typeof action.badge === 'number' && action.badge > 0 && (
                     <span
