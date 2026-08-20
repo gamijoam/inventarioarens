@@ -46,6 +46,26 @@ export function usePayables(filters: PayableListFilters = {}) {
   });
 }
 
+export async function exportPayables(filters: PayableListFilters, format: 'csv' | 'pdf'): Promise<void> {
+  const { api } = await import('@/api/client');
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  if (filters.supplier_id) params.set('supplier_id', String(filters.supplier_id));
+  if (filters.due_from) params.set('due_from', filters.due_from);
+  if (filters.due_to) params.set('due_to', filters.due_to);
+  params.set('format', format);
+  const response = await api.get(`/accounts-payable/export?${params.toString()}`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data as Blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `cxp-${new Date().toISOString().slice(0, 10)}.${format}`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function usePayable(id: number | null) {
   return useQuery({
     queryKey: id ? payableKeys.detail(id) : [...payableKeys.details(), 'empty'],

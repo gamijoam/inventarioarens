@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  Download,
   Loader2,
   Search,
   Wallet,
@@ -21,6 +22,7 @@ import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Textarea } from '@/components/ui/Textarea';
+import { StatusMultiSelect, type StatusMultiOption } from '@/components/ui/StatusMultiSelect';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import { ValidationError } from '@/types/api';
@@ -39,6 +41,7 @@ import {
   usePayables,
   usePreparePayablePaymentRequest,
   useRejectPayablePaymentRequest,
+  exportPayables,
   type PayableListFilters,
 } from './api';
 import { activeUsdVesRate, currentLocalBalance, numberLabel, rateLabel } from './currentBalance';
@@ -52,14 +55,18 @@ import {
   type PayableStatus,
 } from './schemas';
 
-const STATUS_OPTIONS: { value: PayableListFilters['status']; label: string }[] = [
-  { value: 'open', label: 'Abiertas' },
-  { value: 'all', label: 'Todas' },
+const STATUS_OPTIONS: StatusMultiOption[] = [
   { value: 'pending', label: 'Pendientes' },
   { value: 'partial', label: 'Parciales' },
   { value: 'overdue', label: 'Vencidas' },
   { value: 'paid', label: 'Pagadas' },
+  { value: 'open', label: 'Abiertas' },
 ];
+
+function statusValues(status?: string): string[] {
+  if (!status || status === 'all') return [];
+  return status.split(',');
+}
 
 const REQUEST_STATUS_OPTIONS: { value: PayablePaymentRequestStatus; label: string }[] = [
   { value: 'prepared', label: 'Pendientes' },
@@ -160,24 +167,17 @@ export function PayablesManager() {
               />
             </div>
           </div>
-          <div className="w-44">
+          <div className="w-56">
             <Label htmlFor="payables-status" className="text-text-muted text-xs">
               Estado
             </Label>
-            <Select
+            <StatusMultiSelect
               id="payables-status"
-              value={filters.status ?? 'open'}
-              onChange={(event) =>
-                updateFilters({ status: event.target.value as PayableListFilters['status'] })
-              }
-              className="mt-1"
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+              options={STATUS_OPTIONS}
+              selected={statusValues(filters.status)}
+              onChange={(values) => updateFilters({ status: values.length ? values.join(',') : undefined })}
+              placeholder="Todos los estados"
+            />
           </div>
           <div className="w-40">
             <Label htmlFor="payable-due-from" className="text-text-muted text-xs">
@@ -203,9 +203,13 @@ export function PayablesManager() {
               className="mt-1"
             />
           </div>
-          <Button variant="secondary" onClick={() => void refetch()}>
-            Actualizar
-          </Button>
+          <div className="flex items-end gap-2">
+            <Button variant="secondary" onClick={() => void refetch()}>
+              Actualizar
+            </Button>
+            <Button variant="outline" onClick={() => void exportPayables(filters, 'csv').catch(() => toast.error('No se pudo exportar a Excel.'))} leftIcon={<Download className="size-4" />}>Excel</Button>
+            <Button variant="outline" onClick={() => void exportPayables(filters, 'pdf').catch(() => toast.error('No se pudo exportar a PDF.'))} leftIcon={<Download className="size-4" />}>PDF</Button>
+          </div>
         </CardContent>
       </Card>
 

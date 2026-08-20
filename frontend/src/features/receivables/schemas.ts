@@ -18,7 +18,7 @@ export const RECEIVABLE_STATUS_LABELS: Record<ReceivableStatus, string> = {
 
 export interface ReceivableListFilters {
   search?: string;
-  status?: 'all' | 'open' | ReceivableStatus;
+  status?: string;
   customer_id?: number;
   due_from?: string;
   due_to?: string;

@@ -4,6 +4,8 @@ use App\Modules\AccountsPayable\Controllers\AccountsPayableController;
 use App\Modules\AccountsPayable\Controllers\AccountsPayablePaymentRequestController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('accounts-payable/export', [AccountsPayableController::class, 'export']);
+
 Route::apiResource('accounts-payable', AccountsPayableController::class)
     ->parameters(['accounts-payable' => 'accountsPayable'])
     ->only(['index', 'show']);
