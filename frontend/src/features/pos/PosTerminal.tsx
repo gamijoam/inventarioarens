@@ -11,6 +11,7 @@ import {
   CreditCard,
   FileText,
   Gift,
+  Info,
   Loader2,
   Minus,
   PauseCircle,
@@ -57,6 +58,7 @@ import { isInvoiceDiscountType, type Promotion } from '@/features/promotions/sch
 import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
+import { ProductDetailDialog } from './ProductDetailDialog';
 import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
 import { QuotationPickerDialog } from '@/features/quotations/QuotationPickerDialog';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
@@ -3819,6 +3821,7 @@ function ProductSearchPanel({
 }) {
   const canSearch = search.trim().length >= 2;
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -3828,6 +3831,18 @@ function ProductSearchPanel({
 
   return (
     <div className="space-y-4">
+      {detailProduct && (
+        <ProductDetailDialog
+          product={detailProduct}
+          warehouseId={warehouseId}
+          priceListName={priceListName ?? BASE_PRICE_LIST_LABEL}
+          onClose={() => setDetailProduct(null)}
+          onAdd={async (p) => {
+            setDetailProduct(null);
+            await onSelect(p);
+          }}
+        />
+      )}
       <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_220px]">
         <div className="relative">
           <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
@@ -3890,68 +3905,63 @@ function ProductSearchPanel({
           No hay productos con esa busqueda.
         </div>
       ) : (
-        <div className="grid max-h-[68vh] gap-3 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
-          {products.map((product, index) => (
-            <TapButton
-              key={product.id}
-              onPress={() => void onSelect(product)}
-              onMouseEnter={() => setSelectedIndex(index)}
-              className={cn(
-                'group border-border bg-surface hover:border-primary/60 focus-visible:ring-primary overflow-hidden rounded-2xl border text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2',
-                index === safeIndex && 'border-primary bg-primary/5 ring-primary/20 ring-1',
-              )}
-            >
-              <ProductImageView
-                image={primaryProductImage(product)}
-                src={productImageSrc(product) ?? undefined}
-                alt={product.name}
-                variant="thumb"
-                className="border-border bg-bg aspect-[4/3] w-full border-b"
-              />
-              <div className="p-3">
-                <div className="flex gap-3">
+        <div className="flex max-h-[68vh] flex-col gap-2 overflow-auto pr-1">
+          {products.map((product, index) => {
+            const stock = Number(product.available_stock ?? 0);
+            return (
+              <div
+                key={product.id}
+                className={cn(
+                  'group border-border bg-surface hover:border-primary/60 flex items-center gap-3 rounded-xl border p-3 shadow-sm transition-colors',
+                  index === safeIndex && 'border-primary bg-primary/5 ring-primary/20 ring-1',
+                )}
+                onMouseEnter={() => setSelectedIndex(index)}
+              >
+                <TapButton
+                  onPress={() => void onSelect(product)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  data-testid={`search-product-${product.id}`}
+                >
+                  <ProductImageView
+                    image={primaryProductImage(product)}
+                    src={productImageSrc(product) ?? undefined}
+                    alt={product.name}
+                    variant="thumb"
+                    className="border-border bg-bg size-14 shrink-0 rounded-lg border"
+                  />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">{product.name}</p>
-                        <p className="text-text-muted font-mono text-xs">
-                          {product.sku ?? product.barcode ?? 'Sin codigo'}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'}
-                        className="text-[10px]"
-                      >
-                        {Number(product.available_stock ?? 0) > 0
-                          ? `Stock ${Number(product.available_stock)}`
-                          : 'Sin stock'}
-                      </Badge>
-                    </div>
-                    {Number(product.available_stock ?? 0) <= Number(product.min_stock ?? 0) &&
-                      Number(product.min_stock ?? 0) > 0 && (
-                        <p className="text-warning mt-1 text-[10px]">
-                          Stock bajo (min {product.min_stock})
-                        </p>
-                      )}
-                  </div>
-                </div>
-                <div className="mt-3 flex items-end justify-between gap-2">
-                  <div>
-                    <p className="text-text-muted text-[10px] font-semibold uppercase">
-                      Precio base
+                    <p className="whitespace-normal break-words font-semibold leading-tight">
+                      {product.name}
                     </p>
-                    <p className="text-xl font-bold">{money(Number(product.base_price ?? 0))}</p>
+                    <p className="text-text-muted font-mono text-xs">
+                      {product.sku ?? product.barcode ?? 'Sin codigo'}
+                    </p>
+                    {stock <= Number(product.min_stock ?? 0) && Number(product.min_stock ?? 0) > 0 && (
+                      <p className="text-warning text-[10px]">Stock bajo (min {product.min_stock})</p>
+                    )}
                   </div>
-                  <span className="bg-primary/10 text-primary rounded-full px-2 py-1 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100">
-                    Agregar
-                  </span>
-                </div>
-                <p className="text-text-muted mt-1 text-xs">
-                  Se valida precio de lista al seleccionar
-                </p>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant={stock > 0 ? 'success' : 'warning'} className="text-[10px]">
+                      {stock > 0 ? `Stock ${stock}` : 'Sin stock'}
+                    </Badge>
+                    <p className="text-lg font-bold">{money(Number(product.base_price ?? 0))}</p>
+                  </div>
+                </TapButton>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailProduct(product);
+                  }}
+                  className="border-border bg-bg text-text-muted hover:border-primary hover:text-primary size-9 shrink-0 rounded-full border p-2 transition-colors"
+                  aria-label={`Ver información de ${product.name}`}
+                  data-testid={`product-info-${product.id}`}
+                >
+                  <Info className="size-4" />
+                </button>
               </div>
-            </TapButton>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
