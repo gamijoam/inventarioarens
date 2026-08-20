@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Boxes, Package, Trash2 } from 'lucide-react';
+import { Boxes, ChevronDown, ChevronUp, Package, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +31,8 @@ interface PurchaseItemRowProps {
   disabled?: boolean;
   canRemove: boolean;
   index: number;
+  collapsed: boolean;
+  onToggleCollapse: (index: number) => void;
 }
 
 export function PurchaseItemRow({
@@ -40,6 +42,8 @@ export function PurchaseItemRow({
   disabled,
   canRemove,
   index,
+  collapsed,
+  onToggleCollapse,
 }: PurchaseItemRowProps) {
   const { data: warehouses = [] } = useWarehouses();
   const { data: variants = [], isLoading: variantsLoading } = useProductVariants(
@@ -62,10 +66,24 @@ export function PurchaseItemRow({
 
   return (
     <section
-      className="border-border bg-surface overflow-visible rounded-md border"
+      className={cn(
+        'border-border bg-surface overflow-visible rounded-md border',
+        collapsed && 'border-border-strong',
+      )}
       data-testid={`purchase-item-${index}`}
     >
       <header className="border-border bg-bg/50 flex min-h-14 items-center gap-3 border-b px-4 py-2.5">
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => onToggleCollapse(index)}
+          disabled={disabled}
+          aria-label={collapsed ? `Expandir linea ${index + 1}` : `Colapsar linea ${index + 1}`}
+          data-testid={`purchase-item-toggle-${index}`}
+        >
+          {collapsed ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </Button>
         <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-sm font-bold">
           {index + 1}
         </div>
@@ -74,6 +92,22 @@ export function PurchaseItemRow({
           <p className="truncate text-sm font-semibold">
             {value.product_info?.name ?? 'Pendiente por seleccionar'}
           </p>
+          {collapsed && (
+            <p className="text-text-muted text-xs tabular-nums">
+              {Number.isFinite(value.quantity) ? value.quantity : 0} x{' '}
+              {(Number.isFinite(value.unit_cost) ? value.unit_cost : 0).toLocaleString('es-VE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{' '}
+              ={' '}
+              <strong className="text-text-primary">
+                {subtotal.toLocaleString('es-VE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </strong>
+            </p>
+          )}
         </div>
         {value.product_info?.tracking_type === 'serialized' && (
           <Badge variant="info" className="shrink-0">
@@ -94,7 +128,8 @@ export function PurchaseItemRow({
         )}
       </header>
 
-      <div className="space-y-4 p-4">
+      {!collapsed && (
+        <div className="space-y-4 p-4">
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
           <div className="min-w-0 space-y-1.5">
             <label className="text-text-secondary text-xs font-semibold uppercase">Producto</label>
@@ -247,7 +282,8 @@ export function PurchaseItemRow({
         )}
 
         {value.error && <p className="text-danger text-xs font-medium">{value.error}</p>}
-      </div>
+        </div>
+      )}
     </section>
   );
 }
