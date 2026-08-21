@@ -475,16 +475,16 @@ function CashSessionCard({
             ) : (
               <>
                 <div className="grid gap-2 lg:grid-cols-[1fr_1fr_1.2fr_140px_140px_auto]">
-                  <Select value={openForm.branch_id} onChange={(event) => onOpenForm({ ...openForm, branch_id: event.target.value, cash_register_id: '' })}>
+                  <Select value={openForm.branch_id} onChange={(event) => onOpenForm({ ...openForm, branch_id: event.target.value, cash_register_id: '' })} data-testid="pos-open-branch">
                     <option value="">Sucursal...</option>
                     {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
                   </Select>
-                  <Select value={openForm.cash_register_id} onChange={(event) => onOpenForm({ ...openForm, cash_register_id: event.target.value })}>
+                  <Select value={openForm.cash_register_id} onChange={(event) => onOpenForm({ ...openForm, cash_register_id: event.target.value })} data-testid="pos-open-register">
                     <option value="">Caja física...</option>
                     {availableRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
                   </Select>
                   {canAssignCashier ? (
-                    <Select value={openForm.cashier_id} onChange={(event) => onOpenForm({ ...openForm, cashier_id: event.target.value })}>
+                    <Select value={openForm.cashier_id} onChange={(event) => onOpenForm({ ...openForm, cashier_id: event.target.value })} data-testid="pos-open-cashier">
                       <option value="">{loadingUsers ? 'Cargando cajeros...' : 'Cajero responsable...'}</option>
                       {cashierOptions.map((user) => <option key={user.id} value={user.id}>{user.name} - {user.email}</option>)}
                     </Select>
@@ -493,13 +493,13 @@ function CashSessionCard({
                     <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
                       Fondo $ (USD)
                     </label>
-                    <Input type="number" min="0" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="0.00" />
+                    <Input type="text" inputMode="decimal" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="0.00" data-testid="pos-open-base" />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
                       Fondo Bs (VES)
                     </label>
-                    <Input type="number" min="0" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="0.00" />
+                    <Input type="text" inputMode="decimal" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="0.00" data-testid="pos-open-local" />
                   </div>
                   <Button disabled={opening || !openForm.branch_id || !openForm.cash_register_id || (canAssignCashier && !openForm.cashier_id)} onClick={onOpen}>
                     {opening && <Loader2 className="size-4 animate-spin" />} Abrir turno

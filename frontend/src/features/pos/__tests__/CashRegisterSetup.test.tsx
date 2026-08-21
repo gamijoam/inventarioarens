@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
 import { PermissionContext, type PermissionContextValue } from '@/permissions/PermissionContext';
@@ -144,5 +144,36 @@ describe('<CashRegisterSetup>', () => {
 
     expect(screen.getByText('Fondo $ (USD)')).toBeInTheDocument();
     expect(screen.getByText('Fondo Bs (VES)')).toBeInTheDocument();
+  });
+
+  it('al abrir turno envia los fondos USD y VES ingresados (no 0)', () => {
+    const mutate = vi.fn();
+    mockUseOpenCashSession.mockReturnValue({ mutate, isPending: false });
+    mockUseCashSessions.mockReturnValue({ data: [], isLoading: false });
+    mockUseUsers.mockReturnValue({
+      data: { data: [{ id: 9, name: 'Juan Cajero', email: 'juan@test.test' }] },
+      isLoading: false,
+    });
+
+    render(<CashRegisterSetup />, { wrapper: makeWrapper(['Administrador']) });
+
+    fireEvent.change(screen.getByTestId('pos-open-branch'), { target: { value: '1' } });
+    fireEvent.change(screen.getByTestId('pos-open-register'), { target: { value: '1' } });
+    fireEvent.change(screen.getByTestId('pos-open-cashier'), { target: { value: '9' } });
+    fireEvent.change(screen.getByTestId('pos-open-base'), { target: { value: '1' } });
+    fireEvent.change(screen.getByTestId('pos-open-local'), { target: { value: '1' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir turno' }));
+
+    const btn = screen.getByRole('button', { name: 'Abrir turno' }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opening_base_amount: 1,
+        opening_local_amount: 1,
+      }),
+      expect.anything(),
+    );
   });
 });

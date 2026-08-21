@@ -3611,8 +3611,8 @@ function OpenCashScreen(props: {
               <div className="grid gap-3 sm:grid-cols-2">
                 <LabeledControl label="Fondo USD">
                   <Input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={props.baseAmount}
                     onChange={(event) => props.onBaseAmountChange(event.target.value)}
                     placeholder="0.00"
@@ -3621,8 +3621,8 @@ function OpenCashScreen(props: {
                 </LabeledControl>
                 <LabeledControl label="Fondo VES">
                   <Input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={props.localAmount}
                     onChange={(event) => props.onLocalAmountChange(event.target.value)}
                     placeholder="0.00"
