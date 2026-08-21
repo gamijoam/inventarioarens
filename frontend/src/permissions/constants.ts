@@ -181,6 +181,11 @@ export const PERMISSIONS = {
   WARRANTIES_REVIEW: 'warranties.review',
   WARRANTIES_RESOLVE: 'warranties.resolve',
   WARRANTIES_DELIVER: 'warranties.deliver',
+  SERVICE_ORDERS_VIEW: 'service_orders.view',
+  SERVICE_ORDERS_CREATE: 'service_orders.create',
+  SERVICE_ORDERS_UPDATE: 'service_orders.update',
+  SERVICE_ORDERS_ASSIGN_TECHNICIAN: 'service_orders.assign_technician',
+  SERVICE_ORDERS_CLOSE: 'service_orders.close',
 
   // Branches
   BRANCHES_VIEW: 'branches.view',

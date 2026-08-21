@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MasterLoginRouteImport } from './routes/master.login'
+import { Route as AuthedWorkshopRouteImport } from './routes/_authed/workshop'
 import { Route as AuthedWarrantiesRouteImport } from './routes/_authed/warranties'
 import { Route as AuthedUsersRouteImport } from './routes/_authed/users'
 import { Route as AuthedTransfersRouteImport } from './routes/_authed/transfers'
@@ -89,6 +90,11 @@ const MasterLoginRoute = MasterLoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => MasterRoute,
+} as any)
+const AuthedWorkshopRoute = AuthedWorkshopRouteImport.update({
+  id: '/workshop',
+  path: '/workshop',
+  getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedWarrantiesRoute = AuthedWarrantiesRouteImport.update({
   id: '/warranties',
@@ -319,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
   '/warranties': typeof AuthedWarrantiesRoute
+  '/workshop': typeof AuthedWorkshopRoute
   '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
   '/warranties': typeof AuthedWarrantiesRoute
+  '/workshop': typeof AuthedWorkshopRoute
   '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/_authed/transfers': typeof AuthedTransfersRouteWithChildren
   '/_authed/users': typeof AuthedUsersRouteWithChildren
   '/_authed/warranties': typeof AuthedWarrantiesRoute
+  '/_authed/workshop': typeof AuthedWorkshopRoute
   '/master/login': typeof MasterLoginRoute
   '/_authed/access/groups': typeof AuthedAccessGroupsRoute
   '/_authed/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -464,6 +473,7 @@ export interface FileRouteTypes {
     | '/transfers'
     | '/users'
     | '/warranties'
+    | '/workshop'
     | '/master/login'
     | '/access/groups'
     | '/access/permissions'
@@ -511,6 +521,7 @@ export interface FileRouteTypes {
     | '/transfers'
     | '/users'
     | '/warranties'
+    | '/workshop'
     | '/master/login'
     | '/access/groups'
     | '/access/permissions'
@@ -559,6 +570,7 @@ export interface FileRouteTypes {
     | '/_authed/transfers'
     | '/_authed/users'
     | '/_authed/warranties'
+    | '/_authed/workshop'
     | '/master/login'
     | '/_authed/access/groups'
     | '/_authed/access/permissions'
@@ -640,6 +652,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/master/login'
       preLoaderRoute: typeof MasterLoginRouteImport
       parentRoute: typeof MasterRoute
+    }
+    '/_authed/workshop': {
+      id: '/_authed/workshop'
+      path: '/workshop'
+      fullPath: '/workshop'
+      preLoaderRoute: typeof AuthedWorkshopRouteImport
+      parentRoute: typeof AuthedRoute
     }
     '/_authed/warranties': {
       id: '/_authed/warranties'
@@ -999,6 +1018,7 @@ interface AuthedRouteChildren {
   AuthedTransfersRoute: typeof AuthedTransfersRouteWithChildren
   AuthedUsersRoute: typeof AuthedUsersRouteWithChildren
   AuthedWarrantiesRoute: typeof AuthedWarrantiesRoute
+  AuthedWorkshopRoute: typeof AuthedWorkshopRoute
   AuthedAccessGroupsRoute: typeof AuthedAccessGroupsRoute
   AuthedAccessPermissionsRoute: typeof AuthedAccessPermissionsRoute
   AuthedAccessRolesRoute: typeof AuthedAccessRolesRouteWithChildren
@@ -1037,6 +1057,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTransfersRoute: AuthedTransfersRouteWithChildren,
   AuthedUsersRoute: AuthedUsersRouteWithChildren,
   AuthedWarrantiesRoute: AuthedWarrantiesRoute,
+  AuthedWorkshopRoute: AuthedWorkshopRoute,
   AuthedAccessGroupsRoute: AuthedAccessGroupsRoute,
   AuthedAccessPermissionsRoute: AuthedAccessPermissionsRoute,
   AuthedAccessRolesRoute: AuthedAccessRolesRouteWithChildren,

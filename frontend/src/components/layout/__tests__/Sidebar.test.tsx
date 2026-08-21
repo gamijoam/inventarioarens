@@ -92,6 +92,7 @@ describe('<Sidebar>', () => {
       'Traslados',
       'Solicitudes inter-empresa',
       'Garantías',
+      'Taller',
       'Reportes',
       'Importar datos',
       'Impresion',

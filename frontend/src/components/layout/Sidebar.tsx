@@ -31,6 +31,7 @@ import {
   Settings2,
   Send,
   BadgeDollarSign,
+  Wrench,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -206,6 +207,13 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Garantías',
     icon: ShieldQuestion,
     permission: PERMISSIONS.WARRANTIES_VIEW,
+    section: SECTION_LABELS.INVENTARIO,
+  },
+  {
+    to: '/workshop',
+    label: 'Taller',
+    icon: Wrench,
+    permission: PERMISSIONS.SERVICE_ORDERS_VIEW,
     section: SECTION_LABELS.INVENTARIO,
   },
 
