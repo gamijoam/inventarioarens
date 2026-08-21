@@ -74,6 +74,8 @@ class SyncEventApplier
         'cash_register.created',
         'product_entry.created',
         'product_exit.created',
+        'service_order.created',
+        'service_order.updated',
         'purchase_order.created',
         'purchase_order.received',
         'accounts_payable.created',
@@ -141,6 +143,8 @@ class SyncEventApplier
         'inventory_transfer.created',
         'product_entry.created',
         'product_exit.created',
+        'service_order.created',
+        'service_order.updated',
         'inventory_transfer_request.created',
         'inventory_transfer_request.accepted',
         'inventory_transfer_request.rejected',
@@ -300,6 +304,7 @@ class SyncEventApplier
                 'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
                 'product_entry.created' => $this->applyProductEntry($tenant, $payload),
                 'product_exit.created' => $this->applyProductExit($tenant, $payload),
+                'service_order.updated', 'service_order.created' => $this->applyServiceOrder($tenant, $payload),
                 'purchase_order.created' => $this->applyPurchaseOrderCreated($tenant, $payload),
                 'purchase_order.received' => $this->applyPurchaseOrderReceived($tenant, $payload),
                 'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
@@ -1175,6 +1180,109 @@ class SyncEventApplier
                 'updated_at' => $now,
             ]);
         }
+    }
+
+    /**
+     * Aplica una orden de servicio del Taller (header + piezas) por order_number.
+     */
+    private function applyServiceOrder(Tenant $tenant, array $payload): string
+    {
+        $orderNumber = $this->requiredString($payload, 'order_number');
+        $warehouse = $this->warehouseByCode($tenant, $this->requiredString($payload, 'warehouse_code'));
+        $now = now();
+
+        $technicianId = null;
+        if (! empty($payload['technician_email'])) {
+            $technicianId = (int) DB::table('users')
+                ->where('email', $payload['technician_email'])
+                ->value('id');
+        }
+
+        $dates = [];
+        foreach (['received_at', 'technician_assigned_at', 'diagnosed_at', 'delivered_at', 'cancelled_at', 'created_at', 'updated_at'] as $key) {
+            $dates[$key] = ! empty($payload[$key])
+                ? Carbon::parse($payload[$key])
+                : ($key === 'created_at' || $key === 'updated_at' ? $now : null);
+        }
+
+        $orderId = $this->upsertAndGetId(
+            'service_orders',
+            ['tenant_id' => $tenant->id, 'order_number' => $orderNumber],
+            [
+                'type' => $payload['type'] ?? 'repair',
+                'status' => $payload['status'] ?? 'received',
+                'priority' => $payload['priority'] ?? 'normal',
+                'resolution' => $payload['resolution'] ?? null,
+                'warranty_claim_id' => isset($payload['warranty_claim_id']) ? (int) $payload['warranty_claim_id'] : null,
+                'customer_id' => isset($payload['customer_id']) ? (int) $payload['customer_id'] : null,
+                'customer_name' => $payload['customer_name'] ?? null,
+                'customer_phone' => $payload['customer_phone'] ?? null,
+                'device_description' => $payload['device_description'] ?? null,
+                'issue_description' => $payload['issue_description'] ?? null,
+                'diagnosis' => $payload['diagnosis'] ?? null,
+                'technician_id' => $technicianId,
+                'warehouse_id' => $warehouse->id,
+                'labor_base_amount' => $payload['labor_base_amount'] ?? 0,
+                'labor_local_amount' => $payload['labor_local_amount'] ?? 0,
+                'parts_base_amount' => $payload['parts_base_amount'] ?? 0,
+                'parts_local_amount' => $payload['parts_local_amount'] ?? 0,
+                'total_base_amount' => $payload['total_base_amount'] ?? 0,
+                'total_local_amount' => $payload['total_local_amount'] ?? 0,
+                'notes' => $payload['notes'] ?? null,
+                'created_by' => null,
+                'received_at' => $dates['received_at'],
+                'technician_assigned_at' => $dates['technician_assigned_at'],
+                'diagnosed_at' => $dates['diagnosed_at'],
+                'delivered_at' => $dates['delivered_at'],
+                'cancelled_at' => $dates['cancelled_at'],
+                'created_at' => $dates['created_at'],
+                'updated_at' => $dates['updated_at'],
+            ]
+        );
+
+        $sourceId = (int) ($payload['_sync_aggregate_id'] ?? 0);
+        if ($sourceId > 0) {
+            $this->rememberEntityMapping($tenant, 'service_order', $sourceId, $orderId, $orderNumber);
+        }
+
+        foreach (($payload['parts'] ?? []) as $part) {
+            $this->applyServiceOrderPart($tenant, $orderId, $part);
+        }
+
+        return 'applied';
+    }
+
+    private function applyServiceOrderPart(Tenant $tenant, int $orderId, array $part): void
+    {
+        if (empty($part['sku']) || empty($part['warehouse_code'])) {
+            return;
+        }
+
+        $product = $this->productBySku($tenant, $part['sku']);
+        $warehouse = $this->warehouseByCode($tenant, $part['warehouse_code']);
+        $now = now();
+
+        $this->upsertAndGetId(
+            'service_order_parts',
+            [
+                'tenant_id' => $tenant->id,
+                'service_order_id' => $orderId,
+                'product_id' => $product->id,
+            ],
+            [
+                'warehouse_id' => $warehouse->id,
+                'quantity' => $part['quantity'] ?? 0,
+                'unit_cost' => $part['unit_cost'] ?? null,
+                'unit_price' => $part['unit_price'] ?? null,
+                'base_unit_price' => $part['unit_price'] ?? null,
+                'base_unit_cost' => $part['unit_cost'] ?? null,
+                'stock_movement_id' => isset($part['stock_movement_id']) ? (int) $part['stock_movement_id'] : null,
+                'status' => $part['status'] ?? 'pending',
+                'created_by' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]
+        );
     }
 
     private function normalizeSerialUnits(mixed $serialUnits): array

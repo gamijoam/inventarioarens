@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyClaim;
+use App\Support\Sync\Syncable;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -61,9 +62,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class ServiceOrder extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, Syncable;
 
     protected $table = 'service_orders';
+
+    protected function syncOutboxMethod(string $action): ?string
+    {
+        return match ($action) {
+            'created' => 'serviceOrderCreated',
+            'updated' => 'serviceOrderUpdated',
+            default => null,
+        };
+    }
 
     public const TYPE_REPAIR = 'repair';
 

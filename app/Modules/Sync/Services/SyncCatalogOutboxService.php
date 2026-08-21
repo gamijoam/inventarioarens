@@ -35,6 +35,7 @@ use App\Modules\Tenancy\Models\TenantSetting;
 use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyPolicy;
+use App\Modules\Workshop\Models\ServiceOrder;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -537,6 +538,69 @@ class SyncCatalogOutboxService
                 ])->values()->all(),
             ],
             idempotencyKey: $this->eventKey('product_exit.created', 'product_exit', $exit->id, $exit->updated_at),
+        );
+    }
+
+    public function serviceOrderCreated(ServiceOrder $order): void
+    {
+        $this->recordServiceOrder('service_order.created', $order);
+    }
+
+    public function serviceOrderUpdated(ServiceOrder $order): void
+    {
+        $this->recordServiceOrder('service_order.updated', $order);
+    }
+
+    private function recordServiceOrder(string $eventType, ServiceOrder $order): void
+    {
+        $order->loadMissing(['warehouse', 'technician', 'parts.product', 'parts.warehouse']);
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'service_order',
+            aggregateId: $order->id,
+            payload: [
+                '_sync_aggregate_id' => $order->id,
+                'order_number' => $order->order_number,
+                'type' => $order->type,
+                'status' => $order->status,
+                'priority' => $order->priority,
+                'resolution' => $order->resolution,
+                'warranty_claim_id' => $order->warranty_claim_id,
+                'customer_id' => $order->customer_id,
+                'customer_name' => $order->customer_name,
+                'customer_phone' => $order->customer_phone,
+                'device_description' => $order->device_description,
+                'issue_description' => $order->issue_description,
+                'diagnosis' => $order->diagnosis,
+                'technician_email' => $order->technician?->email,
+                'technician_name' => $order->technician?->name,
+                'warehouse_code' => $order->warehouse?->code,
+                'labor_base_amount' => (string) $order->labor_base_amount,
+                'labor_local_amount' => (string) $order->labor_local_amount,
+                'parts_base_amount' => (string) $order->parts_base_amount,
+                'parts_local_amount' => (string) $order->parts_local_amount,
+                'total_base_amount' => (string) $order->total_base_amount,
+                'total_local_amount' => (string) $order->total_local_amount,
+                'notes' => $order->notes,
+                'received_at' => $order->received_at?->toISOString(),
+                'technician_assigned_at' => $order->technician_assigned_at?->toISOString(),
+                'diagnosed_at' => $order->diagnosed_at?->toISOString(),
+                'delivered_at' => $order->delivered_at?->toISOString(),
+                'cancelled_at' => $order->cancelled_at?->toISOString(),
+                'created_at' => $order->created_at?->toISOString(),
+                'updated_at' => $order->updated_at?->toISOString(),
+                'parts' => $order->parts->map(fn ($part): array => [
+                    'sku' => $part->product?->sku,
+                    'warehouse_code' => $part->warehouse?->code,
+                    'quantity' => (string) $part->quantity,
+                    'unit_cost' => $part->unit_cost === null ? null : (string) $part->unit_cost,
+                    'unit_price' => $part->unit_price === null ? null : (string) $part->unit_price,
+                    'status' => $part->status,
+                    'stock_movement_id' => $part->stock_movement_id,
+                ])->values()->all(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'service_order', $order->id, $order->updated_at),
         );
     }
 
