@@ -114,7 +114,7 @@ export function WorkshopManager() {
           />
         </div>
         <div className="w-40">
-          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <Select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="ws-status-filter">
             <option value="">Estado: todos</option>
             {SERVICE_ORDER_STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -124,7 +124,7 @@ export function WorkshopManager() {
           </Select>
         </div>
         <div className="w-40">
-          <Select value={type} onChange={(e) => setType(e.target.value)}>
+          <Select value={type} onChange={(e) => setType(e.target.value)} data-testid="ws-type-filter">
             <option value="">Tipo: todos</option>
             {SERVICE_ORDER_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -343,7 +343,7 @@ function PartsCard({ order }: { order: ServiceOrder }) {
             />
           </div>
           <div className="flex gap-2">
-            <Select value={productId} onChange={(e) => setProductId(e.target.value)} className="flex-1">
+            <Select value={productId} onChange={(e) => setProductId(e.target.value)} className="flex-1" data-testid="ws-part-product">
               <option value="">Selecciona pieza...</option>
               {(productPage?.data ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
@@ -436,7 +436,7 @@ function TechnicianCard({ order }: { order: ServiceOrder }) {
     <div className="border-border bg-surface rounded-lg border p-4">
       <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">Técnico</p>
       <div className="mt-2 space-y-2">
-        <Select value={technicianId} onChange={(e) => setTechnicianId(e.target.value)}>
+        <Select value={technicianId} onChange={(e) => setTechnicianId(e.target.value)} data-testid="ws-assign-tech">
           <option value="">Técnico...</option>
           {(users?.data ?? []).map((u) => (
             <option key={u.id} value={u.id}>
@@ -444,7 +444,7 @@ function TechnicianCard({ order }: { order: ServiceOrder }) {
             </option>
           ))}
         </Select>
-        <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
+        <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} data-testid="ws-assign-wh">
           <option value="">Almacén de trabajo...</option>
           {warehouses.map((w) => (
             <option key={w.id} value={w.id}>
@@ -532,6 +532,7 @@ function CreateServiceOrderDialog({ onClose, onCreated }: { onClose: () => void;
               <Select
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value, resolution: '' })}
+                data-testid="ws-create-type"
               >
                 {SERVICE_ORDER_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -546,6 +547,7 @@ function CreateServiceOrderDialog({ onClose, onCreated }: { onClose: () => void;
                 <Select
                   value={form.resolution}
                   onChange={(e) => setForm({ ...form, resolution: e.target.value })}
+                  data-testid="ws-create-resolution"
                 >
                   <option value="">Selecciona...</option>
                   {SERVICE_ORDER_RESOLUTIONS.map((r) => (
@@ -577,7 +579,7 @@ function CreateServiceOrderDialog({ onClose, onCreated }: { onClose: () => void;
           </div>
           <div className="space-y-1">
             <Label>Almacén de trabajo</Label>
-            <Select value={form.warehouse_id} onChange={(e) => setForm({ ...form, warehouse_id: e.target.value })}>
+            <Select value={form.warehouse_id} onChange={(e) => setForm({ ...form, warehouse_id: e.target.value })} data-testid="ws-create-warehouse">
               <option value="">Selecciona almacén...</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
