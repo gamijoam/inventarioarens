@@ -27,6 +27,7 @@ let api: APIRequestContext;
 let token: string;
 let warehouseId: number;
 let productId: number;
+let productSku: string;
 let orderId: number;
 
 async function authedContext(baseURL: string): Promise<APIRequestContext> {
@@ -83,11 +84,12 @@ test.describe('Taller E2E flow (API)', () => {
     const products = await api.get('/api/products?per_page=100&stock_status=all&active_status=active');
     expect(products.status()).toBe(200);
     const prodBody = (await products.json()) as {
-      data: Array<{ id: number; available_stock: number }>;
+      data: Array<{ id: number; sku: string; available_stock: number }>;
     };
     const withStock = prodBody.data.find((p) => Number(p.available_stock) > 0);
     if (withStock) {
       productId = withStock.id;
+      productSku = withStock.sku;
     } else {
       const created = await api.post('/api/products', {
         data: {
@@ -99,7 +101,9 @@ test.describe('Taller E2E flow (API)', () => {
         },
       });
       expect(created.status()).toBe(201);
-      productId = ((await created.json()) as { data: { id: number } }).data.id;
+      const createdBody = (await created.json()) as { data: { id: number; sku: string } };
+      productId = createdBody.data.id;
+      productSku = createdBody.data.sku;
       const entry = await api.post('/api/product-entries', {
         data: {
           reason: 'Entrada E2E taller',
@@ -140,7 +144,7 @@ test.describe('Taller E2E flow (API)', () => {
     // 3) Asignar tecnico (primer usuario del tenant).
     const users = await api.get('/api/users?per_page=1');
     expect(users.status()).toBe(200);
-    const technicianId = ((await users.json()) as { data: { data: Array<{ id: number }> } }).data.data[0]?.id;
+    const technicianId = ((await users.json()) as { data: Array<{ id: number }> }).data[0]?.id;
     expect(technicianId, 'existe al menos un usuario para ser tecnico').toBeTruthy();
     const assignRes = await api.post(`/api/service-orders/${orderId}/assign-technician`, {
       data: { technician_id: technicianId, warehouse_id: warehouseId },
@@ -158,10 +162,11 @@ test.describe('Taller E2E flow (API)', () => {
 
     // 5) Completar -> delivered + stock descontado.
     const beforeStock = await api.get(
-      `/api/inventory-center/products/${productId}/stock-context?warehouse_id=${warehouseId}`,
+      `/api/products?search=${encodeURIComponent(productSku)}&warehouse_id=${warehouseId}&per_page=1`,
     );
     const beforeAvailable = Number(
-      ((await beforeStock.json()) as { data: { total_available: number } }).data.total_available ?? 0,
+      ((await beforeStock.json()) as { data: Array<{ available_stock: number }> }).data[0]
+        ?.available_stock ?? 0,
     );
 
     const completeRes = await api.post(`/api/service-orders/${orderId}/complete`);
@@ -169,10 +174,11 @@ test.describe('Taller E2E flow (API)', () => {
     expect(((await completeRes.json()) as { data: { status: string } }).data.status).toBe('delivered');
 
     const afterStock = await api.get(
-      `/api/inventory-center/products/${productId}/stock-context?warehouse_id=${warehouseId}`,
+      `/api/products?search=${encodeURIComponent(productSku)}&warehouse_id=${warehouseId}&per_page=1`,
     );
     const afterAvailable = Number(
-      ((await afterStock.json()) as { data: { total_available: number } }).data.total_available ?? 0,
+      ((await afterStock.json()) as { data: Array<{ available_stock: number }> }).data[0]
+        ?.available_stock ?? 0,
     );
     expect(afterAvailable).toBe(beforeAvailable - 2);
   });
