@@ -456,7 +456,7 @@ function CashSessionCard({
                     <option value="outflow">Salida</option>
                     <option value="adjustment">Ajuste</option>
                   </Select>
-                  <Input type="number" min="0" value={movementForm.amount} onChange={(event) => onMovementForm({ ...movementForm, amount: event.target.value })} placeholder="Monto USD" />
+                  <Input type="text" inputMode="decimal" value={movementForm.amount} onChange={(event) => onMovementForm({ ...movementForm, amount: event.target.value })} placeholder="Monto USD" />
                   <Button className="whitespace-nowrap" disabled={moving} onClick={onMovement}>{moving && <Loader2 className="size-4 animate-spin" />} Registrar</Button>
                   <Input className="sm:col-span-3" value={movementForm.notes} onChange={(event) => onMovementForm({ ...movementForm, notes: event.target.value })} placeholder="Notas del movimiento" />
                 </div>
@@ -658,8 +658,8 @@ function ClosePanel({ session, form, rate, closing, onForm, onClose }: {
         </Button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Input type="number" min="0" value={calculatedForm.usd} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
-        <Input type="number" min="0" value={calculatedForm.ves} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado VES" />
+        <Input type="text" inputMode="decimal" value={calculatedForm.usd} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
+        <Input type="text" inputMode="decimal" value={calculatedForm.ves} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado Bs (VES)" />
       </div>
       <div className="space-y-3 rounded border border-border/70 p-3">
         <div className="flex items-center justify-between gap-2">

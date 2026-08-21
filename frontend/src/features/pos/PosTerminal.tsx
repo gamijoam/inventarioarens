@@ -4462,8 +4462,8 @@ export function CashPanel(props: {
               </LabeledControl>
               <LabeledControl label="Monto USD">
                 <Input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={props.movement.amount}
                   onChange={(event) =>
                     props.onMovementChange({ ...props.movement, amount: event.target.value })
@@ -4536,8 +4536,8 @@ export function CashPanel(props: {
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <Input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={calculatedForm.usd}
                   readOnly={props.closeForm.counts.length > 0}
                   onChange={(event) =>
@@ -4547,8 +4547,8 @@ export function CashPanel(props: {
                   data-testid="pos-cash-closing-amount"
                 />
                 <Input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={props.closeForm.ves}
                   onChange={(event) =>
                     props.onCloseForm({ ...props.closeForm, ves: event.target.value })
