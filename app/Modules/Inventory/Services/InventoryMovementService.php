@@ -166,6 +166,36 @@ class InventoryMovementService
     }
 
     /**
+     * Salida de stock por consumo de piezas en una orden de servicio (Taller).
+     * Igual que adjustmentOut pero registra el unit_cost de la pieza y permite
+     * referenciar la ServiceOrder para trazabilidad.
+     */
+    public function serviceExit(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?float $unitCost = null,
+        ?int $productVariantId = null,
+    ): StockMovement {
+        return $this->decreaseAvailable(
+            type: 'adjustment_out',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            unitCost: $unitCost,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+            productVariantId: $productVariantId,
+        );
+    }
+
+    /**
      * Salida de stock por aceptar una solicitud de transferencia inter-empresa
      * (la empresa origen pierde stock que envia a su empresa hermana).
      * Tipo dedicado 'transfer_request_out' para que el kardex distinga este

@@ -132,3 +132,6 @@ Route::middleware(['api.auth', 'tenant'])
 
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Quotations/routes.php'));
+
+Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/Workshop/routes.php'));

@@ -36,6 +36,7 @@ class AccessControlApiTest extends TestCase
                 'name' => 'Cajero Principal',
                 'email' => 'cajero@example.test',
                 'password' => 'Password123!',
+                'confirm_password' => 'Password123!',
                 'roles' => ['Vendedor'],
             ])
             ->assertCreated()

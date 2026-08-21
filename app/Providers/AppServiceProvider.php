@@ -51,6 +51,8 @@ use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Suppliers\Policies\SupplierPolicy;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warehouses\Policies\WarehousePolicy;
+use App\Modules\Workshop\Models\ServiceOrder;
+use App\Modules\Workshop\Policies\ServiceOrderPolicy;
 use App\Support\Cache\TenantReferenceCacheInvalidator;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
@@ -97,6 +99,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(Sale::class, SalePolicy::class);
         Gate::policy(SalesReturn::class, SalesReturnPolicy::class);
+        Gate::policy(ServiceOrder::class, ServiceOrderPolicy::class);
         Gate::policy(Supplier::class, SupplierPolicy::class);
         Gate::policy(Warehouse::class, WarehousePolicy::class);
         Gate::define('inventory.view-operation', [InventoryPolicy::class, 'view']);
