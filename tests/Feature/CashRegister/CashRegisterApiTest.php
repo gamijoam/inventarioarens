@@ -372,6 +372,54 @@ class CashRegisterApiTest extends TestCase
         ]);
     }
 
+    public function test_cash_register_close_with_denominations_and_manual_ves_preserves_ves(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $cashRegister = $this->cashRegister($tenant, $branch, 'Caja Principal', 'CJ-1');
+        $rateType = $this->rateType($tenant, 'BCV', 36.5);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['cash_register.open', 'cash_register.close', 'cash_register.view']);
+
+        $sessionId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $branch->id,
+                'cash_register_id' => $cashRegister->id,
+                'opening_amount' => 0,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        // Caso POS: denominaciones SOLO en USD + bolivar manual (sin denominaciones VES).
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/cash-register/sessions/{$sessionId}/close", [
+                'exchange_rate_type_id' => $rateType->id,
+                'counted_base_amount' => 20,
+                'counted_local_amount' => 1000,
+                'counted_cash_usd' => 20,
+                'counted_cash_ves' => 1000,
+                'counts' => [
+                    ['currency' => Product::CURRENCY_USD, 'denomination' => 10, 'quantity' => 2],
+                ],
+                'counting_mode' => CashRegisterSession::COUNTING_BLIND,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.counted_cash_usd', '20.0000')
+            ->assertJsonPath('data.counted_local_amount', '1000.0000')
+            ->assertJsonPath('data.counted_cash_ves', '1000.0000')
+            ->assertJsonCount(1, 'data.counts');
+
+        $this->assertDatabaseHas('cash_register_sessions', [
+            'id' => $sessionId,
+            'counted_cash_ves' => 1000.0,
+            'counted_local_amount' => 1000.0,
+        ]);
+    }
+
     public function test_cash_register_sessions_index_filters_by_status_and_current_cashier(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
