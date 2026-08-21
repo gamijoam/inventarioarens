@@ -8,6 +8,8 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Modules\Warranties\Models\WarrantyClaim;
+use App\Modules\Warranties\Services\WarrantyClaimService;
 use App\Modules\Workshop\Models\ServiceOrder;
 use App\Modules\Workshop\Models\ServiceOrderPart;
 use App\Modules\Workshop\Models\ServiceOrderStatusHistory;
@@ -26,6 +28,7 @@ class ServiceOrderService
     public function __construct(
         private readonly InventoryMovementService $inventory,
         private readonly CommissionLedgerService $commissions,
+        private readonly WarrantyClaimService $warranties,
         private readonly TenantManager $tenants,
     ) {}
 
@@ -34,6 +37,13 @@ class ServiceOrderService
         $tenantId = $this->tenants->require()->id;
 
         return DB::transaction(function () use ($operator, $data, $tenantId): ServiceOrder {
+            // Si es garantia, validar duplicados y marcarla como enviada al taller
+            // ANTES de crear la orden (si no, el chequeo encontraria la propia orden).
+            if (! empty($data['warranty_claim_id'])) {
+                $claim = WarrantyClaim::query()->findOrFail($data['warranty_claim_id']);
+                $this->warranties->sendToWorkshop($claim, $operator);
+            }
+
             $order = ServiceOrder::create([
                 ...$data,
                 'tenant_id' => $tenantId,
@@ -215,6 +225,12 @@ class ServiceOrderService
             // Comision del tecnico (si el plan rol technician aplica).
             $this->commissions->recordServiceOrder($order->fresh());
 
+            // Si es garantia, resolverla segun el tratamiento de la orden.
+            if ($order->warranty_claim_id) {
+                $claim = WarrantyClaim::query()->findOrFail($order->warranty_claim_id);
+                $this->warranties->resolveFromWorkshop($claim, $order->fresh(), $operator);
+            }
+
             return $order->fresh(['warehouse', 'technician', 'parts', 'parts.product']);
         });
     }
@@ -231,6 +247,12 @@ class ServiceOrderService
 
         DB::transaction(function () use ($order, $operator): void {
             $this->transition($order, ServiceOrder::STATUS_CANCELLED, $operator);
+
+            // Devolver la garantia a received si estaba en el taller.
+            if ($order->warranty_claim_id) {
+                $claim = WarrantyClaim::query()->findOrFail($order->warranty_claim_id);
+                $this->warranties->returnFromWorkshop($claim, $operator);
+            }
         });
 
         return $order->fresh(['warehouse', 'technician', 'parts']);
