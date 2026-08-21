@@ -200,4 +200,24 @@ describe('CashPanel', () => {
     const submit = screen.getByTestId('pos-cash-close-submit') as HTMLButtonElement;
     expect(submit).toBeDisabled();
   });
+
+  it('muestra USD y Bs declarados por separado y el total equivalente claramente etiquetado', () => {
+    render(
+      <CashPanel
+        session={makeSession()}
+        {...makeProps({
+          closeForm: makeCloseForm({ usd: '1000', ves: '1000', blind: false }),
+          rate: 36.5,
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Declarado USD')).toBeInTheDocument();
+    expect(screen.getByText('Declarado Bs (VES)')).toBeInTheDocument();
+    expect(screen.getByText('Total equiv. USD')).toBeInTheDocument();
+    // Declarado USD se mantiene en $1000 (no cambia por el Bs)
+    expect(screen.getByText(/\$1,000\.00/)).toBeInTheDocument();
+    // Total equiv = 1000 + 1000/36.5 = 1027.397...
+    expect(screen.getByText(/\$1,027\.40/)).toBeInTheDocument();
+  });
 });

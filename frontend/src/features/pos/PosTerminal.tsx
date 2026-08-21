@@ -4581,9 +4581,20 @@ export function CashPanel(props: {
 
               <div className="grid gap-2 rounded-lg border border-border/70 p-2 text-sm sm:grid-cols-2">
                 <div>
-                  <p className="text-text-muted text-xs uppercase">Declarado USD equivalente</p>
+                  <p className="text-text-muted text-xs uppercase">Declarado USD</p>
+                  <p className="font-semibold">{money(Number(calculatedForm.usd || 0))}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted text-xs uppercase">Declarado Bs (VES)</p>
+                  <p className="font-semibold">{localMoney(Number(calculatedForm.ves || 0))}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted text-xs uppercase">Total equiv. USD</p>
                   <p className="font-semibold">{money(diff.declaredBase)}</p>
                 </div>
+                <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-[10px] leading-tight">
+                  El total equiv. USD = USD + (Bs ÷ tasa). Cada moneda se declara por separado.
+                </span>
                 {!blind && (
                   <div>
                     <p className="text-text-muted text-xs uppercase">Esperado USD</p>
@@ -4596,10 +4607,6 @@ export function CashPanel(props: {
                     <p className="font-semibold">{money(diff.cashUsd)}</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-text-muted text-xs uppercase">Contado VES</p>
-                  <p className="font-semibold">{localMoney(Number(calculatedForm.ves || 0))}</p>
-                </div>
                 {!blind && (
                   <div>
                     <p className="text-text-muted text-xs uppercase">Esperado VES</p>

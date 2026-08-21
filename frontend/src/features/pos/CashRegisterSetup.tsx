@@ -671,10 +671,14 @@ function ClosePanel({ session, form, rate, closing, onForm, onClose }: {
         <DenominationGrid currency="VES" form={activeForm} onForm={onForm} />
       </div>
       <div className="grid gap-2 rounded border border-border/70 p-2 text-sm sm:grid-cols-2">
-        <Metric label="Declarado USD equivalente" value={money(diff.declaredBase)} />
+        <Metric label="Declarado USD" value={money(Number(calculatedForm.usd || 0))} />
+        <Metric label="Declarado Bs (VES)" value={localMoney(Number(calculatedForm.ves || 0))} />
+        <Metric label="Total equiv. USD" value={money(diff.declaredBase)} />
+        <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-[10px] leading-tight">
+          El total equiv. USD = USD + (Bs ÷ tasa). Cada moneda se declara por separado.
+        </span>
         {!activeForm.blind && <Metric label="Esperado USD" value={money(diff.expectedUsd)} />}
         {!activeForm.blind && <Metric label="Diferencia física USD" value={money(diff.cashUsd)} />}
-        <Metric label="Contado VES" value={localMoney(Number(calculatedForm.ves || 0))} />
         {!activeForm.blind && <Metric label="Esperado VES" value={localMoney(diff.expectedVes)} />}
         {!activeForm.blind && <Metric label="Diferencia física VES" value={localMoney(diff.cashVes)} />}
         {activeForm.blind && <p className="rounded bg-primary/5 p-2 text-xs text-text-muted sm:col-span-2">La diferencia se calculará al confirmar el cierre y quedará visible para el responsable.</p>}
