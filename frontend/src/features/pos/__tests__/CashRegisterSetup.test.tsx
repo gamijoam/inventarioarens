@@ -136,4 +136,13 @@ describe('<CashRegisterSetup>', () => {
     expect(screen.getByText('Cajero responsable...')).toBeInTheDocument();
     expect(screen.getByText('Juan Cajero - juan@test.test')).toBeInTheDocument();
   });
+
+  it('al abrir turno muestra los rótulos de moneda Fondo $ (USD) y Fondo Bs (VES)', () => {
+    mockUseCashSessions.mockReturnValue({ data: [], isLoading: false });
+
+    render(<CashRegisterSetup />, { wrapper: makeWrapper() });
+
+    expect(screen.getByText('Fondo $ (USD)')).toBeInTheDocument();
+    expect(screen.getByText('Fondo Bs (VES)')).toBeInTheDocument();
+  });
 });

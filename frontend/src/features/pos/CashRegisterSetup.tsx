@@ -489,8 +489,18 @@ function CashSessionCard({
                       {cashierOptions.map((user) => <option key={user.id} value={user.id}>{user.name} - {user.email}</option>)}
                     </Select>
                   ) : null}
-                  <Input type="number" min="0" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="Fondo USD" />
-                  <Input type="number" min="0" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="Fondo VES" />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+                      Fondo $ (USD)
+                    </label>
+                    <Input type="number" min="0" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="0.00" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+                      Fondo Bs (VES)
+                    </label>
+                    <Input type="number" min="0" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="0.00" />
+                  </div>
                   <Button disabled={opening || !openForm.branch_id || !openForm.cash_register_id || (canAssignCashier && !openForm.cashier_id)} onClick={onOpen}>
                     {opening && <Loader2 className="size-4 animate-spin" />} Abrir turno
                   </Button>
