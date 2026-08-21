@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-08-21 - Auditoria apertura de caja: fondos USD/VES no se guardaban (quirk type=number)
+
+- **Sintoma**: en Tucacas (tiendasarens) se abrio la caja con $1 y Bs 1 pero la sesion quedo
+  con opening_base_amount=0 y opening_local_amount=0; al cerrar "inicia con 0".
+- **Auditoria**:
+  - Backend OK: `CashRegisterService::open()` + `openingMovements()` suman correctamente
+    `opening_base_amount`/`opening_local_amount` (test existente con 25/5000 pasa).
+  - Frontend modulo y POS: `submitOpen`/handler POS envian correctamente ambos montos
+    (verificado con test que escribe 1 y 1 y confirma el payload).
+  - **Causa raiz**: los inputs de dinero usaban `type="number"`, que en algunos
+    dispositivos/navegadores no registran el valor tecleado (mismo quirk que el conteo de
+    denominaciones). Por eso el monto quedaba 0.
+- **Fix**: los fondos de apertura (USD y VES) en el modulo Cajas y en el OpenCashScreen del
+  POS ahora usan `type="text"` + `inputMode="decimal"` (parseo con `Number(...)` al enviar).
+- TDD: `CashRegisterSetup.test` agrega caso "al abrir turno envia los fondos USD y VES
+  ingresados (no 0)" + data-testids en sucursal/caja/cajero/fondos. Suite frontend 800/801,
+  tsc limpio, builds admin+pos OK.
+- Commit `54b92992`, deploy en ambas apps (bundle `index-C7DE7B-8.js`).
+
 ## 2026-08-20 - Fix cierre de caja: VES perdido con denominaciones + nota reveladora en ciego
 
 - **Problema 1 (VES no se guardaba)**: en el handler de cierre del POS, si se usaba el conteo
