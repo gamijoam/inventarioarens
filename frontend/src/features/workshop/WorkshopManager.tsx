@@ -400,9 +400,9 @@ function DiagnoseCard({ order }: { order: ServiceOrder }) {
     <div className="border-border bg-surface rounded-lg border p-4">
       <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">Diagnóstico</p>
       <div className="mt-2 space-y-2">
-        <Textarea rows={2} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Descripción del diagnóstico" />
+        <Textarea rows={2} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Descripción del diagnóstico" data-testid="ws-diagnose-text" />
         <div className="flex gap-2">
-          <Input type="text" inputMode="decimal" value={labor} onChange={(e) => setLabor(e.target.value)} placeholder="Mano de obra USD" />
+          <Input type="text" inputMode="decimal" value={labor} onChange={(e) => setLabor(e.target.value)} placeholder="Mano de obra USD" data-testid="ws-diagnose-labor" />
           <Button
             size="sm"
             disabled={!diagnosis.trim()}
@@ -562,7 +562,7 @@ function CreateServiceOrderDialog({ onClose, onCreated }: { onClose: () => void;
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Cliente</Label>
-              <Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} placeholder="Nombre" />
+              <Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} placeholder="Nombre" data-testid="ws-create-customer" />
             </div>
             <div className="space-y-1">
               <Label>Teléfono</Label>
@@ -571,11 +571,11 @@ function CreateServiceOrderDialog({ onClose, onCreated }: { onClose: () => void;
           </div>
           <div className="space-y-1">
             <Label>Equipo / Dispositivo</Label>
-            <Input value={form.device_description} onChange={(e) => setForm({ ...form, device_description: e.target.value })} placeholder="Ej. iPhone 11, Lavadora 16kg..." />
+            <Input value={form.device_description} onChange={(e) => setForm({ ...form, device_description: e.target.value })} placeholder="Ej. iPhone 11, Lavadora 16kg..." data-testid="ws-create-device" />
           </div>
           <div className="space-y-1">
             <Label>Problema reportado</Label>
-            <Textarea rows={2} value={form.issue_description} onChange={(e) => setForm({ ...form, issue_description: e.target.value })} />
+            <Textarea rows={2} value={form.issue_description} onChange={(e) => setForm({ ...form, issue_description: e.target.value })} data-testid="ws-create-issue" />
           </div>
           <div className="space-y-1">
             <Label>Almacén de trabajo</Label>
