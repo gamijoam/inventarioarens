@@ -14,6 +14,7 @@ use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Modules\Workshop\Models\ServiceOrder;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -100,6 +101,66 @@ class CommissionLedgerService
                     $this->recordEarning($order, $saleItem, $plan, (int) $userId, $earnedAt, $payment, $ratio);
                 }
             }
+        }
+    }
+
+    /**
+     * Registra la comision del tecnico al entregar una orden de servicio del
+     * Taller. La base es la mano de obra (labor_base_amount); las piezas no
+     * suman a la base. Se calcula con los planes activos de rol 'technician'
+     * asignados al tecnico, al momento de la entrega.
+     */
+    public function recordServiceOrder(ServiceOrder $order): void
+    {
+        if (! $order->technician_id) {
+            return;
+        }
+
+        $earnedAt = $order->delivered_at ?? $order->completed_at ?? now();
+        $base = round((float) $order->labor_base_amount, 4);
+
+        if ($base <= 0) {
+            return;
+        }
+
+        $plans = CommissionPlan::query()
+            ->activeAt($earnedAt)
+            ->where('beneficiary_role', CommissionPlan::ROLE_TECHNICIAN)
+            ->whereHas('assignments', fn ($query) => $query
+                ->where('user_id', $order->technician_id)
+                ->where('is_active', true)
+                ->where(fn ($query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $earnedAt))
+                ->where(fn ($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', $earnedAt)))
+            ->get();
+
+        foreach ($plans as $plan) {
+            if (CommissionEntry::query()
+                ->where('commission_plan_id', $plan->id)
+                ->where('service_order_id', $order->id)
+                ->where('beneficiary_user_id', $order->technician_id)
+                ->where('entry_type', CommissionEntry::TYPE_EARNING)
+                ->exists()) {
+                continue;
+            }
+
+            $entry = CommissionEntry::create([
+                'entry_uuid' => (string) Str::uuid(),
+                'commission_plan_id' => $plan->id,
+                'service_order_id' => $order->id,
+                'beneficiary_user_id' => $order->technician_id,
+                'beneficiary_role' => CommissionPlan::ROLE_TECHNICIAN,
+                'entry_type' => CommissionEntry::TYPE_EARNING,
+                'plan_name_snapshot' => $plan->name,
+                'percentage_snapshot' => $plan->percentage,
+                'source_amount' => $base,
+                'eligible_base_amount' => $base,
+                'sale_currency' => Product::CURRENCY_USD,
+                'commission_base_amount' => round($base * (float) $plan->percentage / 100, 4),
+                'status' => CommissionEntry::STATUS_PENDING,
+                'earned_at' => $earnedAt,
+                'available_at' => $earnedAt->copy()->addDays($plan->maturation_days),
+            ]);
+            $this->recordSyncEvent($entry);
         }
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Commissions\Requests;
 
+use App\Modules\Commissions\Models\CommissionPlan;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -23,7 +24,7 @@ class StoreCommissionAdjustmentRequest extends FormRequest
                     ->where('tenant_id', app(TenantManager::class)->require()->id)
                     ->where('status', 'active')),
             ],
-            'beneficiary_role' => ['nullable', Rule::in(['seller', 'cashier'])],
+            'beneficiary_role' => ['nullable', Rule::in([CommissionPlan::ROLE_SELLER, CommissionPlan::ROLE_CASHIER, CommissionPlan::ROLE_TECHNICIAN])],
             'amount_base' => ['required', 'numeric', 'not_in:0', 'between:-999999999999.9999,999999999999.9999'],
             'reason' => ['required', 'string', 'max:2000'],
         ];

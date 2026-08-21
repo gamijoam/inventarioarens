@@ -15,7 +15,7 @@ class StoreCommissionPlanRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('commission_plans', 'name')->where('tenant_id', $tenantId)],
-            'beneficiary_role' => ['required', Rule::in([CommissionPlan::ROLE_SELLER, CommissionPlan::ROLE_CASHIER])],
+            'beneficiary_role' => ['required', Rule::in([CommissionPlan::ROLE_SELLER, CommissionPlan::ROLE_CASHIER, CommissionPlan::ROLE_TECHNICIAN])],
             'percentage' => ['required', 'numeric', 'gt:0', 'lte:100'],
             'conversion_policy' => ['required', Rule::in([CommissionPlan::CONVERSION_SALE_SNAPSHOT, CommissionPlan::CONVERSION_CONFIGURED_RATE])],
             'exchange_rate_type_id' => [

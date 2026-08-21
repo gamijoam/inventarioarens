@@ -3,6 +3,7 @@
 namespace App\Modules\Workshop\Services;
 
 use App\Models\User;
+use App\Modules\Commissions\Services\CommissionLedgerService;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
@@ -24,6 +25,7 @@ class ServiceOrderService
 {
     public function __construct(
         private readonly InventoryMovementService $inventory,
+        private readonly CommissionLedgerService $commissions,
         private readonly TenantManager $tenants,
     ) {}
 
@@ -209,6 +211,9 @@ class ServiceOrderService
 
             $order->refresh();
             $this->recomputeTotals($order);
+
+            // Comision del tecnico (si el plan rol technician aplica).
+            $this->commissions->recordServiceOrder($order->fresh());
 
             return $order->fresh(['warehouse', 'technician', 'parts', 'parts.product']);
         });

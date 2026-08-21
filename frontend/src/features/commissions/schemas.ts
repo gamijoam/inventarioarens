@@ -5,7 +5,7 @@ const nullableTimestamp = z.string().nullable().optional();
 export const CommissionPlanSchema = z.object({
   id: z.number().int().positive(),
   name: z.string(),
-  beneficiary_role: z.enum(['seller', 'cashier']),
+  beneficiary_role: z.enum(['seller', 'cashier', 'technician']),
   percentage: z.string(),
   conversion_policy: z.enum(['sale_snapshot', 'configured_rate']),
   exchange_rate_type_id: z.number().int().positive().nullable(),
@@ -43,7 +43,7 @@ export type CommissionPlan = z.infer<typeof CommissionPlanSchema>;
 export const CommissionPlanInputSchema = z
   .object({
     name: z.string().trim().min(1, 'Indica un nombre.'),
-    beneficiary_role: z.enum(['seller', 'cashier']),
+    beneficiary_role: z.enum(['seller', 'cashier', 'technician']),
     percentage: z.coerce.number().positive().max(100),
     conversion_policy: z.enum(['sale_snapshot', 'configured_rate']),
     exchange_rate_type_id: z.number().int().positive().nullable(),
@@ -96,7 +96,7 @@ export const CommissionEntrySchema = z.object({
   sale_id: z.number().int().positive().nullable(),
   pos_order_id: z.number().int().positive().nullable(),
   sale_item_id: z.number().int().positive().nullable(),
-  beneficiary_role: z.enum(['seller', 'cashier']),
+  beneficiary_role: z.enum(['seller', 'cashier', 'technician']),
   beneficiary: z.object({ id: z.number().int().positive(), name: z.string(), email: z.string() }),
   entry_type: z.enum(['earning', 'reversal', 'adjustment']),
   plan_name_snapshot: z.string(),
@@ -247,7 +247,7 @@ export interface CommissionSettlementInput {
 
 export interface CommissionAdjustmentInput {
   beneficiary_user_id: number;
-  beneficiary_role: 'seller' | 'cashier';
+  beneficiary_role: 'seller' | 'cashier' | 'technician';
   amount_base: number;
   reason: string;
 }

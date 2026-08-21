@@ -39,6 +39,8 @@ class CommissionPlan extends Model
 
     public const ROLE_CASHIER = 'cashier';
 
+    public const ROLE_TECHNICIAN = 'technician';
+
     public const CONVERSION_SALE_SNAPSHOT = 'sale_snapshot';
 
     public const CONVERSION_CONFIGURED_RATE = 'configured_rate';

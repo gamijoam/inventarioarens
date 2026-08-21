@@ -16,7 +16,7 @@ class UpdateCommissionPlanRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('commission_plans', 'name')->where('tenant_id', $tenantId)->ignore($plan?->id)],
-            'beneficiary_role' => ['sometimes', 'required', Rule::in([CommissionPlan::ROLE_SELLER, CommissionPlan::ROLE_CASHIER])],
+            'beneficiary_role' => ['sometimes', 'required', Rule::in([CommissionPlan::ROLE_SELLER, CommissionPlan::ROLE_CASHIER, CommissionPlan::ROLE_TECHNICIAN])],
             'percentage' => ['sometimes', 'required', 'numeric', 'gt:0', 'lte:100'],
             'conversion_policy' => ['sometimes', 'required', Rule::in([CommissionPlan::CONVERSION_SALE_SNAPSHOT, CommissionPlan::CONVERSION_CONFIGURED_RATE])],
             'exchange_rate_type_id' => ['nullable', 'integer', Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId)],
