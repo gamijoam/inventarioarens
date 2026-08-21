@@ -69,3 +69,22 @@ test('crea, diagnostica y completa una orden de taller', async ({ page }) => {
     page.getByTestId(`workshop-row-${created.data.id}`).getByText('Entregado'),
   ).toBeVisible();
 });
+
+test('garantia exige tratamiento en la UI (boton deshabilitado)', async ({ page }) => {
+  test.skip(!credentials, 'Configura las variables PLAYWRIGHT_E2E_* para probar el Taller.');
+
+  await loginAsDemo(page, credentials!);
+  await page.goto('/workshop');
+  await expect(page.getByRole('heading', { name: 'Taller' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Nueva orden' }).click();
+  await page.getByTestId('ws-create-type').selectOption('warranty');
+  await page.getByTestId('ws-create-warehouse').selectOption({ index: 1 });
+
+  const crear = page.getByRole('button', { name: 'Crear orden', exact: true });
+  await expect(crear).toBeDisabled();
+
+  // Elegir tratamiento workshop -> se habilita.
+  await page.getByTestId('ws-create-resolution').selectOption('workshop');
+  await expect(crear).toBeEnabled();
+});

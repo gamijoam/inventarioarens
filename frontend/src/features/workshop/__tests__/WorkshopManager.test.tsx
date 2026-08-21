@@ -53,6 +53,9 @@ vi.mock('@/features/inventory-center/api', () => ({
   useProducts: () => mockProductPage,
   useWarehouses: () => mockWarehouses,
 }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+import { toast } from 'sonner';
 
 function makeWrapper(permissionSet: Set<string>) {
   const value: PermissionContextValue = {
@@ -185,6 +188,120 @@ describe('WorkshopManager', () => {
 
     fireEvent.change(screen.getByTestId('ws-create-resolution'), { target: { value: 'workshop' } });
     expect(crearBtn).not.toBeDisabled();
+  });
+
+  it.each([
+    ['workshop', 'Taller'],
+    ['exchange', 'Cambio'],
+    ['return_supplier', 'Devolver a proveedor'],
+  ])('crea una garantia con tratamiento %s y envia la resolucion', async (resolution) => {
+    render(<WorkshopManager />, { wrapper: makeWrapper(fullPermissions) });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Nueva orden' }));
+    fireEvent.change(screen.getByTestId('ws-create-type'), { target: { value: 'warranty' } });
+    fireEvent.change(screen.getByTestId('ws-create-resolution'), { target: { value: resolution } });
+    fireEvent.change(screen.getByTestId('ws-create-warehouse'), { target: { value: '1' } });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Crear orden' }));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'warranty', resolution }),
+        expect.anything(),
+      );
+    });
+  });
+
+  it('muestra la etiqueta del tratamiento en una garantia', () => {
+    mockOrders.mockReturnValue({
+      data: [makeOrder({ type: 'warranty', resolution: 'exchange' })],
+      isLoading: false,
+    });
+    render(<WorkshopManager />, { wrapper: makeWrapper(fullPermissions) });
+
+    expect(screen.getByText('Cambio')).toBeInTheDocument();
+  });
+
+  it('no muestra el formulario de diagnostico cuando la orden ya esta diagnosticada', () => {
+    mockDetail.data = makeOrder({ status: 'diagnosed', diagnosis: 'Cambio de pantalla' });
+    render(<WorkshopManager />, { wrapper: makeWrapper(fullPermissions) });
+
+    fireEvent.click(screen.getByTestId('workshop-row-1'));
+    expect(screen.queryByTestId('ws-diagnose-text')).not.toBeInTheDocument();
+    expect(screen.getByText('Cambio de pantalla')).toBeInTheDocument();
+  });
+
+  it('muestra error de stock al agregar una pieza sin disponibilidad', async () => {
+    mockAddPart.mockImplementation((_args: unknown, opts: { onError?: (e: Error) => void } | undefined) => {
+      opts?.onError?.(new Error('Stock insuficiente: hay 0 disponibles de Pantalla iPhone.'));
+    });
+    render(<WorkshopManager />, { wrapper: makeWrapper(fullPermissions) });
+
+    fireEvent.click(screen.getByTestId('workshop-row-1'));
+    fireEvent.change(screen.getByTestId('ws-part-product'), { target: { value: '10' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Agregar' }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Stock insuficiente'),
+      );
+    });
+  });
+
+  it('quita una pieza pendiente', async () => {
+    mockDetail.data = makeOrder({
+      parts: [
+        {
+          id: 1,
+          service_order_id: 1,
+          product_id: 10,
+          product: { id: 10, name: 'Pantalla iPhone', sku: 'PANT-IP' },
+          warehouse_id: 1,
+          quantity: 1,
+          unit_price: 25,
+          unit_cost: 20,
+          base_unit_price: 25,
+          base_unit_cost: 20,
+          stock_movement_id: null,
+          status: 'pending',
+          created_at: null,
+          updated_at: null,
+        },
+      ],
+    });
+    render(<WorkshopManager />, { wrapper: makeWrapper(fullPermissions) });
+
+    fireEvent.click(screen.getByTestId('workshop-row-1'));
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar' }));
+
+    await waitFor(() => {
+      expect(mockRemovePart).toHaveBeenCalledWith({ orderId: 1, partId: 1 });
+    });
+  });
+
+  it('no ofrece completar cuando la orden esta recibida (transicion invalida)', () => {
+    render(<WorkshopManager />, { wrapper: makeWrapper(fullPermissions) });
+
+    fireEvent.click(screen.getByTestId('workshop-row-1'));
+    expect(screen.queryByRole('button', { name: 'Completar y entregar' })).not.toBeInTheDocument();
+  });
+
+  it('al completar muestra el toast de stock descontado y comision', async () => {
+    mockComplete.mockImplementation((_id: number, opts: { onSuccess?: () => void } | undefined) => {
+      opts?.onSuccess?.();
+    });
+    mockDetail.data = makeOrder({ status: 'diagnosed' });
+    render(<WorkshopManager />, { wrapper: makeWrapper(fullPermissions) });
+
+    fireEvent.click(screen.getByTestId('workshop-row-1'));
+    await userEvent.click(screen.getByRole('button', { name: 'Completar y entregar' }));
+
+    await waitFor(() => {
+      expect(mockComplete).toHaveBeenCalled();
+      expect(toast.success).toHaveBeenCalledWith(
+        expect.stringContaining('comisión registrada'),
+      );
+    });
   });
 
   it('guarda el diagnostico con mano de obra al expandir', async () => {

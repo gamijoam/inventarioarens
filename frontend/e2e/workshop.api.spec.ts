@@ -3,12 +3,13 @@ import { expect, request, test, type APIRequestContext } from '@playwright/test'
 /**
  * Test E2E del Taller sin browser (proyecto `api`, usa `request` de Playwright).
  *
- * Cubre el ciclo completo de una orden de servicio:
- * - Login + crear orden (repair) -> received + numero SO-XXXXXX.
- * - Diagnosticar con mano de obra -> diagnosed.
- * - Asignar tecnico.
- * - Agregar pieza del inventario (con stock).
- * - Completar -> delivered, stock descontado.
+ * Replica los casos del backend (ServiceOrderApiTest):
+ *  - Ciclo completo: crear -> diagnosticar -> asignar tecnico -> pieza -> completar
+ *    (delivered + stock descontado).
+ *  - Garantia: exige treatment (422 sin resolution) y acepta los 3 tratamientos.
+ *  - Pieza sin stock -> 422.
+ *  - Transicion invalida (completar desde received) -> 422.
+ *  - Cancelar orden -> cancelled.
  *
  * Prerequisitos:
  * - Backend Laravel corriendo en http://127.0.0.1:8000
@@ -28,7 +29,6 @@ let token: string;
 let warehouseId: number;
 let productId: number;
 let productSku: string;
-let orderId: number;
 
 async function authedContext(baseURL: string): Promise<APIRequestContext> {
   const ctx = await request.newContext({
@@ -52,6 +52,19 @@ async function authedContext(baseURL: string): Promise<APIRequestContext> {
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+async function createOrder(payload: Record<string, unknown>): Promise<{ id: number; order_number: string; status: string }> {
+  const res = await api.post('/api/service-orders', { data: payload });
+  expect(res.status()).toBe(201);
+  return (await res.json()).data;
+}
+
+async function availableStock(): Promise<number> {
+  const res = await api.get(
+    `/api/products?search=${encodeURIComponent(productSku)}&warehouse_id=${warehouseId}&per_page=1`,
+  );
+  return Number((await res.json()).data[0]?.available_stock ?? 0);
 }
 
 test.describe('Taller E2E flow (API)', () => {
@@ -116,70 +129,116 @@ test.describe('Taller E2E flow (API)', () => {
     }
   });
 
-  test('ciclo completo de una orden de servicio', async () => {
-    // 1) Crear orden (repair).
-    const createRes = await api.post('/api/service-orders', {
-      data: {
-        type: 'repair',
-        customer_name: 'Cliente E2E',
-        customer_phone: '0412',
-        device_description: `Equipo ${E2E_PREFIX}`,
-        issue_description: 'Falla E2E',
-        warehouse_id: warehouseId,
-      },
+  test('ciclo completo: crear, diagnosticar, tecnico, pieza, completar (stock descontado)', async () => {
+    const order = await createOrder({
+      type: 'repair',
+      customer_name: 'Cliente E2E',
+      customer_phone: '0412',
+      device_description: `Equipo ${E2E_PREFIX}`,
+      issue_description: 'Falla E2E',
+      warehouse_id: warehouseId,
     });
-    expect(createRes.status()).toBe(201);
-    const order = (await createRes.json()) as { data: { id: number; order_number: string; status: string } };
-    orderId = order.data.id;
-    expect(order.data.status).toBe('received');
-    expect(order.data.order_number).toMatch(/^SO-\d{6}$/);
+    expect(order.status).toBe('received');
+    expect(order.order_number).toMatch(/^SO-\d{6}$/);
 
-    // 2) Diagnosticar.
-    const diagnoseRes = await api.post(`/api/service-orders/${orderId}/diagnose`, {
+    const diagnoseRes = await api.post(`/api/service-orders/${order.id}/diagnose`, {
       data: { diagnosis: 'Cambio de pieza E2E', labor_base_amount: 25 },
     });
     expect(diagnoseRes.status()).toBe(200);
     expect(((await diagnoseRes.json()) as { data: { status: string } }).data.status).toBe('diagnosed');
 
-    // 3) Asignar tecnico (primer usuario del tenant).
     const users = await api.get('/api/users?per_page=1');
     expect(users.status()).toBe(200);
     const technicianId = ((await users.json()) as { data: Array<{ id: number }> }).data[0]?.id;
     expect(technicianId, 'existe al menos un usuario para ser tecnico').toBeTruthy();
-    const assignRes = await api.post(`/api/service-orders/${orderId}/assign-technician`, {
+    const assignRes = await api.post(`/api/service-orders/${order.id}/assign-technician`, {
       data: { technician_id: technicianId, warehouse_id: warehouseId },
     });
     expect(assignRes.status()).toBe(200);
     expect(((await assignRes.json()) as { data: { technician_id: number } }).data.technician_id).toBe(technicianId);
 
-    // 4) Agregar pieza.
-    const partRes = await api.post(`/api/service-orders/${orderId}/parts`, {
+    const partRes = await api.post(`/api/service-orders/${order.id}/parts`, {
       data: { product_id: productId, quantity: 2 },
     });
     expect(partRes.status()).toBe(201);
-    const part = (await partRes.json()) as { data: { id: number; status: string; unit_cost: number } };
-    expect(part.data.status).toBe('pending');
+    expect(((await partRes.json()) as { data: { status: string } }).data.status).toBe('pending');
 
-    // 5) Completar -> delivered + stock descontado.
-    const beforeStock = await api.get(
-      `/api/products?search=${encodeURIComponent(productSku)}&warehouse_id=${warehouseId}&per_page=1`,
-    );
-    const beforeAvailable = Number(
-      ((await beforeStock.json()) as { data: Array<{ available_stock: number }> }).data[0]
-        ?.available_stock ?? 0,
-    );
-
-    const completeRes = await api.post(`/api/service-orders/${orderId}/complete`);
+    const before = await availableStock();
+    const completeRes = await api.post(`/api/service-orders/${order.id}/complete`);
     expect(completeRes.status()).toBe(200);
     expect(((await completeRes.json()) as { data: { status: string } }).data.status).toBe('delivered');
+    expect(await availableStock()).toBe(before - 2);
+  });
 
-    const afterStock = await api.get(
-      `/api/products?search=${encodeURIComponent(productSku)}&warehouse_id=${warehouseId}&per_page=1`,
-    );
-    const afterAvailable = Number(
-      ((await afterStock.json()) as { data: Array<{ available_stock: number }> }).data[0]
-        ?.available_stock ?? 0,
-    );
-    expect(afterAvailable).toBe(beforeAvailable - 2);
+  test('garantia sin treatment -> 422', async () => {
+    const res = await api.post('/api/service-orders', {
+      data: {
+        type: 'warranty',
+        customer_name: 'Cliente',
+        device_description: 'Equipo en garantia',
+        warehouse_id: warehouseId,
+      },
+    });
+    expect(res.status()).toBe(422);
+  });
+
+  for (const resolution of ['workshop', 'exchange', 'return_supplier']) {
+    test(`garantia con treatment ${resolution} -> 201`, async () => {
+      const order = await createOrder({
+        type: 'warranty',
+        resolution,
+        customer_name: 'Cliente',
+        device_description: 'Equipo en garantia',
+        warehouse_id: warehouseId,
+      });
+      expect(order.resolution).toBe(resolution);
+    });
+  }
+
+  test('pieza sin stock -> 422', async () => {
+    // Producto nuevo sin stock.
+    const created = await api.post('/api/products', {
+      data: {
+        name: `SinStock ${E2E_PREFIX}`,
+        sku: `SINSTOCK-${E2E_PREFIX}`,
+        base_price: 10,
+        sale_currency: 'USD',
+        tracking_type: 'quantity',
+      },
+    });
+    expect(created.status()).toBe(201);
+    const noStockProduct = ((await created.json()) as { data: { id: number } }).data.id;
+
+    const order = await createOrder({
+      type: 'repair',
+      customer_name: 'Cliente',
+      warehouse_id: warehouseId,
+    });
+
+    const partRes = await api.post(`/api/service-orders/${order.id}/parts`, {
+      data: { product_id: noStockProduct, quantity: 1 },
+    });
+    expect(partRes.status()).toBe(422);
+  });
+
+  test('transicion invalida: completar desde received -> 422', async () => {
+    const order = await createOrder({
+      type: 'repair',
+      customer_name: 'Cliente',
+      warehouse_id: warehouseId,
+    });
+    const completeRes = await api.post(`/api/service-orders/${order.id}/complete`);
+    expect(completeRes.status()).toBe(422);
+  });
+
+  test('cancelar una orden recibida -> cancelled', async () => {
+    const order = await createOrder({
+      type: 'repair',
+      customer_name: 'Cliente',
+      warehouse_id: warehouseId,
+    });
+    const cancelRes = await api.post(`/api/service-orders/${order.id}/cancel`);
+    expect(cancelRes.status()).toBe(200);
+    expect(((await cancelRes.json()) as { data: { status: string } }).data.status).toBe('cancelled');
   });
 });
