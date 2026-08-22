@@ -114,6 +114,52 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pos_checkout_does_not_move_inventory_when_product_does_not_track_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Sin Stock', 'slug' => 'empresa-sin-stock']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-NO-STOCK', 500);
+        $product->update(['track_stock' => false]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Sin Stock', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 200,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '5.0000',
+        ]);
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'sale',
+        ]);
+    }
+
     public function test_pos_checkout_preserves_selected_variant_in_sale_and_stock_movement(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Variantes', 'slug' => 'empresa-variantes']);

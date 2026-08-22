@@ -2,9 +2,10 @@
 
 namespace App\Modules\Inventory\Services;
 
+use App\Models\User;
 use App\Modules\Inventory\Models\StockCount;
 use App\Modules\Inventory\Models\StockCountItem;
-use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -22,7 +23,10 @@ use Illuminate\Support\Facades\DB;
  */
 class StockCountService
 {
-    public function __construct(private readonly TenantManager $tenantManager) {}
+    public function __construct(
+        private readonly TenantManager $tenantManager,
+        private readonly InventoryMovementService $inventory,
+    ) {}
 
     public function create(Tenant $tenant, Warehouse $warehouse, array $data, ?int $userId): StockCount
     {
@@ -49,7 +53,6 @@ class StockCountService
         $balances = DB::table('stock_balances')
             ->where('tenant_id', $count->tenant_id)
             ->where('warehouse_id', $warehouseId)
-            ->where('quantity_available', '!=', 0)
             ->select(['product_id', 'location_id', 'quantity_available'])
             ->get();
 
@@ -145,18 +148,30 @@ class StockCountService
                 $type = $variance > 0 ? 'adjustment_in' : 'adjustment_out';
                 $quantity = abs($variance);
 
-                StockMovement::create([
-                    'tenant_id' => $count->tenant_id,
-                    'warehouse_id' => $count->warehouse_id,
-                    'product_id' => $item->product_id,
-                    'type' => $type,
-                    'quantity' => $quantity,
-                    'unit_cost' => null,
-                    'reason' => "Cycle count {$count->code}",
-                    'reference_type' => 'stock_count',
-                    'reference_id' => $count->id,
-                    'created_by' => $approverId,
-                ]);
+                $warehouse = Warehouse::query()->findOrFail($count->warehouse_id);
+                $product = Product::query()->findOrFail($item->product_id);
+
+                if ($type === 'adjustment_in') {
+                    $this->inventory->adjustmentIn(
+                        warehouse: $warehouse,
+                        product: $product,
+                        quantity: $quantity,
+                        createdBy: $approverId === null ? null : User::find($approverId),
+                        reason: "Cycle count {$count->code}",
+                        referenceType: 'stock_count',
+                        referenceId: $count->id,
+                    );
+                } else {
+                    $this->inventory->adjustmentOut(
+                        warehouse: $warehouse,
+                        product: $product,
+                        quantity: $quantity,
+                        createdBy: $approverId === null ? null : User::find($approverId),
+                        reason: "Cycle count {$count->code}",
+                        referenceType: 'stock_count',
+                        referenceId: $count->id,
+                    );
+                }
 
                 $variance > 0 ? $adjustments['in']++ : $adjustments['out']++;
                 $item->update(['status' => StockCountItem::STATUS_ADJUSTED]);

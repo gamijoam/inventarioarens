@@ -56,7 +56,9 @@ export function CashRegisterSetup() {
     search: '',
   });
   const cashierOptions = usersResponse?.data ?? [];
-  const canMove = useCan(PERMISSIONS.CASH_REGISTER_MOVE) || useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMovePermission = useCan(PERMISSIONS.CASH_REGISTER_MOVE);
+  const canViewMovements = useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMove = canMovePermission || canViewMovements;
   const canClose = useCan(PERMISSIONS.CASH_REGISTER_CLOSE);
   const createBranch = useCreatePosBranch();
   const createRegister = useCreateCashRegister();

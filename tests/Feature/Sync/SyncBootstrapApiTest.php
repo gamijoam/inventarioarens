@@ -6,11 +6,20 @@ use App\Models\User;
 use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class SyncBootstrapApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('sync.transport', 'web');
+    }
 
     public function test_bootstrap_returns_a_tenant_scoped_snapshot_and_creates_a_pending_session(): void
     {
@@ -165,6 +174,8 @@ class SyncBootstrapApiTest extends TestCase
             'email' => $slug.'@bootstrap.test',
         ]);
         $user->tenants()->attach($tenant, ['status' => 'active']);
+        setPermissionsTeamId($tenant->id);
+        $user->givePermissionTo('sync.transport');
 
         return [$tenant, $user];
     }

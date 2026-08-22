@@ -687,15 +687,6 @@ function PriceListCell({
     null,
   );
 
-  if (!defaultPrice) return <span className="text-text-muted">Sin lista</span>;
-
-  const displayLocal = (price: number, currency: string) => {
-    if (currency === 'VES')
-      return `Bs ${price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (!activeRate) return null;
-    return `Bs ${(price * activeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
   useEffect(() => {
     if (!expanded) return;
 
@@ -723,6 +714,15 @@ function PriceListCell({
       window.removeEventListener('scroll', closeOnScroll, true);
     };
   }, [expanded]);
+
+  if (!defaultPrice) return <span className="text-text-muted">Sin lista</span>;
+
+  const displayLocal = (price: number, currency: string) => {
+    if (currency === 'VES')
+      return `Bs ${price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (!activeRate) return null;
+    return `Bs ${(price * activeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   function togglePopover(): void {
     if (expanded) {

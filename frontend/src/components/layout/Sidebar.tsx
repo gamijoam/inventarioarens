@@ -273,7 +273,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    to: '/settings',
+    to: '/settings/company',
     label: 'Configuración',
     icon: Settings2,
     permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],

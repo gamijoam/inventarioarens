@@ -40,6 +40,8 @@ class SyncController extends Controller
 
     public function registerNode(RegisterSyncNodeRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->sync->registerNode($request->validated()),
         ], Response::HTTP_CREATED);
@@ -47,6 +49,8 @@ class SyncController extends Controller
 
     public function push(PushSyncEventsRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->sync->pushEvents(
                 $request->validated('events'),
@@ -57,6 +61,8 @@ class SyncController extends Controller
 
     public function pull(PullSyncEventsRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->sync->pullEvents(
                 $request->validated('node_code'),
@@ -67,6 +73,8 @@ class SyncController extends Controller
 
     public function acknowledge(AcknowledgeSyncEventRequest $request, string $eventUuid): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->sync->acknowledge(
                 $eventUuid,
@@ -79,6 +87,8 @@ class SyncController extends Controller
 
     public function startBootstrap(StartSyncBootstrapRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->bootstrap->start(
                 $this->tenancy->require(),
@@ -87,8 +97,10 @@ class SyncController extends Controller
         ], Response::HTTP_CREATED);
     }
 
-    public function completeBootstrap(string $sessionToken): JsonResponse
+    public function completeBootstrap(Request $request, string $sessionToken): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->bootstrap->complete(
                 $this->tenancy->require(),
@@ -99,6 +111,8 @@ class SyncController extends Controller
 
     public function status(Request $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->sync->status($request->query('node_code')),
         ]);
@@ -117,6 +131,8 @@ class SyncController extends Controller
 
     public function markReadiness(SyncReadinessRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         $data = $request->validated();
 
         return response()->json([
@@ -147,8 +163,15 @@ class SyncController extends Controller
         ], Response::HTTP_CREATED);
     }
 
+    private function authorizeTransport(Request $request): void
+    {
+        abort_unless($request->user()?->can('sync.transport'), Response::HTTP_FORBIDDEN);
+    }
+
     public function createPairingCode(CreateSyncPairingCodeRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->pairing->create(
                 $this->tenancy->require(),
@@ -160,6 +183,8 @@ class SyncController extends Controller
 
     public function createGroupPairingCode(CreateSyncGroupPairingCodeRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->pairing->createGroup(
                 $this->tenancy->require(),
@@ -171,6 +196,8 @@ class SyncController extends Controller
 
     public function redeemPairingCode(RedeemSyncPairingCodeRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->pairing->redeem(
                 $request->validated(),
@@ -182,6 +209,8 @@ class SyncController extends Controller
 
     public function previewPairingCode(PreviewSyncPairingCodeRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         return response()->json([
             'data' => $this->pairing->preview($request->validated('code')),
         ]);
@@ -194,6 +223,8 @@ class SyncController extends Controller
      */
     public function uploadImage(UploadSyncImageRequest $request): JsonResponse
     {
+        $this->authorizeTransport($request);
+
         $result = $this->images->storeFromNode(
             $this->tenancy->require(),
             $request->validated(),

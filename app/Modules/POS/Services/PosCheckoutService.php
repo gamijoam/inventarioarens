@@ -1008,6 +1008,10 @@ class PosCheckoutService
         $order->loadMissing(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse']);
 
         foreach ($order->sale->items as $item) {
+            if (! $item->product->track_stock) {
+                continue;
+            }
+
             $movement = $this->inventory->reserve(
                 warehouse: $item->warehouse,
                 product: $item->product,
@@ -1034,6 +1038,10 @@ class PosCheckoutService
         $order->loadMissing(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse']);
 
         foreach ($order->sale->items as $item) {
+            if (! $item->product->track_stock) {
+                continue;
+            }
+
             $this->inventory->release(
                 warehouse: $item->warehouse,
                 product: $item->product,

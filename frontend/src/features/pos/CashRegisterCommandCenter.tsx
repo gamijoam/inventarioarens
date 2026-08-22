@@ -29,7 +29,9 @@ type CommandCenterProps = {
 const today = new Date().toISOString().slice(0, 10);
 
 export function CashRegisterCommandCenter({ branches, registers }: CommandCenterProps) {
-  const canView = useCan(PERMISSIONS.REPORTS_VIEW) || useCan(PERMISSIONS.REPORTS_CASH_VIEW);
+  const canViewReports = useCan(PERMISSIONS.REPORTS_VIEW);
+  const canViewCashReports = useCan(PERMISSIONS.REPORTS_CASH_VIEW);
+  const canView = canViewReports || canViewCashReports;
   const [filters, setFilters] = useState<ReportFilters>({ date: today, status: 'all', limit: 100 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const report = useCashSessionsReport(filters, canView);

@@ -567,8 +567,9 @@ function PaymentRequestCard({
   const canApprove = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_APPROVE);
   const canExecute = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_EXECUTE);
   const canCancel = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAYMENT_REQUESTS_CANCEL);
-  const canMoveCash =
-    useCan(PERMISSIONS.CASH_REGISTER_MOVE) || useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMoveCashPermission = useCan(PERMISSIONS.CASH_REGISTER_MOVE);
+  const canViewCashMovements = useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMoveCash = canMoveCashPermission || canViewCashMovements;
   const activeSession = sessions.find((session) => session.status === 'open') ?? null;
   const isCash = isCashMethod(request.method);
   const isBusy = approve.isPending || execute.isPending || reject.isPending || cancel.isPending;
@@ -696,8 +697,9 @@ function PayPanel({
   const prepare = usePreparePayablePaymentRequest();
   const { data: sessions = [] } = useCashSessions();
   const { data: methods = [] } = usePaymentMethods();
-  const canMoveCash =
-    useCan(PERMISSIONS.CASH_REGISTER_MOVE) || useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMoveCashPermission = useCan(PERMISSIONS.CASH_REGISTER_MOVE);
+  const canViewCashMovements = useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMoveCash = canMoveCashPermission || canViewCashMovements;
   const activeSession = sessions.find((session) => session.status === 'open') ?? null;
   const activeMethods = methods.filter((method) => method.is_active !== false);
   const defaultMethod =

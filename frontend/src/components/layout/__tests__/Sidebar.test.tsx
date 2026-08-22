@@ -128,4 +128,15 @@ describe('<Sidebar>', () => {
     expect(screen.getByRole('link', { name: 'Acceso' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Organizaciones' })).toBeNull();
   });
+
+  it('apunta Configuración a una ruta existente', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    expect(screen.getByRole('link', { name: 'Configuración' })).toHaveAttribute(
+      'href',
+      '/settings/company',
+    );
+  });
 });

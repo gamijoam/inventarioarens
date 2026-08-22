@@ -134,6 +134,50 @@ class StockCountApiTest extends TestCase
         $this->assertSame('adjustment_in', $movement->type);
         $this->assertEquals(2.0, (float) $movement->quantity);
         $this->assertSame("Cycle count {$count->code}", $movement->reason);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '12.0000',
+        ]);
+    }
+
+    public function test_stock_count_snapshot_includes_zero_balance_items(): void
+    {
+        [$tenant, $warehouse, $product, $user] = $this->bootstrap();
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 0,
+        ]);
+
+        $count = StockCount::create([
+            'warehouse_id' => $warehouse->id,
+            'code' => 'CC-ZERO',
+            'name' => 'Conteo con saldo cero',
+            'count_type' => 'full',
+            'created_by' => $user->id,
+        ]);
+
+        $this->assertSame(1, app(StockCountService::class)->snapshot($count));
+        $this->assertEquals(0, (float) $count->items()->firstOrFail()->system_quantity);
+    }
+
+    public function test_stock_count_write_requires_inventory_adjust_permission(): void
+    {
+        [$tenant, $warehouse, , $user] = $this->bootstrap();
+        $user->revokePermissionTo('inventory.adjust');
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/stock-counts', [
+                'warehouse_id' => $warehouse->id,
+                'code' => 'CC-FORBIDDEN',
+                'name' => 'Conteo no autorizado',
+                'count_type' => 'full',
+            ])
+            ->assertForbidden();
     }
 
     public function test_capture_marks_items_as_counted(): void

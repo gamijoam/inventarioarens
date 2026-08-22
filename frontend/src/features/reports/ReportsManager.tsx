@@ -107,15 +107,20 @@ export function ReportsManager({
 }: {
   search: ReportsSearch;
   onSearchChange: (patch: ReportsSearch) => void;
-}) {
+  }) {
   const canLegacyReports = useCan(PERMISSIONS.REPORTS_VIEW);
-  const canSalesReports = canLegacyReports || useCan(PERMISSIONS.REPORTS_SALES_VIEW);
-  const canCashReports = canLegacyReports || useCan(PERMISSIONS.REPORTS_CASH_VIEW);
-  const canInventoryReports = canLegacyReports || useCan(PERMISSIONS.REPORTS_INVENTORY_VIEW);
-  const canMovementReports = canLegacyReports || useCan(PERMISSIONS.REPORTS_MOVEMENTS_VIEW);
+  const canSalesPermission = useCan(PERMISSIONS.REPORTS_SALES_VIEW);
+  const canCashPermission = useCan(PERMISSIONS.REPORTS_CASH_VIEW);
+  const canInventoryPermission = useCan(PERMISSIONS.REPORTS_INVENTORY_VIEW);
+  const canMovementPermission = useCan(PERMISSIONS.REPORTS_MOVEMENTS_VIEW);
   const canFinanceReports = useCan(PERMISSIONS.FINANCE_REPORTS_VIEW);
-  const canExport = canLegacyReports || useCan(PERMISSIONS.REPORTS_EXPORT);
+  const canExportPermission = useCan(PERMISSIONS.REPORTS_EXPORT);
   const canFinanceExport = useCan(PERMISSIONS.FINANCE_REPORTS_EXPORT);
+  const canSalesReports = canLegacyReports || canSalesPermission;
+  const canCashReports = canLegacyReports || canCashPermission;
+  const canInventoryReports = canLegacyReports || canInventoryPermission;
+  const canMovementReports = canLegacyReports || canMovementPermission;
+  const canExport = canLegacyReports || canExportPermission;
 
   const availableModules = MODULES.filter((module) => {
     if (module.key === 'daily') return canSalesReports || canCashReports;
@@ -1061,4 +1066,3 @@ function flattenDaily(data: DailyOperations): Array<Record<string, unknown>> {
     { indicador: 'Devoluciones procesadas', valor: '', cantidad: data.returns.processed_count },
   ];
 }
-

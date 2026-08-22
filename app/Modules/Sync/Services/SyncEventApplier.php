@@ -2877,6 +2877,10 @@ class SyncEventApplier
             return 'ignored';
         }
 
+        if ($this->isOlderPosOrderEvent($tenant, $event, $sourceOrderId)) {
+            return 'ignored';
+        }
+
         $now = now();
         $paidAt = $this->nullableDate($orderPayload['paid_at'] ?? $payload['paid_at'] ?? null);
         $closedAt = $this->nullableDate($orderPayload['closed_at'] ?? $payload['closed_at'] ?? null);
@@ -2964,6 +2968,29 @@ class SyncEventApplier
         $this->syncPosReceivable($tenant, $saleId, $sourceNodeCode, $payload['receivable'] ?? null);
 
         return 'applied';
+    }
+
+    private function isOlderPosOrderEvent(Tenant $tenant, array $event, int $sourceOrderId): bool
+    {
+        if (empty($event['occurred_at'])) {
+            return false;
+        }
+
+        $latestApplied = DB::table('sync_inbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('aggregate_type', 'pos_order')
+            ->where('aggregate_id', $sourceOrderId)
+            ->where('status', 'applied')
+            ->whereNotNull('occurred_at')
+            ->when(array_key_exists('origin_node_id', $event), function ($query) use ($event): void {
+                $event['origin_node_id'] === null
+                    ? $query->whereNull('origin_node_id')
+                    : $query->where('origin_node_id', $event['origin_node_id']);
+            })
+            ->max('occurred_at');
+
+        return $latestApplied !== null
+            && Carbon::parse($event['occurred_at'])->isBefore(Carbon::parse($latestApplied));
     }
 
     private function syncPosSaleItems(Tenant $tenant, int $saleId, string $sourceNodeCode, string $saleStatus, bool $applyStock, array $items): void
@@ -4215,8 +4242,10 @@ class SyncEventApplier
             }
         }
 
-        // Legacy single-tenant installations used cloud IDs directly.
-        if (Tenant::withoutGlobalScopes()->whereKey($remoteTenantId)->exists()) {
+        // Legacy installations without tenant mappings used cloud IDs directly.
+        // Once mappings exist, an unmapped remote ID must fail closed.
+        if (! DB::table('sync_tenant_mappings')->exists()
+            && Tenant::withoutGlobalScopes()->whereKey($remoteTenantId)->exists()) {
             return $remoteTenantId;
         }
 

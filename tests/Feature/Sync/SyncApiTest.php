@@ -9,11 +9,42 @@ use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class SyncApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('sync.transport', 'web');
+    }
+
+    public function test_sync_push_requires_sync_transport_permission(): void
+    {
+        [$tenant, $user] = $this->tenantUser('empresa-sync-permission');
+        $unauthorized = User::factory()->create();
+        $unauthorized->tenants()->attach($tenant->id, ['status' => 'active']);
+        $this->node($tenant, 'LOCAL-AUTH-01');
+
+        $this->actingAs($unauthorized)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sync/events/push', [
+                'origin_node_code' => 'LOCAL-AUTH-01',
+                'events' => [[
+                    'event_uuid' => (string) Str::uuid(),
+                    'event_type' => 'product.updated',
+                    'aggregate_type' => 'product',
+                    'aggregate_id' => 1,
+                    'payload' => ['sku' => 'AUTH-1'],
+                ]],
+            ])
+            ->assertForbidden();
+    }
 
     public function test_it_registers_or_updates_sync_node_for_current_tenant(): void
     {
@@ -756,6 +787,8 @@ class SyncApiTest extends TestCase
         ]);
         $user = User::factory()->create();
         $user->tenants()->attach($tenant->id, ['status' => 'active']);
+        setPermissionsTeamId($tenant->id);
+        $user->givePermissionTo('sync.transport');
 
         return [$tenant, $user];
     }

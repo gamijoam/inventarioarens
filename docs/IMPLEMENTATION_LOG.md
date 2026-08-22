@@ -7394,3 +7394,25 @@ Regla:
   `ArmOrderScreen.test`. Backend 25/25; frontend 767/768; tsc y Pint limpios.
 - **Deploy**: commit `35128eb5` en ambas apps; migracion `2026_08_19_150000_create_quotations_tables`
   aplicada; bundle admin publicado; HTTP 200 + tablas verificadas.
+
+## 2026-08-22 - Fase 1 de estabilizacion: conteos, track_stock, sync y hooks frontend
+
+- **TDD primero**: se agregaron tests rojos antes de implementar para conteos fisicos, productos sin
+  control de stock, autorizacion del transporte sync, eventos POS fuera de orden, mappings ambiguos
+  y ruta de Configuracion del frontend.
+- **Conteos fisicos**: `StockCountService` usa `InventoryMovementService` para actualizar
+  `stock_balances`, conservar auditoria y referenciar el `stock_count`; el snapshot incluye saldos
+  cero. `StockCountController` exige `inventory.view` para lectura e `inventory.adjust` para
+  operaciones de escritura.
+- **Productos `track_stock=false`**: ventas confirmadas y reservas/liberaciones POS ya no generan
+  movimientos ni modifican stock para esos productos.
+- **Sync**: nuevo permiso `sync.transport` para nodos, push/pull, ACK, bootstrap, pairing, imagenes,
+  readiness y status. `sync_inbox.occurred_at` permite ignorar eventos POS antiguos que intenten
+  revertir estados confirmados. Los mappings remotos fallan cerrado cuando la instalacion ya usa
+  `sync_tenant_mappings`; se conserva compatibilidad explicita para instalaciones legacy sin
+  mappings.
+- **Frontend**: hooks `useCan` condicionales corregidos en Reportes, CxP, Caja e Inventario. El enlace
+  principal de Configuracion apunta a `/settings/company`, ruta existente; test de Sidebar agregado.
+- **Tests**: Inventory/POS 154/154; Sync 169/170 (1 skip); frontend 824/825 (1 skip); TypeScript,
+  Pint y builds Admin/POS correctos. La suite backend combinada con `--process-isolation` excede el
+  timeout por volumen, por lo que las suites criticas se verifican por modulo.
