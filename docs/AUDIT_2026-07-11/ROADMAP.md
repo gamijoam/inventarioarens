@@ -16,8 +16,8 @@
 | **P0-4** | Envolver en `DB::transaction` los writers de catálogo sin transacción: Customer/Product/ExchangeRate/ExchangeRateType | M | ✅ **2026-07-11** |
 | **P0-5** | Fix USD `amount_local` en `PosCheckoutService::resolvePayment:506-525` (resolver rate default para USD también) | M | ✅ **2026-07-11** |
 | **P0-6** | Verificar `payload_hash` en `SyncEventApplier::applyOne` + test | S | ✅ **2026-07-11** |
-| **P0-7** | Fix `validateReceivedProductUnits` (IMEI count vs qty en serializados) en `InventoryTransferService:1179-1226` | XS | ☐ |
-| **P0-8** | Suite completa verde con los 7 fixes | S | ☐ |
+| **P0-7** | Fix `validateReceivedProductUnits` (IMEI count vs qty en serializados) en `InventoryTransferService:1179-1226` | XS | ✅ **2026-07-11** |
+| **P0-8** | Suite completa verde con los 7 fixes | S | [~] **2026-08-23** — `1439/1452` tests; bloqueada por fallos preexistentes fuera de P0-7 |
 | | **TOTAL P0** | **~10h** | |
 
 ---
@@ -288,6 +288,19 @@
 **Resultado:** 48 tests, 372 assertions, OK (toda la carpeta InventoryTransfers).
 
 **Impacto:** El bug cerraba el flujo donde un usuario podía reportar recepción de N unidades serializadas enviando `unit_ids=[]` y `received_quantity=N`. El sistema aceptaba y no creaba `product_unit` ni `transfer_in` movement, dejando el balance desincronizado. Ahora el sistema rechaza con error claro antes de tocar cualquier tabla.
+
+---
+
+### 2026-08-23 — Validación actual de P0-8
+
+**P0-7 confirmado:** el test dedicado `InventoryTransferReceiveImeiCountTest` pasa **5/5** y la carpeta
+`InventoryTransfers` pasa **84/86**; los dos casos restantes corresponden a pruebas de advisory locks
+específicas de PostgreSQL ejecutadas sobre SQLite local.
+
+**Suite SQLite completa:** **1452 tests**, **1439 pasaron**, **8 fallaron**, **3 errores**, **2 skipped**.
+Los fallos restantes están fuera del cambio P0-7 e incluyen contratos antiguos de confirmación de
+contraseña, un estado de traslado eliminado, expectativas numéricas dependientes del driver y pruebas
+PostgreSQL no condicionadas para SQLite. P0-8 permanece abierto hasta corregir y validar esos contratos.
 
 ---
 
