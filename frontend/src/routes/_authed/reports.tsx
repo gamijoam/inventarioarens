@@ -7,7 +7,8 @@ import { ReportsV2Manager } from '@/features/reports-v2/ReportsV2Manager';
 
 export const Route = createFileRoute('/_authed/reports')({
   validateSearch: (search: Record<string, unknown>): ReportsSearch => ({
-    module: typeof search.module === 'string' ? (search.module as ReportsSearch['module']) : undefined,
+    module:
+      typeof search.module === 'string' ? (search.module as ReportsSearch['module']) : undefined,
     date: typeof search.date === 'string' ? search.date : undefined,
     date_from: typeof search.date_from === 'string' ? search.date_from : undefined,
     date_to: typeof search.date_to === 'string' ? search.date_to : undefined,
@@ -20,6 +21,8 @@ export const Route = createFileRoute('/_authed/reports')({
     type: typeof search.type === 'string' ? search.type : undefined,
     threshold: toNumber(search.threshold),
     limit: toNumber(search.limit),
+    page: toNumber(search.page),
+    per_page: toNumber(search.per_page),
   }),
   component: ReportsPage,
 });

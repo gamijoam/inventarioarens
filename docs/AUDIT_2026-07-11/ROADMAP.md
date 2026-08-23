@@ -56,6 +56,7 @@
 | P2-8 | Structured JSON logging channel en `config/logging.php` | M | ✅ **2026-07-12** |
 | P2-9 | `ALTER DATABASE inventory_arens SET log_min_duration_statement = 500` (VPS) | XS | ✅ **2026-07-12** |
 | P2-10 | Partial unique indexes (`exchange_rate_types(tenant_id) WHERE is_default`) | S | ☐ |
+| P2-11 | Reports V2 y reportes operativos: compatibilidad SQLite, paginación, fix N+1 y benchmark PostgreSQL | M | [~] **2026-08-22** — tests y benchmark completados; commit/deploy pendientes |
 | | **TOTAL P2** | **~21h** | |
 
 ---

@@ -93,6 +93,31 @@ class ReportV2ApiTest extends TestCase
             ->assertJsonPath('data.totals.sales_count', 2);
     }
 
+    public function test_week_and_month_dimensions_work_with_the_local_sqlite_driver(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0, new \DateTimeImmutable('2026-08-17 12:00:00'));
+        $this->seedSales($tucacas, 0, new \DateTimeImmutable('2026-09-01 12:00:00'));
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $weekResponse = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=tenant&dimension=week&date_from=2026-08-01&date_to=2026-09-30')
+            ->assertOk();
+
+        $this->assertSame(['2026-08-17', '2026-08-31'], collect($weekResponse->json('data.rows'))->pluck('label')->all());
+
+        $monthResponse = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=tenant&dimension=month&date_from=2026-08-01&date_to=2026-09-30')
+            ->assertOk();
+
+        $this->assertSame(['2026-08', '2026-09'], collect($monthResponse->json('data.rows'))->pluck('label')->all());
+    }
+
     public function test_non_owner_gets_403_for_organization_scope(): void
     {
         $group = $this->group();

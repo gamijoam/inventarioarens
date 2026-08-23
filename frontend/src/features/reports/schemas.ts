@@ -146,7 +146,28 @@ const SerialUnitSchema = z.object({
 });
 
 export const SalesDetailSchema = z.object({
-  period: z.object({ from: z.string(), to: z.string(), from_datetime: z.string(), to_datetime: z.string() }),
+  period: z.object({
+    from: z.string(),
+    to: z.string(),
+    from_datetime: z.string(),
+    to_datetime: z.string(),
+  }),
+  meta: z
+    .object({
+      current_page: z.number(),
+      per_page: z.number(),
+      total: z.number(),
+      last_page: z.number(),
+    })
+    .optional(),
+  links: z
+    .object({
+      first: z.string().nullable().optional(),
+      last: z.string().nullable().optional(),
+      prev: z.string().nullable().optional(),
+      next: z.string().nullable().optional(),
+    })
+    .optional(),
   rows: z.array(
     z.object({
       id: z.number(),
@@ -224,7 +245,28 @@ export const SalesDetailSchema = z.object({
 });
 
 export const CashSessionsSchema = z.object({
-  period: z.object({ from: z.string(), to: z.string(), from_datetime: z.string(), to_datetime: z.string() }),
+  period: z.object({
+    from: z.string(),
+    to: z.string(),
+    from_datetime: z.string(),
+    to_datetime: z.string(),
+  }),
+  meta: z
+    .object({
+      current_page: z.number(),
+      per_page: z.number(),
+      total: z.number(),
+      last_page: z.number(),
+    })
+    .optional(),
+  links: z
+    .object({
+      first: z.string().nullable().optional(),
+      last: z.string().nullable().optional(),
+      prev: z.string().nullable().optional(),
+      next: z.string().nullable().optional(),
+    })
+    .optional(),
   summary: z.object({
     open_count: z.number(),
     closed_count: z.number(),
@@ -314,6 +356,8 @@ export const ReportFiltersSchema = z.object({
   date_to: z.string().optional(),
   payment_method: z.string().optional(),
   limit: z.number().optional(),
+  page: z.number().optional(),
+  per_page: z.number().optional(),
   threshold: z.number().optional(),
 });
 

@@ -2,6 +2,8 @@
 
 namespace App\Modules\ReportsV2;
 
+use Illuminate\Support\Facades\DB;
+
 /**
  * Catalogo de reportes V2. Cada definicion es declarativa: fuente, medidas,
  * dimensiones y filtros. El runner las convierte en una sola query SQL.
@@ -41,6 +43,25 @@ class ReportRegistry
      */
     private function periodDimensions(string $dateColumn): array
     {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $weekStart = "date({$dateColumn}, '-' || ((cast(strftime('%w', {$dateColumn}) as integer) + 6) % 7) || ' days')";
+
+            return [
+                'day' => [
+                    'expr' => "strftime('%Y-%m-%d', {$dateColumn})",
+                    'label' => "strftime('%Y-%m-%d', {$dateColumn})",
+                ],
+                'week' => [
+                    'expr' => $weekStart,
+                    'label' => $weekStart,
+                ],
+                'month' => [
+                    'expr' => "strftime('%Y-%m', {$dateColumn})",
+                    'label' => "strftime('%Y-%m', {$dateColumn})",
+                ],
+            ];
+        }
+
         return [
             'day' => [
                 'expr' => "to_char({$dateColumn}, 'YYYY-MM-DD')",

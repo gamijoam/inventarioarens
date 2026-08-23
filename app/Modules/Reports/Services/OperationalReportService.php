@@ -14,7 +14,9 @@ use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class OperationalReportService
@@ -97,8 +99,6 @@ class OperationalReportService
     {
         $tenantId = app(TenantManager::class)->require()->id;
         [$from, $to] = $this->dateRange($filters);
-        $limit = $filters['limit'] ?? 25;
-
         $query = Sale::query()
             ->with([
                 'customer',
@@ -123,12 +123,24 @@ class OperationalReportService
                 $query->whereBetween('confirmed_at', [$from, $to])
                     ->orWhereBetween('created_at', [$from, $to]);
             })
-            ->latest('id')
-            ->limit($limit);
+            ->latest('id');
+
+        $paginator = $query->paginate($filters['per_page'] ?? 25);
+        $sales = $paginator->getCollection();
+        $unitIds = $sales
+            ->flatMap(fn (Sale $sale) => $sale->items->flatMap(fn (SaleItem $item) => $item->product_unit_ids ?? []))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values();
+        $serialUnits = $unitIds->isEmpty()
+            ? collect()
+            : ProductUnit::query()->whereIn('id', $unitIds->all())->get()->keyBy('id');
 
         return [
             'period' => $this->period($from, $to),
-            'rows' => $query->get()->map(fn (Sale $sale): array => $this->saleRow($sale))->all(),
+            'meta' => $this->paginationMeta($paginator),
+            'links' => $this->paginationLinks($paginator),
+            'rows' => $sales->map(fn (Sale $sale): array => $this->saleRow($sale, $serialUnits))->all(),
         ];
     }
 
@@ -181,10 +193,7 @@ class OperationalReportService
     {
         $tenantId = app(TenantManager::class)->require()->id;
         [$from, $to] = $this->dateRange($filters);
-        $limit = $filters['limit'] ?? 25;
-
-        $sessions = CashRegisterSession::query()
-            ->with(['branch', 'cashRegister', 'cashier', 'reviewer', 'movements'])
+        $sessionsQuery = CashRegisterSession::query()
             ->where(function ($query) use ($from, $to): void {
                 $query->whereBetween('opened_at', [$from, $to])
                     ->orWhereBetween('closed_at', [$from, $to])
@@ -194,24 +203,50 @@ class OperationalReportService
             ->when($filters['review_status'] ?? null, fn ($query, string $reviewStatus) => $query->where('review_status', $reviewStatus))
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['cash_register_id'] ?? null, fn ($query, int $registerId) => $query->where('cash_register_id', $registerId))
-            ->when($filters['cashier_id'] ?? null, fn ($query, int $cashierId) => $query->where('cashier_id', $cashierId))
+            ->when($filters['cashier_id'] ?? null, fn ($query, int $cashierId) => $query->where('cashier_id', $cashierId));
+
+        $summary = (clone $sessionsQuery)
+            ->selectRaw(
+                'SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as open_count,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as closed_count,
+                COALESCE(SUM(expected_base_amount), 0) as expected_base_amount,
+                COALESCE(SUM(expected_local_amount), 0) as expected_local_amount,
+                COALESCE(SUM(expected_cash_usd), 0) as expected_cash_usd,
+                COALESCE(SUM(expected_cash_ves), 0) as expected_cash_ves,
+                COALESCE(SUM(CASE WHEN status = ? THEN difference_base_amount ELSE 0 END), 0) as difference_base_amount,
+                COALESCE(SUM(CASE WHEN status = ? THEN COALESCE(difference_cash_usd, difference_base_amount, 0) ELSE 0 END), 0) as difference_cash_usd,
+                COALESCE(SUM(CASE WHEN status = ? THEN COALESCE(difference_cash_ves, difference_local_amount, 0) ELSE 0 END), 0) as difference_cash_ves',
+                [
+                    CashRegisterSession::STATUS_OPEN,
+                    CashRegisterSession::STATUS_CLOSED,
+                    CashRegisterSession::STATUS_CLOSED,
+                    CashRegisterSession::STATUS_CLOSED,
+                    CashRegisterSession::STATUS_CLOSED,
+                ],
+            )
+            ->first();
+
+        $paginator = (clone $sessionsQuery)
+            ->with(['branch', 'cashRegister', 'cashier', 'reviewer', 'movements'])
             ->orderByRaw("case when status = 'open' then 0 else 1 end")
             ->latest('opened_at')
-            ->limit($limit)
-            ->get();
+            ->paginate($filters['per_page'] ?? 25);
+        $sessions = $paginator->getCollection();
 
         return [
             'period' => $this->period($from, $to),
+            'meta' => $this->paginationMeta($paginator),
+            'links' => $this->paginationLinks($paginator),
             'summary' => [
-                'open_count' => $sessions->where('status', CashRegisterSession::STATUS_OPEN)->count(),
-                'closed_count' => $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->count(),
-                'expected_base_amount' => round((float) $sessions->sum('expected_base_amount'), 4),
-                'expected_local_amount' => round((float) $sessions->sum('expected_local_amount'), 4),
-                'expected_cash_usd' => round((float) $sessions->sum('expected_cash_usd'), 4),
-                'expected_cash_ves' => round((float) $sessions->sum('expected_cash_ves'), 4),
-                'difference_base_amount' => round((float) $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->sum('difference_base_amount'), 4),
-                'difference_cash_usd' => round((float) $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->sum(fn (CashRegisterSession $session): float => (float) ($session->difference_cash_usd ?? $session->difference_base_amount)), 4),
-                'difference_cash_ves' => round((float) $sessions->where('status', CashRegisterSession::STATUS_CLOSED)->sum(fn (CashRegisterSession $session): float => (float) ($session->difference_cash_ves ?? $session->difference_local_amount)), 4),
+                'open_count' => (int) ($summary->open_count ?? 0),
+                'closed_count' => (int) ($summary->closed_count ?? 0),
+                'expected_base_amount' => round((float) ($summary->expected_base_amount ?? 0), 4),
+                'expected_local_amount' => round((float) ($summary->expected_local_amount ?? 0), 4),
+                'expected_cash_usd' => round((float) ($summary->expected_cash_usd ?? 0), 4),
+                'expected_cash_ves' => round((float) ($summary->expected_cash_ves ?? 0), 4),
+                'difference_base_amount' => round((float) ($summary->difference_base_amount ?? 0), 4),
+                'difference_cash_usd' => round((float) ($summary->difference_cash_usd ?? 0), 4),
+                'difference_cash_ves' => round((float) ($summary->difference_cash_ves ?? 0), 4),
             ],
             'rows' => $sessions->map(fn (CashRegisterSession $session): array => $this->cashSessionRow($session))->all(),
             'movement_breakdown' => $this->cashMovementBreakdown($tenantId, $from, $to, $filters),
@@ -269,7 +304,7 @@ class OperationalReportService
             ->all();
     }
 
-    private function saleRow(Sale $sale): array
+    private function saleRow(Sale $sale, Collection $serialUnits): array
     {
         $receivable = $sale->receivable;
         $posOrder = $sale->posOrder;
@@ -300,7 +335,7 @@ class OperationalReportService
                 'cash_register_name' => $posOrder->cashRegisterSession?->cashRegister?->name,
                 'branch_name' => $posOrder->cashRegisterSession?->branch?->name,
             ] : null,
-            'items' => $sale->items->map(fn (SaleItem $item): array => $this->saleItemRow($item))->all(),
+            'items' => $sale->items->map(fn (SaleItem $item): array => $this->saleItemRow($item, $serialUnits))->all(),
             'payments' => $posOrder?->payments->map(fn (PosPayment $payment): array => [
                 'id' => $payment->id,
                 'method' => $payment->method,
@@ -323,7 +358,7 @@ class OperationalReportService
         ];
     }
 
-    private function saleItemRow(SaleItem $item): array
+    private function saleItemRow(SaleItem $item, Collection $serialUnits): array
     {
         $unitIds = $item->product_unit_ids ?? [];
 
@@ -340,10 +375,9 @@ class OperationalReportService
             'discount_reason' => $item->discount_reason,
             'exchange_rate_type_code' => $item->exchange_rate_type_code,
             'exchange_rate' => $item->exchange_rate === null ? null : (float) $item->exchange_rate,
-            'serial_units' => $unitIds === [] ? [] : ProductUnit::query()
-                ->whereIn('id', $unitIds)
-                ->get()
-                ->sortBy(fn (ProductUnit $unit): int => array_search($unit->id, $unitIds, true))
+            'serial_units' => collect($unitIds)
+                ->map(fn (int $unitId): ?ProductUnit => $serialUnits->get($unitId))
+                ->filter()
                 ->map(fn (ProductUnit $unit): array => [
                     'id' => $unit->id,
                     'serial_type' => $unit->serial_type,
@@ -596,6 +630,26 @@ class OperationalReportService
         $date = Carbon::parse($filters['date'] ?? now()->toDateString());
 
         return [$date->copy()->startOfDay(), $date->copy()->endOfDay()];
+    }
+
+    private function paginationMeta(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+        ];
+    }
+
+    private function paginationLinks(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'first' => $paginator->url(1),
+            'last' => $paginator->url($paginator->lastPage()),
+            'prev' => $paginator->previousPageUrl(),
+            'next' => $paginator->nextPageUrl(),
+        ];
     }
 
     private function period(Carbon $from, Carbon $to): array

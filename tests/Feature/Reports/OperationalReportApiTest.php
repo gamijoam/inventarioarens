@@ -9,10 +9,12 @@ use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
+use App\Modules\Reports\Services\OperationalReportService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
@@ -22,6 +24,7 @@ use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -74,6 +77,93 @@ class OperationalReportApiTest extends TestCase
             ->assertJsonPath('data.rows.0.returns.0.status', SalesReturn::STATUS_REQUESTED);
     }
 
+    public function test_sales_detail_is_paginated(): void
+    {
+        Carbon::setTestNow('2026-07-18 11:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant, ['reports.sales.view']);
+        $this->seedOperationalData($tenant, $user, 125);
+        $this->useTenant($tenant);
+
+        Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 50,
+            'total_local_amount' => 50,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+        Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 75,
+            'total_local_amount' => 75,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/sales-detail?date=2026-07-18&per_page=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.rows')
+            ->assertJsonPath('data.meta.current_page', 1)
+            ->assertJsonPath('data.meta.per_page', 2)
+            ->assertJsonPath('data.meta.total', 3)
+            ->assertJsonPath('data.meta.last_page', 2);
+
+        $this->assertStringContainsString('page=2', $response->json('data.links.next'));
+    }
+
+    public function test_sales_detail_does_not_query_serial_units_once_per_item(): void
+    {
+        Carbon::setTestNow('2026-07-18 11:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant, ['reports.sales.view']);
+        $sale = $this->seedOperationalData($tenant, $user, 125);
+        $warehouse = Warehouse::query()->firstOrFail();
+
+        app(OperationalReportService::class)->salesDetail(['date' => '2026-07-18']);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(OperationalReportService::class)->salesDetail(['date' => '2026-07-18']);
+        $queriesWithoutAdditionalItems = count(DB::getQueryLog());
+
+        for ($index = 1; $index <= 5; $index++) {
+            $product = Product::create([
+                'name' => "Producto Serial {$index}",
+                'sku' => "SERIAL-{$index}",
+                'tracking_type' => Product::TRACKING_SERIALIZED,
+            ]);
+            $unit = ProductUnit::create([
+                'product_id' => $product->id,
+                'warehouse_id' => $warehouse->id,
+                'serial_type' => ProductUnit::SERIAL_TYPE_SERIAL,
+                'serial_number' => "SERIAL-UNIT-{$index}",
+                'status' => ProductUnit::STATUS_SOLD,
+            ]);
+            SaleItem::create([
+                'sale_id' => $sale->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'sale_currency' => Product::CURRENCY_USD,
+                'unit_price' => 1,
+                'total_amount' => 1,
+                'base_unit_price' => 1,
+                'base_total_amount' => 1,
+                'product_unit_ids' => [$unit->id],
+            ]);
+        }
+
+        DB::flushQueryLog();
+        app(OperationalReportService::class)->salesDetail(['date' => '2026-07-18']);
+        $queriesWithAdditionalItems = count(DB::getQueryLog());
+
+        $this->assertLessThanOrEqual($queriesWithoutAdditionalItems + 2, $queriesWithAdditionalItems);
+    }
+
     public function test_cash_sessions_report_marks_open_session_difference_as_pending(): void
     {
         Carbon::setTestNow('2026-07-18 11:00:00');
@@ -91,6 +181,66 @@ class OperationalReportApiTest extends TestCase
             ->assertJsonPath('data.rows.0.status', CashRegisterSession::STATUS_OPEN)
             ->assertJsonPath('data.rows.0.difference_base_amount', null)
             ->assertJsonPath('data.movement_breakdown.0.amount_base', 50);
+    }
+
+    public function test_cash_sessions_is_paginated_and_summary_covers_all_sessions(): void
+    {
+        Carbon::setTestNow('2026-07-18 11:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant, ['reports.cash.view']);
+        $this->seedOperationalData($tenant, $user, 125);
+        $this->useTenant($tenant);
+        $branch = Branch::query()->firstOrFail();
+        $register = CashRegister::query()->firstOrFail();
+
+        CashRegisterSession::create([
+            'branch_id' => $branch->id,
+            'cash_register_id' => $register->id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_CLOSED,
+            'opening_base_amount' => 20,
+            'expected_base_amount' => 30,
+            'difference_base_amount' => 1,
+            'opened_at' => now()->subHour(),
+            'closed_at' => now(),
+        ]);
+        CashRegisterSession::create([
+            'branch_id' => $branch->id,
+            'cash_register_id' => $register->id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opening_base_amount' => 25,
+            'expected_base_amount' => 35,
+            'opened_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/cash-sessions?date=2026-07-18&per_page=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.rows')
+            ->assertJsonPath('data.meta.total', 3)
+            ->assertJsonPath('data.meta.last_page', 2)
+            ->assertJsonPath('data.summary.open_count', 2)
+            ->assertJsonPath('data.summary.closed_count', 1)
+            ->assertJsonPath('data.summary.expected_base_amount', 240);
+    }
+
+    public function test_operational_reports_reject_invalid_page_size(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant, ['reports.sales.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/sales-detail?per_page=101')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['per_page']);
     }
 
     public function test_operational_reports_do_not_mix_tenants(): void
