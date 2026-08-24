@@ -47,6 +47,35 @@ class InventoryApiTest extends TestCase
         $this->assertSame(6.0, (float) $this->balance($warehouse, $product)->quantity_available);
     }
 
+    public function test_adjustment_in_is_idempotent_with_the_same_key(): void
+    {
+        $tenant = Tenant::create(['name' => 'Tenant Idempotente', 'slug' => 'tenant-idempotente']);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, 'IDEMP');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen Idempotente', ['inventory.adjust']);
+        $payload = [
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 6,
+            'reason' => 'Ajuste idempotente',
+        ];
+
+        $first = $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', 'inventory-adjustment-idempotency-001')
+            ->postJson('/api/inventory/adjustments/in', $payload)
+            ->assertCreated();
+        $second = $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', 'inventory-adjustment-idempotency-001')
+            ->postJson('/api/inventory/adjustments/in', $payload)
+            ->assertCreated();
+
+        $this->assertSame($first->json('data.id'), $second->json('data.id'));
+        $this->assertSame(6.0, (float) $this->balance($warehouse, $product)->quantity_available);
+        $this->assertDatabaseCount('stock_movements', 1);
+    }
+
     public function test_inventory_endpoint_rejects_user_without_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Tenant A', 'slug' => 'tenant-a']);

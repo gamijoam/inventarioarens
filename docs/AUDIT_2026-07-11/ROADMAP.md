@@ -97,7 +97,7 @@
 | P4-5 | 6 controllers sin service (`Branches`, `Warehouses`, `Customers`, `Suppliers`, `PaymentMethods`, `Reports`) → crear service | XL | ☐ |
 | P4-6 | Tests Unit reales: InventoryMovementService, SaleService::resolveLineDiscount, ProductUnit state machine, CurrencyConverter | L | ☐ |
 | P4-7 | Bearer-token coverage en POS, Transfers, Sales, AR/AP | L | ☐ |
-| P4-8 | Reconciliation command `inventory:reconcile {tenant?}` + cron | M | ☐ |
+| P4-8 | Reconciliation command `inventory:reconcile {tenant?}` + cron | M | ✅ **2026-08-24** |
 | P4-9 | Surface custom exceptions (InsufficientStock → 422, CrossTenant → 403, etc.) | M | ☐ |
 | P4-10 | E2E specs adicionales (productos, cajas, ACL) | L | ☐ |
 
@@ -458,6 +458,17 @@ Frontend del modulo de Access Control. Backend operativo desde 2026-07-12 con 61
 - `php artisan route:list /api/permission-catalog, /api/customer-groups`: registrados.
 
 ---
+
+## 2026-08-24 - Hardening de inventario en progreso
+
+- [x] Contrato de IMEI/seriales en preparacion y recepcion, incluyendo unidades `reserved` en recepcion. Tests backend y frontend verdes.
+- [x] Permisos `products.view/create/update/delete` aplicados al CRUD de marcas, categorias y tags. 16 tests verdes.
+- [x] Snapshot de conteo fisico idempotente, bloqueo al completar y rechazo de items sin contar. 10 tests verdes.
+- [x] `reserve_on_request` evita doble reserva al preparar y marca correctamente unidades serializadas como `reserved`. 4 tests verdes.
+- [x] Idempotencia aplicada a movimientos de inventario y todas las mutaciones de traslados; claves aisladas por tenant. Tests backend y frontend verdes.
+- [x] `inventory:reconcile {tenant?}` compara available/reserved/damaged, soporta `--fix` y `--dry-run`, y queda programado cada noche. 4 tests verdes.
+- [x] E2E Chromium cubre login, selección real de IMEI, creación de traslado, header `Idempotency-Key` y replay de la misma operación. 1 test UI verde.
+- [ ] Completar expiracion de reservas, idempotencia de operaciones mutantes restantes y suite completa antes de commit/deploy.
 
 ## Anti-patrones prohibidos (AGENTS.md §9.5 + §14)
 

@@ -48,6 +48,10 @@ class StockCountService
      */
     public function snapshot(StockCount $count): int
     {
+        if ($count->items()->exists()) {
+            return 0;
+        }
+
         $warehouseId = $count->warehouse_id;
 
         $balances = DB::table('stock_balances')
@@ -128,14 +132,19 @@ class StockCountService
      */
     public function complete(StockCount $count, ?int $approverId): array
     {
-        if ($count->status !== StockCount::STATUS_CAPTURING) {
-            throw new \RuntimeException("Solo se puede completar un conteo en status 'capturing'.");
-        }
-
-        $items = $count->items()->where('status', StockCountItem::STATUS_COUNTED)->get();
         $adjustments = ['in' => 0, 'out' => 0, 'skipped' => 0];
 
-        DB::transaction(function () use ($count, $items, $approverId, &$adjustments) {
+        DB::transaction(function () use ($count, $approverId, &$adjustments) {
+            $count = StockCount::query()->lockForUpdate()->findOrFail($count->id);
+            if ($count->status !== StockCount::STATUS_CAPTURING) {
+                throw new \RuntimeException("Solo se puede completar un conteo en status 'capturing'.");
+            }
+
+            $items = $count->items()->lockForUpdate()->get();
+            if ($items->contains(fn (StockCountItem $item) => $item->status !== StockCountItem::STATUS_COUNTED)) {
+                throw new \RuntimeException('Todos los items deben estar contados antes de completar el conteo.');
+            }
+
             foreach ($items as $item) {
                 $variance = (float) $item->variance;
                 if (abs($variance) < 0.0001) {

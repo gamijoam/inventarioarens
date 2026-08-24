@@ -4,8 +4,7 @@
  *
  * Para cada item, el user confirma la cantidad recibida. Si el item es
  * serializado, captura los IMEIs/seriales RECIBIDOS. El backend resuelve
- * cada serial_number a un ProductUnit existente o lo crea AVAILABLE en
- * el almacen destino.
+ * cada serial_number a un ProductUnit reservado en el almacen origen.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -15,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ImeiScanner } from './ImeiScanner';
 import { Label } from '@/components/ui/Label';
+import { Select } from '@/components/ui/Select';
 import { useReceiveTransfer, useTransfer } from '@/features/transfers/api';
 import type { ReceiveTransferValues, Transfer } from '@/features/transfers/schemas';
 
@@ -42,6 +42,7 @@ interface ItemRow {
   new_unit_serial: string;
   new_unit_type: 'imei' | 'serial';
   difference_reason: string;
+  preparedProductUnitIds: number[];
 }
 
 function buildInitialRows(transfer: Transfer): ItemRow[] {
@@ -63,6 +64,7 @@ function buildInitialRows(transfer: Transfer): ItemRow[] {
       new_unit_serial: '',
       new_unit_type: 'imei',
       difference_reason: '',
+      preparedProductUnitIds: it.prepared_product_unit_ids ?? [],
     };
   });
 }
@@ -114,7 +116,7 @@ export function TransferReceiveDialog({
         return {
           inventory_transfer_item_id: r.transfer_item_id,
           received_quantity: isSerialized ? undefined : r.receiving_quantity,
-          received_serial_units: isSerialized && serials.length > 0 ? serials : undefined,
+          serial_units: isSerialized && serials.length > 0 ? serials : undefined,
           received_product_unit_ids: undefined,
           difference_reason:
             r.receiving_quantity < r.pending && r.difference_reason
@@ -172,9 +174,31 @@ export function TransferReceiveDialog({
 
                 {isSerialized ? (
                   <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={`recv-type-${r.transfer_item_id}`} className="text-xs">
+                        Tipo de serial
+                      </Label>
+                      <Select
+                        id={`recv-type-${r.transfer_item_id}`}
+                        value={r.new_unit_type}
+                        onChange={(e) =>
+                          updateRow(r.transfer_item_id, {
+                            new_unit_type: e.target.value as 'imei' | 'serial',
+                            receiving_serials: [],
+                          })
+                        }
+                        className="w-32"
+                      >
+                        <option value="imei">IMEI</option>
+                        <option value="serial">Serial</option>
+                      </Select>
+                    </div>
                     <ImeiScanner
                       productId={r.product_id}
-                      warehouseId={transfer.to_warehouse_id}
+                      warehouseId={transfer.from_warehouse_id}
+                      status="reserved"
+                      serialType={r.new_unit_type}
+                      allowedUnitIds={r.preparedProductUnitIds}
                       selected={r.receiving_serials
                         .map((s) => s.serial_number)
                         .filter((s) => s.trim() !== '')}

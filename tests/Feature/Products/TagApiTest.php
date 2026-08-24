@@ -101,4 +101,21 @@ class TagApiTest extends TestCase
         $response->assertOk();
         $this->assertCount(2, $response->json('data'));
     }
+
+    public function test_tag_catalog_requires_product_permissions(): void
+    {
+        $tenant = $this->tenant();
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant->id, ['status' => 'active']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/tags')
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/tags', ['name' => 'No autorizado', 'slug' => 'no-autorizado'])
+            ->assertForbidden();
+    }
 }

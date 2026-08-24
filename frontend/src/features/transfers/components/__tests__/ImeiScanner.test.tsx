@@ -16,6 +16,8 @@ import { ImeiScanner } from '../ImeiScanner';
 const mockUseAvailableProductUnits = vi.fn();
 
 vi.mock('@/features/inventory-center/api', () => ({
+  // The test double intentionally forwards arbitrary hook arguments.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   useAvailableProductUnits: (...args: unknown[]) => mockUseAvailableProductUnits(...args),
 }));
 
@@ -202,6 +204,7 @@ describe('ImeiScanner', () => {
     expect(screen.getByTestId('imei-test-item-2')).toBeDisabled();
   });
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   it('muestra los IMEIs seleccionados como chips removibles', async () => {
     mockUseAvailableProductUnits.mockReturnValue({
       data: [
@@ -226,5 +229,33 @@ describe('ImeiScanner', () => {
     // El chip usa data-testid={`${prefix}-chip-${serial}`}.
     expect(screen.getByTestId('imei-test-chip-A-001')).toBeInTheDocument();
     expect(screen.getByTestId('imei-test-chip-A-002')).toBeInTheDocument();
+  });
+
+  it('filtra por estado y limita la lista a las unidades del traslado', async () => {
+    mockUseAvailableProductUnits.mockReturnValue({
+      data: [
+        { id: 10, product_id: 10, warehouse_id: 1, serial_type: 'imei', serial_number: 'RES-001', status: 'reserved' },
+        { id: 11, product_id: 10, warehouse_id: 1, serial_type: 'imei', serial_number: 'RES-002', status: 'reserved' },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+
+    render(
+      <ImeiScanner
+        productId={10}
+        warehouseId={1}
+        status="reserved"
+        allowedUnitIds={[10]}
+        selected={[]}
+        onChange={vi.fn()}
+        dataTestIdPrefix="reserved-test"
+      />,
+      { wrapper: makeWrapper() },
+    );
+
+    await waitFor(() => expect(screen.getByTestId('reserved-test-item-10')).toBeInTheDocument());
+    expect(screen.queryByTestId('reserved-test-item-11')).not.toBeInTheDocument();
+    expect(mockUseAvailableProductUnits).toHaveBeenCalledWith(10, 1, '', 'reserved');
   });
 });

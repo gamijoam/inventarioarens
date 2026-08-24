@@ -9,8 +9,8 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Models\InventoryTransferChecklist;
-use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
+use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -84,6 +84,121 @@ class InventoryTransferApiTest extends TestCase
             'type' => 'transfer_in',
             'quantity' => '4.0000',
             'reference_type' => InventoryTransfer::class,
+        ]);
+    }
+
+    public function test_same_idempotency_key_does_not_create_inventory_transfer_twice(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Idempotente', 'slug' => 'empresa-idempotente']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-IDEMP', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen Idempotente', ['inventory_transfers.create', 'inventory_transfers.view']);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+        $payload = [
+            'from_warehouse_id' => $fromWarehouse->id,
+            'to_warehouse_id' => $toWarehouse->id,
+            'reason' => 'Reposicion idempotente',
+            'items' => [['product_id' => $product->id, 'quantity' => 4]],
+        ];
+
+        $first = $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', 'inventory-transfer-idempotency-001')
+            ->postJson('/api/inventory-transfers', $payload)
+            ->assertCreated();
+
+        $second = $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('Idempotency-Key', 'inventory-transfer-idempotency-001')
+            ->postJson('/api/inventory-transfers', $payload)
+            ->assertCreated();
+
+        $this->assertSame($first->json('data.id'), $second->json('data.id'));
+        $this->assertSame(1, InventoryTransfer::query()->count());
+        $this->assertSame(3, $this->stockMovementsForProduct($product));
+        $this->assertSame(6.0, (float) $this->balance($fromWarehouse, $product)->quantity_available);
+    }
+
+    public function test_idempotency_key_rejects_a_different_inventory_transfer_body(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Conflicto', 'slug' => 'empresa-conflicto']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CONFLICT', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen Conflicto', ['inventory_transfers.create', 'inventory_transfers.view']);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+        $headers = [
+            'X-Tenant' => $tenant->slug,
+            'Idempotency-Key' => 'inventory-transfer-idempotency-002',
+        ];
+
+        $this->actingAs($user)
+            ->withHeaders($headers)
+            ->postJson('/api/inventory-transfers', [
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            ])
+            ->assertCreated();
+
+        $this->actingAs($user)
+            ->withHeaders($headers)
+            ->postJson('/api/inventory-transfers', [
+                'from_warehouse_id' => $fromWarehouse->id,
+                'to_warehouse_id' => $toWarehouse->id,
+                'items' => [['product_id' => $product->id, 'quantity' => 3]],
+            ])
+            ->assertStatus(409);
+
+        $this->assertSame(1, InventoryTransfer::query()->count());
+        $this->assertSame(3, $this->stockMovementsForProduct($product));
+    }
+
+    public function test_same_idempotency_key_is_isolated_between_tenants(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa Idem A', 'slug' => 'empresa-idem-a']);
+        [$fromA, $toA, $productA] = $this->warehousesAndProduct($tenantA, 'TRF-IDEM-A', Product::TRACKING_QUANTITY);
+        $userA = $this->userInTenant($tenantA);
+        $this->grantRole($tenantA, $userA, 'Almacen Idem A', ['inventory_transfers.create', 'inventory_transfers.view']);
+        $this->stock($tenantA, $fromA, $productA, $userA, 10);
+
+        $tenantB = Tenant::create(['name' => 'Empresa Idem B', 'slug' => 'empresa-idem-b']);
+        [$fromB, $toB, $productB] = $this->warehousesAndProduct($tenantB, 'TRF-IDEM-B', Product::TRACKING_QUANTITY);
+        $userB = $this->userInTenant($tenantB);
+        $this->grantRole($tenantB, $userB, 'Almacen Idem B', ['inventory_transfers.create', 'inventory_transfers.view']);
+        $this->stock($tenantB, $fromB, $productB, $userB, 10);
+
+        $key = 'inventory-transfer-same-key-two-tenants';
+        $this->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->withHeader('Idempotency-Key', $key)
+            ->postJson('/api/inventory-transfers', [
+                'from_warehouse_id' => $fromA->id,
+                'to_warehouse_id' => $toA->id,
+                'items' => [['product_id' => $productA->id, 'quantity' => 2]],
+            ])
+            ->assertCreated();
+
+        $this->actingAs($userB)
+            ->withHeader('X-Tenant', $tenantB->slug)
+            ->withHeader('Idempotency-Key', $key)
+            ->postJson('/api/inventory-transfers', [
+                'from_warehouse_id' => $fromB->id,
+                'to_warehouse_id' => $toB->id,
+                'items' => [['product_id' => $productB->id, 'quantity' => 2]],
+            ])
+            ->assertCreated();
+
+        $this->assertSame(1, InventoryTransfer::withoutGlobalScopes()->where('tenant_id', $tenantA->id)->count());
+        $this->assertSame(1, InventoryTransfer::withoutGlobalScopes()->where('tenant_id', $tenantB->id)->count());
+        $this->assertDatabaseHas('idempotency_keys', [
+            'tenant_id' => $tenantA->id,
+            'key' => $key,
+            'method' => 'POST',
+        ]);
+        $this->assertDatabaseHas('idempotency_keys', [
+            'tenant_id' => $tenantB->id,
+            'key' => $key,
+            'method' => 'POST',
         ]);
     }
 
@@ -398,7 +513,10 @@ class InventoryTransferApiTest extends TestCase
             ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
                 'items' => [[
                     'inventory_transfer_item_id' => $itemId,
-                    'prepared_product_unit_ids' => [$units[0]->id, $units[1]->id],
+                    'serial_units' => [
+                        ['serial_type' => $units[0]->serial_type, 'serial_number' => $units[0]->serial_number],
+                        ['serial_type' => $units[1]->serial_type, 'serial_number' => $units[1]->serial_number],
+                    ],
                 ]],
             ])
             ->assertOk()
@@ -536,7 +654,10 @@ class InventoryTransferApiTest extends TestCase
             ->postJson("/api/inventory-transfers/{$transferId}/prepare", [
                 'items' => [[
                     'inventory_transfer_item_id' => $itemId,
-                    'prepared_product_unit_ids' => [$units[0]->id, $units[1]->id],
+                    'serial_units' => [
+                        ['serial_type' => $units[0]->serial_type, 'serial_number' => $units[0]->serial_number],
+                        ['serial_type' => $units[1]->serial_type, 'serial_number' => $units[1]->serial_number],
+                    ],
                 ]],
             ])
             ->assertOk();
@@ -771,7 +892,10 @@ class InventoryTransferApiTest extends TestCase
             ->postJson("/api/inventory-transfers/{$transferId}/receive", [
                 'items' => [[
                     'inventory_transfer_item_id' => $itemId,
-                    'received_product_unit_ids' => [$units[0]->id, $units[1]->id],
+                    'serial_units' => [
+                        ['serial_type' => $units[0]->serial_type, 'serial_number' => $units[0]->serial_number],
+                        ['serial_type' => $units[1]->serial_type, 'serial_number' => $units[1]->serial_number],
+                    ],
                 ]],
             ])
             ->assertOk()
@@ -2339,6 +2463,13 @@ class InventoryTransferApiTest extends TestCase
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
             ->first();
+    }
+
+    private function stockMovementsForProduct(Product $product): int
+    {
+        return (int) DB::table('stock_movements')
+            ->where('product_id', $product->id)
+            ->count();
     }
 
     public function test_full_serialized_lifecycle_prepare_dispatch_receive_subset_resolve(): void

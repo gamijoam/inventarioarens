@@ -330,6 +330,14 @@ export const PrepareTransferItemSchema = z.object({
   inventory_transfer_item_id: positiveNumber,
   prepared_quantity: z.coerce.number().min(0).optional(),
   prepared_product_unit_ids: z.array(z.coerce.number().int().positive()).optional(),
+  serial_units: z
+    .array(
+      z.object({
+        serial_type: z.enum(['imei', 'serial']),
+        serial_number: z.string().trim().min(1),
+      }),
+    )
+    .optional(),
   difference_reason: z.string().max(255).optional(),
   difference_notes: z.string().max(1000).optional(),
 });
@@ -356,6 +364,14 @@ export const ReceiveTransferItemSchema = z.object({
   inventory_transfer_item_id: positiveNumber,
   received_quantity: z.coerce.number().min(0).optional(),
   received_product_unit_ids: z.array(z.coerce.number().int().positive()).optional(),
+  serial_units: z
+    .array(
+      z.object({
+        serial_type: z.enum(['imei', 'serial']),
+        serial_number: z.string().trim().min(1),
+      }),
+    )
+    .optional(),
   difference_reason: z.string().max(255).optional(),
   difference_notes: z.string().max(1000).optional(),
 });

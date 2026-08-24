@@ -69,6 +69,11 @@ $app = Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(30)
             ->appendOutputTo(storage_path('logs/imports-cleanup.log'));
 
+        $schedule->command('inventory:reconcile')
+            ->dailyAt('02:30')
+            ->withoutOverlapping(30)
+            ->appendOutputTo(storage_path('logs/inventory-reconcile.log'));
+
         // Bot de Telegram: alertas de stock bajo y resumen diario. Correr cada
         // hora; el comando evalua la hora configurada por cada empresa.
         $schedule->command('telegram:alerts --type=stock')

@@ -10,7 +10,7 @@ class StoreBrandRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return (bool) $this->user()?->can('products.create');
     }
 
     public function rules(): array

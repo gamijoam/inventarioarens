@@ -17,6 +17,8 @@ class CategoryController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        abort_unless($request->user()?->can('products.view'), 403);
+
         $query = Category::query()
             ->with(['parent'])
             ->withCount('products')
@@ -39,6 +41,8 @@ class CategoryController extends Controller
 
     public function tree(Request $request): JsonResponse
     {
+        abort_unless($request->user()?->can('products.view'), 403);
+
         $categories = Category::query()
             ->with(['children' => fn ($q) => $q->orderBy('sort_order')->orderBy('name')])
             ->withCount('products')
@@ -60,8 +64,10 @@ class CategoryController extends Controller
         return CategoryResource::make($category);
     }
 
-    public function show(Category $category): CategoryResource
+    public function show(Request $request, Category $category): CategoryResource
     {
+        abort_unless($request->user()?->can('products.view'), 403);
+
         $category->load(['parent', 'children'])->loadCount('products');
 
         return CategoryResource::make($category);
@@ -75,8 +81,10 @@ class CategoryController extends Controller
         return CategoryResource::make($category->fresh(['parent', 'children'])->loadCount('products'));
     }
 
-    public function destroy(Category $category, SyncCatalogOutboxService $syncCatalog): Response
+    public function destroy(Request $request, Category $category, SyncCatalogOutboxService $syncCatalog): Response
     {
+        abort_unless($request->user()?->can('products.delete'), 403);
+
         $deleted = clone $category;
         $category->delete();
         $syncCatalog->categoryDeleted($deleted);

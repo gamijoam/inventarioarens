@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Tenancy\TenantManager;
 use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -43,6 +44,8 @@ class IdempotencyKey
 
     public const TTL_HOURS = 24;
 
+    public function __construct(private readonly TenantManager $tenantManager) {}
+
     public function handle(Request $request, Closure $next): Response
     {
         $key = $this->extractKey($request);
@@ -59,54 +62,33 @@ class IdempotencyKey
         $path = '/'.ltrim($request->path(), '/');
         $body = (string) $request->getContent();
         $requestHash = hash('sha256', $body);
+        $tenantId = $this->tenantManager->id();
 
         // Limpiamos claves expiradas (best-effort, no bloqueamos la request
         // si falla la limpieza). Tambien filtramos en la query principal
         // por expires_at para evitar condiciones de carrera.
         $this->purgeExpired();
 
-        $existing = DB::table('idempotency_keys')
-            ->where('key', $key)
-            ->where('method', $request->method())
-            ->where('path', $path)
-            ->where('expires_at', '>', now())
-            ->first();
+        $existing = $this->findExisting($tenantId, $key, $request->method(), $path);
 
         if ($existing) {
-            if ($existing->request_hash !== $requestHash) {
-                return new JsonResponse([
-                    'message' => 'El Idempotency-Key ya fue usado con un body distinto.',
-                    'errors' => ['idempotency_key' => ['Conflicto: el body no coincide con la request original.']],
-                ], 409);
-            }
-
-            if ((int) $existing->response_status === 0) {
-                // Request original todavia en proceso (no se persistio la respuesta
-                // final). Devolvemos 409 para que el cliente reintente luego.
-                return new JsonResponse([
-                    'message' => 'La request original con este Idempotency-Key esta en proceso.',
-                ], 409);
-            }
-
-            // Devolvemos la respuesta original cacheada. Mantenemos headers
-            // importantes (Content-Type) para que el cliente pueda parsear
-            // el body sin ambiguedad.
-            $body = $existing->response_body !== null
-                ? json_decode($existing->response_body, true)
-                : null;
-
-            return new JsonResponse($body, (int) $existing->response_status);
+            return $this->replayExisting($existing, $requestHash);
         }
 
         // Marcamos la key como en proceso (response_status=0) ANTES de ejecutar
         // la accion. Esto previene que dos requests concurrentes con el mismo
         // key ejecuten la accion dos veces (la segunda lo ve en proceso y
         // devuelve 409).
-        $this->tryReserveKey($key, $request->method(), $path, $requestHash);
+        if (! $this->tryReserveKey($tenantId, $key, $request->method(), $path, $requestHash)) {
+            $existing = $this->findExisting($tenantId, $key, $request->method(), $path);
+            if ($existing) {
+                return $this->replayExisting($existing, $requestHash);
+            }
+        }
 
         $response = $next($request);
 
-        $this->persistResponse($key, $request->method(), $path, $requestHash, $response);
+        $this->persistResponse($tenantId, $key, $request->method(), $path, $requestHash, $response);
 
         return $response;
     }
@@ -130,10 +112,11 @@ class IdempotencyKey
         }
     }
 
-    private function tryReserveKey(string $key, string $method, string $path, string $requestHash): void
+    private function tryReserveKey(?int $tenantId, string $key, string $method, string $path, string $requestHash): bool
     {
         try {
             DB::table('idempotency_keys')->insert([
+                'tenant_id' => $tenantId,
                 'key' => $key,
                 'method' => $method,
                 'path' => $path,
@@ -143,14 +126,49 @@ class IdempotencyKey
                 'expires_at' => now()->addHours(self::TTL_HOURS),
                 'created_at' => now(),
             ]);
+
+            return true;
         } catch (QueryException) {
-            // Si falla (duplicate key), significa que otro request entro
-            // en paralelo y ya reservo la key. El segundo request
-            // (este) caera en el branch "existing" arriba.
+            // Otra request gano la reserva. El caller vuelve a leer la fila
+            // y devuelve 409 o la respuesta cacheada, nunca ejecuta la accion.
+            return false;
         }
     }
 
-    private function persistResponse(string $key, string $method, string $path, string $requestHash, Response $response): void
+    private function findExisting(?int $tenantId, string $key, string $method, string $path): ?object
+    {
+        return DB::table('idempotency_keys')
+            ->where('key', $key)
+            ->where('method', $method)
+            ->where('path', $path)
+            ->when($tenantId === null, fn ($query) => $query->whereNull('tenant_id'), fn ($query) => $query->where('tenant_id', $tenantId))
+            ->where('expires_at', '>', now())
+            ->first();
+    }
+
+    private function replayExisting(object $existing, string $requestHash): JsonResponse
+    {
+        if ($existing->request_hash !== $requestHash) {
+            return new JsonResponse([
+                'message' => 'El Idempotency-Key ya fue usado con un body distinto.',
+                'errors' => ['idempotency_key' => ['Conflicto: el body no coincide con la request original.']],
+            ], 409);
+        }
+
+        if ((int) $existing->response_status === 0) {
+            return new JsonResponse([
+                'message' => 'La request original con este Idempotency-Key esta en proceso.',
+            ], 409);
+        }
+
+        $body = $existing->response_body !== null
+            ? json_decode($existing->response_body, true)
+            : null;
+
+        return new JsonResponse($body, (int) $existing->response_status);
+    }
+
+    private function persistResponse(?int $tenantId, string $key, string $method, string $path, string $requestHash, Response $response): void
     {
         $body = $response->getContent();
         $status = $response->getStatusCode();
@@ -167,6 +185,7 @@ class IdempotencyKey
                 ->where('key', $key)
                 ->where('method', $method)
                 ->where('path', $path)
+                ->when($tenantId === null, fn ($query) => $query->whereNull('tenant_id'), fn ($query) => $query->where('tenant_id', $tenantId))
                 ->update([
                     'response_status' => $status,
                     'response_body' => $body,

@@ -101,6 +101,29 @@ class StockCountApiTest extends TestCase
         $this->assertEquals(12, (float) $count->items()->first()->system_quantity);
     }
 
+    public function test_snapshot_is_idempotent(): void
+    {
+        [$tenant, $warehouse, $product, $user] = $this->bootstrap();
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 12,
+        ]);
+        $count = StockCount::create([
+            'warehouse_id' => $warehouse->id,
+            'code' => 'CC-IDEMPOTENT',
+            'name' => 'Test',
+            'count_type' => 'full',
+            'created_by' => $user->id,
+        ]);
+
+        $service = app(StockCountService::class);
+
+        $this->assertSame(1, $service->snapshot($count));
+        $this->assertSame(0, $service->snapshot($count));
+        $this->assertSame(1, $count->items()->count());
+    }
+
     public function test_full_flow_creates_adjustment_movements(): void
     {
         [$tenant, $warehouse, $product, $user] = $this->bootstrap();
@@ -216,6 +239,26 @@ class StockCountApiTest extends TestCase
         ], $user->id);
 
         $this->expectException(\RuntimeException::class);
+        $service->complete($count, $user->id);
+    }
+
+    public function test_cannot_complete_count_with_uncounted_items(): void
+    {
+        [$tenant, $warehouse, $product, $user] = $this->bootstrap();
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $service = app(StockCountService::class);
+        $count = $service->create($tenant, $warehouse, [
+            'code' => 'CC-INCOMPLETE', 'name' => 'Test', 'count_type' => 'full',
+        ], $user->id);
+        $service->snapshot($count);
+        $service->start($count);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Todos los items deben estar contados');
         $service->complete($count, $user->id);
     }
 

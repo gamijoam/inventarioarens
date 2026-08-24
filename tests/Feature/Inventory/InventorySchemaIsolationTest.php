@@ -6,6 +6,7 @@ use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -96,6 +97,41 @@ class InventorySchemaIsolationTest extends TestCase
         $this->assertDatabaseCount('branches', 2);
         $this->assertDatabaseCount('warehouses', 2);
         $this->assertDatabaseCount('stock_balances', 2);
+    }
+
+    public function test_stock_balances_allow_distinct_variants_in_the_same_warehouse(): void
+    {
+        [$tenant] = $this->tenants();
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, 'VARIANTS');
+
+        $red = ProductVariant::create([
+            'product_id' => $product->id,
+            'color' => 'Rojo',
+            'sku_variant' => 'SKU-RED',
+            'is_active' => true,
+        ]);
+        $blue = ProductVariant::create([
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'sku_variant' => 'SKU-BLUE',
+            'is_active' => true,
+        ]);
+
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $red->id,
+            'quantity_available' => 3,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $blue->id,
+            'quantity_available' => 4,
+        ]);
+
+        $this->assertSame(2, StockBalance::query()->count());
+        $this->assertSame(7.0, (float) StockBalance::query()->sum('quantity_available'));
     }
 
     public function test_stock_movement_cannot_reference_product_from_another_tenant(): void

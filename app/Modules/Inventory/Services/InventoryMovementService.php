@@ -524,6 +524,30 @@ class InventoryMovementService
         float $quantity,
         array $serialUnits,
     ): array {
+        return $this->resolveSerializedUnitsByStatus(
+            product: $product,
+            warehouse: $warehouse,
+            quantity: $quantity,
+            serialUnits: $serialUnits,
+            allowedStatuses: [ProductUnit::STATUS_AVAILABLE],
+        );
+    }
+
+    /**
+     * Resuelve seriales existentes que pueden estar en un estado operativo
+     * distinto de AVAILABLE, por ejemplo RESERVED durante una recepcion.
+     *
+     * @param  array<int, string>  $allowedStatuses
+     * @param  array<int, array{serial_type: string, serial_number: string}>  $serialUnits
+     * @return array<int, int>
+     */
+    public function resolveSerializedUnitsByStatus(
+        Product $product,
+        Warehouse $warehouse,
+        float $quantity,
+        array $serialUnits,
+        array $allowedStatuses,
+    ): array {
         if (! $product->requiresSerializedTracking()) {
             if ($serialUnits !== []) {
                 throw ValidationException::withMessages([
@@ -564,7 +588,7 @@ class InventoryMovementService
         $units = ProductUnit::query()
             ->where('product_id', $product->id)
             ->where('warehouse_id', $warehouse->id)
-            ->where('status', ProductUnit::STATUS_AVAILABLE)
+            ->whereIn('status', $allowedStatuses)
             ->whereIn('serial_number', array_column($normalized, 'serial_number'))
             ->lockForUpdate()
             ->get()
@@ -581,7 +605,7 @@ class InventoryMovementService
             $ids[] = $unit->id;
         }
 
-        $this->validateSerializedUnits($product, $warehouse, $quantity, $ids);
+        $this->validateSerializedUnits($product, $warehouse, $quantity, $ids, $allowedStatuses);
 
         return $ids;
     }

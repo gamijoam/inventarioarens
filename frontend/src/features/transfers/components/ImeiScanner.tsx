@@ -12,6 +12,8 @@
  *  - productId: producto a listar.
  *  - warehouseId: almacen del que se listan los IMEIs.
  *  - serialType: 'imei' | 'serial' (filto por tipo).
+ *  - status: estado de las unidades a listar (available/reserved).
+ *  - allowedUnitIds: limita la lista a las unidades pertenecientes al traslado.
  *  - selected: array actual de IMEIs/seriales seleccionados (controlado).
  *  - onChange: callback que notifica al padre con el array actualizado.
  *  - max: limite de seleccion (default = la cantidad esperada del item).
@@ -31,6 +33,8 @@ export interface ImeiScannerProps {
   productId: number | null;
   warehouseId: number | null;
   serialType?: 'imei' | 'serial';
+  status?: string;
+  allowedUnitIds?: number[];
   selected: string[];
   onChange: (selected: string[]) => void;
   max?: number;
@@ -45,6 +49,8 @@ export function ImeiScanner({
   selected,
   onChange,
   max,
+  status = 'available',
+  allowedUnitIds,
   disabled = false,
   dataTestIdPrefix = 'imei-scanner',
 }: ImeiScannerProps) {
@@ -60,11 +66,13 @@ export function ImeiScanner({
     productId ?? 0,
     warehouseId,
     debouncedSearch,
-    'available',
+    status,
   );
 
   // Filter by serial type client-side
-  const units = (data ?? []).filter((u) => u.serial_type === serialType);
+  const units = (data ?? []).filter(
+    (u) => u.serial_type === serialType && (!allowedUnitIds || allowedUnitIds.includes(u.id)),
+  );
 
   function toggle(serial: string) {
     if (disabled) return;

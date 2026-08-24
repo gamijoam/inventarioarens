@@ -8,8 +8,7 @@
  * Para cada item del transfer, el user confirma la cantidad preparada
  * (default = requested_quantity). Si el item es serializado, captura
  * los IMEIs/seriales REALES (no IDs falsos). El backend resuelve cada
- * serial_number a un ProductUnit existente o lo crea AVAILABLE en el
- * almacen de origen.
+ * serial_number a un ProductUnit AVAILABLE existente en el almacen de origen.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -19,6 +18,7 @@ import { ImeiScanner } from './ImeiScanner';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { Select } from '@/components/ui/Select';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { usePrepareTransfer, useTransfer } from '@/features/transfers/api';
 import type { PrepareTransferValues, Transfer } from '@/features/transfers/schemas';
@@ -120,8 +120,7 @@ export function TransferPrepareDialog({
           prepared_quantity: isSerialized ? undefined : r.preparing_quantity,
           // Para serializados: enviamos serial_units con los IMEIs/seriales
           // REALES que el usuario ingreso. El backend los resuelve a IDs.
-          prepared_serial_units: isSerialized && serials.length > 0 ? serials : undefined,
-          // Mantenemos prepared_product_unit_ids vacio (legacy path).
+          serial_units: isSerialized && serials.length > 0 ? serials : undefined,
           prepared_product_unit_ids: undefined,
           difference_reason:
             (isSerialized ? serials.length : r.preparing_quantity) < r.requested
@@ -178,9 +177,29 @@ export function TransferPrepareDialog({
 
                 {isSerialized ? (
                   <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={`prep-type-${r.transfer_item_id}`} className="text-xs">
+                        Tipo de serial
+                      </Label>
+                      <Select
+                        id={`prep-type-${r.transfer_item_id}`}
+                        value={r.new_unit_type}
+                        onChange={(e) =>
+                          updateRow(r.transfer_item_id, {
+                            new_unit_type: e.target.value as 'imei' | 'serial',
+                            preparing_serials: [],
+                          })
+                        }
+                        className="w-32"
+                      >
+                        <option value="imei">IMEI</option>
+                        <option value="serial">Serial</option>
+                      </Select>
+                    </div>
                     <ImeiScanner
                       productId={r.product_id}
                       warehouseId={transfer.from_warehouse_id}
+                      serialType={r.new_unit_type}
                       selected={r.preparing_serials
                         .map((s) => s.serial_number)
                         .filter((s) => s.trim() !== '')}
