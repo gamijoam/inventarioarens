@@ -145,6 +145,62 @@ class AccessControlApiTest extends TestCase
         }
     }
 
+    public function test_existing_owner_and_administrator_roles_receive_sales_reversal_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Reversion', 'slug' => 'empresa-reversion']);
+        setPermissionsTeamId($tenant->id);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            Role::create(['name' => $roleName, 'guard_name' => 'web', 'tenant_id' => $tenant->id]);
+        }
+
+        $migration = require base_path(
+            'database/migrations/2026_08_24_090000_add_sales_reverse_permission_to_admin_roles.php',
+        );
+        $migration->up();
+
+        setPermissionsTeamId($tenant->id);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            $role = Role::query()
+                ->where('name', $roleName)
+                ->where('tenant_id', $tenant->id)
+                ->firstOrFail();
+
+            $this->assertTrue($role->hasPermissionTo('sales.reverse'));
+        }
+    }
+
+    public function test_new_owner_and_administrator_users_receive_sales_reversal_permission_from_role(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Usuarios', 'slug' => 'empresa-usuarios']);
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $admin = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $admin, 'Access Admin', ['users.create']);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            $email = "{$roleName}.nuevo@example.test";
+
+            $this
+                ->actingAs($admin)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->postJson('/api/users', [
+                    'name' => "Usuario {$roleName}",
+                    'email' => $email,
+                    'roles' => [$roleName],
+                ])
+                ->assertCreated();
+
+            $created = User::query()->where('email', strtolower($email))->firstOrFail();
+            setPermissionsTeamId($tenant->id);
+            $this->assertTrue(
+                $created->fresh()->can('sales.reverse'),
+                "El usuario nuevo con rol {$roleName} debe recibir sales.reverse.",
+            );
+        }
+    }
+
     public function test_group_tenant_loads_all_base_roles_when_roles_are_requested(): void
     {
         $tenant = Tenant::create(['name' => 'Grupo A', 'slug' => 'grupo-a', 'is_group' => true]);

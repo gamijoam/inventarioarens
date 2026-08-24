@@ -6,13 +6,14 @@ const moneyValue = z.union([z.number(), z.string()]).nullable().optional().trans
   return Number.isFinite(n) ? n : 0;
 });
 
-export const SaleStatusSchema = z.enum(['draft', 'confirmed', 'cancelled']);
+export const SaleStatusSchema = z.enum(['draft', 'confirmed', 'cancelled', 'voided']);
 export type SaleStatus = z.infer<typeof SaleStatusSchema>;
 
 export const SALE_STATUS_LABELS: Record<SaleStatus, string> = {
   draft: 'Borrador',
   confirmed: 'Confirmada',
   cancelled: 'Cancelada',
+  voided: 'Anulada',
 };
 
 export interface SaleListFilters {
@@ -187,5 +188,21 @@ export const SaleSchema = z.object({
   updated_at: z.string().nullable().optional(),
 }).passthrough();
 
+export const SaleReversalSchema = z.object({
+  id: z.number().int().positive(),
+  type: z.enum(['void', 'reversal']),
+  reason: z.string(),
+  original_sale_id: z.number().int().positive(),
+  original_pos_order_id: z.number().int().positive(),
+  cash_register_session_id: z.number().int().positive(),
+  original_paid_at: z.string().nullable().optional(),
+  effective_at: z.string().nullable().optional(),
+  reversed_base_amount: moneyValue,
+  reversed_local_amount: moneyValue,
+  created_by: z.number().int().positive().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+}).passthrough();
+
 export type Sale = z.infer<typeof SaleSchema>;
 export type SaleItem = z.infer<typeof SaleItemSchema>;
+export type SaleReversal = z.infer<typeof SaleReversalSchema>;

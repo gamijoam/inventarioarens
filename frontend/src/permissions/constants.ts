@@ -39,6 +39,7 @@ export const PERMISSIONS = {
   SALES_CREATE: 'sales.create',
   SALES_CONFIRM: 'sales.confirm',
   SALES_CANCEL: 'sales.cancel',
+  SALES_REVERSE: 'sales.reverse',
 
   // POS
   POS_VIEW: 'pos.view',

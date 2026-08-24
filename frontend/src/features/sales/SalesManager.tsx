@@ -12,11 +12,17 @@ import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
-import { useCurrentExchangeRatesForPos, type CurrentExchangeRate } from '@/features/pos/api';
+import {
+  useCashSessions,
+  useCurrentExchangeRatesForPos,
+  type CashRegisterSession,
+  type CurrentExchangeRate,
+} from '@/features/pos/api';
 import { activeUsdVesRate, currentLocalBalance } from '@/features/receivables/currentBalance';
 import { useCreateSalesReturn, type SalesReturnPayload } from '@/features/sales-returns/api';
 import { useCreateWarrantyClaim, type WarrantyClaimPayload } from '@/features/warranties/api';
 import { useCancelSale, useSale, useSales, type SaleListFilters } from './api';
+import { ReverseSaleDialog } from './ReverseSaleDialog';
 import { SALE_STATUS_LABELS, type Sale, type SaleItem, type SaleStatus } from './schemas';
 
 const RECEIVABLE_STATUS_LABELS: Record<string, string> = {
@@ -44,7 +50,7 @@ const PROMOTION_OPTIONS: { value: NonNullable<SaleListFilters['promotion_scope']
 
 function statusVariant(status: SaleStatus): 'default' | 'success' | 'danger' | 'warning' {
   if (status === 'confirmed') return 'success';
-  if (status === 'cancelled') return 'danger';
+  if (status === 'cancelled' || status === 'voided') return 'danger';
   return 'warning';
 }
 
@@ -164,8 +170,11 @@ export function SalesManager() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const { data, isLoading, isError, refetch } = useSales(filters);
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
+  const { data: cashSessions = [] } = useCashSessions();
   const activeRate = activeUsdVesRate(rates);
+  const activeSession = cashSessions[0] ?? null;
   const canCancel = useCan(PERMISSIONS.SALES_CANCEL);
+  const canReverse = useCan(PERMISSIONS.SALES_REVERSE);
   const canCreateReturn = useCan(PERMISSIONS.SALES_RETURNS_CREATE);
   const canCreateWarranty = useCan(PERMISSIONS.WARRANTIES_CREATE);
   const cancelSale = useCancelSale();
@@ -312,6 +321,8 @@ export function SalesManager() {
                     activeRate={activeRate}
                     expanded={expandedId === sale.id}
                     canCancel={canCancel}
+                    canReverse={canReverse}
+                    activeSession={activeSession}
                     canCreateReturn={canCreateReturn}
                     canCreateWarranty={canCreateWarranty}
                     cancelling={cancelSale.isPending}
@@ -360,6 +371,8 @@ function SaleRow({
   activeRate,
   expanded,
   canCancel,
+  canReverse,
+  activeSession,
   canCreateReturn,
   canCreateWarranty,
   cancelling,
@@ -370,6 +383,8 @@ function SaleRow({
   activeRate: CurrentExchangeRate | null;
   expanded: boolean;
   canCancel: boolean;
+  canReverse: boolean;
+  activeSession: CashRegisterSession | null;
   canCreateReturn: boolean;
   canCreateWarranty: boolean;
   cancelling: boolean;
@@ -426,6 +441,8 @@ function SaleRow({
               saleId={sale.id}
               sale={sale}
               canCancel={canCancel}
+              canReverse={canReverse}
+              activeSession={activeSession}
               canCreateReturn={canCreateReturn}
               canCreateWarranty={canCreateWarranty}
               cancelling={cancelling}
@@ -442,6 +459,8 @@ function SaleDetail({
   saleId,
   sale,
   canCancel,
+  canReverse,
+  activeSession,
   canCreateReturn,
   canCreateWarranty,
   cancelling,
@@ -450,6 +469,8 @@ function SaleDetail({
   saleId: number;
   sale: Sale;
   canCancel: boolean;
+  canReverse: boolean;
+  activeSession: CashRegisterSession | null;
   canCreateReturn: boolean;
   canCreateWarranty: boolean;
   cancelling: boolean;
@@ -467,6 +488,8 @@ function SaleDetail({
   const actor = current.pos_order?.cashier_name ?? current.created_by_name ?? 'Sin usuario';
   const returnLabel = returnStatusLabel(current);
   const canReturnCurrentSale = canCreateReturn && current.status === 'confirmed' && hasReturnableItems(current);
+  const canReverseCurrentSale = canReverse && current.status === 'confirmed' && current.pos_order?.status === 'paid';
+  const [showReverseForm, setShowReverseForm] = useState(false);
 
   if (isLoading && !detail) return <Skeleton className="h-36 w-full" />;
 
@@ -560,6 +583,15 @@ function SaleDetail({
         />
       )}
 
+      {canReverseCurrentSale && (
+        <ReverseSaleDialog
+          sale={current}
+          activeSession={activeSession}
+          open={showReverseForm}
+          onOpenChange={setShowReverseForm}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-text-muted">
           Total: <strong className="text-text-primary">{formatMoney(current.total_base_amount)}</strong>
@@ -573,6 +605,16 @@ function SaleDetail({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          {canReverseCurrentSale && (
+            <Button
+              variant="danger"
+              size="sm"
+              leftIcon={<XCircle className="size-4" />}
+              onClick={() => setShowReverseForm(true)}
+            >
+              Anular / revertir
+            </Button>
+          )}
           {canReturnCurrentSale && (
             <Button
               variant="secondary"
