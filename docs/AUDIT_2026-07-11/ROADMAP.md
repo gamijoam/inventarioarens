@@ -471,7 +471,7 @@ Frontend del modulo de Access Control. Backend operativo desde 2026-07-12 con 61
 - [x] Expiración TTL de reservas: `reservation_expires_at`, comando idempotente, liberación de saldo/IMEI y scheduled cada 5 minutos. 3 tests propios + 24 sync/inventario relacionados verdes.
 - [x] Idempotencia HTTP agregada a mutaciones críticas restantes de ventas, compras, entradas/salidas, devoluciones, solicitudes interempresa, caja, CxP, recibos y ajustes. 1 test de contrato de rutas + 146 tests de módulos verdes.
 - [ ] Suite completa: el perfil SQLite terminó con 1489/1490 tests ejecutados correctamente, 1 fallo preexistente en `ProductApiTest::test_automatic_pricing_calculates_sale_price_from_initial_cost` y 4 skipped; el perfil con process isolation excede el timeout operativo.
-- [ ] Dry-run producción 2026-08-24: `inventory_arens` reporta 48 drifts históricos, concentrados en tenants `oscar-cell`, sus sucursales y un laboratorio; `inventory_tiendasarens` reporta 0. No se ejecutó `--fix`.
+- [x] Reconciliación producción 2026-08-24: se corrigieron 46 drifts de saldos en `inventory_arens`; los 2 negativos históricos se trataron con piso operativo cero. Dry-run posterior: 0 drift en `inventory_arens` y `inventory_tiendasarens`. Backup: `/var/backups/inventory_arens_pre_reconcile_fix_20260824230007.dump`.
 
 ## Anti-patrones prohibidos (AGENTS.md §9.5 + §14)
 
