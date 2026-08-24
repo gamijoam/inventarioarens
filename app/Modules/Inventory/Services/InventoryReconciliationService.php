@@ -103,6 +103,13 @@ class InventoryReconciliationService
             }
         }
 
+        foreach ($expected as &$balance) {
+            $balance['available'] = max(0.0, $balance['available']);
+            $balance['reserved'] = max(0.0, $balance['reserved']);
+            $balance['damaged'] = max(0.0, $balance['damaged']);
+        }
+        unset($balance);
+
         return $expected;
     }
 

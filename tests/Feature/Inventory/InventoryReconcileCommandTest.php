@@ -192,6 +192,28 @@ class InventoryReconcileCommandTest extends TestCase
         $this->assertEquals(1, (float) $balance->quantity_reserved);
     }
 
+    public function test_reconciliation_never_projects_negative_operational_stock(): void
+    {
+        [$tenant, $warehouse, $product] = $this->inventoryContext('reconcile-negative-ledger');
+        StockMovement::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'sale',
+            'quantity' => 4,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 0,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
+
+        $this->artisan('inventory:reconcile', ['tenant' => $tenant->slug])
+            ->expectsOutputToContain('0 drift')
+            ->assertExitCode(0);
+    }
+
     private function inventoryContext(string $slug): array
     {
         $tenant = Tenant::create(['name' => $slug, 'slug' => $slug]);
