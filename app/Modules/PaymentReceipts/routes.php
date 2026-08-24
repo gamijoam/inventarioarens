@@ -7,4 +7,5 @@ Route::apiResource('payment-receipts', PaymentReceiptController::class)
     ->parameters(['payment-receipts' => 'paymentReceipt'])
     ->only(['index', 'show']);
 
-Route::patch('payment-receipts/{paymentReceipt}/void', [PaymentReceiptController::class, 'void']);
+Route::patch('payment-receipts/{paymentReceipt}/void', [PaymentReceiptController::class, 'void'])
+    ->middleware('idempotency');

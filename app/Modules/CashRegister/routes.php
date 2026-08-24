@@ -6,16 +6,16 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('cash-register')->group(function (): void {
     Route::get('registers', [CashRegisterController::class, 'index']);
-    Route::post('registers', [CashRegisterController::class, 'store']);
-    Route::patch('registers/{cashRegister}', [CashRegisterController::class, 'update']);
+    Route::post('registers', [CashRegisterController::class, 'store'])->middleware('idempotency');
+    Route::patch('registers/{cashRegister}', [CashRegisterController::class, 'update'])->middleware('idempotency');
     Route::get('sessions', [CashRegisterSessionController::class, 'index']);
-    Route::post('sessions', [CashRegisterSessionController::class, 'open']);
+    Route::post('sessions', [CashRegisterSessionController::class, 'open'])->middleware('idempotency');
     Route::get('sessions/{cashRegisterSession}', [CashRegisterSessionController::class, 'show']);
     Route::get('sessions/{cashRegisterSession}/detail', [CashRegisterSessionController::class, 'detail']);
     Route::get('sessions/{cashRegisterSession}/report-z', [CashRegisterSessionController::class, 'reportZ']);
     Route::get('sessions/{cashRegisterSession}/report-z.pdf', [CashRegisterSessionController::class, 'reportZPdf']);
     Route::get('sessions/{cashRegisterSession}/report-z.ticket.html', [CashRegisterSessionController::class, 'reportZTicket']);
-    Route::post('sessions/{cashRegisterSession}/movements', [CashRegisterSessionController::class, 'movement']);
-    Route::patch('sessions/{cashRegisterSession}/close', [CashRegisterSessionController::class, 'close']);
-    Route::post('sessions/{cashRegisterSession}/review', [CashRegisterSessionController::class, 'review']);
+    Route::post('sessions/{cashRegisterSession}/movements', [CashRegisterSessionController::class, 'movement'])->middleware('idempotency');
+    Route::patch('sessions/{cashRegisterSession}/close', [CashRegisterSessionController::class, 'close'])->middleware('idempotency');
+    Route::post('sessions/{cashRegisterSession}/review', [CashRegisterSessionController::class, 'review'])->middleware('idempotency');
 });

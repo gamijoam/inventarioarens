@@ -1158,3 +1158,20 @@ pnpm run electron:build:pos
 & "frontend\release\admin\Sistema-de-Inventario-Administrativo-0.1.0.exe"
 & "frontend\release\pos\Sistema-de-Inventario-POS-0.1.0.exe"
 ```
+
+## Hardening de inventario e idempotencia (2026-08-24)
+
+- Las reservas de inventario guardan `stock_movements.reservation_expires_at` (TTL por defecto de
+  30 minutos). `php artisan inventory:expire-reservations` libera saldo y ProductUnits reservadas
+  cuyo movimiento vencio; la tarea corre cada 5 minutos y es idempotente por movimiento original.
+- `php artisan inventory:reconcile` ahora detecta tambien drift entre `stock_balances` y
+  ProductUnits serializadas/IMEI. `--fix-serials` corrige esos saldos explicitamente; no usarlo sin
+  revisar el reporte cuando el ledger y las unidades difieren.
+- Sync replica `reservation_expires_at` y aplica `reserved`/`released` a las cantidades disponible y
+  reservada. Los eventos de ProductUnit conservan la identidad natural serializada.
+- Se agrego middleware `idempotency` a las mutaciones criticas de ventas, compras, entradas/salidas,
+  devoluciones, solicitudes interempresa, caja, CxP, recibos y ajustes financieros. El header sigue
+  siendo opcional; sin `Idempotency-Key` el flujo conserva el comportamiento anterior.
+- La base de PHPUnit esta separada de produccion: `phpunit.xml` usa `inventory_arens_testing_local`;
+  el perfil SQLite reproducible es `phpunit.sqlite.xml`. No usar `inventory_arens` para tests.
+- Estos cambios no publican ni construyen Electron.

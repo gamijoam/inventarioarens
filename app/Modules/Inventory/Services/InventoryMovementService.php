@@ -13,6 +13,7 @@ use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
+use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -295,8 +296,11 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?int $productVariantId = null,
+        ?DateTimeInterface $expiresAt = null,
     ): StockMovement {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): StockMovement {
+        $expiresAt ??= now()->addMinutes(30);
+
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId, $expiresAt): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product, $productVariantId);
@@ -306,7 +310,7 @@ class InventoryMovementService
             $balance->quantity_reserved = (float) $balance->quantity_reserved + $quantity;
             $balance->save();
 
-            return $this->recordMovement('reserved', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
+            return $this->recordMovement('reserved', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId, $expiresAt);
         });
     }
 
@@ -692,6 +696,7 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?int $productVariantId = null,
+        ?DateTimeInterface $reservationExpiresAt = null,
     ): StockMovement {
         $movement = StockMovement::create([
             'warehouse_id' => $warehouse->id,
@@ -703,6 +708,7 @@ class InventoryMovementService
             'reason' => $reason,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
+            'reservation_expires_at' => $reservationExpiresAt,
             'created_by' => $createdBy?->id,
         ]);
 

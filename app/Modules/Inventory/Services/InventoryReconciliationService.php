@@ -3,6 +3,7 @@
 namespace App\Modules\Inventory\Services;
 
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Products\Models\Product;
 use Illuminate\Support\Facades\DB;
 
 class InventoryReconciliationService
@@ -26,13 +27,18 @@ class InventoryReconciliationService
         'released' => 1,
     ];
 
-    public function reconcileTenant(int $tenantId, bool $fix = false, bool $dryRun = false): array
-    {
+    public function reconcileTenant(
+        int $tenantId,
+        bool $fix = false,
+        bool $dryRun = false,
+        bool $fixSerials = false,
+    ): array {
         $expected = $this->expectedBalances($tenantId);
         $actual = $this->actualBalances($tenantId);
         $keys = array_values(array_unique([...array_keys($expected), ...array_keys($actual)]));
         $drifts = [];
         $fixed = 0;
+        $fixedKeys = [];
 
         foreach ($keys as $key) {
             $expectedBalance = $expected[$key] ?? $this->zeroBalance();
@@ -50,11 +56,23 @@ class InventoryReconciliationService
             if ($fix && ! $dryRun) {
                 $this->fixBalance($tenantId, $key, $expectedBalance, $actual[$key]['rows'] ?? []);
                 $fixed++;
+                $fixedKeys[$key] = true;
+            }
+        }
+
+        $serialDrifts = $this->serialDrifts($tenantId, $actual);
+        foreach ($serialDrifts as $drift) {
+            if ($fixSerials && ! $dryRun) {
+                $this->fixBalance($tenantId, $drift['key'], $drift['expected'], $drift['rows']);
+                if (! isset($fixedKeys[$drift['key']])) {
+                    $fixed++;
+                }
             }
         }
 
         return [
             'drifts' => $drifts,
+            'serial_drifts' => $serialDrifts,
             'fixed' => $fixed,
         ];
     }
@@ -109,6 +127,83 @@ class InventoryReconciliationService
         }
 
         return $actual;
+    }
+
+    /**
+     * @param  array<string, array{totals: array{available: float, reserved: float, damaged: float}, rows: array<int, object>}>  $actual
+     * @return array<int, array{key: string, expected: array{available: float, reserved: float, damaged: float}, actual: array{available: float, reserved: float, damaged: float}, rows: array<int, object> }>
+     */
+    private function serialDrifts(int $tenantId, array $actual): array
+    {
+        $serializedProductIds = DB::table('products')
+            ->where('tenant_id', $tenantId)
+            ->where('tracking_type', Product::TRACKING_SERIALIZED)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+
+        if ($serializedProductIds === []) {
+            return [];
+        }
+
+        $expected = [];
+        $units = DB::table('product_units')
+            ->where('tenant_id', $tenantId)
+            ->whereIn('product_id', $serializedProductIds)
+            ->whereNotNull('warehouse_id')
+            ->whereIn('status', ['available', 'reserved', 'damaged'])
+            ->select(['warehouse_id', 'product_id', 'product_variant_id', 'status'])
+            ->get();
+
+        foreach ($units as $unit) {
+            $key = $this->key($unit->warehouse_id, $unit->product_id, $unit->product_variant_id);
+            $expected[$key] ??= $this->zeroBalance();
+            $expected[$key][$this->unitBucket((string) $unit->status)]++;
+        }
+
+        $drifts = [];
+        foreach ($actual as $key => $balance) {
+            [, $productId] = explode('|', $key, 3);
+            if (! in_array((int) $productId, $serializedProductIds, true)) {
+                continue;
+            }
+
+            $expectedBalance = $expected[$key] ?? $this->zeroBalance();
+            if ($this->matches($expectedBalance, $balance['totals'])) {
+                continue;
+            }
+
+            $drifts[] = [
+                'key' => $key,
+                'expected' => $expectedBalance,
+                'actual' => $balance['totals'],
+                'rows' => $balance['rows'],
+            ];
+        }
+
+        foreach ($expected as $key => $expectedBalance) {
+            if (array_key_exists($key, $actual)) {
+                continue;
+            }
+
+            $drifts[] = [
+                'key' => $key,
+                'expected' => $expectedBalance,
+                'actual' => $this->zeroBalance(),
+                'rows' => [],
+            ];
+        }
+
+        return $drifts;
+    }
+
+    private function unitBucket(string $status): string
+    {
+        return match ($status) {
+            'reserved' => 'reserved',
+            'damaged' => 'damaged',
+            default => 'available',
+        };
     }
 
     /**

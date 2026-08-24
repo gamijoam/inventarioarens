@@ -74,6 +74,11 @@ $app = Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(30)
             ->appendOutputTo(storage_path('logs/inventory-reconcile.log'));
 
+        $schedule->command('inventory:expire-reservations --limit=500')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(10)
+            ->appendOutputTo(storage_path('logs/inventory-reservations.log'));
+
         // Bot de Telegram: alertas de stock bajo y resumen diario. Correr cada
         // hora; el comando evalua la hora configurada por cada empresa.
         $schedule->command('telegram:alerts --type=stock')

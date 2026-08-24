@@ -5,4 +5,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::apiResource('financial-adjustments', FinancialAdjustmentController::class)
     ->parameters(['financial-adjustments' => 'financialAdjustment'])
-    ->only(['index', 'store', 'show']);
+    ->only(['index', 'show']);
+
+Route::post('financial-adjustments', [FinancialAdjustmentController::class, 'store'])
+    ->middleware('idempotency');

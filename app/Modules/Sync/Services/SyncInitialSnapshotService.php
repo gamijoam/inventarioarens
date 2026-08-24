@@ -567,6 +567,9 @@ class SyncInitialSnapshotService
                         'reason' => $movement->reason,
                         'reference_type' => $movement->reference_type,
                         'reference_id' => $movement->reference_id,
+                        'reservation_expires_at' => $movement->reservation_expires_at === null
+                            ? null
+                            : Carbon::parse($movement->reservation_expires_at)->toISOString(),
                         'created_at' => Carbon::parse($movement->created_at)->toISOString(),
                     ]);
                     $count++;

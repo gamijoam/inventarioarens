@@ -3,6 +3,7 @@
 namespace Tests\Feature\Inventory;
 
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
@@ -134,6 +135,61 @@ class InventoryReconcileCommandTest extends TestCase
         $this->assertEquals(4, (float) $this->balance($warehouseA, $productA)->quantity_available);
         $this->useTenant($tenantB);
         $this->assertEquals(0, (float) $this->balance($warehouseB, $productB)->quantity_available);
+    }
+
+    public function test_reconciliation_detects_and_optionally_fixes_serial_unit_drift(): void
+    {
+        [$tenant, $warehouse, $product] = $this->inventoryContext('reconcile-serial');
+        $product->update(['tracking_type' => Product::TRACKING_SERIALIZED]);
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => 'IMEI-RECON-001',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => 'IMEI-RECON-002',
+            'status' => ProductUnit::STATUS_RESERVED,
+        ]);
+        StockMovement::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'purchase',
+            'quantity' => 2,
+        ]);
+        StockMovement::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'reserved',
+            'quantity' => 1,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 3,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
+
+        $this->artisan('inventory:reconcile', ['tenant' => $tenant->slug])
+            ->expectsOutputToContain('1 serial drift')
+            ->assertExitCode(1);
+        $this->assertEquals(3, (float) $this->balance($warehouse, $product)->quantity_available);
+
+        $this->artisan('inventory:reconcile', [
+            'tenant' => $tenant->slug,
+            '--fix' => true,
+            '--fix-serials' => true,
+        ])
+            ->expectsOutputToContain('1 fixed')
+            ->assertExitCode(0);
+        $balance = $this->balance($warehouse, $product);
+        $this->assertEquals(1, (float) $balance->quantity_available);
+        $this->assertEquals(1, (float) $balance->quantity_reserved);
     }
 
     private function inventoryContext(string $slug): array

@@ -77,16 +77,12 @@
   para que solo acepten valores del enum; reemplazar `=== 'dispatched'` por `$state === TransferState::Dispatched`.
 - **Test:** maquina de transiciones validas/invalidas + DB CHECK constraint (conecta con P3-4).
 
-### [ ] P3-3 — Reservation TTL + inventory:expire-reservations + scheduled ~M
-- **Hoy:** `stock_balances.quantity_reserved` puede quedarse reservado para siempre si
-  la orden POS nunca se cierra.
-- **Fix esperado:** columna `reserved_until TIMESTAMP NULL` en `pos_orders` o tabla puente
-  `stock_reservations(id, pos_order_id, product_id, warehouse_id, quantity, reserved_until)`.
-  Artisan command `inventory:expire-reservations` que mueve reservaciones vencidas de
-  `quantity_reserved` a `quantity_available` y registra stock_movement de tipo `release`.
-  Scheduled cada 5 min.
-- **Test:** reservaciones vencidas se liberan, reservaciones vigentes se mantienen,
-  stock_movement de `release` se crea con snapshot.
+### [x] P3-3 — Reservation TTL + inventory:expire-reservations + scheduled — 2026-08-24
+- `stock_movements.reservation_expires_at` registra el vencimiento de cada reserva.
+- `inventory:expire-reservations` libera saldo y unidades IMEI/seriales vencidas mediante un
+  movimiento compensatorio `released`, con referencia idempotente al movimiento reservado.
+- Scheduled cada 5 minutos; incluye aislamiento por tenant y límite configurable.
+- Tests: vencida, vigente, doble ejecución y aislamiento cross-tenant.
 
 ### [ ] P3-4 — DB CHECK constraints (stock_balances >= 0, stock_movements.type ENUM) ~M
 - **Hoy:** `stock_balances.quantity_available` puede quedar negativo por bug o race.

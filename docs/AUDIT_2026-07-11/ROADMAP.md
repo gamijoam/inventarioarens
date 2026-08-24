@@ -466,9 +466,11 @@ Frontend del modulo de Access Control. Backend operativo desde 2026-07-12 con 61
 - [x] Snapshot de conteo fisico idempotente, bloqueo al completar y rechazo de items sin contar. 10 tests verdes.
 - [x] `reserve_on_request` evita doble reserva al preparar y marca correctamente unidades serializadas como `reserved`. 4 tests verdes.
 - [x] Idempotencia aplicada a movimientos de inventario y todas las mutaciones de traslados; claves aisladas por tenant. Tests backend y frontend verdes.
-- [x] `inventory:reconcile {tenant?}` compara available/reserved/damaged, soporta `--fix` y `--dry-run`, y queda programado cada noche. 4 tests verdes.
+- [x] `inventory:reconcile {tenant?}` compara available/reserved/damaged y tambien ProductUnits IMEI/serializadas; soporta `--fix`, `--fix-serials` y `--dry-run`, y queda programado cada noche. 9 tests verdes.
 - [x] E2E Chromium cubre login, selección real de IMEI, creación de traslado, header `Idempotency-Key` y replay de la misma operación. 1 test UI verde.
-- [ ] Completar expiracion de reservas, idempotencia de operaciones mutantes restantes y suite completa antes de commit/deploy.
+- [x] Expiración TTL de reservas: `reservation_expires_at`, comando idempotente, liberación de saldo/IMEI y scheduled cada 5 minutos. 3 tests propios + 24 sync/inventario relacionados verdes.
+- [x] Idempotencia HTTP agregada a mutaciones críticas restantes de ventas, compras, entradas/salidas, devoluciones, solicitudes interempresa, caja, CxP, recibos y ajustes. 1 test de contrato de rutas + 146 tests de módulos verdes.
+- [ ] Suite completa: el perfil SQLite terminó con 1489/1490 tests ejecutados correctamente, 1 fallo preexistente en `ProductApiTest::test_automatic_pricing_calculates_sale_price_from_initial_cost` y 4 skipped; el perfil con process isolation excede el timeout operativo.
 
 ## Anti-patrones prohibidos (AGENTS.md §9.5 + §14)
 

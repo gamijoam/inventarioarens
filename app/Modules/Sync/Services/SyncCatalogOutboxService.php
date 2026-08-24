@@ -1287,6 +1287,7 @@ class SyncCatalogOutboxService
                 'reason' => $movement->reason,
                 'reference_type' => $movement->reference_type,
                 'reference_id' => $movement->reference_id,
+                'reservation_expires_at' => $movement->reservation_expires_at?->toISOString(),
                 'product_variant_sku' => $movement->variant?->sku_variant,
                 'product_variant_color' => $movement->variant?->color,
                 'created_at' => $movement->created_at?->toISOString(),

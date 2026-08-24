@@ -570,6 +570,9 @@ class SyncEventApplier
                 'reason' => $payload['reason'] ?? 'Snapshot de sincronizacion',
                 'reference_type' => 'sync_snapshot',
                 'reference_id' => $sourceId > 0 ? $sourceId : null,
+                'reservation_expires_at' => isset($payload['reservation_expires_at']) && $payload['reservation_expires_at'] !== null
+                    ? Carbon::parse($payload['reservation_expires_at'])
+                    : null,
                 'created_by' => null,
                 'created_at' => $createdAt,
                 'updated_at' => $now,
@@ -598,8 +601,8 @@ class SyncEventApplier
      * Aplica el efecto neto de un stock_movement sobre stock_balances.
      * Las entradas (purchase, sale_return, adjustment_in, transfer_in, return_in)
      * suman; las salidas (sale, purchase_return, adjustment_out, transfer_out,
-     * return_out, damaged, reserved) restan. Los tipos neutros (released) no
-     * afectan el disponible.
+     * return_out, damaged, reserved) restan. `released` devuelve la cantidad
+     * al disponible y reduce el reservado.
      */
     private function applyStockMovementToBalance(
         Tenant $tenant,
@@ -613,15 +616,20 @@ class SyncEventApplier
             return;
         }
 
-        $sign = match ($type) {
+        $availableSign = match ($type) {
             'purchase', 'sale_return', 'adjustment_in', 'transfer_in',
-            'transfer_request_in', 'return_in' => 1,
+            'transfer_request_in', 'return_in', 'released' => 1,
             'sale', 'purchase_return', 'adjustment_out', 'transfer_out',
             'transfer_request_out', 'return_out', 'damaged', 'reserved' => -1,
             default => 0,
         };
+        $reservedSign = match ($type) {
+            'reserved' => 1,
+            'released' => -1,
+            default => 0,
+        };
 
-        if ($sign === 0) {
+        if ($availableSign === 0 && $reservedSign === 0) {
             return;
         }
 
@@ -633,13 +641,15 @@ class SyncEventApplier
             ->lockForUpdate()
             ->first();
 
-        $delta = $sign * $quantity;
+        $availableDelta = $availableSign * $quantity;
+        $reservedDelta = $reservedSign * $quantity;
 
         if ($balance) {
             DB::table('stock_balances')
                 ->where('id', $balance->id)
                 ->update([
-                    'quantity_available' => max(0.0, (float) $balance->quantity_available + $delta),
+                    'quantity_available' => max(0.0, (float) $balance->quantity_available + $availableDelta),
+                    'quantity_reserved' => max(0.0, (float) $balance->quantity_reserved + $reservedDelta),
                     'updated_at' => now(),
                 ]);
         } else {
@@ -648,8 +658,8 @@ class SyncEventApplier
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
                 'product_variant_id' => $variantId,
-                'quantity_available' => max(0.0, $delta),
-                'quantity_reserved' => 0,
+                'quantity_available' => max(0.0, $availableDelta),
+                'quantity_reserved' => max(0.0, $reservedDelta),
                 'quantity_damaged' => 0,
             ]);
         }
