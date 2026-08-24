@@ -3,6 +3,7 @@
 namespace Tests\Feature\CashRegister;
 
 use App\Models\User;
+use App\Modules\AccessControl\Models\UserBranchScope;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
@@ -56,6 +57,27 @@ class CashRegisterApiTest extends TestCase
             'aggregate_id' => $sessionId,
             'status' => 'pending',
         ]);
+    }
+
+    public function test_user_cannot_open_a_session_outside_their_branch_scope(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Scope Caja', 'slug' => 'empresa-scope-caja']);
+        $allowedBranch = $this->branch($tenant, 'BR-SCOPE-ALLOWED');
+        $blockedBranch = $this->branch($tenant, 'BR-SCOPE-BLOCKED');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Scope', ['cash_register.open', 'cash_register.view']);
+        $this->useTenant($tenant);
+        UserBranchScope::create(['user_id' => $user->id, 'branch_id' => $allowedBranch->id]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/cash-register/sessions', [
+                'branch_id' => $blockedBranch->id,
+                'opening_currency' => Product::CURRENCY_USD,
+                'opening_amount' => 50,
+            ])
+            ->assertNotFound();
     }
 
     public function test_manager_can_view_enriched_cash_session_detail(): void

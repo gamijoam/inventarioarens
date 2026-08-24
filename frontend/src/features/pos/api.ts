@@ -648,10 +648,25 @@ export function useSessionOrders(
 
 export function useCheckout() {
   const qc = useQueryClient();
+  const checkoutAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
+
   return useMutation({
-    mutationFn: async (payload: CheckoutPayload) =>
-      postOne<CheckoutPayload, PosOrder>('/pos/checkouts', payload),
+    mutationFn: async (payload: CheckoutPayload) => {
+      const fingerprint = JSON.stringify(payload);
+      const currentAttempt = checkoutAttemptRef.current;
+      const idempotencyKey = currentAttempt?.fingerprint === fingerprint
+        ? currentAttempt.key
+        : globalThis.crypto?.randomUUID?.()
+          ?? `pos-checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      checkoutAttemptRef.current = { fingerprint, key: idempotencyKey };
+
+      return postOne<CheckoutPayload, PosOrder>('/pos/checkouts', payload, {
+        headers: { 'Idempotency-Key': idempotencyKey },
+      });
+    },
     onSuccess: () => {
+      checkoutAttemptRef.current = null;
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });

@@ -2,6 +2,7 @@
 
 use App\Modules\POS\Controllers\PosBootstrapController;
 use App\Modules\POS\Controllers\PosOrderController;
+use App\Modules\SalesReversals\Controllers\SaleReversalController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('pos')->group(function (): void {
@@ -20,5 +21,7 @@ Route::prefix('pos')->group(function (): void {
     Route::post('orders/{posOrder}/payments', [PosOrderController::class, 'addPayments'])
         ->middleware('idempotency');
     Route::post('orders/{posOrder}/cancel', [PosOrderController::class, 'cancel'])
+        ->middleware('idempotency');
+    Route::post('orders/{posOrder}/reverse', SaleReversalController::class)
         ->middleware('idempotency');
 });

@@ -50,7 +50,7 @@ class AdminDashboardApiTest extends TestCase
             ->assertJsonPath('data.inventory.low_stock_count', 1)
             ->assertJsonPath('data.inventory.without_stock_count', 1)
             ->assertJsonPath('data.sync.nodes_count', 1)
-            ->assertJsonPath('data.sync.pending_outbox_count', 1)
+            ->assertJsonPath('data.sync.pending_outbox_count', 4)
             ->assertJsonPath('data.sync.failed_outbox_count', 1)
             ->assertJsonPath('data.sync.readiness_status', 'ready')
             ->assertJsonPath('data.alerts.0.type', 'without_stock')

@@ -206,7 +206,7 @@ class AdminTransfersListTest extends TestCase
 
         $t2 = $this->createTransferViaApi($user, $tenant, $from, $to, $product, 1);
         $t2->update([
-            'status' => InventoryTransfer::STATUS_IN_PREPARATION,
+            'status' => InventoryTransfer::STATUS_PREPARED,
             'processed_at' => '2026-07-02 09:00:00',
         ]);
 
@@ -216,7 +216,7 @@ class AdminTransfersListTest extends TestCase
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
-            ->getJson("/api/admin-portal/transfers?status[]=in_preparation&warehouse_id={$from->id}&date_from=2026-07-05&date_to=2026-07-10")
+            ->getJson("/api/admin-portal/transfers?status[]=prepared&warehouse_id={$from->id}&date_from=2026-07-05&date_to=2026-07-10")
             ->assertOk()
             ->assertJsonPath('data.pagination.total', 1)
             ->assertJsonPath('data.data.0.id', $t1->id);

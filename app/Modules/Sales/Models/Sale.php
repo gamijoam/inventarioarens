@@ -35,6 +35,8 @@ class Sale extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const STATUS_VOIDED = 'voided';
+
     protected function syncOutboxMethod(string $action): ?string
     {
         if ($action !== 'updated') {

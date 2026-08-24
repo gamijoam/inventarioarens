@@ -614,6 +614,75 @@ class SalesReturnApiTest extends TestCase
         $this->assertDatabaseHas('stock_balances', ['tenant_id' => $tenant->id, 'warehouse_id' => $exchangeWarehouse->id, 'product_id' => $exchangeProduct->id, 'quantity_available' => '1.0000']);
     }
 
+    public function test_legacy_exchange_cannot_create_a_second_exchange_for_the_same_return(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Canje Legacy', 'slug' => 'empresa-canje-legacy']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-LEGACY-OLD');
+        $exchangeBranch = Branch::create(['name' => 'Sucursal Legacy', 'code' => 'BR-LEGACY']);
+        $exchangeWarehouse = Warehouse::create(['branch_id' => $exchangeBranch->id, 'name' => 'Almacen Legacy', 'code' => 'WH-LEGACY']);
+        $exchangeProduct = Product::create([
+            'name' => 'Producto Legacy Nuevo',
+            'sku' => 'RET-LEGACY-NEW',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 50,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 2]);
+        StockBalance::create(['warehouse_id' => $exchangeWarehouse->id, 'product_id' => $exchangeProduct->id, 'quantity_available' => 2]);
+        $customer = Customer::create(['name' => 'Cliente Legacy', 'document_type' => Customer::DOCUMENT_V, 'document_number' => 'LEGACY-001']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Gerente', [
+            'pos.checkout',
+            'sales.create',
+            'sales_returns.create',
+            'sales_returns.review',
+            'sales_returns.process',
+            'sales_returns.refund',
+            'cash_register.move',
+        ]);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [], $customer->id);
+        $cashRegister = CashRegister::create(['branch_id' => $exchangeWarehouse->branch_id, 'name' => 'Caja Legacy', 'code' => 'LEGACY-1', 'status' => CashRegister::STATUS_ACTIVE]);
+        $session = CashRegisterSession::create([
+            'branch_id' => $exchangeWarehouse->branch_id,
+            'cash_register_id' => $cashRegister->id,
+            'cashier_id' => $user->id,
+            'opened_by' => $user->id,
+            'status' => CashRegisterSession::STATUS_OPEN,
+            'opening_base_amount' => 0,
+            'opening_local_amount' => 0,
+            'expected_base_amount' => 0,
+            'expected_local_amount' => 0,
+            'opened_at' => now(),
+        ]);
+
+        $created = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/sales-returns', [
+            'sale_id' => $sale->id,
+            'items' => [['sale_item_id' => $sale->items->first()->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $returnId = $created->json('data.id');
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/approve")->assertOk();
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/process", ['refund_mode' => 'customer_credit'])->assertOk();
+
+        $payload = [
+            'credit_amount' => 50,
+            'cash_register_session_id' => $session->id,
+            'items' => [['warehouse_id' => $exchangeWarehouse->id, 'product_id' => $exchangeProduct->id, 'quantity' => 1]],
+            'payments' => [],
+        ];
+
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sales-returns/{$returnId}/exchange", $payload)
+            ->assertOk();
+
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/sales-returns/{$returnId}/exchange", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('exchange');
+
+        $this->assertSame(1, DB::table('pos_orders')->where('tenant_id', $tenant->id)->count());
+        $this->assertSame(50.0, (float) DB::table('customer_credit_transactions')->where('tenant_id', $tenant->id)->sum('amount_base'));
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

@@ -105,6 +105,39 @@ class AccountsReceivableApiTest extends TestCase
         ]);
     }
 
+    public function test_same_idempotency_key_does_not_register_an_ar_payment_twice(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa AR Idempotencia', 'slug' => 'empresa-ar-idempotencia']);
+        [$warehouse, $product] = $this->product($tenant, 'AR-IDEMP');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Ventas', ['sales.create', 'accounts_receivable.collect', 'accounts_receivable.view']);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 2);
+        $account = AccountsReceivable::query()->where('sale_id', $sale->id)->firstOrFail();
+        $session = $this->openCashSession($tenant, $user, $warehouse);
+        $payload = [
+            'payment_currency' => Product::CURRENCY_USD,
+            'amount' => 80,
+            'cash_register_session_id' => $session->id,
+            'method' => 'transferencia',
+        ];
+
+        foreach (range(1, 2) as $attempt) {
+            $this
+                ->actingAs($user)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->withHeader('Idempotency-Key', 'ar-payment-idempotency-1')
+                ->postJson("/api/accounts-receivable/{$account->id}/payments", $payload)
+                ->assertCreated();
+        }
+
+        $this->assertSame(1, AccountsReceivablePayment::query()->where('accounts_receivable_id', $account->id)->count());
+        $this->assertDatabaseHas('accounts_receivables', [
+            'id' => $account->id,
+            'collected_base_amount' => '80.0000',
+            'balance_base_amount' => '120.0000',
+        ]);
+    }
+
     public function test_accounts_receivable_index_filters_by_customer_status_search_and_due_date(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

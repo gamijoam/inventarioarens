@@ -9,4 +9,5 @@ Route::apiResource('accounts-receivable', AccountsReceivableController::class)
     ->parameters(['accounts-receivable' => 'accountsReceivable'])
     ->only(['index', 'show']);
 
-Route::post('accounts-receivable/{accountsReceivable}/payments', [AccountsReceivableController::class, 'collect']);
+Route::post('accounts-receivable/{accountsReceivable}/payments', [AccountsReceivableController::class, 'collect'])
+    ->middleware('idempotency');

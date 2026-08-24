@@ -3,8 +3,9 @@
 namespace Tests\Feature\Security;
 
 use App\Models\User;
-use App\Modules\AccessControl\Models\Role;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Permissions\BasePermissions;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -19,17 +20,17 @@ class PasswordPolicyTest extends TestCase
     {
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
     }
 
-    private function makeTenantAndAdmin(Tenant $tenant): \App\Models\User
+    private function makeTenantAndAdmin(Tenant $tenant): User
     {
         $admin = User::factory()->create();
         $admin->tenants()->attach($tenant, ['status' => 'active']);
 
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
 
         $role = SpatieRole::findOrCreate('Admin Users', 'web');
@@ -50,6 +51,7 @@ class PasswordPolicyTest extends TestCase
                 'name' => 'Usuario Valido',
                 'email' => 'valido@example.test',
                 'password' => 'Valid1234!',
+                'confirm_password' => 'Valid1234!',
                 'roles' => [],
             ])
             ->assertCreated();

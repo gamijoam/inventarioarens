@@ -26,9 +26,16 @@ class PosBootstrapController extends Controller
     {
         $user = $request->user();
         $tenantId = app(TenantManager::class)->current()?->id;
+        $warehouseQuery = $this->scopes->applyWarehouseScope(
+            $this->scopes->applyBranchScope(Warehouse::query(), $user, 'branch_id'),
+            $user,
+            'id'
+        );
+        $branchQuery = $this->scopes->applyBranchScope(Branch::query(), $user, 'id');
+        $cashRegisterQuery = $this->scopes->applyBranchScope(CashRegister::query(), $user, 'branch_id');
 
         $response = [
-            'warehouses' => Warehouse::query()
+            'warehouses' => $warehouseQuery
                 ->with('branch:id,name,code')
                 ->orderByDesc('is_default')
                 ->orderBy('name')
@@ -44,7 +51,7 @@ class PosBootstrapController extends Controller
                     'branch_code' => $warehouse->branch?->code,
                 ])
                 ->all(),
-            'branches' => Branch::query()
+            'branches' => $branchQuery
                 ->orderBy('name')
                 ->get(['id', 'code', 'name'])
                 ->map(fn (Branch $branch) => [
@@ -53,7 +60,7 @@ class PosBootstrapController extends Controller
                     'name' => $branch->name,
                 ])
                 ->all(),
-            'cash_registers' => CashRegister::query()
+            'cash_registers' => $cashRegisterQuery
                 ->with('branch:id,name,code')
                 ->where('status', CashRegister::STATUS_ACTIVE)
                 ->orderBy('code')

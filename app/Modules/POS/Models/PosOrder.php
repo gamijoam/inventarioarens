@@ -38,6 +38,8 @@ class PosOrder extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const STATUS_VOIDED = 'voided';
+
     protected function casts(): array
     {
         return [

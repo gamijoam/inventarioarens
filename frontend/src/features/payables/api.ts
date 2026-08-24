@@ -19,6 +19,13 @@ import {
   type ExecutePayablePaymentRequestValues,
 } from './schemas';
 
+function idempotencyConfig(prefix: string): { headers: { 'Idempotency-Key': string } } {
+  const key = globalThis.crypto?.randomUUID?.()
+    ?? `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return { headers: { 'Idempotency-Key': key } };
+}
+
 export function buildPayablesQuery(filters: PayableListFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.search) params.set('search', filters.search);
@@ -81,6 +88,7 @@ export function usePayPayable() {
       postOne<PayPayableValues, PayablePayment>(
         `/accounts-payable/${id}/payments`,
         PayPayableSchema.parse(values),
+        idempotencyConfig('ap-payment'),
       ),
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: payableKeys.lists() });
@@ -163,6 +171,7 @@ export function useExecutePayablePaymentRequest() {
       postOne<ExecutePayablePaymentRequestValues, PayablePaymentRequest>(
         `/accounts-payable-payment-requests/${request.id}/execute`,
         ExecutePayablePaymentRequestSchema.parse(values),
+        idempotencyConfig('ap-payment-request'),
       ),
     onSuccess: (result) => invalidatePayableRequests(qc, result.accounts_payable_id),
   });

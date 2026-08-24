@@ -42,5 +42,6 @@ export async function loginAsDemo(page: Page, credentials: DemoCredentials): Pro
   }
   await page.getByTestId('login-password').fill(credentials.password);
   await page.getByTestId('login-submit').click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  const expectedHome = process.env.PLAYWRIGHT_APP_MODE === 'pos' ? /\/pos$/ : /\/dashboard$/;
+  await expect(page).toHaveURL(expectedHome);
 }

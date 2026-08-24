@@ -2,32 +2,32 @@
 
 namespace Tests\Feature\Seeders;
 
-use App\Modules\CashRegister\Models\CashRegisterMovement;
-use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
+use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\PaymentReceipts\Models\PaymentReceipt;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
-use App\Modules\PaymentReceipts\Models\PaymentReceipt;
-use App\Modules\Products\Models\Product;
-use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductExits\Models\ProductExit;
+use App\Modules\Products\Models\Product;
+use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warranties\Models\WarrantyClaim;
-use App\Models\User;
 use Database\Seeders\DemoDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -95,8 +95,8 @@ class DemoDataSeederTest extends TestCase
         $this->assertSame(6, PaymentReceipt::withoutGlobalScopes()->where('status', PaymentReceipt::STATUS_ISSUED)->count());
         $this->assertSame(4, PaymentReceipt::withoutGlobalScopes()->where('type', PaymentReceipt::TYPE_CUSTOMER_COLLECTION)->count());
         $this->assertSame(2, PaymentReceipt::withoutGlobalScopes()->where('type', PaymentReceipt::TYPE_SUPPLIER_PAYMENT)->count());
-        $this->assertSame(2, SalesReturn::withoutGlobalScopes()->where('status', SalesReturn::STATUS_PROCESSED)->count());
-        $this->assertSame(2, DB::table('stock_movements')->where('type', 'sale_return')->count());
+        $this->assertSame(2, SalesReturn::withoutGlobalScopes()->where('status', SalesReturn::STATUS_REQUESTED)->count());
+        $this->assertSame(0, DB::table('stock_movements')->where('type', 'sale_return')->count());
         $this->assertSame(2, CashRegisterSession::withoutGlobalScopes()->where('status', CashRegisterSession::STATUS_OPEN)->count());
         $this->assertSame(2, CashRegisterMovement::withoutGlobalScopes()->where('type', CashRegisterMovement::TYPE_POS_PAYMENT)->count());
 

@@ -69,9 +69,14 @@ class CashRegisterSessionController extends Controller
         Gate::authorize('open', CashRegisterSession::class);
 
         $data = $request->validated();
+        $branch = $this->scopes->applyBranchScope(
+            Branch::query()->whereKey($data['branch_id']),
+            $request->user(),
+            'id'
+        )->firstOrFail();
         $session = $cashRegister->open(
             operator: $request->user(),
-            branch: Branch::query()->findOrFail($data['branch_id']),
+            branch: $branch,
             physicalRegister: isset($data['cash_register_id']) ? CashRegister::query()->findOrFail($data['cash_register_id']) : null,
             cashier: isset($data['cashier_id']) ? User::query()->findOrFail($data['cashier_id']) : null,
             data: $data,

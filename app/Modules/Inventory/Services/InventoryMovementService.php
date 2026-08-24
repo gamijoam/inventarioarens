@@ -127,6 +127,30 @@ class InventoryMovementService
         );
     }
 
+    public function saleReversal(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?int $referenceId = null,
+        ?float $unitCost = null,
+        ?int $productVariantId = null,
+    ): StockMovement {
+        return $this->increaseAvailable(
+            type: 'sale_reversal',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            unitCost: $unitCost,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: 'sale_reversal',
+            referenceId: $referenceId,
+            productVariantId: $productVariantId,
+        );
+    }
+
     public function damagedSaleReturn(
         Warehouse $warehouse,
         Product $product,

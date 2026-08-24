@@ -15,7 +15,8 @@ vi.mock('@/api/client', () => ({
   getOne: (path: string) => mockGetOne(path),
   getPaginated: (path: string) => mockGetPaginated(path),
   patchOne: (path: string, body: unknown) => mockPatchOne(path, body),
-  postOne: (path: string, body: unknown) => mockPostOne(path, body),
+   postOne: (path: string, body: unknown, config: unknown) =>
+     config === undefined ? mockPostOne(path, body) : mockPostOne(path, body, config),
 }));
 
 import type { CashRegisterSession } from '../api';
@@ -674,7 +675,9 @@ describe('pos api', () => {
       credit_due_date: '2026-08-01',
       items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
       payments: [],
-    });
+    }, expect.objectContaining({
+      headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+    }));
   });
 
   it('envia combos, ofertas por linea y promocion de factura en checkout', async () => {
@@ -702,7 +705,31 @@ describe('pos api', () => {
         combo_applications: [{ promotion_id: 20, instance_uuid: 'combo-a', sets: 1 }],
         product_offer_applications: [{ promotion_id: 30, item_index: 1 }],
       }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+      }),
     );
+  });
+
+  it('reutiliza la misma clave si se reintenta el mismo checkout tras un error', async () => {
+    const payload = {
+      cash_register_session_id: 3,
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
+      payments: [],
+    };
+    mockPostOne
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ id: 13, status: 'paid', sale_id: 24 });
+
+    const { result } = renderHook(() => useCheckout(), { wrapper });
+    result.current.mutate(payload);
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    result.current.mutate(payload);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const calls = mockPostOne.mock.calls.filter(([path]) => path === '/pos/checkouts');
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.[2]).toEqual(calls[1]?.[2]);
   });
 
   it('arma una orden pendiente (hold) SIN sesion de caja ni pagos', async () => {

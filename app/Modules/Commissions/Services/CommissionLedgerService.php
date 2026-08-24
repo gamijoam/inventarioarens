@@ -214,6 +214,46 @@ class CommissionLedgerService
         }
     }
 
+    public function reversePosOrder(PosOrder $order, int $reversalId): void
+    {
+        $earnings = CommissionEntry::query()
+            ->where('pos_order_id', $order->id)
+            ->where('entry_type', CommissionEntry::TYPE_EARNING)
+            ->get();
+
+        foreach ($earnings as $earning) {
+            if (CommissionEntry::query()->where('original_entry_id', $earning->id)->where('adjustment_reason', "sale_reversal:{$reversalId}")->exists()) {
+                continue;
+            }
+
+            $entry = CommissionEntry::create([
+                'entry_uuid' => (string) Str::uuid(),
+                'commission_plan_id' => $earning->commission_plan_id,
+                'sale_id' => $earning->sale_id,
+                'pos_order_id' => $earning->pos_order_id,
+                'sale_item_id' => $earning->sale_item_id,
+                'beneficiary_user_id' => $earning->beneficiary_user_id,
+                'beneficiary_role' => $earning->beneficiary_role,
+                'entry_type' => CommissionEntry::TYPE_REVERSAL,
+                'original_entry_id' => $earning->id,
+                'plan_name_snapshot' => $earning->plan_name_snapshot,
+                'percentage_snapshot' => $earning->percentage_snapshot,
+                'sale_currency' => $earning->sale_currency,
+                'source_amount' => -round((float) $earning->source_amount, 4),
+                'eligible_base_amount' => -round((float) $earning->eligible_base_amount, 4),
+                'exchange_rate_type_id' => $earning->exchange_rate_type_id,
+                'exchange_rate_type_code' => $earning->exchange_rate_type_code,
+                'exchange_rate' => $earning->exchange_rate,
+                'commission_base_amount' => -round((float) $earning->commission_base_amount, 4),
+                'status' => CommissionEntry::STATUS_AVAILABLE,
+                'adjustment_reason' => "sale_reversal:{$reversalId}",
+                'earned_at' => now(),
+                'available_at' => now(),
+            ]);
+            $this->recordSyncEvent($entry);
+        }
+    }
+
     private function recordEarning(PosOrder $order, SaleItem $saleItem, CommissionPlan $plan, int $userId, $earnedAt, ?AccountsReceivablePayment $payment = null, float $ratio = 1.0): void
     {
         if (CommissionEntry::query()

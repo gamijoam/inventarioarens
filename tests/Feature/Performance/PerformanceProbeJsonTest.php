@@ -2,12 +2,17 @@
 
 namespace Tests\Feature\Performance;
 
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Performance\PerformanceProbe;
+use App\Support\Tenancy\TenantManager;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class PerformanceProbeJsonTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_performance_probe_logs_with_json_key_format(): void
     {
         Log::shouldReceive('info')
@@ -72,8 +77,8 @@ class PerformanceProbeJsonTest extends TestCase
 
     public function test_performance_probe_includes_tenant_id_when_tenant_resolved(): void
     {
-        $tenant = \App\Modules\Tenancy\Models\Tenant::create(['name' => 'Tienda Perf', 'slug' => 'tienda-perf']);
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        $tenant = Tenant::create(['name' => 'Tienda Perf', 'slug' => 'tienda-perf']);
+        app(TenantManager::class)->set($tenant);
 
         Log::shouldReceive('info')
             ->once()

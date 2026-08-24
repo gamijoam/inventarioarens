@@ -3,6 +3,7 @@
 namespace Tests\Feature\POS;
 
 use App\Models\User;
+use App\Modules\AccessControl\Models\UserBranchScope;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
@@ -122,6 +123,35 @@ class PosBootstrapApiTest extends TestCase
             ->assertJsonPath('open_session.status', CashRegisterSession::STATUS_OPEN)
             ->assertJsonPath('open_session.tenant_id', $tenant->id)
             ->assertJsonPath('open_session.cashier_id', $cashier->id);
+    }
+
+    public function test_bootstrap_only_returns_branches_warehouses_and_registers_in_scope(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa POS Scope', 'slug' => 'empresa-pos-bootstrap-scope']);
+        $this->useTenant($tenant);
+        $allowedBranch = Branch::create(['name' => 'Sucursal Permitida', 'code' => 'BR-SCOPE-OK']);
+        $blockedBranch = Branch::create(['name' => 'Sucursal Bloqueada', 'code' => 'BR-SCOPE-NO']);
+        Warehouse::create(['branch_id' => $allowedBranch->id, 'name' => 'Almacen Permitido', 'code' => 'WH-SCOPE-OK']);
+        Warehouse::create(['branch_id' => $blockedBranch->id, 'name' => 'Almacen Bloqueado', 'code' => 'WH-SCOPE-NO']);
+        CashRegister::create(['branch_id' => $allowedBranch->id, 'code' => 'CR-SCOPE-OK', 'name' => 'Caja Permitida', 'status' => CashRegister::STATUS_ACTIVE]);
+        CashRegister::create(['branch_id' => $blockedBranch->id, 'code' => 'CR-SCOPE-NO', 'name' => 'Caja Bloqueada', 'status' => CashRegister::STATUS_ACTIVE]);
+        $cashier = User::factory()->create();
+        $cashier->tenants()->attach($tenant, ['status' => 'active']);
+        $this->grantRole($tenant, $cashier, 'Cajero Scope', ['pos.view', 'pos.checkout']);
+        UserBranchScope::create(['user_id' => $cashier->id, 'branch_id' => $allowedBranch->id]);
+
+        $response = $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/pos/bootstrap')
+            ->assertOk();
+
+        $response->assertJsonPath('branches.0.code', 'BR-SCOPE-OK')
+            ->assertJsonMissing(['code' => 'BR-SCOPE-NO'])
+            ->assertJsonPath('warehouses.0.code', 'WH-SCOPE-OK')
+            ->assertJsonMissing(['code' => 'WH-SCOPE-NO'])
+            ->assertJsonPath('cash_registers.0.code', 'CR-SCOPE-OK')
+            ->assertJsonMissing(['code' => 'CR-SCOPE-NO']);
     }
 
     public function test_bootstrap_for_spinoff_includes_group_shared_catalogs(): void

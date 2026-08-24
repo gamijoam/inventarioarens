@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\InventoryTransfers;
 
+use App\Models\User;
+use App\Modules\Branches\Models\Branch;
+use App\Modules\InventoryTransfers\Models\InventoryTransfer;
+use App\Modules\InventoryTransfers\Services\InventoryTransferService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -19,11 +23,11 @@ class NextSequenceRaceConditionFixTest extends TestCase
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
 
-        $user = \App\Models\User::factory()->create();
+        $user = User::factory()->create();
         $user->tenants()->attach($tenant, ['status' => 'active']);
         setPermissionsTeamId($tenant->id);
 
-        $branch = \App\Modules\Branches\Models\Branch::create(['name' => 'Principal', 'code' => "BR-$slug"]);
+        $branch = Branch::create(['name' => 'Principal', 'code' => "BR-$slug"]);
         Warehouse::create(['branch_id' => $branch->id, 'name' => 'A', 'code' => "WH-$slug-A"]);
         Warehouse::create(['branch_id' => $branch->id, 'name' => 'B', 'code' => "WH-$slug-B"]);
 
@@ -49,7 +53,7 @@ class NextSequenceRaceConditionFixTest extends TestCase
     {
         $tenant = $this->makeTenant('seq-fresh');
 
-        $service = app(\App\Modules\InventoryTransfers\Services\InventoryTransferService::class);
+        $service = app(InventoryTransferService::class);
 
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('nextSequence');
@@ -64,7 +68,7 @@ class NextSequenceRaceConditionFixTest extends TestCase
         $user = $tenant->users()->firstOrFail();
         [$fromId, $toId] = $this->warehouseIds($tenant);
 
-        $service = app(\App\Modules\InventoryTransfers\Services\InventoryTransferService::class);
+        $service = app(InventoryTransferService::class);
 
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('nextSequence');
@@ -72,16 +76,16 @@ class NextSequenceRaceConditionFixTest extends TestCase
 
         $this->assertSame(1, $method->invoke($service));
 
-        \App\Modules\InventoryTransfers\Models\InventoryTransfer::create([
+        InventoryTransfer::create([
             'tenant_id' => $tenant->id,
             'sequence' => 1,
             'document_number' => 'TRF-000001',
             'guide_number' => 'GUIA-000001',
-            'type' => \App\Modules\InventoryTransfers\Models\InventoryTransfer::TYPE_INTERNAL,
-            'validation_mode' => \App\Modules\InventoryTransfers\Models\InventoryTransfer::VALIDATION_SIMPLE,
+            'type' => InventoryTransfer::TYPE_INTERNAL,
+            'validation_mode' => InventoryTransfer::VALIDATION_SIMPLE,
             'from_warehouse_id' => $fromId,
             'to_warehouse_id' => $toId,
-            'status' => \App\Modules\InventoryTransfers\Models\InventoryTransfer::STATUS_COMPLETED,
+            'status' => InventoryTransfer::STATUS_COMPLETED,
             'created_by' => $user->id,
             'processed_at' => now(),
             'requested_at' => now(),
@@ -98,16 +102,16 @@ class NextSequenceRaceConditionFixTest extends TestCase
         $this->assertSame(1, $this->invokeNextSequence());
 
         for ($i = 0; $i < 3; $i++) {
-            \App\Modules\InventoryTransfers\Models\InventoryTransfer::create([
+            InventoryTransfer::create([
                 'tenant_id' => $tenantA->id,
                 'sequence' => $i + 1,
-                'document_number' => "TRF-A-00".($i + 1),
-                'guide_number' => "GUIA-A-00".($i + 1),
-                'type' => \App\Modules\InventoryTransfers\Models\InventoryTransfer::TYPE_INTERNAL,
-                'validation_mode' => \App\Modules\InventoryTransfers\Models\InventoryTransfer::VALIDATION_SIMPLE,
+                'document_number' => 'TRF-A-00'.($i + 1),
+                'guide_number' => 'GUIA-A-00'.($i + 1),
+                'type' => InventoryTransfer::TYPE_INTERNAL,
+                'validation_mode' => InventoryTransfer::VALIDATION_SIMPLE,
                 'from_warehouse_id' => $fromIdA,
                 'to_warehouse_id' => $toIdA,
-                'status' => \App\Modules\InventoryTransfers\Models\InventoryTransfer::STATUS_COMPLETED,
+                'status' => InventoryTransfer::STATUS_COMPLETED,
                 'created_by' => $userA->id,
                 'processed_at' => now(),
                 'requested_at' => now(),
@@ -120,6 +124,10 @@ class NextSequenceRaceConditionFixTest extends TestCase
 
     public function test_next_sequence_uses_pg_advisory_xact_lock(): void
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('El advisory lock solo existe en PostgreSQL.');
+        }
+
         $this->makeTenant('seq-lock');
 
         $queries = [];
@@ -149,7 +157,7 @@ class NextSequenceRaceConditionFixTest extends TestCase
         $user = $tenant->users()->firstOrFail();
         [$fromId, $toId] = $this->warehouseIds($tenant);
 
-        $service = app(\App\Modules\InventoryTransfers\Services\InventoryTransferService::class);
+        $service = app(InventoryTransferService::class);
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('nextSequence');
         $method->setAccessible(true);
@@ -185,9 +193,13 @@ class NextSequenceRaceConditionFixTest extends TestCase
 
     public function test_advisory_lock_serializes_concurrent_transfers(): void
     {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('El advisory lock solo existe en PostgreSQL.');
+        }
+
         $this->makeTenant('seq-concurrent');
 
-        $service = app(\App\Modules\InventoryTransfers\Services\InventoryTransferService::class);
+        $service = app(InventoryTransferService::class);
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('nextSequence');
         $method->setAccessible(true);
@@ -209,7 +221,7 @@ class NextSequenceRaceConditionFixTest extends TestCase
 
     private function invokeNextSequence(): int
     {
-        $service = app(\App\Modules\InventoryTransfers\Services\InventoryTransferService::class);
+        $service = app(InventoryTransferService::class);
         $reflection = new \ReflectionClass($service);
         $method = $reflection->getMethod('nextSequence');
         $method->setAccessible(true);

@@ -234,6 +234,12 @@ class SalesReturnService
                 ]);
             }
 
+            if ($salesReturn->exchange_sale_id) {
+                throw ValidationException::withMessages([
+                    'exchange' => 'La devolucion ya tiene una venta de canje asociada.',
+                ]);
+            }
+
             if (! $salesReturn->sale->customer || ! $salesReturn->customer_credit_transaction_id) {
                 throw ValidationException::withMessages([
                     'customer_id' => 'La devolucion no tiene un saldo a favor de cliente disponible.',

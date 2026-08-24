@@ -13,12 +13,12 @@ test('cambia lista, selecciona IMEI y completa checkout UI USD/VES', async ({ pa
 
   const search = page.getByTestId('pos-search');
   await search.fill('IPHONE12');
-  const product = page.getByRole('button', { name: /IPHONE 12 DE 64GB/i });
+  const product = page.getByRole('button', { name: /^IPHONE 12 DE 64GB/i });
   await expect(product).toBeVisible();
-  await product.click();
+  await search.press('Enter');
   const serial = page.getByRole('button', { name: /IMEI - ALMACEN PRINCIPAL/i }).first();
   await expect(serial).toBeVisible();
-  await serial.click();
+  await serial.press('Enter');
   await expect(page.getByText('1/1 seleccionados', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar' }).click();
 
@@ -55,14 +55,17 @@ test('cambia lista, selecciona IMEI y completa checkout UI USD/VES', async ({ pa
     .fill('UI-MIX-001');
   await expect(page.getByText('Pagos aplicados')).toBeVisible();
 
-  const checkoutRequest = page.waitForRequest(
-    (request) => request.url().endsWith('/api/pos/checkouts') && request.method() === 'POST',
+  const checkoutResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/pos/checkouts') && response.request().method() === 'POST',
   );
   await page
     .getByRole('button', { name: /Cobrar/ })
     .last()
     .click();
-  const payload = (await checkoutRequest).postDataJSON() as {
+  const response = await checkoutResponse;
+  expect(response.status()).toBe(201);
+  const payload = response.request().postDataJSON() as {
     items: Array<{ price_list_id: number; price_source: string }>;
     payments: Array<{
       payment_method_id: number;

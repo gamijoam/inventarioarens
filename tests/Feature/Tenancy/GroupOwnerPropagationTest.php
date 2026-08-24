@@ -51,6 +51,7 @@ class GroupOwnerPropagationTest extends TestCase
                 'name' => 'Nuevo Owner',
                 'email' => 'nuevo.owner@test.test',
                 'password' => 'NuevaClave123',
+                'confirm_password' => 'NuevaClave123',
                 'roles' => ['Owner'],
             ])
             ->assertCreated();
@@ -100,6 +101,7 @@ class GroupOwnerPropagationTest extends TestCase
                 'name' => 'Owner B',
                 'email' => 'owner.b@test.test',
                 'password' => 'NuevaClave123',
+                'confirm_password' => 'NuevaClave123',
                 'roles' => ['Owner'],
             ])
             ->assertCreated();

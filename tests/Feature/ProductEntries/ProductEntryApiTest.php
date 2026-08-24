@@ -118,7 +118,7 @@ class ProductEntryApiTest extends TestCase
             'serial_number' => '860900000000030',
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
-        $this->assertSame('30.0000', StockBalance::query()
+        $this->assertSame(30.0, (float) StockBalance::query()
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
             ->value('quantity_available'));

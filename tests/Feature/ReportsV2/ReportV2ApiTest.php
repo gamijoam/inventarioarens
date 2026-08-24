@@ -203,6 +203,57 @@ class ReportV2ApiTest extends TestCase
         $this->assertSame(0, $response->json('data.totals.usd_equiv'));
     }
 
+    public function test_reports_ignore_pending_and_failed_pos_payments(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedPosPayment($tucacas, 'cash', 80);
+        $this->useTenant($tucacas);
+
+        foreach (['pending' => 20, 'failed' => 30] as $status => $amount) {
+            $sale = Sale::create([
+                'status' => Sale::STATUS_CONFIRMED,
+                'total_base_amount' => $amount,
+                'total_local_amount' => $amount * 74,
+                'confirmed_at' => now(),
+            ]);
+            $order = PosOrder::create([
+                'sale_id' => $sale->id,
+                'status' => PosOrder::STATUS_PAID,
+                'paid_base_amount' => $amount,
+                'paid_at' => now(),
+            ]);
+            PosPayment::create([
+                'pos_order_id' => $order->id,
+                'method' => 'cash',
+                'currency' => 'USD',
+                'amount' => $amount,
+                'amount_base' => $amount,
+                'amount_local' => $amount,
+                'status' => $status,
+            ]);
+        }
+
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $overview = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=tenant')
+            ->assertOk();
+
+        $this->assertSame(80, $overview->json('data.totals.usd_paid'));
+
+        $payments = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_by_payment_method?scope=tenant')
+            ->assertOk();
+
+        $this->assertSame(80, $payments->json('data.totals.usd_paid'));
+        $this->assertSame(1, $payments->json('data.totals.orders_count'));
+    }
+
     public function test_payment_method_report_splits_actual_currency_vs_equivalent(): void
     {
         $group = $this->group();

@@ -2,10 +2,12 @@
 
 namespace App\Modules\CashRegister\Services;
 
+use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Printing\Models\PrintProfile;
+use App\Modules\SalesReversals\Models\SaleReversal;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Services\CompanySettings;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -20,6 +22,20 @@ class ReportZService
     {
         if ($session->z_number !== null) {
             return;
+        }
+
+        if ($session->cash_register_id !== null) {
+            CashRegister::withoutGlobalScopes()
+                ->where('tenant_id', $session->tenant_id)
+                ->whereKey($session->cash_register_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+        } else {
+            Tenant::query()
+                ->withoutGlobalScopes()
+                ->whereKey($session->tenant_id)
+                ->lockForUpdate()
+                ->firstOrFail();
         }
 
         $next = (int) CashRegisterSession::query()
@@ -37,8 +53,11 @@ class ReportZService
     {
         $session->loadMissing(['branch', 'cashRegister', 'cashier', 'counts', 'posOrders.payments.paymentMethod']);
 
-        $paidOrders = $session->posOrders->where('status', PosOrder::STATUS_PAID);
+        $paidOrders = $session->posOrders->whereIn('status', [PosOrder::STATUS_PAID, PosOrder::STATUS_VOIDED]);
         $payments = $paidOrders->flatMap->payments->where('status', PosPayment::STATUS_CAPTURED);
+        $reversals = SaleReversal::query()
+            ->where('cash_register_session_id', $session->id)
+            ->get();
 
         $tenant = Tenant::query()->withoutGlobalScopes()->whereKey($session->tenant_id)->first();
         $company = $tenant ? CompanySettings::getForTenant($tenant) : CompanySettings::defaults();
@@ -62,6 +81,17 @@ class ReportZService
                 'orders_count' => $paidOrders->count(),
                 'paid_base_amount' => round((float) $paidOrders->sum('paid_base_amount'), 4),
                 'paid_local_amount' => round((float) $paidOrders->sum('paid_local_amount'), 4),
+                'reversals_count' => $reversals->count(),
+                'reversed_base_amount' => round((float) $reversals->sum('reversed_base_amount'), 4),
+                'reversed_local_amount' => round((float) $reversals->sum('reversed_local_amount'), 4),
+                'net_paid_base_amount' => round(
+                    (float) $paidOrders->sum('paid_base_amount') - (float) $reversals->sum('reversed_base_amount'),
+                    4
+                ),
+                'net_paid_local_amount' => round(
+                    (float) $paidOrders->sum('paid_local_amount') - (float) $reversals->sum('reversed_local_amount'),
+                    4
+                ),
                 'expected_base_amount' => round((float) ($session->expected_base_amount ?? 0), 4),
                 'expected_local_amount' => round((float) ($session->expected_local_amount ?? 0), 4),
                 'counted_base_amount' => round((float) ($session->counted_base_amount ?? 0), 4),

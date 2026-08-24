@@ -110,12 +110,25 @@ class ReportRegistry
                       coalesce(sum(case when pp.currency = 'VES' then pp.amount_base else 0 end), 0) as usd_equiv,
                       coalesce(sum(case when pp.currency = 'USD' then pp.amount_local else 0 end), 0) as ves_equiv
                     from pos_payments pp join pos_orders po on po.id = pp.pos_order_id and po.tenant_id = pp.tenant_id
+                    where pp.status = 'captured'
                     group by po.sale_id, po.tenant_id
-                  ) pay on pay.sale_id = s.id and pay.tenant_id = s.tenant_id",
+                  ) pay on pay.sale_id = s.id and pay.tenant_id = s.tenant_id
+                  left join (
+                    select sale_id, tenant_id,
+                      coalesce(sum(reversed_base_amount), 0) as reversed_base_amount,
+                      coalesce(sum(reversed_local_amount), 0) as reversed_local_amount,
+                      count(*) as reversal_count
+                    from sale_reversals
+                    group by sale_id, tenant_id
+                  ) rev on rev.sale_id = s.id and rev.tenant_id = s.tenant_id",
                 'dateColumn' => 's.confirmed_at',
-                'statusSql' => "s.status = 'confirmed'",
+                'statusSql' => "s.status in ('confirmed', 'voided')",
                 'measures' => [
                     'sales_total' => 'coalesce(sum(s.total_base_amount), 0)',
+                    'reversed_total' => 'coalesce(sum(coalesce(rev.reversed_base_amount, 0)), 0)',
+                    'net_sales_total' => 'coalesce(sum(s.total_base_amount - coalesce(rev.reversed_base_amount, 0)), 0)',
+                    'reversed_local_total' => 'coalesce(sum(coalesce(rev.reversed_local_amount, 0)), 0)',
+                    'reversal_count' => 'coalesce(sum(coalesce(rev.reversal_count, 0)), 0)',
                     'usd_paid' => 'coalesce(sum(pay.usd_paid), 0)',
                     'ves_paid' => 'coalesce(sum(pay.ves_paid), 0)',
                     'usd_equiv' => 'coalesce(sum(pay.usd_equiv), 0)',
@@ -141,7 +154,7 @@ class ReportRegistry
                 'orgSupported' => true,
                 'base' => 'sale_items si join sales s on s.id = si.sale_id and s.tenant_id = si.tenant_id',
                 'dateColumn' => 's.confirmed_at',
-                'statusSql' => "s.status = 'confirmed'",
+                'statusSql' => "s.status in ('confirmed', 'voided')",
                 'measures' => [
                     'units' => 'sum(si.quantity)',
                     'amount' => 'sum(si.base_total_amount)',
@@ -168,7 +181,7 @@ class ReportRegistry
                 'domain' => 'ventas',
                 'permission' => 'reports.cash.view',
                 'orgSupported' => true,
-                'base' => 'pos_payments pp join pos_orders po on po.id = pp.pos_order_id and po.tenant_id = pp.tenant_id',
+                'base' => "pos_payments pp join pos_orders po on po.id = pp.pos_order_id and po.tenant_id = pp.tenant_id and pp.status = 'captured'",
                 'dateColumn' => 'po.paid_at',
                 'statusSql' => "po.status = 'paid'",
                 'measures' => [
@@ -200,12 +213,25 @@ class ReportRegistry
                       coalesce(sum(case when pp.currency = 'VES' then pp.amount_base else 0 end), 0) as usd_equiv,
                       coalesce(sum(case when pp.currency = 'USD' then pp.amount_local else 0 end), 0) as ves_equiv
                     from pos_payments pp join pos_orders po on po.id = pp.pos_order_id and po.tenant_id = pp.tenant_id
+                    where pp.status = 'captured'
                     group by po.sale_id, po.tenant_id
-                  ) pay on pay.sale_id = s.id and pay.tenant_id = s.tenant_id",
+                  ) pay on pay.sale_id = s.id and pay.tenant_id = s.tenant_id
+                  left join (
+                    select sale_id, tenant_id,
+                      coalesce(sum(reversed_base_amount), 0) as reversed_base_amount,
+                      coalesce(sum(reversed_local_amount), 0) as reversed_local_amount,
+                      count(*) as reversal_count
+                    from sale_reversals
+                    group by sale_id, tenant_id
+                  ) rev on rev.sale_id = s.id and rev.tenant_id = s.tenant_id",
                 'dateColumn' => 's.confirmed_at',
-                'statusSql' => "s.status = 'confirmed'",
+                'statusSql' => "s.status in ('confirmed', 'voided')",
                 'measures' => [
                     'sales_total' => 'coalesce(sum(s.total_base_amount), 0)',
+                    'reversed_total' => 'coalesce(sum(coalesce(rev.reversed_base_amount, 0)), 0)',
+                    'net_sales_total' => 'coalesce(sum(s.total_base_amount - coalesce(rev.reversed_base_amount, 0)), 0)',
+                    'reversed_local_total' => 'coalesce(sum(coalesce(rev.reversed_local_amount, 0)), 0)',
+                    'reversal_count' => 'coalesce(sum(coalesce(rev.reversal_count, 0)), 0)',
                     'usd_paid' => 'coalesce(sum(pay.usd_paid), 0)',
                     'ves_paid' => 'coalesce(sum(pay.ves_paid), 0)',
                     'usd_equiv' => 'coalesce(sum(pay.usd_equiv), 0)',

@@ -32,6 +32,7 @@ class StockMovement extends Model
         'purchase_return',
         'sale',
         'sale_return',
+        'sale_reversal',
         'adjustment_in',
         'adjustment_out',
         'transfer_in',

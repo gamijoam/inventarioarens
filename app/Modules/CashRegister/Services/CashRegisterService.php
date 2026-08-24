@@ -13,6 +13,7 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
+use App\Modules\SalesReversals\Models\SaleReversal;
 use App\Modules\Sync\Services\SyncOutboxService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
@@ -353,6 +354,40 @@ class CashRegisterService
                 'reference' => $data['reference'] ?? null,
                 'notes' => $data['notes'] ?? null,
             ], $operator);
+            $this->recalculateExpectedTotals($session);
+
+            return $movement->refresh();
+        });
+    }
+
+    public function recordSaleReversal(
+        CashRegisterSession $session,
+        PosPayment $payment,
+        SaleReversal $reversal,
+        User $operator,
+    ): CashRegisterMovement {
+        return DB::transaction(function () use ($session, $payment, $reversal, $operator): CashRegisterMovement {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+            $this->assertOpen($session);
+            $this->assertOperatorCanOperate($session, $operator);
+
+            $movement = CashRegisterMovement::create([
+                'cash_register_session_id' => $session->id,
+                'type' => CashRegisterMovement::TYPE_OUTFLOW,
+                'method' => $payment->method,
+                'currency' => $payment->currency,
+                'amount' => $payment->amount,
+                'amount_base' => $payment->amount_base,
+                'amount_local' => $payment->amount_local,
+                'exchange_rate_type_id' => $payment->exchange_rate_type_id,
+                'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                'exchange_rate' => $payment->exchange_rate,
+                'source_type' => 'sale_reversal',
+                'source_id' => $reversal->id,
+                'reference' => "REV-{$reversal->id}",
+                'notes' => "Reembolso por reversión de venta POS #{$payment->pos_order_id}",
+                'created_by' => $operator->id,
+            ]);
             $this->recalculateExpectedTotals($session);
 
             return $movement->refresh();

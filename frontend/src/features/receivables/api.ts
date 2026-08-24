@@ -13,6 +13,13 @@ import {
 } from './schemas';
 import { receivableKeys } from './queries';
 
+function idempotencyConfig(): { headers: { 'Idempotency-Key': string } } {
+  const key = globalThis.crypto?.randomUUID?.()
+    ?? `ar-payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return { headers: { 'Idempotency-Key': key } };
+}
+
 export function buildReceivablesQuery(filters: ReceivableListFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.search) params.set('search', filters.search);
@@ -53,6 +60,7 @@ export function useCollectReceivable() {
       postOne<CollectReceivableValues, ReceivablePayment>(
         `/accounts-receivable/${id}/payments`,
         CollectReceivableSchema.parse(values),
+        idempotencyConfig(),
       ),
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: receivableKeys.lists() });

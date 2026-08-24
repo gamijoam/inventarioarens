@@ -60,7 +60,7 @@ class PermissionHierarchyTest extends TestCase
         $salesModule = collect($response['data']['modules'])->firstWhere('module', 'sales');
         $this->assertNotNull($salesModule);
         $this->assertSame('Ventas', $salesModule['label']);
-        $this->assertSame(3, $salesModule['verb_count']);
+        $this->assertSame(4, $salesModule['verb_count']);
 
         $cancelAction = collect($salesModule['actions'])->firstWhere('verb', 'cancel');
         $this->assertNotNull($cancelAction);

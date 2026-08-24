@@ -78,6 +78,7 @@ class SyncEventApplier
         'service_order.updated',
         'purchase_order.created',
         'purchase_order.received',
+        'pos.order.reversed',
         'accounts_payable.created',
         'accounts_payable.updated',
         'accounts_payable.payment_registered',
@@ -155,6 +156,7 @@ class SyncEventApplier
         'pos.order.payment_added',
         'pos.order.paid',
         'pos.order.cancelled',
+        'pos.order.reversed',
         'accounts_receivable.payment_registered',
         'sales_return.updated',
         'accounts_payable.created',
@@ -316,6 +318,7 @@ class SyncEventApplier
                 'inventory_transfer_request.rejected' => $this->applyInventoryTransferRequestRejected($tenant, $payload),
                 'inventory_transfer_request.cancelled' => $this->applyInventoryTransferRequestCancelled($tenant, $payload),
                 'pos.order.pending', 'pos.order.payment_added', 'pos.order.paid', 'pos.order.cancelled' => $this->applyPosOrder($tenant, $payload, $event),
+                'pos.order.reversed' => $this->applyPosOrderReversed($tenant, $payload, $event),
                 'accounts_receivable.payment_registered' => $this->applyReceivablePayment($tenant, $payload, $event),
                 'sales_return.updated' => $this->applySalesReturn($tenant, $payload, $event),
                 'accounts_payable.created', 'accounts_payable.updated' => $this->applyAccountsPayable($tenant, $payload, $event),
@@ -2970,6 +2973,92 @@ class SyncEventApplier
         return 'applied';
     }
 
+    private function applyPosOrderReversed(Tenant $tenant, array $payload, array $event): string
+    {
+        $this->applyPosOrder($tenant, $payload, $event);
+
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceOrderId = (int) ($payload['pos_order_id'] ?? $event['aggregate_id'] ?? 0);
+        $order = DB::table('pos_orders')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->where('sync_source_id', $sourceOrderId)
+            ->first();
+
+        if (! $order) {
+            throw new RuntimeException("No se encontro la orden POS sincronizada {$sourceOrderId} para aplicar la reversión.");
+        }
+
+        if (DB::table('sale_reversals')->where('tenant_id', $tenant->id)->where('pos_order_id', $order->id)->exists()) {
+            return 'applied';
+        }
+
+        $now = now();
+        $reversalId = DB::table('sale_reversals')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'sale_id' => $order->sale_id,
+            'pos_order_id' => $order->id,
+            'cash_register_session_id' => null,
+            'created_by' => null,
+            'type' => $payload['type'] ?? 'reversal',
+            'reason' => $payload['reason'] ?? 'Reversión sincronizada',
+            'original_paid_at' => $this->nullableDate($payload['paid_at'] ?? null),
+            'effective_at' => $this->nullableDate($payload['effective_at'] ?? null) ?? $now,
+            'reversed_base_amount' => $payload['reversed_base_amount'] ?? 0,
+            'reversed_local_amount' => $payload['reversed_local_amount'] ?? 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        foreach ($payload['items'] ?? [] as $item) {
+            $product = $this->productBySku($tenant, $this->requiredString($item, 'product_sku'));
+            $warehouse = $this->warehouseByCode($tenant, $this->requiredString($item, 'warehouse_code'));
+            $quantity = (float) ($item['quantity'] ?? 0);
+
+            $this->applyCloudStockIn($tenant, $product->id, $warehouse->id, $quantity);
+
+            foreach ($item['product_serial_units'] ?? [] as $serialUnit) {
+                $unit = DB::table('product_units')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('product_id', $product->id)
+                    ->where('warehouse_id', $warehouse->id)
+                    ->where('serial_type', $serialUnit['serial_type'] ?? '')
+                    ->where('serial_number', $serialUnit['serial_number'] ?? '')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $unit || $unit->status !== ProductUnit::STATUS_SOLD) {
+                    throw new RuntimeException(sprintf(
+                        'Conflicto de sincronizacion: el serial %s no esta vendido.',
+                        (string) ($serialUnit['serial_number'] ?? '')
+                    ));
+                }
+
+                DB::table('product_units')->where('id', $unit->id)->update([
+                    'status' => ProductUnit::STATUS_AVAILABLE,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            DB::table('stock_movements')->insert([
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'type' => 'sale_reversal',
+                'quantity' => $quantity,
+                'unit_cost' => $item['base_unit_cost'] ?? null,
+                'reason' => "Reversión sincronizada de venta POS #{$order->id}",
+                'reference_type' => 'sale_reversal',
+                'reference_id' => $reversalId,
+                'created_by' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        return 'applied';
+    }
+
     private function isOlderPosOrderEvent(Tenant $tenant, array $event, int $sourceOrderId): bool
     {
         if (empty($event['occurred_at'])) {
@@ -3840,6 +3929,43 @@ class SyncEventApplier
             ->where('product_id', $productId)
             ->update([
                 'quantity_available' => (float) $balance->quantity_available - $quantity,
+                'updated_at' => $now,
+            ]);
+    }
+
+    private function applyCloudStockIn(Tenant $tenant, int $productId, int $warehouseId, float $quantity): void
+    {
+        if ($quantity <= 0.0) {
+            return;
+        }
+
+        $now = now();
+        $balance = DB::table('stock_balances')
+            ->where('tenant_id', $tenant->id)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $balance) {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouseId,
+                'product_id' => $productId,
+                'quantity_available' => $quantity,
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            return;
+        }
+
+        DB::table('stock_balances')
+            ->where('id', $balance->id)
+            ->update([
+                'quantity_available' => (float) $balance->quantity_available + $quantity,
                 'updated_at' => $now,
             ]);
     }
