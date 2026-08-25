@@ -1,4 +1,4 @@
-# Graphify Context Map
+# Graphify Context Map — 2026-08-25
 
 Este documento es el punto de entrada curado para consultar INVENTARIOARENS con Graphify.
 Agrupa la documentacion existente en secciones estables para que las consultas del grafo

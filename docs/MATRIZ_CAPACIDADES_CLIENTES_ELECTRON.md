@@ -1,4 +1,4 @@
-# Matriz de capacidades, clientes y Electron
+# Matriz de capacidades, clientes y Electron — 2026-08-25
 
 Fecha: 2026-08-25
 Estado: contrato inicial de arquitectura

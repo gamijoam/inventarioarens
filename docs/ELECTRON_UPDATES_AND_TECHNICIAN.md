@@ -1,4 +1,4 @@
-# Electron Updates and Technician Client
+# Electron Updates and Technician Client — 2026-08-25
 
 > Actualizacion 2026-08-25: la infraestructura local canonica es el instalador independiente
 > **Motor Local - Sistema de Inventario** descrito en

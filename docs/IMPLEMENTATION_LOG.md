@@ -1,4 +1,4 @@
-# Registro de implementación
+# Registro de implementación — 2026-08-25
 
 ## 2026-08-25 - Validación multiplataforma y release Electron 0.2.58
 
