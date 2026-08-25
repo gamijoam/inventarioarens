@@ -274,7 +274,7 @@ Estado: vertical implementada el 2026-08-25.
 - [x] Mantener el backend como autoridad mediante middleware de capacidades.
 - [ ] Crear perfiles de cliente visuales sin duplicar features.
 - [x] Verificar que cada instalador solo publique el bundle que corresponde.
-- [ ] Validar que actualizar un cliente no detenga ni reemplace el Motor Local.
+- [x] Validar que actualizar un cliente no detenga ni reemplace el Motor Local.
 
 ### Fase 3: branding runtime
 

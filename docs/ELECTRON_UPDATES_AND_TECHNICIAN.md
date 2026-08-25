@@ -53,7 +53,8 @@ Updater diagnostics are persisted in the per-client Electron data directory:
 `%APPDATA%\InventarioArens-Soporte\updater.log`.
 
 The update does not stop the VPS and does not modify the VPS backend. It replaces only the desktop
-application and its bundled local runtime. The local runtime runs migrations when it starts.
+application; it does not update, stop or remove the independently installed Motor Local. Motor Local
+releases and migrations are managed by `release-motor.yml` and the Motor installer.
 
 ## Release Workflow (GitHub Actions)
 

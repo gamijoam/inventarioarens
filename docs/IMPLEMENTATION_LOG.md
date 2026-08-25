@@ -1,5 +1,13 @@
 # Registro de implementación
 
+## 2026-08-25 - Aislamiento del ciclo de vida del Motor Local
+
+- Se confirmo mediante `backend-runtime.test.js` que los clientes Electron no instalan servicios,
+  PHP/Laravel ni tareas del Motor Local.
+- El hook NSIS no define desinstalacion propia ni ejecuta scripts de backend; cada cliente se actualiza
+  en su carpeta aislada y el Motor Local conserva su instalacion, datos, impresion y sync.
+- Se corrigio el runbook para separar explicitamente releases de clientes y releases del Motor Local.
+
 ## 2026-08-25 - Bundles Electron aislados por cliente
 
 - Cada configuracion `electron-builder.<cliente>.yml` empaqueta solamente `dist/<cliente>`; ya no
