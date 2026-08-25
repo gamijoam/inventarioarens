@@ -1,5 +1,18 @@
 # Registro de implementación
 
+## 2026-08-25 - Panel React de capacidades por empresa
+
+- Se agrego la pantalla administrativa `/settings/capabilities`, visible en Configuracion para
+  usuarios con `settings.manage`.
+- Las capacidades base aparecen bloqueadas; los modulos opcionales se pueden activar o desactivar
+  y el guardado reemplaza la lista completa de modulos opcionales.
+- El parser Zod consume el response real de `GET/PATCH /api/tenant-capabilities` y actualiza el
+  `SessionStore` al guardar para refrescar el sidebar sin reiniciar Electron.
+- La ruta se genero en `frontend/src/routeTree.gen.ts` y se validaron builds `admin`, `pos` y
+  `technician`. POS y Soporte siguen limitados por sus respectivos `appMode`.
+- TDD: 3 tests del API y 2 tests del panel; suite frontend completa `841/842` verde, typecheck,
+  Prettier y ESLint focalizado verdes.
+
 ## 2026-08-25 - Capacidades por tenant y matriz de clientes Electron
 
 - Se agrego `docs/MATRIZ_CAPACIDADES_CLIENTES_ELECTRON.md` como contrato inicial para separar modo

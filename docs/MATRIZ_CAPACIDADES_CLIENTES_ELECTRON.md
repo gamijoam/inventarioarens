@@ -265,6 +265,7 @@ Estado: vertical implementada el 2026-08-25.
 - [x] Exponer capacidades en login, `/api/auth/me` y cambio de tenant.
 - [x] Rechazar en backend rutas de modulos deshabilitados mediante middleware.
 - [x] Administrar capacidades con `GET/PATCH /api/tenant-capabilities`.
+- [x] Administrar capacidades desde React en `/settings/capabilities`.
 - [x] Agregar pruebas de capacidad habilitada, deshabilitada y aislamiento.
 
 ### Fase 2: frontend y Electron

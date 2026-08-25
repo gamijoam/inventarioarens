@@ -45,6 +45,8 @@ export interface SessionState {
 
   setTenant: (tenant: Tenant) => void;
 
+  setCapabilities: (capabilities: string[]) => void;
+
   clearSession: () => void;
 
   hasSession: () => boolean;
@@ -90,6 +92,8 @@ export const useSessionStore = create<SessionState>()(
         }),
 
       setTenant: (tenant) => set({ tenant }),
+
+      setCapabilities: (capabilities) => set({ capabilities: new Set(capabilities) }),
 
       clearSession: () =>
         set({
