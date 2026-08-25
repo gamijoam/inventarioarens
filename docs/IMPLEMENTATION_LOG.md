@@ -1,5 +1,16 @@
 # Registro de implementación
 
+## 2026-08-25 - Auditoría de rutas con tenant en URL
+
+- `UserAuditController` ahora rechaza cuando `{tenant}` no coincide con el tenant autenticado por
+  `X-Tenant`/token, igual que overrides y scopes.
+- Se agrego `tests/Feature/AccessControl/UserAuditApiTest.php` con caso cross-tenant y caso válido.
+- Se revisaron las demás familias de rutas explícitas: grupos usan `EnsureGroupOwner` o validación de
+  membresía, SaaS Master y Data Import Master usan `EnsurePlatformAdmin`, y Local Support queda
+  limitado a loopback y tenants configurados localmente.
+- `/api/tenants/*` y `tenant_user` permanecen cross-tenant por contrato documentado en
+  `docs/TENANCY_API.md`; sus permisos y comportamiento existente no se cambiaron.
+
 ## 2026-08-25 - Perfiles visuales base por cliente Electron
 
 - `frontend/src/config/branding.ts` ahora define `AppVisualProfile` junto con cada

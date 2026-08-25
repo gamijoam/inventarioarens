@@ -251,7 +251,8 @@ Estado: parcialmente implementada el 2026-08-25.
 - Mantener esta matriz como fuente de decisiones.
 - [x] Agregar pruebas de tenant header contra tenant de URL en Access Control.
 - [x] Endurecer validaciones de scopes para branches, warehouses y customer groups.
-- [ ] Extender la misma auditoria a todas las rutas con tenant en URL.
+- [x] Extender la misma auditoria a todas las rutas con tenant en URL; `UserAuditController` ya
+  rechaza mismatch y las familias cross-tenant intencionales quedan documentadas.
 - [ ] Documentar de forma unica el ownership del Motor Local en los documentos historicos.
 
 ### Fase 1: capacidades del tenant
