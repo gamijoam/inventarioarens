@@ -3,7 +3,18 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
-function getSmokeConfig(repoRoot, mode) {
+function getFrontendVersion(repoRoot) {
+    const packageJsonPath = path.join(repoRoot, "frontend", "package.json");
+    return JSON.parse(fs.readFileSync(packageJsonPath, "utf8")).version;
+}
+
+function getSmokeConfig(repoRoot, mode, version = getFrontendVersion(repoRoot)) {
+    const artifactNames = {
+        admin: `Sistema-de-Inventario-Administrativo-${version}.AppImage`,
+        pos: `Sistema-de-Inventario-POS-${version}.AppImage`,
+        technician: `Soporte-Tecnico-Inventario-${version}.AppImage`,
+    };
+
     if (mode === "pos") {
         return {
             appImage: path.join(
@@ -11,7 +22,7 @@ function getSmokeConfig(repoRoot, mode) {
                 "frontend",
                 "release",
                 "pos",
-                "Sistema-de-Inventario-POS-0.2.0.AppImage",
+                artifactNames.pos,
             ),
             apiPort: 8806,
             mode,
@@ -25,7 +36,7 @@ function getSmokeConfig(repoRoot, mode) {
                 "frontend",
                 "release",
                 "technician",
-                "Soporte-Tecnico-Inventario-Arens-0.2.0.AppImage",
+                artifactNames.technician,
             ),
             apiPort: 8807,
             mode,
@@ -38,7 +49,7 @@ function getSmokeConfig(repoRoot, mode) {
             "frontend",
             "release",
             "admin",
-            "Sistema-de-Inventario-Administrativo-0.2.0.AppImage",
+            artifactNames.admin,
         ),
         apiPort: 8805,
         mode: "admin",

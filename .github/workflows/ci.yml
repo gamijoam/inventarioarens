@@ -15,8 +15,8 @@ concurrency:
 # Nota: la suite PHPUnit (Feature) se ejecuta localmente con
 # phpunit.sqlite.xml. En CI con PostgreSQL la suite completa tarda 15+ min y
 # hay tests con timeouts (set_time_limit 180) y seeders demo pesados que no
-# pasan. Por eso CI valida solo el frontend (tsc + vitest), que es rapido y
-# asegura que el build de los clientes Electron no este roto antes de publicar.
+# pasan. Por eso CI valida el frontend (tsc + vitest) y los artifacts Electron
+# por plataforma; la suite backend sigue ejecutandose localmente con SQLite.
 jobs:
   frontend:
     name: Frontend (tsc + vitest)
@@ -46,3 +46,77 @@ jobs:
       - name: Run vitest
         working-directory: frontend
         run: pnpm test
+
+  electron-linux:
+    name: Electron Linux artifact (${{ matrix.client }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [admin, pos, technician]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build renderer
+        working-directory: frontend
+        run: pnpm run build:${{ matrix.client }}
+
+      - name: Package unpacked Linux client
+        working-directory: frontend
+        run: pnpm exec electron-builder --config electron-builder.${{ matrix.client }}.yml --linux dir --publish never
+
+      - name: Verify packaged client
+        working-directory: frontend
+        run: node ../scripts/verify-electron-artifact.cjs ${{ matrix.client }} release/${{ matrix.client }}/linux-unpacked
+
+  electron-windows:
+    name: Electron Windows artifact (${{ matrix.client }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [admin, pos, technician]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build renderer
+        working-directory: frontend
+        run: pnpm run build:${{ matrix.client }}
+
+      - name: Package unpacked Windows client
+        working-directory: frontend
+        run: pnpm exec electron-builder --config electron-builder.${{ matrix.client }}.yml --win dir --publish never
+
+      - name: Verify packaged client
+        working-directory: frontend
+        run: node ../scripts/verify-electron-artifact.cjs ${{ matrix.client }} release/${{ matrix.client }}/win-unpacked

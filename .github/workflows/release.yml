@@ -64,7 +64,8 @@ jobs:
           # Build without publishing; the Motor Local has its own release workflow.
           # because electron-builder + GITHUB_TOKEN leaves drafts and can drop
           # the large installer.
-          pnpm exec electron-builder --config electron-builder.${CLIENT}.yml
+          pnpm exec electron-builder --config electron-builder.${CLIENT}.yml --publish never
+          node ../scripts/verify-electron-artifact.cjs "$CLIENT" "release/$CLIENT/win-unpacked"
 
       - name: Publish release
         working-directory: frontend

@@ -179,7 +179,7 @@ El contrato futuro de sesion/bootstrap debe poder expresar, sin que el frontend 
   "client": {
     "mode": "pos",
     "name": "Sistema de Inventario (POS)",
-    "version": "0.2.57"
+    "version": "0.2.58"
   },
   "tenant": {
     "id": 10,

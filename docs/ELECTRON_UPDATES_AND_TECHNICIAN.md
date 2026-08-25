@@ -66,10 +66,10 @@ gh workflow run release.yml -f client=pos        # or admin / technician
 
 The workflow:
 
-1. checks out, installs composer deps and frontend deps on `windows-latest`;
-2. runs `pnpm run build:<client>` (tsc + vite build), then `electron-builder` **without** `--publish`
-   (electron-builder + GITHUB_TOKEN leaves drafts and can
-   drop the large installer);
+1. checks out and installs frontend deps on `windows-latest`;
+2. runs `pnpm run build:<client>` (tsc + vite build), then `electron-builder --publish never` and
+   verifies `release/<client>/win-unpacked/resources/app.asar` contains only the matching renderer
+   and no Motor Local payload;
 3. publishes explicitly with `gh release create v<version>-<client>` (non-draft) and uploads the
    `.exe`, `.blockmap` and `<channel>.yml`.
 
@@ -87,6 +87,26 @@ The three clients can have the same
 - If the GitHub release already exists, the workflow deletes it (`gh release delete --cleanup-tag`)
   and recreates it, so a re-publish replaces the old installer.
 
+### Cross-platform artifact validation
+
+The normal CI workflow validates the three client bundles on Linux with `electron-builder --linux dir`
+and on Windows with `electron-builder --win dir`, using the same `app.asar` verifier. Linux does not
+emulate NSIS: the actual Windows installer is built and inspected on `windows-latest` before
+publication by the release workflow.
+
+For a local Linux check after packaging one client:
+
+```bash
+cd frontend
+pnpm run build:admin
+pnpm exec electron-builder --config electron-builder.admin.yml --linux dir --publish never
+node ../scripts/verify-electron-artifact.cjs admin release/admin/linux-unpacked
+```
+
+Replace `admin` with `pos` or `technician` as needed. The verifier checks `electron/main.cjs`, the
+expected `dist/<client>` renderer, absence of other client renderers, and absence of `backend/`, PHP,
+SQLite or other Motor Local payloads.
+
 ### Manual publish fallback
 
 If you need to publish from a local machine (faster, avoids CI empaquetado bugs):
@@ -94,7 +114,8 @@ If you need to publish from a local machine (faster, avoids CI empaquetado bugs)
 ```bash
 cd frontend
 pnpm run build:pos
-pnpm exec electron-builder --config electron-builder.pos.yml
+pnpm exec electron-builder --config electron-builder.pos.yml --publish never
+node ../scripts/verify-electron-artifact.cjs pos release/pos/win-unpacked
 cd release/pos
 gh release create v<version>-pos --repo gamijoam/inventarioarens --title "<version>" \
   Sistema-de-Inventario-POS-<version>.exe Sistema-de-Inventario-POS-<version>.exe.blockmap pos.yml
@@ -157,10 +178,11 @@ sync is active while the app is open. Reinstalling the client does not remove th
 
 ## CI
 
-`.github/workflows/ci.yml` runs only the frontend job (tsc + vitest). The PHPUnit Feature suite is
+`.github/workflows/ci.yml` runs the frontend job (tsc + vitest) plus Linux and Windows matrices that
+build each Electron client with `--dir` and validate its `app.asar`. The PHPUnit Feature suite is
 validated locally with `phpunit.sqlite.xml`; running it in CI with PostgreSQL took 15+ minutes and
-had pre-existing failures (180s `set_time_limit`, heavy demo seeders), so it was removed from CI.
-The demo seeder tests are tagged `@group heavy`.
+had pre-existing failures (180s `set_time_limit`, heavy demo seeders), so it was removed from CI. The
+demo seeder tests are tagged `@group heavy`.
 
 ## Runbook: publicar un fix de cliente (PASO A PASO)
 

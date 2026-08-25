@@ -1,5 +1,28 @@
 # Registro de implementación
 
+## 2026-08-25 - Validación multiplataforma y release Electron 0.2.58
+
+- Se agregó `scripts/verify-electron-artifact.cjs`, que inspecciona el `app.asar` real con
+  `@electron/asar` y exige `electron/main.cjs`, exactamente `dist/<client>` y assets del renderer.
+- El verificador rechaza bundles de otro cliente y payload del Motor Local (`backend/`, PHP, SQLite,
+  `artisan`, `storage/` y scripts de instalación). Su contrato tiene tests en
+  `frontend/electron/artifact-verifier.test.js`.
+- `scripts/smoke-linux-appimage.cjs` ya deriva versión y nombres desde `frontend/package.json`; los
+  nombres antiguos `0.2.0` y `Soporte-Tecnico-Inventario-Arens` quedaron eliminados del contrato.
+- `.github/workflows/ci.yml` construye los tres clientes en matrices Linux (`--linux dir`) y Windows
+  (`--win dir`) y verifica su `app.asar` antes de terminar.
+- `.github/workflows/release.yml` corre en `windows-latest`, ejecuta `electron-builder --publish never`,
+  verifica `win-unpacked` y solo después publica `.exe`, `.blockmap` y `<client>.yml` con `gh release`.
+- La validación Linux generó y extrajo los tres AppImage de `0.2.58`. El arranque runtime no se pudo
+  completar en Linux porque no hay Motor Local en
+  `127.0.0.1:8787`; esto no afecta la validación del empaquetado.
+- Para publicar después del push, ejecutar una vez por cliente:
+  `gh workflow run release.yml --ref main -f client=admin --repo gamijoam/inventarioarens`, cambiando
+  `admin` por `pos` y `technician`. El workflow crea `v0.2.58-<client>` y elimina/recrea ese release
+  si ya existía.
+- Verificación posterior: `gh run list --workflow release.yml --repo gamijoam/inventarioarens` y
+  `gh release view v0.2.58-pos --repo gamijoam/inventarioarens --json tagName,isDraft,assets`.
+
 ## 2026-08-25 - Corrección del contrato del test de pricing automático
 
 - El cálculo automático de `base_price` desde `last_purchase_cost` y `profit_margin` ya era correcto:

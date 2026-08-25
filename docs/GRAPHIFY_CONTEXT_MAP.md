@@ -329,7 +329,10 @@ Nodos de codigo frecuentes:
 Los tres clientes Electron (admin, pos, technician) usan `electron-updater` con GitHub
 Releases y canales separados. Cada cliente se instala en su propia carpeta
 (`oneClick: false`). La publicacion la orquesta `.github/workflows/release.yml`, que
-construye en Windows y publica con `gh release create v<version>-<client>` (no-draft).
+construye en Windows, verifica `win-unpacked/resources/app.asar` y publica con
+`gh release create v<version>-<client>` (no-draft). `.github/workflows/ci.yml` tambien
+empaqueta los tres clientes en Linux y Windows con `--dir` y valida el mismo contrato de
+aislamiento.
 
 Documento principal:
 
@@ -349,6 +352,9 @@ Nodos de codigo frecuentes:
 - `frontend/electron/auto-updater.cjs` (check cada 1 min)
 - `frontend/electron/backend-runtime.cjs` (supervisor de la API local)
 - `frontend/electron/update-policy.cjs`
+- `scripts/verify-electron-artifact.cjs` (contrato portable del app.asar)
+- `frontend/electron/artifact-verifier.test.js` (renderer correcto y exclusion del Motor Local)
+- `scripts/smoke-linux-appimage.cjs` (nombres AppImage derivados de `package.json`)
 - `.github/workflows/release.yml`
 - `.github/workflows/ci.yml`
 - `LocalTechnicalConsoleService` (vinculacion, tareas programadas)
