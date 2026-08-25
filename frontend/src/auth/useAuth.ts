@@ -64,6 +64,7 @@ export function useAuth(): UseAuthResult {
             )
           : [],
         permissions: me.permissions ?? [],
+        capabilities: me.capabilities ?? [],
         scopeStatus: me.scope_status ?? 'none',
         scopes: me.scopes ?? {
           branches: [],
@@ -106,6 +107,7 @@ export function useAuth(): UseAuthResult {
           typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
         ),
         permissions: data.permissions,
+        capabilities: data.capabilities ?? [],
         scopeStatus: data.scope_status ?? 'none',
         scopes: data.scopes ?? {
           branches: [],
@@ -139,6 +141,7 @@ export function useAuth(): UseAuthResult {
             )
           : [],
         permissions: data.permissions ?? [],
+        capabilities: data.capabilities ?? [],
         scopeStatus: data.scope_status ?? 'none',
         scopes: data.scopes ?? {
           branches: [],
@@ -180,6 +183,7 @@ export function useAuth(): UseAuthResult {
           typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
         ),
         permissions: data.permissions,
+        capabilities: data.capabilities ?? [],
         scopeStatus: data.scope_status === 'deny' ? 'restrict' : data.scope_status,
         scopes: (data.scopes ?? {}) as never,
       });

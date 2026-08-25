@@ -7,6 +7,7 @@ use App\Modules\Auth\Middleware\AuthenticateApiToken;
 use App\Modules\Auth\Services\CookieIssuer;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
+use App\Modules\Tenancy\Middleware\EnsureTenantCapability;
 use App\Modules\Tenancy\Middleware\ResolveTenant;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -100,6 +101,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
             'tenant' => ResolveTenant::class,
+            'capability' => EnsureTenantCapability::class,
             'idempotency' => IdempotencyKey::class,
         ]);
 

@@ -86,6 +86,7 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('data.roles.0', 'Vendedor')
             ->assertJsonPath('data.permissions.0', 'pos.view')
             ->assertJsonPath('data.permissions.1', 'products.view')
+            ->assertJsonFragment(['capabilities' => ['dashboard', 'catalog', 'inventory', 'customers', 'suppliers', 'sales', 'purchases', 'pos', 'cash_register', 'finance', 'reports', 'promotions', 'commissions', 'warranties', 'workshop', 'intercompany', 'inventory_transfers', 'data_import', 'quotations', 'printing', 'telegram', 'offline_sync']])
             ->assertJsonPath('data.token_type', 'Bearer');
 
         $plainToken = $response->json('data.token');

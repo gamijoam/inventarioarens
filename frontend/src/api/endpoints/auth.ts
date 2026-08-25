@@ -14,11 +14,7 @@
  * Ver docs/AUTH_COOKIE_API.md para el contrato completo.
  */
 import { postOne, getOne } from '@/api/client';
-import type {
-  LoginResponse,
-  TenantLookupResponse,
-  UserSession,
-} from '@/types/user';
+import type { LoginResponse, TenantLookupResponse, UserSession } from '@/types/user';
 
 export interface TenantLookupRequest {
   email: string;
@@ -32,18 +28,24 @@ export interface LoginRequest {
 
 /** POST /api/auth/tenants — Lista las empresas donde el email está activo. */
 export function lookupTenants(payload: TenantLookupRequest) {
-  return postOne<TenantLookupRequest, TenantLookupResponse['data']>(
-    '/auth/tenants',
-    payload,
-  );
+  return postOne<TenantLookupRequest, TenantLookupResponse['data']>('/auth/tenants', payload);
 }
 
 /** POST /api/auth/switch-tenant — Cambia el tenant activo del usuario. */
 export function switchTenantApi(slug: string) {
-  return postOne<{ tenant_slug: string }, { expires_at: string; user: { id: number; name: string; email: string; is_platform_admin?: boolean }; tenant: { id: number; name: string; slug: string; is_active?: boolean }; roles: (string | { name: string })[]; permissions: string[]; scope_status: 'allow' | 'deny' | 'restrict' | 'none'; scopes: unknown }>(
-    '/auth/switch-tenant',
-    { tenant_slug: slug },
-  );
+  return postOne<
+    { tenant_slug: string },
+    {
+      expires_at: string;
+      user: { id: number; name: string; email: string; is_platform_admin?: boolean };
+      tenant: { id: number; name: string; slug: string; is_active?: boolean };
+      roles: (string | { name: string })[];
+      permissions: string[];
+      capabilities?: string[];
+      scope_status: 'allow' | 'deny' | 'restrict' | 'none';
+      scopes: unknown;
+    }
+  >('/auth/switch-tenant', { tenant_slug: slug });
 }
 
 /**

@@ -187,6 +187,16 @@ En `InventoryTransferRequests`, `origin_tenant_id` identifica a la empresa solic
 - Un endpoint nuevo DEBE chequearse con un test cross-tenant (ver §9).
 - FKs entre tablas de negocio DEBEN ser compuestas `['tenant_id', 'id']` si la tabla padre es tenant-scoped.
 
+**Capacidades por tenant (2026-08-25)**:
+- `tenant_capabilities` define los modulos contratados por empresa; no reemplaza roles, permisos ni scopes.
+- Tenants existentes conservan todas las capacidades durante la migracion.
+- Tenants nuevos creados por los servicios oficiales reciben `dashboard`, `catalog`, `inventory`, `customers` y `suppliers`.
+- El backend valida capacidades con `capability:<key>` antes de ejecutar rutas opcionales.
+- Login, `/api/auth/me` y `switch-tenant` exponen `capabilities[]` para React/Electron; el frontend nunca puede agregar capacidades.
+- La administracion usa `GET/PATCH /api/tenant-capabilities` y requiere `settings.manage` para modificar.
+- Fuente de catalogo: `App\Support\Capabilities\BaseCapabilities`; resolver: `TenantCapabilityService`.
+- Contrato completo: `docs/MATRIZ_CAPACIDADES_CLIENTES_ELECTRON.md`.
+
 ---
 
 ## 5. Sync Local ↔ Nube

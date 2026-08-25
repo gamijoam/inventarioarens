@@ -4,6 +4,7 @@ use App\Modules\Tenancy\Controllers\CrossTenantUserController;
 use App\Modules\Tenancy\Controllers\GroupController;
 use App\Modules\Tenancy\Controllers\MasterController;
 use App\Modules\Tenancy\Controllers\PlatformAdminController;
+use App\Modules\Tenancy\Controllers\TenantCapabilityController;
 use App\Modules\Tenancy\Controllers\TenantController;
 use App\Modules\Tenancy\Controllers\TenantGroupController;
 use App\Modules\Tenancy\Controllers\TenantSettingController;
@@ -28,6 +29,8 @@ Route::middleware(['api.auth', 'tenant'])->group(function (): void {
     // Configuracion por empresa (apartado Telegram, alertas, etc).
     Route::get('tenant-settings', [TenantSettingController::class, 'show']);
     Route::patch('tenant-settings', [TenantSettingController::class, 'update']);
+    Route::get('tenant-capabilities', [TenantCapabilityController::class, 'show']);
+    Route::patch('tenant-capabilities', [TenantCapabilityController::class, 'update']);
 });
 
 /**

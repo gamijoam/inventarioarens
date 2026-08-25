@@ -50,6 +50,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   permission?: string;
   permissionAny?: string[];
+  capability?: string;
   // Etiqueta de seccion que agrupa visualmente items relacionados.
   section?: string;
   // Sub-items opcionales (menu anidado).
@@ -75,23 +76,44 @@ const SECTION_LABELS = {
 
 const NAV_ITEMS: NavItem[] = [
   // ===== Operación =====
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: SECTION_LABELS.OPERACION },
-  { to: '/pos', label: 'POS', icon: Monitor, permission: PERMISSIONS.POS_VIEW, section: SECTION_LABELS.OPERACION },
+  {
+    to: '/dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    section: SECTION_LABELS.OPERACION,
+  },
+  {
+    to: '/pos',
+    label: 'POS',
+    icon: Monitor,
+    permission: PERMISSIONS.POS_VIEW,
+    capability: 'pos',
+    section: SECTION_LABELS.OPERACION,
+  },
   {
     to: '/cash-register',
     label: 'Cajas',
     icon: Banknote,
     permission: PERMISSIONS.CASH_REGISTER_VIEW,
+    capability: 'cash_register',
     section: SECTION_LABELS.OPERACION,
   },
 
   // ===== Ventas =====
-  { to: '/sales', label: 'Ventas', icon: ShoppingCart, permission: PERMISSIONS.SALES_VIEW, section: SECTION_LABELS.VENTAS },
+  {
+    to: '/sales',
+    label: 'Ventas',
+    icon: ShoppingCart,
+    permission: PERMISSIONS.SALES_VIEW,
+    capability: 'sales',
+    section: SECTION_LABELS.VENTAS,
+  },
   {
     to: '/quotations',
     label: 'Cotizaciones',
     icon: FileText,
     permission: PERMISSIONS.QUOTATIONS_VIEW,
+    capability: 'quotations',
     section: SECTION_LABELS.VENTAS,
   },
   {
@@ -99,6 +121,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Devoluciones',
     icon: RotateCcw,
     permission: PERMISSIONS.SALES_RETURNS_VIEW,
+    capability: 'sales',
     section: SECTION_LABELS.VENTAS,
   },
   {
@@ -106,6 +129,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Promociones',
     icon: Tag,
     permission: PERMISSIONS.PROMOTIONS_VIEW,
+    capability: 'promotions',
     section: SECTION_LABELS.VENTAS,
   },
   {
@@ -113,9 +137,16 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Comisiones',
     icon: BadgeDollarSign,
     permissionAny: [PERMISSIONS.COMMISSIONS_VIEW_OWN, PERMISSIONS.COMMISSIONS_VIEW_ALL],
+    capability: 'commissions',
     section: SECTION_LABELS.VENTAS,
   },
-  { to: '/customers', label: 'Clientes', icon: Users, permission: PERMISSIONS.CUSTOMERS_VIEW, section: SECTION_LABELS.VENTAS },
+  {
+    to: '/customers',
+    label: 'Clientes',
+    icon: Users,
+    permission: PERMISSIONS.CUSTOMERS_VIEW,
+    section: SECTION_LABELS.VENTAS,
+  },
 
   // ===== Finanzas =====
   {
@@ -123,6 +154,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Cuentas por cobrar',
     icon: Wallet,
     permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW,
+    capability: 'finance',
     section: SECTION_LABELS.FINANZAS,
   },
   {
@@ -130,6 +162,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Cuentas por pagar',
     icon: Receipt,
     permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW,
+    capability: 'finance',
     section: SECTION_LABELS.FINANZAS,
   },
   {
@@ -137,6 +170,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Metodos de pago',
     icon: CreditCard,
     permission: PERMISSIONS.PAYMENT_METHODS_VIEW,
+    capability: 'pos',
     section: SECTION_LABELS.FINANZAS,
   },
   {
@@ -187,12 +221,20 @@ const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { to: '/purchases', label: 'Compras', icon: ShoppingBag, permission: PERMISSIONS.PURCHASES_VIEW, section: SECTION_LABELS.INVENTARIO },
+  {
+    to: '/purchases',
+    label: 'Compras',
+    icon: ShoppingBag,
+    permission: PERMISSIONS.PURCHASES_VIEW,
+    capability: 'purchases',
+    section: SECTION_LABELS.INVENTARIO,
+  },
   {
     to: '/transfers',
     label: 'Traslados',
     icon: Truck,
     permission: PERMISSIONS.INVENTORY_TRANSFERS_VIEW,
+    capability: 'inventory_transfers',
     section: SECTION_LABELS.INVENTARIO,
   },
   {
@@ -200,6 +242,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Solicitudes inter-empresa',
     icon: Building2,
     permission: PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_VIEW,
+    capability: 'intercompany',
     section: SECTION_LABELS.INVENTARIO,
   },
   {
@@ -207,6 +250,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Garantías',
     icon: ShieldQuestion,
     permission: PERMISSIONS.WARRANTIES_VIEW,
+    capability: 'warranties',
     section: SECTION_LABELS.INVENTARIO,
   },
   {
@@ -214,6 +258,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Taller',
     icon: Wrench,
     permission: PERMISSIONS.SERVICE_ORDERS_VIEW,
+    capability: 'workshop',
     section: SECTION_LABELS.INVENTARIO,
   },
 
@@ -223,6 +268,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Reportes',
     icon: BarChart3,
     permissionAny: [PERMISSIONS.REPORTS_VIEW, PERMISSIONS.FINANCE_REPORTS_VIEW],
+    capability: 'reports',
     section: SECTION_LABELS.ANALITICA,
   },
   {
@@ -230,6 +276,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Importar datos',
     icon: Upload,
     permission: PERMISSIONS.DATA_IMPORT_VIEW,
+    capability: 'data_import',
     section: SECTION_LABELS.ANALITICA,
   },
   {
@@ -237,6 +284,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Impresion',
     icon: Printer,
     permission: PERMISSIONS.PRINTING_VIEW,
+    capability: 'printing',
     section: SECTION_LABELS.ANALITICA,
   },
 
@@ -290,6 +338,7 @@ const NAV_ITEMS: NavItem[] = [
         label: 'Telegram',
         icon: Send,
         permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
+        capability: 'telegram',
       },
     ],
   },
@@ -358,7 +407,7 @@ export function Sidebar() {
             const isNewSection = item.section != null && item.section !== prevSection;
             const sectionHeader =
               !collapsed && isNewSection ? (
-                <div className="text-text-muted px-2.5 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider">
+                <div className="text-text-muted px-2.5 pt-3 pb-1 text-[10px] font-semibold tracking-wider uppercase">
                   {item.section}
                 </div>
               ) : null;
@@ -449,6 +498,12 @@ function CanAny({ permissions, children }: { permissions: string[]; children: Re
 }
 
 function NavItemAccess({ item, children }: { item: NavItem; children: React.ReactNode }) {
+  const capabilities = useSessionStore((state) => state.capabilities);
+
+  if (item.capability && capabilities?.size > 0 && !capabilities.has(item.capability)) {
+    return null;
+  }
+
   if (item.permissionAny) {
     return <CanAny permissions={item.permissionAny}>{children}</CanAny>;
   }

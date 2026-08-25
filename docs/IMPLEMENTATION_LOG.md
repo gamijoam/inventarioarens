@@ -1,5 +1,24 @@
 # Registro de implementación
 
+## 2026-08-25 - Capacidades por tenant y matriz de clientes Electron
+
+- Se agrego `docs/MATRIZ_CAPACIDADES_CLIENTES_ELECTRON.md` como contrato inicial para separar modo
+  Electron, capacidades contratadas, permisos de usuario, scopes y servicios del Motor Local.
+- Se creo `tenant_capabilities` con catalogo estable de 22 capacidades.
+- Tenants existentes conservan todas sus capacidades durante la migracion. Los tenants creados por
+  los servicios oficiales reciben por defecto `dashboard`, `catalog`, `inventory`, `customers` y
+  `suppliers`.
+- Se agregaron `GET/PATCH /api/tenant-capabilities`, protegidos por `settings.manage` para cambios.
+- Login, `/api/auth/me` y `switch-tenant` exponen `capabilities[]` para que React y los tres clientes
+  Electron puedan adaptar menu y experiencia sin duplicar reglas de backend.
+- Se agrego middleware `capability:<key>` y se aplico a POS, caja, ventas, compras, finanzas,
+  reportes, promociones, comisiones, garantias, taller, interempresa, importacion, cotizaciones,
+  impresion y traslados.
+- El sidebar React ahora filtra modulos por `appMode`, capability y permiso. El backend sigue siendo
+  la autoridad y el Motor Local no se modifica desde los clientes.
+- TDD: `TenantCapabilitiesApiTest` + Auth/AccessControl/Tenancy/Bootstrap: 220/220 tests y 873
+  aserciones verdes; frontend `pnpm typecheck` verde y tests focalizados 16/16.
+
 ## 2026-08-21 - Auditoria apertura de caja: fondos USD/VES no se guardaban (quirk type=number)
 
 - **Sintoma**: en Tucacas (tiendasarens) se abrio la caja con $1 y Bs 1 pero la sesion quedo

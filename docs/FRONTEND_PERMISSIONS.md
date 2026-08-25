@@ -15,6 +15,12 @@ permisos del backend**. Es la fuente de verdad para implementar la capa de permi
 El backend Laravel implementa un sistema de **3 niveles de permisos + scopes + field masking**. El
 frontend debe consumirlo de forma **declarativa**, no calcular capabilities en cliente.
 
+Ademas, la sesion incluye `capabilities[]`, que representa los modulos habilitados para la empresa.
+Una capability no otorga permisos: el backend exige primero la capability del tenant y luego el
+permiso efectivo del usuario. El frontend puede ocultar menu y rutas por UX, pero nunca puede agregar
+capabilities ni sustituir la autorizacion del backend. El contrato completo esta en
+`docs/MATRIZ_CAPACIDADES_CLIENTES_ELECTRON.md`.
+
 ### Los 5 mecanismos del backend
 
 | # | Mecanismo | Qué hace | Cómo lo consume el frontend |

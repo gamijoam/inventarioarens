@@ -1,6 +1,6 @@
 # Electron Updates and Technician Client
 
-> Actualizacion 2026-08-14: la infraestructura local canónica es el instalador independiente
+> Actualizacion 2026-08-25: la infraestructura local canonica es el instalador independiente
 > **Motor Local - Sistema de Inventario** descrito en
 > `docs/MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md`. Administrativo, POS y Soporte Técnico son clientes
 > UI-only: no contienen PHP/Laravel y no crean, reparan ni eliminan servicios o tareas. Las secciones
@@ -17,10 +17,10 @@ The repository builds three Windows/Linux Electron clients:
 | POS | `pos` | `pos` | Point of sale |
 | Technical Support | `technician` | `technician` | Local installation and sync support |
 
-All clients include the React bundle, Laravel, PHP portable and the local SQLite runtime. Persistent
-data is stored outside the installation directory (the shared `InventarioArens` data root under
-`%APPDATA%`), so replacing the installed application does not replace the local database, sync tokens,
-logs or storage.
+Each client includes only its Electron shell and React UI. Laravel, PHP, SQLite, printing and sync are
+owned by the independent Motor Local installer. Persistent data is stored outside the client
+installation directories, so replacing an application does not replace the local database, sync
+tokens, logs or storage.
 
 Each client installs into its own per-user folder (`oneClick: false` + `executableName`). This stops
 the Administrative/POS/Technician installers from landing in the same `inventarioarens-frontend`
@@ -62,8 +62,8 @@ gh workflow run release.yml -f client=pos        # or admin / technician
 The workflow:
 
 1. checks out, installs composer deps and frontend deps on `windows-latest`;
-2. runs `pnpm run build:<client>` (tsc + vite build), `electron:stage-backend`, then
-   `electron-builder` **without** `--publish` (electron-builder + GITHUB_TOKEN leaves drafts and can
+2. runs `pnpm run build:<client>` (tsc + vite build), then `electron-builder` **without** `--publish`
+   (electron-builder + GITHUB_TOKEN leaves drafts and can
    drop the large installer);
 3. publishes explicitly with `gh release create v<version>-<client>` (non-draft) and uploads the
    `.exe`, `.blockmap` and `<channel>.yml`.
@@ -157,11 +157,11 @@ validated locally with `phpunit.sqlite.xml`; running it in CI with PostgreSQL to
 had pre-existing failures (180s `set_time_limit`, heavy demo seeders), so it was removed from CI.
 The demo seeder tests are tagged `@group heavy`.
 
-## Runbook: publicar un fix (PASO A PASO)
+## Runbook: publicar un fix de cliente (PASO A PASO)
 
 Este es el flujo completo para lanzar un cambio (bugfix o feature) a los clientes de escritorio.
-El backend Laravel viaja DENTRO de cada cliente (`resources/backend`), asi que **no hay
-actualizacion de backend separada**: cada fix de la app = un release nuevo del cliente.
+Estos pasos aplican a cambios de interfaz. Los cambios de Laravel, PHP, impresion o sync se publican
+por separado mediante el release del Motor Local.
 
 ### Antes de empezar (checklist)
 

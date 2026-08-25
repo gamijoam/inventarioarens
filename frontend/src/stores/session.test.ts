@@ -24,6 +24,7 @@ beforeEach(() => {
     tenant: null,
     roles: [],
     permissions: new Set(),
+    capabilities: new Set(),
     scopeStatus: 'none',
     scopes: emptyScopes,
     expiresAt: null,
@@ -49,13 +50,14 @@ describe('useSessionStore (Plan C: cookie httpOnly)', () => {
     expect('token' in state).toBe(false);
   });
 
-  it('setSession guarda user, tenant, expiresAt, permissions (sin token)', () => {
+  it('setSession guarda user, tenant, expiresAt, permissions y capabilities (sin token)', () => {
     useSessionStore.getState().setSession({
       expiresAt: '2030-01-01T00:00:00Z',
       user: { id: 1, email: 'u@e.com', name: 'User', is_active: true },
       tenant: { id: 1, slug: 'demo', name: 'Demo', is_active: true },
       roles: ['Administrador'],
       permissions: ['products.view', 'products.create'],
+      capabilities: ['catalog', 'inventory'],
       scopeStatus: 'none',
       scopes: emptyScopes,
     });
@@ -66,16 +68,24 @@ describe('useSessionStore (Plan C: cookie httpOnly)', () => {
     expect(state.tenant?.slug).toBe('demo');
     expect(state.permissions.has('products.view')).toBe(true);
     expect(state.permissions.has('products.create')).toBe(true);
+    expect(state.capabilities.has('inventory')).toBe(true);
     expect(state.hasSession()).toBe(true);
   });
 
   it('setSession permite sesion platform sin tenant activo', () => {
     useSessionStore.getState().setSession({
       expiresAt: '2030-01-01T00:00:00Z',
-      user: { id: 1, email: 'master@e.com', name: 'Master', is_active: true, is_platform_admin: true },
+      user: {
+        id: 1,
+        email: 'master@e.com',
+        name: 'Master',
+        is_active: true,
+        is_platform_admin: true,
+      },
       tenant: null,
       roles: [],
       permissions: [],
+      capabilities: [],
       scopeStatus: 'none',
       scopes: emptyScopes,
     });
@@ -93,6 +103,7 @@ describe('useSessionStore (Plan C: cookie httpOnly)', () => {
       tenant: { id: 1, slug: 'a', name: 'A', is_active: true },
       roles: [],
       permissions: ['products.view'],
+      capabilities: ['catalog'],
       scopeStatus: 'none',
       scopes: emptyScopes,
     });
@@ -111,6 +122,7 @@ describe('useSessionStore (Plan C: cookie httpOnly)', () => {
       tenant: { id: 1, slug: 'a', name: 'A', is_active: true },
       roles: [],
       permissions: ['products.view'],
+      capabilities: ['catalog'],
       scopeStatus: 'none',
       scopes: emptyScopes,
     });

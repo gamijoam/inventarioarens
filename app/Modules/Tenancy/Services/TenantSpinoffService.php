@@ -25,6 +25,7 @@ class TenantSpinoffService
     public function __construct(
         private readonly AuditLogger $audit,
         private readonly SharedCatalogPropagationService $catalog,
+        private readonly TenantCapabilityService $capabilities,
     ) {}
 
     /**
@@ -62,6 +63,7 @@ class TenantSpinoffService
                     'parent_id' => $group->id,
                     'is_group' => false,
                 ]);
+                $this->capabilities->initializeForNewTenant($tenant);
 
                 $tenantManager->set($tenant);
                 setPermissionsTeamId($tenant->id);

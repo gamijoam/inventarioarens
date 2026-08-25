@@ -88,7 +88,14 @@ class UserOverrideController extends Controller
 
     private function ensureTenantContext(Tenant $tenant): void
     {
-        // Forzar que el TenantManager refleje el tenant que viene en la URL.
+        $currentTenant = app(TenantManager::class)->require();
+
+        abort_unless(
+            (int) $currentTenant->id === (int) $tenant->id,
+            Response::HTTP_FORBIDDEN,
+            'El tenant de la ruta no coincide con el tenant autenticado.',
+        );
+
         app(TenantManager::class)->set($tenant);
     }
 }

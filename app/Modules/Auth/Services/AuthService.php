@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\TenantCapabilityService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -14,7 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly TenantCapabilityService $capabilities,
+    ) {}
 
     public function availableTenants(string $email): array
     {
@@ -123,6 +127,7 @@ class AuthService
             'tenant' => $tenant,
             'roles' => $this->roles($user),
             'permissions' => $this->permissions($user),
+            'capabilities' => $this->capabilities->enabledKeys($tenant),
         ];
     }
 
@@ -149,6 +154,7 @@ class AuthService
             'tenant' => $tenant,
             'roles' => $tenant ? $this->roles($user) : [],
             'permissions' => $tenant ? $this->permissions($user) : [],
+            'capabilities' => $tenant ? $this->capabilities->enabledKeys($tenant) : [],
         ];
     }
 
@@ -233,6 +239,7 @@ class AuthService
             'tenant' => null,
             'roles' => $this->roles($user),
             'permissions' => $this->permissions($user),
+            'capabilities' => [],
         ];
     }
 

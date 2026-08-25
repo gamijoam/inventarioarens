@@ -27,6 +27,7 @@ export interface SessionState {
   tenant: Tenant | null;
   roles: string[];
   permissions: Set<string>;
+  capabilities: Set<string>;
   scopeStatus: 'none' | 'allow' | 'restrict';
   scopes: UserScopes;
   expiresAt: string | null;
@@ -37,6 +38,7 @@ export interface SessionState {
     tenant: Tenant | null;
     roles: string[];
     permissions: string[];
+    capabilities?: string[];
     scopeStatus: SessionState['scopeStatus'];
     scopes: UserScopes;
   }) => void;
@@ -64,6 +66,7 @@ const initialState = {
   tenant: null,
   roles: [] as string[],
   permissions: new Set<string>(),
+  capabilities: new Set<string>(),
   scopeStatus: 'none' as const,
   scopes: emptyScopes,
   expiresAt: null,
@@ -81,17 +84,23 @@ export const useSessionStore = create<SessionState>()(
           tenant: data.tenant,
           roles: data.roles,
           permissions: new Set(data.permissions),
+          capabilities: new Set(data.capabilities ?? []),
           scopeStatus: data.scopeStatus,
           scopes: data.scopes,
         }),
 
       setTenant: (tenant) => set({ tenant }),
 
-      clearSession: () => set({ ...initialState, permissions: new Set() }),
+      clearSession: () =>
+        set({
+          ...initialState,
+          permissions: new Set(),
+          capabilities: new Set(),
+        }),
 
       // Sync: indica si tenemos datos de sesion hidratados.
       // NO garantiza que la cookie este vigente (eso lo verifica el backend).
-  hasSession: () => Boolean(get().user),
+      hasSession: () => Boolean(get().user),
     }),
     {
       name: 'inventory_session',
@@ -103,20 +112,28 @@ export const useSessionStore = create<SessionState>()(
         tenant: state.tenant,
         roles: state.roles,
         permissions: Array.from(state.permissions),
+        capabilities: Array.from(state.capabilities),
         scopeStatus: state.scopeStatus,
         scopes: state.scopes,
         expiresAt: state.expiresAt,
       }),
       // Cuando rehidrates, el Set vuelve como Array. Lo convertimos.
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as Partial<{
-          permissions: string[] | Set<string>;
-        }> | undefined;
+        const persisted = persistedState as
+          | Partial<{
+              permissions: string[] | Set<string>;
+            }>
+          | undefined;
         const perms = persisted?.permissions;
         return {
           ...currentState,
           ...persisted,
           permissions: new Set(Array.isArray(perms) ? perms : []),
+          capabilities: new Set(
+            Array.isArray((persisted as { capabilities?: unknown })?.capabilities)
+              ? ((persisted as { capabilities: string[] }).capabilities ?? [])
+              : [],
+          ),
         };
       },
     },
@@ -135,16 +152,12 @@ export function hasAuthCookie(): boolean {
   if (typeof document === 'undefined') return false;
   // Buscamos cookie_name=value (sin regex por performance).
   // document.cookie tiene formato "name1=value1; name2=value2; ..."
-  return document.cookie
-    .split('; ')
-    .some((c) => c.startsWith(`${AUTH_COOKIE_NAME}=`));
+  return document.cookie.split('; ').some((c) => c.startsWith(`${AUTH_COOKIE_NAME}=`));
 }
 
 export function hasAuthCookieWithValue(): string | null {
   if (typeof document === 'undefined') return null;
-  const found = document.cookie
-    .split('; ')
-    .find((c) => c.startsWith(`${AUTH_COOKIE_NAME}=`));
+  const found = document.cookie.split('; ').find((c) => c.startsWith(`${AUTH_COOKIE_NAME}=`));
   if (!found) return null;
   const eq = found.indexOf('=');
   return found.substring(eq + 1);

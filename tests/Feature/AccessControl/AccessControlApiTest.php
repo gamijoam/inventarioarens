@@ -4,6 +4,7 @@ namespace Tests\Feature\AccessControl;
 
 use App\Models\User;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Branches\Models\Branch;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -355,6 +356,80 @@ class AccessControlApiTest extends TestCase
             ->withHeader('X-Tenant', $tenant->slug)
             ->getJson('/api/users')
             ->assertForbidden();
+    }
+
+    public function test_access_control_scopes_cannot_use_a_route_tenant_different_from_header_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $adminA = $this->userInTenant($tenantA);
+        $targetB = $this->userInTenant($tenantB);
+
+        $this->grantRole($tenantA, $adminA, 'Access Admin A', ['users.view']);
+
+        $this
+            ->actingAs($adminA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson("/api/tenants/{$tenantB->slug}/users/{$targetB->id}/scopes")
+            ->assertForbidden();
+    }
+
+    public function test_access_control_overrides_cannot_write_to_a_route_tenant_different_from_header_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $adminA = $this->userInTenant($tenantA);
+        $targetB = $this->userInTenant($tenantB);
+
+        $this->grantRole($tenantA, $adminA, 'Access Admin A', ['users.update']);
+
+        $this
+            ->actingAs($adminA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->putJson("/api/tenants/{$tenantB->slug}/users/{$targetB->id}/overrides", [
+                'items' => [
+                    ['permission' => 'products.view', 'effect' => 'allow'],
+                ],
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('user_permission_overrides', [
+            'tenant_id' => $tenantB->id,
+            'user_id' => $targetB->id,
+            'permission' => 'products.view',
+        ]);
+    }
+
+    public function test_user_scopes_reject_resource_ids_from_another_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $adminA = $this->userInTenant($tenantA);
+        $targetA = $this->userInTenant($tenantA);
+
+        $this->useTenant($tenantB);
+        $branchB = Branch::create([
+            'name' => 'Sucursal B',
+            'code' => 'SUC-B',
+        ]);
+        $this->useTenant($tenantA);
+
+        $this->grantRole($tenantA, $adminA, 'Access Admin A', ['users.update']);
+
+        $this
+            ->actingAs($adminA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->putJson("/api/tenants/{$tenantA->slug}/users/{$targetA->id}/scopes/branches", [
+                'branch_ids' => [$branchB->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['branch_ids.0']);
+
+        $this->assertDatabaseMissing('user_branch_scopes', [
+            'tenant_id' => $tenantA->id,
+            'user_id' => $targetA->id,
+            'branch_id' => $branchB->id,
+        ]);
     }
 
     public function test_can_create_role_and_update_permissions(): void

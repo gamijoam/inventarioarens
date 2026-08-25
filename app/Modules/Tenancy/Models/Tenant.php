@@ -48,6 +48,11 @@ class Tenant extends Model
         return $this->hasOne(TenantSetting::class, 'tenant_id');
     }
 
+    public function capabilities(): HasMany
+    {
+        return $this->hasMany(TenantCapability::class, 'tenant_id');
+    }
+
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
