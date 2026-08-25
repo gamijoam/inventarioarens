@@ -1,5 +1,13 @@
 # Registro de implementación
 
+## 2026-08-25 - Bundles Electron aislados por cliente
+
+- Cada configuracion `electron-builder.<cliente>.yml` empaqueta solamente `dist/<cliente>`; ya no
+  distribuye los bundles React de los otros clientes dentro del `app.asar`.
+- Se agrego `frontend/electron/client-bundles.test.js` para exigir exactamente un renderer por
+  instalador y evitar regresiones en futuros releases.
+- El Motor Local continua fuera de los instaladores de Administrativo, POS y Soporte Técnico.
+
 ## 2026-08-25 - Panel React de capacidades por empresa
 
 - Se agrego la pantalla administrativa `/settings/capabilities`, visible en Configuracion para

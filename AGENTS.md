@@ -1046,6 +1046,8 @@ la infraestructura local, se publica primero y se valida el Motor correspondient
 **Regla de build**: siempre regenerar el bundle antes de empaquetar
 (`pnpm run build:<client>` y luego `electron-builder`). Empaquetar sin regenerar `dist` publica un
 bundle viejo y la UI nueva no llega.
+Cada `electron-builder.<client>.yml` debe incluir solamente `dist/<client>`; no empaquetar los
+bundles renderer de los otros clientes.
 
 ### Auto-update y workers
 

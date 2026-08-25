@@ -13,8 +13,6 @@ publish:
 files:
   - electron/**/*
   - dist/admin/**/*
-  - dist/pos/**/*
-  - dist/technician/**/*
   - package.json
 win:
   icon: build/icons/admin/icon.ico

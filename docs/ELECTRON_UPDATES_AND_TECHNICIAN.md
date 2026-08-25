@@ -26,6 +26,10 @@ Each client installs into its own per-user folder (`oneClick: false` + `executab
 the Administrative/POS/Technician installers from landing in the same `inventarioarens-frontend`
 folder and overwriting each other's `app.asar`.
 
+The three `electron-builder.<client>.yml` files also include only the matching `dist/<client>` renderer
+bundle. The Electron shell remains shared, but an installer does not carry the UI bundle or routes of
+another client. `frontend/electron/client-bundles.test.js` protects this packaging contract.
+
 ## Automatic Updates
 
 `electron-updater` is configured with GitHub Releases. Each client uses its own channel

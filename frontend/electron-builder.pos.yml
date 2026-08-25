@@ -12,9 +12,7 @@ publish:
   channel: pos
 files:
   - electron/**/*
-  - dist/admin/**/*
   - dist/pos/**/*
-  - dist/technician/**/*
   - package.json
 win:
   icon: build/icons/pos/icon.ico

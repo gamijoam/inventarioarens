@@ -273,7 +273,7 @@ Estado: vertical implementada el 2026-08-25.
 - [x] Filtrar el menu por `appMode`, capacidad y permiso.
 - [x] Mantener el backend como autoridad mediante middleware de capacidades.
 - [ ] Crear perfiles de cliente visuales sin duplicar features.
-- [ ] Verificar que cada instalador solo publique el bundle que corresponde.
+- [x] Verificar que cada instalador solo publique el bundle que corresponde.
 - [ ] Validar que actualizar un cliente no detenga ni reemplace el Motor Local.
 
 ### Fase 3: branding runtime
