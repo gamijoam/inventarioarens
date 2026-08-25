@@ -97,7 +97,7 @@ class ProductApiTest extends TestCase
     {
         $tenant = Tenant::create(['name' => 'Empresa Precio', 'slug' => 'empresa-precio']);
         $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create']);
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.create', 'finance.costs.view']);
 
         $this
             ->actingAs($user)

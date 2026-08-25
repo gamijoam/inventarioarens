@@ -1,5 +1,14 @@
 # Registro de implementación
 
+## 2026-08-25 - Corrección del contrato del test de pricing automático
+
+- El cálculo automático de `base_price` desde `last_purchase_cost` y `profit_margin` ya era correcto:
+  `100 * 1.25 = 125`.
+- El fallo estaba en el fixture de `ProductApiTest`: el recurso oculta `last_purchase_cost` a usuarios
+  sin `finance.costs.view`, pero el test esperaba verlo como `100`.
+- El test ahora otorga explícitamente ese permiso financiero; no se relajó la protección de costos.
+- Products: `129/129` tests verdes. Suite backend SQLite: `1504` aprobados, `4` skipped.
+
 ## 2026-08-25 - Auditoría de rutas con tenant en URL
 
 - `UserAuditController` ahora rechaza cuando `{tenant}` no coincide con el tenant autenticado por
