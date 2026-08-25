@@ -1,5 +1,16 @@
 # Registro de implementación
 
+## 2026-08-25 - Perfiles visuales base por cliente Electron
+
+- `frontend/src/config/branding.ts` ahora define `AppVisualProfile` junto con cada
+  `APP_DEFINITION`, con acento, marca corta y etiqueta de producto.
+- Login consume el perfil en lugar de duplicar el logo y la etiqueta; se conserva exactamente la
+  apariencia vigente hasta que el cliente defina una paleta final.
+- `main.tsx` publica `data-app-mode` en `<html>` para permitir tematizacion posterior sin duplicar
+  features ni layouts.
+- Esto es la capa técnica de fallback por cliente; no reemplaza el futuro branding configurable por
+  tenant.
+
 ## 2026-08-25 - Aislamiento del ciclo de vida del Motor Local
 
 - Se confirmo mediante `backend-runtime.test.js` que los clientes Electron no instalan servicios,

@@ -238,8 +238,8 @@ Reglas del contrato:
 - La documentacion historica de `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md` contiene secciones que
   describen el runtime embebido anterior. La implementacion del Motor Local y este documento tienen
   precedencia para releases nuevos.
-- El frontend usa `VITE_APP_MODE` y definiciones estaticas de branding; aun no consume un perfil
-  visual o un catalogo de capacidades por tenant.
+- El frontend usa `VITE_APP_MODE` y perfiles visuales base en `APP_DEFINITIONS`; aun no consume un
+  perfil visual configurable por tenant.
 - El sidebar se filtra por permisos, pero no por entitlements de modulos.
 
 ## 10. Orden de implementacion
@@ -272,7 +272,7 @@ Estado: vertical implementada el 2026-08-25.
 
 - [x] Filtrar el menu por `appMode`, capacidad y permiso.
 - [x] Mantener el backend como autoridad mediante middleware de capacidades.
-- [ ] Crear perfiles de cliente visuales sin duplicar features.
+- [x] Crear perfiles visuales base por cliente sin duplicar features.
 - [x] Verificar que cada instalador solo publique el bundle que corresponde.
 - [x] Validar que actualizar un cliente no detenga ni reemplace el Motor Local.
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   APP_DEFINITIONS,
   APP_MODE,
+  APP_VISUAL_PROFILE,
   getAppDefinition,
   isRouteAllowedForAppMode,
   resolveAppMode,
@@ -13,6 +14,14 @@ describe('application branding modes', () => {
     expect(APP_DEFINITIONS.admin.name).toBe('Sistema de Inventario (Administrativo)');
     expect(APP_DEFINITIONS.pos.name).toBe('POS');
     expect(APP_DEFINITIONS.technician.name).toBe('Soporte Técnico');
+    expect(APP_DEFINITIONS.admin.visual).toEqual({
+      accent: 'primary',
+      logoMark: 'SDI',
+      productLabel: 'SISTEMA DE INVENTARIO',
+    });
+    expect(APP_DEFINITIONS.pos.visual.accent).toBe('pos');
+    expect(APP_DEFINITIONS.technician.visual.accent).toBe('primary');
+    expect(APP_VISUAL_PROFILE).toEqual(APP_DEFINITIONS.admin.visual);
     expect(getAppDefinition('admin')).toEqual(APP_DEFINITIONS.admin);
     expect(getAppDefinition('pos')).toEqual(APP_DEFINITIONS.pos);
   });

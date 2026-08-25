@@ -14,6 +14,7 @@ import '@/styles/globals.css';
 
 // Seteamos el <title> de la pestana con la marca corporativa.
 document.title = `SDI · ${APP_SHORT_NAME}`;
+document.documentElement.dataset.appMode = APP_MODE;
 
 // El cliente POS se usa en tablets: desactivamos el zoom por touch y
 // aplicamos touch-action: manipulation. El tap tactil de botones dentro de

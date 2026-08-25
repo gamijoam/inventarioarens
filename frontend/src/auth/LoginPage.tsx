@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
-import { APP_MODE } from '@/config/branding';
+import { APP_MODE, APP_VISUAL_PROFILE } from '@/config/branding';
 import { getLoginPresentation } from '@/auth/loginPresentation';
 import { lookupTenants } from '@/api/endpoints/auth';
 import { useAuth } from '@/auth/useAuth';
@@ -20,7 +20,7 @@ const DEBOUNCE_MS = 500;
 
 export function LoginPage() {
   const presentation = getLoginPresentation(APP_MODE);
-  const isPos = presentation.theme === 'pos';
+  const isPos = APP_VISUAL_PROFILE.accent === 'pos';
   const { signIn, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -127,7 +127,7 @@ export function LoginPage() {
         <form
           onSubmit={handleSubmit}
           className={cn(
-            'bg-white relative rounded-2xl border p-8 shadow-[0_24px_60px_rgba(27,31,44,0.12)] sm:p-10',
+            'relative rounded-2xl border bg-white p-8 shadow-[0_24px_60px_rgba(27,31,44,0.12)] sm:p-10',
             isPos ? 'border-emerald-200' : 'border-[#e2e5ea]',
           )}
           aria-label="Formulario de inicio de sesión"
@@ -141,7 +141,7 @@ export function LoginPage() {
               )}
               aria-hidden="true"
             >
-              <span className="text-xl font-bold tracking-wide">SDI</span>
+              <span className="text-xl font-bold tracking-wide">{APP_VISUAL_PROFILE.logoMark}</span>
             </div>
             <p
               className={cn(
@@ -149,7 +149,7 @@ export function LoginPage() {
                 isPos ? 'text-emerald-600' : 'text-primary',
               )}
             >
-              SISTEMA DE INVENTARIO
+              {APP_VISUAL_PROFILE.productLabel}
             </p>
           </header>
 
@@ -190,7 +190,7 @@ export function LoginPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 disabled={loginLoading}
-                className="bg-white h-11 rounded-lg border px-4 pl-9 text-sm shadow-sm"
+                className="h-11 rounded-lg border bg-white px-4 pl-9 text-sm shadow-sm"
                 data-testid="login-email"
               />
               {lookupLoading && (
@@ -238,7 +238,7 @@ export function LoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={loginLoading}
-                className="bg-white h-11 rounded-lg border px-4 pr-11 pl-9 text-sm shadow-sm"
+                className="h-11 rounded-lg border bg-white px-4 pr-11 pl-9 text-sm shadow-sm"
                 data-testid="login-password"
               />
               <button
@@ -288,7 +288,7 @@ export function LoginPage() {
             </p>
             <Link
               to="/master/login"
-              className="text-text-muted mt-2 inline-block text-[11px] hover:text-primary hover:underline"
+              className="text-text-muted hover:text-primary mt-2 inline-block text-[11px] hover:underline"
             >
               Acceso de plataforma
             </Link>
@@ -384,7 +384,7 @@ function TenantPicker({
   return (
     <select
       className={cn(
-        'bg-white text-text-primary flex h-11 w-full rounded-lg border border-[#e2e5ea] px-3 text-sm shadow-sm',
+        'text-text-primary flex h-11 w-full rounded-lg border border-[#e2e5ea] bg-white px-3 text-sm shadow-sm',
         'focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
         'disabled:cursor-not-allowed disabled:opacity-50',
       )}

@@ -16,12 +16,19 @@
 
 export type AppMode = 'admin' | 'pos' | 'technician';
 
+export interface AppVisualProfile {
+  accent: 'primary' | 'pos';
+  logoMark: string;
+  productLabel: string;
+}
+
 export interface AppDefinition {
   mode: AppMode;
   name: string;
   shortName: string;
   tagline: string;
   description: string;
+  visual: AppVisualProfile;
 }
 
 export const APP_DEFINITIONS: Record<AppMode, AppDefinition> = {
@@ -32,6 +39,11 @@ export const APP_DEFINITIONS: Record<AppMode, AppDefinition> = {
     tagline: 'Administración multi-tenant',
     description:
       'Productos, inventario, compras, ventas, caja, permisos, reportes y sincronización local ↔ nube.',
+    visual: {
+      accent: 'primary',
+      logoMark: 'SDI',
+      productLabel: 'SISTEMA DE INVENTARIO',
+    },
   },
   pos: {
     mode: 'pos',
@@ -39,6 +51,11 @@ export const APP_DEFINITIONS: Record<AppMode, AppDefinition> = {
     shortName: 'POS',
     tagline: 'Punto de venta',
     description: 'Ventas, pagos, caja, recibos y operación local con sincronización segura.',
+    visual: {
+      accent: 'pos',
+      logoMark: 'SDI',
+      productLabel: 'SISTEMA DE INVENTARIO',
+    },
   },
   technician: {
     mode: 'technician',
@@ -47,6 +64,11 @@ export const APP_DEFINITIONS: Record<AppMode, AppDefinition> = {
     tagline: 'Diagnóstico y sincronización local',
     description:
       'Vinculación de empresas, workers, sincronización y diagnóstico de la instalación local.',
+    visual: {
+      accent: 'primary',
+      logoMark: 'SDI',
+      productLabel: 'SISTEMA DE INVENTARIO',
+    },
   },
 };
 
@@ -67,6 +89,7 @@ export function isRouteAllowedForAppMode(mode: AppMode, pathname: string): boole
 
 export const APP_MODE = resolveAppMode(import.meta.env.VITE_APP_MODE as string | undefined);
 export const APP_DEFINITION = getAppDefinition(APP_MODE);
+export const APP_VISUAL_PROFILE = APP_DEFINITION.visual;
 export const APP_NAME = APP_DEFINITION.name;
 export const APP_SHORT_NAME = APP_DEFINITION.shortName;
 export const APP_TAGLINE = APP_DEFINITION.tagline;
