@@ -7,8 +7,10 @@ Independent local service for Windows printer delivery. It makes outbound HTTPS 
 Generate a pairing code in the Printing screen, then run:
 
 ```text
-node connector.cjs register CODE "Caja Principal"
+node connector.cjs register CODE "Caja Principal" "https://app.miinventariofacil.com/api"
 ```
+
+The cloud URL can also be provided through `PRINT_CONNECTOR_CLOUD_API_URL`.
 
 The token is stored in the platform data directory. The token is never printed by `status`.
 

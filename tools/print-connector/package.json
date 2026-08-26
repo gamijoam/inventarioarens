@@ -1,14 +1,14 @@
 {
-    "name": "inventarioarens-print-connector",
-    "private": true,
-    "version": "0.1.0",
-    "description": "Independent outbound cloud print connector for Inventario Arens",
-    "engines": {
-        "node": ">=18"
-    },
-    "scripts": {
-        "test": "node --test connector.test.cjs",
-        "package": "node package-connector.cjs",
-        "package:check": "node package-connector.cjs --check-only"
-    }
+  "name": "inventarioarens-print-connector",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Independent outbound cloud print connector for Inventario Arens",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test connector.test.cjs",
+    "package": "node package-connector.cjs",
+    "package:check": "node package-connector.cjs --check-only"
+  }
 }

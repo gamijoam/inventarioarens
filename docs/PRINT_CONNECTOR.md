@@ -16,7 +16,7 @@ POS online -> print_jobs en la nube -> polling del conector -> impresora local -
 
 1. Un usuario con `printing.manage` genera `POST /api/printing/connectors/pairing-codes`.
 2. El codigo se muestra una sola vez y expira en 10 minutos.
-3. El instalador ejecuta `node connector.cjs register CODE "Nombre de caja"`.
+3. El instalador ejecuta `node connector.cjs register CODE "Nombre de caja" "https://app.miinventariofacil.com/api"`.
 4. La nube consume el codigo una sola vez y devuelve un token exclusivo para esa instalacion.
 5. El token se guarda en `%ProgramData%\InventarioArens\PrintConnector\config.json` y nunca se muestra en `status`.
 
