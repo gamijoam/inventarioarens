@@ -721,6 +721,12 @@ existente, confirmar primero con el usuario (afecta a otros productos).
   Agente local `php artisan printer:serve` en `127.0.0.1:17777` → driver Windows (`Out-Printer`)
   / Linux (`lpr`) o impresora de red TCP 9100 con ESC/POS (corte GS V, gaveta ESC p). Panel en
   `/printing` del frontend. Detalle en `docs/MODULES.md` y `docs/GRAPHIFY_CONTEXT_MAP.md`.
+- Conector Cloud independiente (2026-08-25): `tools/print-connector/connector.cjs` hace polling
+  HTTPS saliente con token propio, pairing de un solo uso, claim/ACK y reintentos por lease. No
+  abre puertos ni depende del Motor Local. Las estaciones termicas vinculadas a un conector no se
+  envian desde React al agente `:17777`; los tickets digitales se descargan desde el navegador.
+  Contrato en `docs/PRINT_CONNECTOR.md`. Su release independiente usa
+  `.github/workflows/release-print-connector.yml` y publica `v<version>-connector`.
 - Prueba fisica con impresora real: `docs/GUIA_PRUEBA_IMPRESORA_REAL.md`.
 - Consola `/support` controla el agente: `POST /api/local-support/printer/{action,test}`
   (instalar/iniciar/probar) + auto-arranque en Electron (`backend-runtime.cjs` → `printer:serve`).

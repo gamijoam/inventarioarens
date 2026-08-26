@@ -23,7 +23,7 @@ class PrintJobController extends Controller
 
         return PrintJobResource::collection(
             PrintJob::query()
-                ->with(['station.profile', 'profile'])
+                ->with(['station.profile', 'station.connector', 'profile'])
                 ->when($request->integer('pos_order_id'), fn ($query, $id) => $query->where('pos_order_id', $id))
                 ->latest()
                 ->paginate((int) $request->input('per_page', 25))
@@ -34,7 +34,7 @@ class PrintJobController extends Controller
     {
         $jobs = $service->createJobs($posOrder, $request->user(), $request->validated());
 
-        return PrintJobResource::collection(collect($jobs)->map->load(['station.profile', 'profile']))
+        return PrintJobResource::collection(collect($jobs)->map->load(['station.profile', 'station.connector', 'profile']))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }

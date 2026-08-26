@@ -7,6 +7,7 @@ use App\Modules\Auth\Middleware\AuthenticateApiToken;
 use App\Modules\Auth\Services\CookieIssuer;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
+use App\Modules\Printing\Middleware\AuthenticatePrintConnector;
 use App\Modules\Tenancy\Middleware\EnsureTenantCapability;
 use App\Modules\Tenancy\Middleware\ResolveTenant;
 use Illuminate\Console\Scheduling\Schedule;
@@ -103,6 +104,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'tenant' => ResolveTenant::class,
             'capability' => EnsureTenantCapability::class,
             'idempotency' => IdempotencyKey::class,
+            'print.connector' => AuthenticatePrintConnector::class,
         ]);
 
         // Excluir la cookie de auth del cifrado automatico de Laravel.

@@ -14,6 +14,8 @@ Route::post('sync/pairing-codes/preview', [SyncController::class, 'previewPairin
 
 require base_path('app/Modules/LocalSupport/routes.php');
 
+require base_path('app/Modules/Printing/connector_routes.php');
+
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Inventory/routes_phase3.php'));
 

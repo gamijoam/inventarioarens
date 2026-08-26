@@ -187,8 +187,9 @@ demo seeder tests are tagged `@group heavy`.
 ## Runbook: publicar un fix de cliente (PASO A PASO)
 
 Este es el flujo completo para lanzar un cambio (bugfix o feature) a los clientes de escritorio.
-Estos pasos aplican a cambios de interfaz. Los cambios de Laravel, PHP, impresion o sync se publican
-por separado mediante el release del Motor Local.
+Estos pasos aplican a cambios de interfaz. Los cambios de Laravel, PHP o sync se publican por separado
+mediante el release del Motor Local. El Conector Cloud de impresion tiene su propio release
+`v<version>-connector` mediante `.github/workflows/release-print-connector.yml`.
 
 ### Antes de empezar (checklist)
 

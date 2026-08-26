@@ -12,6 +12,8 @@ class PrintJobResource extends JsonResource
         return [
             'id' => $this->id,
             'printer_station_id' => $this->printer_station_id,
+            'print_connector_id' => $this->print_connector_id,
+            'uuid' => $this->uuid,
             'print_profile_id' => $this->print_profile_id,
             'source_type' => $this->source_type,
             'source_id' => $this->source_id,

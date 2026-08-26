@@ -13,6 +13,7 @@ class PrinterStationResource extends JsonResource
             'id' => $this->id,
             'branch_id' => $this->branch_id,
             'cash_register_id' => $this->cash_register_id,
+            'print_connector_id' => $this->print_connector_id,
             'print_profile_id' => $this->print_profile_id,
             'name' => $this->name,
             'code' => $this->code,
@@ -27,6 +28,13 @@ class PrinterStationResource extends JsonResource
             'profile' => PrintProfileResource::make($this->whenLoaded('profile')),
             'branch_name' => $this->whenLoaded('branch', fn () => $this->branch?->name),
             'cash_register_name' => $this->whenLoaded('cashRegister', fn () => $this->cashRegister?->name),
+            'connector' => $this->whenLoaded('connector', fn () => [
+                'id' => $this->connector?->id,
+                'uuid' => $this->connector?->uuid,
+                'name' => $this->connector?->name,
+                'status' => $this->connector?->status,
+                'last_seen_at' => $this->connector?->last_seen_at?->toISOString(),
+            ]),
         ];
     }
 }

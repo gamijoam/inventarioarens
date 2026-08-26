@@ -458,6 +458,9 @@ Responsabilidad:
   fisica: driver Windows (PowerShell `Out-Printer`) o Linux (lpr/lp), o
   impresora de red por TCP 9100 con comandos ESC/POS (corte de papel GS V,
   apertura de gaveta ESC p).
+- Conector Cloud independiente en `tools/print-connector/` para instalaciones online: polling
+  HTTPS saliente, pairing de un solo uso, leases de trabajos, ACK y soporte Windows/TCP 9100.
+- Tickets digitales descargables desde el navegador cuando no hay impresora fisica.
 
 Archivos principales:
 
@@ -469,6 +472,8 @@ Archivos principales:
 - `app/Console/Commands/PrinterServeCommand.php`
 - `resources/views/printing/pos-ticket.blade.php`
 - `frontend/src/features/printing/{PrintingManager.tsx,api.ts}`
+- `tools/print-connector/{connector.cjs,connector.test.cjs}`
+- `tools/print-connector/{package-connector.cjs,PrintConnector.iss}`
 
 Regla importante:
 
@@ -476,6 +481,8 @@ Regla importante:
 - las flags `show_*` del perfil controlan que secciones salen en el ticket;
 - el agente local es por estacion y se prueba desde `/printing` (Probar termica/digital);
 - modo red requiere `printer_type=network` + `network_host` + `network_port` (TCP 9100).
+- estaciones termicas con `print_connector_id` se procesan por el conector Cloud y no por el agente
+  local del navegador; el contrato completo esta en `docs/PRINT_CONNECTOR.md`.
 
 ### Purchases
 

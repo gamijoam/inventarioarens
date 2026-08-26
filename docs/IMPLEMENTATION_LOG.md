@@ -1,5 +1,19 @@
 # Registro de implementación — 2026-08-25
 
+## 2026-08-25 - Conector Cloud de impresion y ticket virtual
+
+- Se agrego el flujo de pairing de un solo uso, tokens por instalacion, heartbeat, cola con claim
+  lease, ACK y revocacion para conectores de impresion.
+- Las estaciones termicas pueden vincularse mediante `print_connector_id`; el POS deja esos jobs en
+  la nube para que el conector los recoja, mientras que los tickets digitales se descargan desde
+  el navegador.
+- Se agrego `tools/print-connector/connector.cjs`, independiente del Motor Local y sin listener
+  local. Soporta polling HTTPS, Windows `Out-Printer`, TCP 9100 y ESC/POS.
+- Se agregaron `package-connector.cjs`, `PrintConnector.iss` y tareas PowerShell para producir un
+  `.exe` standalone y un instalador Windows independiente. El workflow publica `v<version>-connector`.
+- Contrato documentado en `docs/PRINT_CONNECTOR.md`; tests del conector en
+  `tools/print-connector/connector.test.cjs`.
+
 ## 2026-08-25 - Validación multiplataforma y release Electron 0.2.58
 
 - Se agregó `scripts/verify-electron-artifact.cjs`, que inspecciona el `app.asar` real con

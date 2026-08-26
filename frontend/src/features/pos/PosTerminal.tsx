@@ -152,6 +152,7 @@ import { TapButton } from './TapButton';
 import { isTouchPrimaryDevice, shouldAutoFocusSearch } from './touchSupport';
 import {
   type PrintJob,
+  downloadTicketPdf,
   openTicketPdf,
   sendJobToLocalAgent,
   useCreatePosPrintJob,
@@ -3222,18 +3223,27 @@ export function PosTerminal() {
       await Promise.all(
         jobs.map(async (job) => {
           try {
+            if (job.output === 'digital') {
+              await downloadTicketPdf(job);
+              await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'generated' });
+              toast.success('Ticket virtual descargado. Puedes guardarlo o imprimirlo desde el navegador.');
+              return;
+            }
+
+            if (job.print_connector_id) {
+              toast.success('Ticket enviado a la cola del conector local.');
+              return;
+            }
+
             await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'sent' });
             const result = await sendJobToLocalAgent(job);
-            const finalStatus = job.output === 'digital' ? 'generated' : 'printed';
             await updatePrintJobStatus.mutateAsync({
               jobId: job.id,
-              status: finalStatus,
+              status: 'printed',
               message: result.message ?? null,
               digitalPdfPath: result.pdf_path ?? null,
               digitalHtmlPath: result.html_path ?? null,
             });
-            if (job.output === 'digital' && result.pdf_path)
-              toast.success(`Ticket virtual generado: ${result.pdf_path}`);
             if (job.output === 'thermal') toast.success('Ticket enviado a impresora.');
           } catch (error) {
             await updatePrintJobStatus.mutateAsync({

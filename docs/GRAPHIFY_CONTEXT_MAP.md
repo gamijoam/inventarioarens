@@ -277,6 +277,10 @@ del ticket al pagar). El agente local `printer:serve` escucha en `127.0.0.1:1777
 impresora fisica: driver Windows (PowerShell `Out-Printer`) / Linux (lpr/lp), o impresora de red
 por TCP 9100 con comandos ESC/POS (corte GS V, gaveta ESC p). El panel vive en `frontend` ruta
 `/printing` y la consola `/support` permite instalar/iniciar/probar el agente.
+Para instalaciones online existe ademas `tools/print-connector/connector.cjs`: un proceso
+independiente que hace polling HTTPS saliente, reclama jobs con lease y confirma `printed` o
+`failed`. No abre puertos ni depende del Motor Local. Los tickets digitales se descargan desde el
+navegador.
 
 Documentos clave:
 
@@ -288,6 +292,9 @@ Nodos de codigo frecuentes:
 - `PosTicketPrintService` (snapshot + render HTML/PDF del ticket)
 - `ThermalPrinterService` (driver / red ESC/POS, sanitize ASCII)
 - `PrinterServer` (HTTP server del agente local)
+- `PrintConnector` / `PrintConnectorToken` / `PrintConnectorPairingCode`
+- `PrintConnectorService` / `AuthenticatePrintConnector`
+- `tools/print-connector/connector.cjs` (conector cloud independiente)
 - `PrintProfile` / `PrinterStation` / `PrintJob`
 - `PrinterServeCommand` (`php artisan printer:serve`)
 - `LocalTechnicalConsoleService::printerAction/printerTest` (consola /support)

@@ -1,0 +1,119 @@
+name: Release Print Connector
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version del Conector de Impresion"
+        required: true
+        default: "0.1.0"
+      prerelease:
+        description: "Publicar como release de prueba"
+        required: true
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*-connector"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build + publish Print Connector
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ inputs.version }}'
+          if [ -z "$VERSION" ]; then
+            TAG_NAME="${GITHUB_REF_NAME:-}"
+            case "$TAG_NAME" in
+              v*-connector)
+                VERSION="${TAG_NAME#v}"
+                VERSION="${VERSION%-connector}"
+                ;;
+              *)
+                echo "No se pudo inferir la version desde '$TAG_NAME'. Usa v<version>-connector."
+                exit 1
+                ;;
+            esac
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version invalida: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Run connector tests
+        shell: bash
+        run: npm test --prefix tools/print-connector
+
+      - name: Validate packaging contract
+        shell: bash
+        run: npm run package:check --prefix tools/print-connector
+
+      - name: Build standalone connector executable
+        shell: bash
+        run: node tools/print-connector/package-connector.cjs --version '${{ steps.version.outputs.version }}' --output-dir build/print-connector
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --no-progress -y
+
+      - name: Build connector installer
+        shell: powershell
+        run: |
+          $iscc = (Get-Command iscc.exe -ErrorAction Stop).Source
+          & $iscc "/DConnectorVersion=${{ steps.version.outputs.version }}" 'tools\print-connector\PrintConnector.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup fallo con codigo $LASTEXITCODE." }
+
+      - name: Validate Windows artifacts
+        shell: powershell
+        run: |
+          $stage = Get-ChildItem -LiteralPath 'build\print-connector\stage' -Filter 'InventarioArens-Print-Connector.exe'
+          if ($stage.Count -ne 1) { throw "Se esperaba un ejecutable portable y se encontraron $($stage.Count)." }
+          $release = Get-ChildItem -LiteralPath 'build\print-connector\release' -Filter '*.exe'
+          if ($release.Count -ne 1) { throw "Se esperaba un instalador y se encontraron $($release.Count)." }
+          foreach ($artifact in @($stage) + @($release)) {
+            $hash = (Get-FileHash -LiteralPath $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$($artifact.Name)" | Set-Content -LiteralPath "$($artifact.FullName).sha256" -Encoding ASCII
+          }
+          Get-ChildItem -LiteralPath 'build\print-connector\stage' -File | Select-Object Name, Length
+          Get-ChildItem -LiteralPath 'build\print-connector\release' -File | Select-Object Name, Length
+
+      - name: Publish connector release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          TAG="v${VERSION}-connector"
+          RELEASE_FLAGS=(--repo gamijoam/inventarioarens --title "Print Connector ${VERSION}" --generate-notes)
+          if [[ '${{ inputs.prerelease }}' == 'true' ]]; then
+            RELEASE_FLAGS+=(--prerelease)
+          fi
+          # Keep the pushed tag attached to its commit when re-publishing a release.
+          gh release delete "$TAG" --repo gamijoam/inventarioarens --yes 2>/dev/null || true
+          gh release create "$TAG" \
+            "${RELEASE_FLAGS[@]}" \
+            build/print-connector/stage/*.exe \
+            build/print-connector/stage/*.sha256 \
+            build/print-connector/release/*.exe \
+            build/print-connector/release/*.sha256
+          echo "Publicado $TAG"

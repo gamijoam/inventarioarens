@@ -29,6 +29,7 @@ class PosTicketPrintService
         return collect($outputs)
             ->map(fn (string $target): PrintJob => PrintJob::create([
                 'printer_station_id' => $station?->id,
+                'print_connector_id' => $target === PrintJob::OUTPUT_THERMAL ? $station?->print_connector_id : null,
                 'print_profile_id' => $profile->id,
                 'source_type' => PosOrder::class,
                 'source_id' => $order->id,
