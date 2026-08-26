@@ -90,7 +90,7 @@ async function createSeaExecutable({ outputDir, version }) {
             SENTINEL_FUSE,
             "--overwrite",
         ],
-        { cwd: ROOT, stdio: "inherit" },
+        { cwd: ROOT, windowsHide: true },
     );
 
     await fs.writeFile(
