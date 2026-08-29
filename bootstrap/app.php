@@ -5,6 +5,8 @@ use App\Http\Middleware\IdempotencyKey;
 use App\Http\Middleware\SecurityHeaders;
 use App\Modules\Auth\Middleware\AuthenticateApiToken;
 use App\Modules\Auth\Services\CookieIssuer;
+use App\Modules\CRM\Middleware\AuthenticateCrmApiToken;
+use App\Modules\CRM\Middleware\RequireCrmScope;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Printing\Middleware\AuthenticatePrintConnector;
@@ -101,6 +103,8 @@ $app = Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
+            'crm.auth' => AuthenticateCrmApiToken::class,
+            'crm.scope' => RequireCrmScope::class,
             'tenant' => ResolveTenant::class,
             'capability' => EnsureTenantCapability::class,
             'idempotency' => IdempotencyKey::class,

@@ -208,5 +208,18 @@ class AppServiceProvider extends ServiceProvider
                 }),
             ];
         });
+
+        RateLimiter::for('crm', function (Request $request): array {
+            $tokenId = $request->attributes->get('crm_token')?->id ?? $request->ip();
+            $limit = max(1, (int) config('services.crm.rate_limit_per_minute', 60));
+
+            return [
+                Limit::perMinute($limit)->by('crm:'.$tokenId)->response(function (): JsonResponse {
+                    return response()->json([
+                        'message' => 'Demasiadas solicitudes de integración CRM.',
+                    ], 429);
+                }),
+            ];
+        });
     }
 }

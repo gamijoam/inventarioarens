@@ -1,4 +1,17 @@
-# Registro de implementación — 2026-08-28
+# Registro de implementación — 2026-08-29
+
+## 2026-08-29 - API read-only para integracion CRM e IA
+
+- Se agregaron credenciales dedicadas en `crm_api_tokens`, con secreto hasheado, expiracion,
+  revocacion, rotacion, scopes y restricciones por sucursal/almacen.
+- Se agregaron `GET /api/v1/integrations/crm/branches`, `warehouses`, `products`,
+  `products/{sku}` e `inventory/availability` bajo middleware dedicado, aislamiento por tenant,
+  rate limit por token y auditoria de acceso.
+- Las respuestas usan recursos especificos y excluyen costos, margenes, clientes, ventas, pagos y
+  cualquier mutacion. La disponibilidad incluye cantidades, `as_of`, fuente y ultimo sync conocido.
+- Contrato operativo documentado en `docs/CRM_INTEGRATION_API.md`.
+- TDD: `tests/Feature/CRM/CrmIntegrationApiTest.php` cubre emision, scopes, permisos, ubicaciones,
+  cross-tenant, solo lectura, expiracion, revocacion, rotacion y rate limiting.
 
 ## 2026-08-28 - Cliente Electron del Conector Cloud
 

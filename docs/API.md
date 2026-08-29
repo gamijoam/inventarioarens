@@ -52,6 +52,37 @@ Reglas:
 - sirve para que el frontend permita escoger empresa cuando el usuario pertenece a varias.
 - la contraseña se valida despues en `POST /api/auth/login`.
 
+## Integracion CRM e IA (solo lectura)
+
+Modulo: `CRM`
+
+La administracion de credenciales usa `settings.manage` en:
+
+```txt
+POST   /api/crm/integration-tokens
+GET    /api/crm/integration-tokens
+DELETE /api/crm/integration-tokens/{id}
+POST   /api/crm/integration-tokens/{id}/rotate
+```
+
+Los endpoints para el CRM usan exclusivamente `Bearer crm_<secret>` y no aceptan
+cookies:
+
+```txt
+GET /api/v1/integrations/crm/branches
+GET /api/v1/integrations/crm/warehouses
+GET /api/v1/integrations/crm/products
+GET /api/v1/integrations/crm/products/{sku}
+GET /api/v1/integrations/crm/inventory/availability
+```
+
+El tenant se obtiene de la credencial. `X-Tenant` es opcional y, si se envia,
+debe coincidir. Los scopes son `catalog.read`, `inventory.read` y
+`branches.read`; cada token puede limitarse por sucursal y almacen. Las respuestas
+no incluyen costos, margenes, clientes, ventas, pagos ni operaciones de escritura.
+
+Contrato completo, ejemplos y reglas para el agente: `docs/CRM_INTEGRATION_API.md`.
+
 ### Iniciar sesion
 
 ```txt

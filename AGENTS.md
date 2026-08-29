@@ -271,6 +271,24 @@ Compartida por cualquier cliente (web, móvil, CLI) que consuma el backend:
 **Platform Admin** (SaaS Master, sin tenant): `POST /api/auth/platform-login` emite token con
 `tenant_id = null` para acceder a `/api/master/*`.
 
+### 6.1 Integracion CRM/IA de solo lectura (2026-08-29)
+
+- Las credenciales del CRM viven en `crm_api_tokens`; son independientes de los tokens de usuario,
+  sync y conector de impresion. Solo se persiste SHA-256 y el secreto plano se muestra una vez al
+  crear o rotar.
+- El middleware `crm.auth` resuelve el tenant desde el token. `X-Tenant` es opcional, pero si se
+  envia debe coincidir con el tenant de la credencial; nunca se acepta un tenant confiado desde el
+  payload.
+- Los endpoints `/api/v1/integrations/crm/*` aceptan solo `Authorization: Bearer crm_<secret>` y
+  son exclusivamente GET. Requieren scopes `catalog.read`, `inventory.read` o `branches.read`,
+  segun la operacion.
+- Cada token puede restringirse por `branch_ids` y/o `warehouse_ids`; el filtro se aplica en servidor
+  y una consulta directa fuera del alcance responde 403. El rate limit por defecto es 60 solicitudes
+  por minuto por token (`CRM_RATE_LIMIT_PER_MINUTE`).
+- El CRM no recibe costos, margenes, clientes, ventas, pagos ni permisos de escritura. Las consultas
+  de disponibilidad exponen cantidades disponibles/reservadas/dañadas, `as_of`, `stock_source` y
+  `last_sync_at`. El contrato completo esta en `docs/CRM_INTEGRATION_API.md`.
+
 ---
 
 ## 7. Stack — Versiones exactas
@@ -313,6 +331,8 @@ ModuleName/
 - Todas las rutas de API van bajo los middlewares `['api.auth', 'tenant']` excepto:
   - `auth/*` (login, me, logout, switch-tenant)
   - `bootstrap/*` (POST /api/bootstrap, **único endpoint realmente público**; requiere `APP_BOOTSTRAP_TOKEN` en .env y BD vacía)
+  - `crm/integration-tokens/*` usa `api.auth` + `tenant` y permiso `settings.manage`.
+  - `v1/integrations/crm/*` usa `crm.auth` + `crm.scope` + `throttle:crm`; resuelve tenant desde la credencial y no acepta cookies.
 - Todas las rutas están prefijadas con `/api` automáticamente.
 - **No hay** `routes/web.php` — fue eliminado el 2026-07-13 junto con el frontend web. Si se reintroduce, debe ser solo para servir el bundle del nuevo frontend.
 

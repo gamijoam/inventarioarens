@@ -84,6 +84,33 @@ Regla importante:
 - no debe cargar colecciones completas para la portada;
 - la autorizacion acepta permisos de lectura operativos como `finance_reports.view`, `reports.view`, `sales.view`, `pos.view`, `products.view` o `cash_register.view`.
 
+### CRM
+
+Responsabilidad:
+
+- administrar credenciales independientes para integraciones externas de CRM;
+- exponer catalogo, sucursales, almacenes y disponibilidad de inventario en modo solo lectura;
+- aplicar scopes y restricciones de sucursal/almacen en el servidor;
+- evitar que una integracion externa reciba costos, margenes, clientes, ventas o pagos.
+
+Archivos principales:
+
+- `app/Modules/CRM/Models/CrmApiToken.php`
+- `app/Modules/CRM/Middleware/AuthenticateCrmApiToken.php`
+- `app/Modules/CRM/Middleware/RequireCrmScope.php`
+- `app/Modules/CRM/Controllers/CrmApiTokenController.php`
+- `app/Modules/CRM/Controllers/CrmIntegrationController.php`
+- `app/Modules/CRM/Services/CrmApiTokenService.php`
+- `app/Modules/CRM/Services/CrmScopeService.php`
+- `app/Modules/CRM/routes.php`
+
+Regla importante:
+
+- el secreto plano solo se devuelve al crear o rotar el token;
+- los endpoints del CRM solo aceptan `Bearer crm_<secret>` y solo tienen rutas `GET`;
+- el tenant se resuelve desde la credencial, no desde el payload;
+- el contrato completo vive en `docs/CRM_INTEGRATION_API.md`.
+
 ### AdminPortal
 
 Responsabilidad:

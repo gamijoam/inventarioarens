@@ -66,4 +66,8 @@ return [
         'service_mode' => (bool) env('INVENTARIO_SERVICE_MODE', false),
     ],
 
+    'crm' => [
+        'rate_limit_per_minute' => (int) env('CRM_RATE_LIMIT_PER_MINUTE', 60),
+    ],
+
 ];
