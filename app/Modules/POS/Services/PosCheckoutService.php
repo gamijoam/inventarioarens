@@ -129,6 +129,7 @@ class PosCheckoutService
                     'customer_name' => $customerName,
                     'total_base_amount' => $sale->total_base_amount,
                     'total_local_amount' => $sale->total_local_amount,
+                    ...$this->posFiscalFields($sale),
                     'opened_at' => now(),
                 ]);
 
@@ -207,6 +208,7 @@ class PosCheckoutService
                         600,
                         ['sale_id' => $sale->id, 'items' => count($items)]
                     );
+                    $this->copyFiscalTotalsToOrder($order, $sale);
                     PerformanceProbe::measure(
                         'POS sincronizar cuentas por cobrar',
                         fn () => $this->syncCapturedPaymentsToReceivable($order->refresh(), $cashier),
@@ -380,6 +382,9 @@ class PosCheckoutService
                 );
 
                 $this->applyChargeItemsToSale($order, $chargeItems);
+                $sale = $this->sales->recalculateFiscalTotals($order->sale);
+                $this->copyFiscalTotalsToOrder($order, $sale);
+                $order->setRelation('sale', $sale);
 
                 $sessionId = $cashRegisterSessionId ?? $order->cash_register_session_id;
                 if (! $sessionId) {
@@ -477,6 +482,8 @@ class PosCheckoutService
                         600,
                         ['order_id' => $order->id, 'sale_id' => $order->sale_id]
                     );
+                    $this->copyFiscalTotalsToOrder($order, $sale);
+                    $order->setRelation('sale', $sale);
                     $order->update([
                         'cashier_id' => $cashier->id,
                         'cash_register_session_id' => $cashRegisterSession->id,
@@ -525,6 +532,7 @@ class PosCheckoutService
                 'unit_price' => round($saleTotal / $quantity, 4),
                 'total_amount' => $saleTotal,
                 'base_total_amount' => $baseTotal,
+                'local_total_amount' => $localTotal,
                 'promotion_adjustment_base_amount' => round((float) $saleItem->promotion_adjustment_base_amount - (float) $allocation->base_adjustment_amount, 4),
                 'promotion_adjustment_local_amount' => round((float) $saleItem->promotion_adjustment_local_amount - (float) $allocation->local_adjustment_amount, 4),
             ]);
@@ -539,6 +547,32 @@ class PosCheckoutService
             'validated_by' => $cashier->id,
             'rejected_at' => now(),
         ]);
+    }
+
+    private function copyFiscalTotalsToOrder(PosOrder $order, Sale $sale): void
+    {
+        $order->update([
+            'total_base_amount' => $sale->total_base_amount,
+            'total_local_amount' => $sale->total_local_amount,
+            ...$this->posFiscalFields($sale),
+        ]);
+    }
+
+    private function posFiscalFields(Sale $sale): array
+    {
+        return [
+            'fiscal_taxable_base_amount' => $sale->fiscal_taxable_base_amount,
+            'fiscal_taxable_local_amount' => $sale->fiscal_taxable_local_amount,
+            'fiscal_exempt_base_amount' => $sale->fiscal_exempt_base_amount,
+            'fiscal_exempt_local_amount' => $sale->fiscal_exempt_local_amount,
+            'fiscal_exonerated_base_amount' => $sale->fiscal_exonerated_base_amount,
+            'fiscal_exonerated_local_amount' => $sale->fiscal_exonerated_local_amount,
+            'fiscal_non_taxable_base_amount' => $sale->fiscal_non_taxable_base_amount,
+            'fiscal_non_taxable_local_amount' => $sale->fiscal_non_taxable_local_amount,
+            'fiscal_tax_base_amount' => $sale->fiscal_tax_base_amount,
+            'fiscal_tax_local_amount' => $sale->fiscal_tax_local_amount,
+            'fiscal_snapshot_at' => $sale->fiscal_snapshot_at,
+        ];
     }
 
     public function cancelPending(PosOrder $order, User $cashier): PosOrder
@@ -1260,6 +1294,17 @@ class PosCheckoutService
                 'total_local_amount' => (string) $order->total_local_amount,
                 'paid_base_amount' => (string) $order->paid_base_amount,
                 'paid_local_amount' => (string) $order->paid_local_amount,
+                'fiscal_taxable_base_amount' => (string) $order->fiscal_taxable_base_amount,
+                'fiscal_taxable_local_amount' => (string) $order->fiscal_taxable_local_amount,
+                'fiscal_exempt_base_amount' => (string) $order->fiscal_exempt_base_amount,
+                'fiscal_exempt_local_amount' => (string) $order->fiscal_exempt_local_amount,
+                'fiscal_exonerated_base_amount' => (string) $order->fiscal_exonerated_base_amount,
+                'fiscal_exonerated_local_amount' => (string) $order->fiscal_exonerated_local_amount,
+                'fiscal_non_taxable_base_amount' => (string) $order->fiscal_non_taxable_base_amount,
+                'fiscal_non_taxable_local_amount' => (string) $order->fiscal_non_taxable_local_amount,
+                'fiscal_tax_base_amount' => (string) $order->fiscal_tax_base_amount,
+                'fiscal_tax_local_amount' => (string) $order->fiscal_tax_local_amount,
+                'fiscal_snapshot_at' => $order->fiscal_snapshot_at?->toJSON(),
                 'payments_count' => $order->payments->count(),
                 'opened_at' => $order->opened_at?->toJSON(),
                 'paid_at' => $order->paid_at?->toJSON(),
@@ -1269,6 +1314,17 @@ class PosCheckoutService
                     'status' => $order->sale?->status,
                     'total_base_amount' => (string) $order->sale?->total_base_amount,
                     'total_local_amount' => (string) $order->sale?->total_local_amount,
+                    'fiscal_taxable_base_amount' => (string) $order->sale?->fiscal_taxable_base_amount,
+                    'fiscal_taxable_local_amount' => (string) $order->sale?->fiscal_taxable_local_amount,
+                    'fiscal_exempt_base_amount' => (string) $order->sale?->fiscal_exempt_base_amount,
+                    'fiscal_exempt_local_amount' => (string) $order->sale?->fiscal_exempt_local_amount,
+                    'fiscal_exonerated_base_amount' => (string) $order->sale?->fiscal_exonerated_base_amount,
+                    'fiscal_exonerated_local_amount' => (string) $order->sale?->fiscal_exonerated_local_amount,
+                    'fiscal_non_taxable_base_amount' => (string) $order->sale?->fiscal_non_taxable_base_amount,
+                    'fiscal_non_taxable_local_amount' => (string) $order->sale?->fiscal_non_taxable_local_amount,
+                    'fiscal_tax_base_amount' => (string) $order->sale?->fiscal_tax_base_amount,
+                    'fiscal_tax_local_amount' => (string) $order->sale?->fiscal_tax_local_amount,
+                    'fiscal_snapshot_at' => $order->sale?->fiscal_snapshot_at?->toJSON(),
                     'confirmed_at' => $order->sale?->confirmed_at?->toJSON(),
                     'cancelled_at' => $order->sale?->cancelled_at?->toJSON(),
                 ],
@@ -1317,6 +1373,17 @@ class PosCheckoutService
                     'customer_document_number' => $customer?->document_number,
                     'total_base_amount' => (string) $order->total_base_amount,
                     'total_local_amount' => (string) $order->total_local_amount,
+                    'fiscal_taxable_base_amount' => (string) $order->fiscal_taxable_base_amount,
+                    'fiscal_taxable_local_amount' => (string) $order->fiscal_taxable_local_amount,
+                    'fiscal_exempt_base_amount' => (string) $order->fiscal_exempt_base_amount,
+                    'fiscal_exempt_local_amount' => (string) $order->fiscal_exempt_local_amount,
+                    'fiscal_exonerated_base_amount' => (string) $order->fiscal_exonerated_base_amount,
+                    'fiscal_exonerated_local_amount' => (string) $order->fiscal_exonerated_local_amount,
+                    'fiscal_non_taxable_base_amount' => (string) $order->fiscal_non_taxable_base_amount,
+                    'fiscal_non_taxable_local_amount' => (string) $order->fiscal_non_taxable_local_amount,
+                    'fiscal_tax_base_amount' => (string) $order->fiscal_tax_base_amount,
+                    'fiscal_tax_local_amount' => (string) $order->fiscal_tax_local_amount,
+                    'fiscal_snapshot_at' => $order->fiscal_snapshot_at?->toJSON(),
                     'paid_base_amount' => (string) $order->paid_base_amount,
                     'paid_local_amount' => (string) $order->paid_local_amount,
                     'opened_at' => $order->opened_at?->toJSON(),
@@ -1355,6 +1422,27 @@ class PosCheckoutService
                     'total_amount' => (string) $item->total_amount,
                     'base_unit_price' => (string) $item->base_unit_price,
                     'base_total_amount' => (string) $item->base_total_amount,
+                    'local_total_amount' => (string) $item->local_total_amount,
+                    'fiscal_tax_code' => $item->fiscal_tax_code,
+                    'fiscal_tax_source' => $item->fiscal_tax_source,
+                    'fiscal_tax_override_code' => $item->fiscal_tax_override_code,
+                    'fiscal_tax_name' => $item->fiscal_tax_name,
+                    'fiscal_tax_category' => $item->fiscal_tax_category,
+                    'fiscal_tax_rate' => $item->fiscal_tax_rate === null ? null : (string) $item->fiscal_tax_rate,
+                    'fiscal_prices_include_tax' => (bool) $item->fiscal_prices_include_tax,
+                    'fiscal_taxable_base_amount' => (string) $item->fiscal_taxable_base_amount,
+                    'fiscal_taxable_local_amount' => (string) $item->fiscal_taxable_local_amount,
+                    'fiscal_exempt_base_amount' => (string) $item->fiscal_exempt_base_amount,
+                    'fiscal_exempt_local_amount' => (string) $item->fiscal_exempt_local_amount,
+                    'fiscal_exonerated_base_amount' => (string) $item->fiscal_exonerated_base_amount,
+                    'fiscal_exonerated_local_amount' => (string) $item->fiscal_exonerated_local_amount,
+                    'fiscal_non_taxable_base_amount' => (string) $item->fiscal_non_taxable_base_amount,
+                    'fiscal_non_taxable_local_amount' => (string) $item->fiscal_non_taxable_local_amount,
+                    'fiscal_tax_base_amount' => (string) $item->fiscal_tax_base_amount,
+                    'fiscal_tax_local_amount' => (string) $item->fiscal_tax_local_amount,
+                    'fiscal_total_base_amount' => (string) $item->fiscal_total_base_amount,
+                    'fiscal_total_local_amount' => (string) $item->fiscal_total_local_amount,
+                    'fiscal_snapshot_at' => $item->fiscal_snapshot_at?->toJSON(),
                     'exchange_rate_type_code' => $item->exchange_rate_type_code,
                     'exchange_rate' => $item->exchange_rate === null ? null : (string) $item->exchange_rate,
                     'product_unit_ids' => $item->product_unit_ids ?? [],

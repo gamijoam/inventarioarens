@@ -114,6 +114,16 @@ class ProductResource extends JsonResource
                 'coverage_type' => $this->warrantyPolicy->coverage_type,
             ] : null),
 
+            'fiscal_tax_rate_id' => $this->fiscal_tax_rate_id,
+            'fiscal_tax_rate' => $this->whenLoaded('fiscalTaxRate', fn () => $this->fiscalTaxRate ? [
+                'id' => $this->fiscalTaxRate->id,
+                'code' => $this->fiscalTaxRate->code,
+                'name' => $this->fiscalTaxRate->name,
+                'rate' => (float) $this->fiscalTaxRate->rate,
+                'category' => $this->fiscalTaxRate->category,
+                'is_active' => (bool) $this->fiscalTaxRate->is_active,
+            ] : null),
+
             'can_change_tracking_type' => $this->whenCounted('units', fn (): bool => (int) $this->units_count === 0),
             'units_count' => $this->whenCounted('units', fn (): int => (int) $this->units_count),
             'variants_count' => $this->whenCounted('variants', fn (): int => (int) $this->variants_count),

@@ -3,6 +3,7 @@
 namespace App\Modules\Products\Models;
 
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Warranties\Models\WarrantyPolicy;
@@ -37,6 +38,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'last_purchase_cost',
     'image_url',
     'warranty_policy_id',
+    'fiscal_tax_rate_id',
     'is_active',
     'catalog_product_id',
     'is_catalog_master',
@@ -248,6 +250,11 @@ class Product extends Model
     public function warrantyPolicy(): BelongsTo
     {
         return $this->belongsTo(WarrantyPolicy::class);
+    }
+
+    public function fiscalTaxRate(): BelongsTo
+    {
+        return $this->belongsTo(FiscalTaxRate::class);
     }
 
     public function requiresSerializedTracking(): bool

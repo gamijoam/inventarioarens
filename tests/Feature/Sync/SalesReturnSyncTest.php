@@ -104,6 +104,14 @@ class SalesReturnSyncTest extends TestCase
                 'warehouse_code' => 'WH-RETURN',
                 'quantity' => '1.0000',
                 'condition' => 'sellable',
+                'fiscal_tax_source' => 'product',
+                'fiscal_tax_code' => 'IVA16',
+                'fiscal_tax_category' => 'taxable',
+                'fiscal_tax_rate' => '16.0000',
+                'fiscal_taxable_base_amount' => '100.0000',
+                'fiscal_tax_base_amount' => '16.0000',
+                'fiscal_total_base_amount' => '116.0000',
+                'fiscal_snapshot_at' => now()->toISOString(),
                 'product_serial_units' => [[
                     'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
                     'serial_number' => 'IMEI-RETURN-001',
@@ -125,6 +133,12 @@ class SalesReturnSyncTest extends TestCase
         ]);
         $this->assertSame(1, DB::table('sales_returns')->where('tenant_id', $tenant->id)->count());
         $this->assertSame(1, DB::table('sales_return_items')->where('tenant_id', $tenant->id)->count());
+        $this->assertDatabaseHas('sales_return_items', [
+            'tenant_id' => $tenant->id,
+            'fiscal_tax_code' => 'IVA16',
+            'fiscal_tax_rate' => '16.0000',
+            'fiscal_total_base_amount' => '116.0000',
+        ]);
         $this->assertSame(1, DB::table('stock_movements')
             ->where('tenant_id', $tenant->id)
             ->where('type', 'sale_return')

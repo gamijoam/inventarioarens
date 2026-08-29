@@ -221,6 +221,7 @@ function FormDialog({
     resolver: zodResolver(StoreCustomerSchema),
     defaultValues: {
       name: customer?.name ?? '',
+      fiscal_name: customer?.fiscal_name ?? customer?.name ?? '',
       document_type: (customer?.document_type as CustomerDocumentType) ?? 'V',
       document_number: customer?.document_number ?? '',
       phone: customer?.phone ?? '',
@@ -243,6 +244,9 @@ function FormDialog({
         <form onSubmit={form.handleSubmit((values) => void onSubmit(values))} className="space-y-3">
           <Field label="Nombre" required error={form.formState.errors.name?.message}>
             <Input {...form.register('name')} placeholder="Juan Perez" />
+          </Field>
+          <Field label="Nombre fiscal" required error={form.formState.errors.fiscal_name?.message}>
+            <Input {...form.register('fiscal_name')} placeholder="Nombre legal o razon social" />
           </Field>
           <div className="grid grid-cols-3 gap-2">
             <Field label="Tipo" required error={form.formState.errors.document_type?.message}>

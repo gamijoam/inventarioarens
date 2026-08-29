@@ -42,6 +42,7 @@ import { Route as AuthedImportIndexRouteImport } from './routes/_authed/import/i
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
 import { Route as AuthedSettingsTelegramRouteImport } from './routes/_authed/settings/telegram'
+import { Route as AuthedSettingsFiscalRouteImport } from './routes/_authed/settings/fiscal'
 import { Route as AuthedSettingsCompanyRouteImport } from './routes/_authed/settings/company'
 import { Route as AuthedSettingsCapabilitiesRouteImport } from './routes/_authed/settings/capabilities'
 import { Route as AuthedQuotationsQuotationIdRouteImport } from './routes/_authed/quotations.$quotationId'
@@ -224,6 +225,11 @@ const AuthedSettingsTelegramRoute = AuthedSettingsTelegramRouteImport.update({
   path: '/settings/telegram',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedSettingsFiscalRoute = AuthedSettingsFiscalRouteImport.update({
+  id: '/settings/fiscal',
+  path: '/settings/fiscal',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedSettingsCompanyRoute = AuthedSettingsCompanyRouteImport.update({
   id: '/settings/company',
   path: '/settings/company',
@@ -347,6 +353,7 @@ export interface FileRoutesByFullPath {
   '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
   '/settings/company': typeof AuthedSettingsCompanyRoute
+  '/settings/fiscal': typeof AuthedSettingsFiscalRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -396,6 +403,7 @@ export interface FileRoutesByTo {
   '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
   '/settings/company': typeof AuthedSettingsCompanyRoute
+  '/settings/fiscal': typeof AuthedSettingsFiscalRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -447,6 +455,7 @@ export interface FileRoutesById {
   '/_authed/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/_authed/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
   '/_authed/settings/company': typeof AuthedSettingsCompanyRoute
+  '/_authed/settings/fiscal': typeof AuthedSettingsFiscalRoute
   '/_authed/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
@@ -498,6 +507,7 @@ export interface FileRouteTypes {
     | '/quotations/$quotationId'
     | '/settings/capabilities'
     | '/settings/company'
+    | '/settings/fiscal'
     | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
@@ -547,6 +557,7 @@ export interface FileRouteTypes {
     | '/quotations/$quotationId'
     | '/settings/capabilities'
     | '/settings/company'
+    | '/settings/fiscal'
     | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
@@ -597,6 +608,7 @@ export interface FileRouteTypes {
     | '/_authed/quotations/$quotationId'
     | '/_authed/settings/capabilities'
     | '/_authed/settings/company'
+    | '/_authed/settings/fiscal'
     | '/_authed/settings/telegram'
     | '/_authed/transfers/$transferId'
     | '/_authed/users/$userId'
@@ -848,6 +860,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsTelegramRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/settings/fiscal': {
+      id: '/_authed/settings/fiscal'
+      path: '/settings/fiscal'
+      fullPath: '/settings/fiscal'
+      preLoaderRoute: typeof AuthedSettingsFiscalRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/settings/company': {
       id: '/_authed/settings/company'
       path: '/settings/company'
@@ -1050,6 +1069,7 @@ interface AuthedRouteChildren {
   AuthedPosArmarRoute: typeof AuthedPosArmarRoute
   AuthedSettingsCapabilitiesRoute: typeof AuthedSettingsCapabilitiesRoute
   AuthedSettingsCompanyRoute: typeof AuthedSettingsCompanyRoute
+  AuthedSettingsFiscalRoute: typeof AuthedSettingsFiscalRoute
   AuthedSettingsTelegramRoute: typeof AuthedSettingsTelegramRoute
   AuthedImportIndexRoute: typeof AuthedImportIndexRoute
   AuthedInventoryIndexRoute: typeof AuthedInventoryIndexRoute
@@ -1090,6 +1110,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPosArmarRoute: AuthedPosArmarRoute,
   AuthedSettingsCapabilitiesRoute: AuthedSettingsCapabilitiesRoute,
   AuthedSettingsCompanyRoute: AuthedSettingsCompanyRoute,
+  AuthedSettingsFiscalRoute: AuthedSettingsFiscalRoute,
   AuthedSettingsTelegramRoute: AuthedSettingsTelegramRoute,
   AuthedImportIndexRoute: AuthedImportIndexRoute,
   AuthedInventoryIndexRoute: AuthedInventoryIndexRoute,

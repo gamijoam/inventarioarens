@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Sync;
 
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Products\Models\Product;
 use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sync\Models\SyncNode;
@@ -24,12 +25,21 @@ class PromotionSyncTest extends TestCase
         app(TenantManager::class)->set($tenant);
         $this->product($tenant, 'PHONE-SYNC', 'Telefono');
         $this->product($tenant, 'CHARGER-SYNC', 'Cargador');
+        $taxRate = FiscalTaxRate::create([
+            'code' => 'EXENTO-SYNC',
+            'name' => 'Exento sincronizado',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXEMPT,
+            'is_active' => true,
+        ]);
         $now = now();
         $payload = [
             'name' => 'Combo sincronizado',
             'code' => 'SYNC-COMBO',
             'scope' => Promotion::SCOPE_COMBO,
             'allows_combos' => true,
+            'fiscal_tax_mode' => Promotion::FISCAL_TAX_MODE_OVERRIDE,
+            'fiscal_tax_rate_code' => $taxRate->code,
             'benefit_type' => Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
             'price_currency' => 'USD',
             'payment_currency' => 'VES',
@@ -68,6 +78,8 @@ class PromotionSyncTest extends TestCase
             'allows_combos' => true,
             'price_usd' => '50.0000',
             'payment_currency' => 'VES',
+            'fiscal_tax_mode' => Promotion::FISCAL_TAX_MODE_OVERRIDE,
+            'fiscal_tax_rate_id' => $taxRate->id,
         ]);
         $promotionId = DB::table('promotions')
             ->where('tenant_id', $tenant->id)

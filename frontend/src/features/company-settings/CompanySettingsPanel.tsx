@@ -2,7 +2,7 @@
  * CompanySettingsPanel - Informacion legal/fiscal de la empresa.
  *
  * Guarda en tenant_settings.settings.company: razon social, RIF, domicilio
- * fiscal, ciudad/estado, telefono, correo, web y regimen. Ademas permite
+ * fiscal, ciudad/estado, telefono, correo, web, regimen y condicion IVA. Ademas permite
  * elegir en que documentos se refleja (ticket de venta, guias, reporte Z).
  *
  * Requiere permiso settings.manage (Owner/Administrador).
@@ -25,12 +25,21 @@ interface ShowOnState {
   quotation: boolean;
 }
 
-const SHOW_ON_LABELS: Array<{ key: keyof ShowOnState; label: string; hint: string }> = [
+const SHOW_ON_LABELS: { key: keyof ShowOnState; label: string; hint: string }[] = [
   { key: 'sale_ticket', label: 'Ticket de venta', hint: 'Aparece en el ticket POS al imprimir' },
   { key: 'guide', label: 'Guías de traslado', hint: 'Aparece en la guía de traslado (PDF)' },
   { key: 'report_z', label: 'Reporte Z', hint: 'Aparece en el reporte Z de cierre de turno' },
   { key: 'quotation', label: 'Cotizaciones', hint: 'Aparece en el PDF de cotización' },
 ];
+
+const TAX_CONDITION_OPTIONS = [
+  { value: '', label: 'Sin definir' },
+  { value: 'ordinary', label: 'Contribuyente ordinario' },
+  { value: 'formal', label: 'Contribuyente formal' },
+  { value: 'special', label: 'Contribuyente especial' },
+  { value: 'exempt', label: 'Exento' },
+  { value: 'non_taxpayer', label: 'No sujeto' },
+] as const;
 
 export function CompanySettingsPanel() {
   const { data, isLoading } = useCompanySettings();
@@ -45,6 +54,7 @@ export function CompanySettingsPanel() {
   const [correo, setCorreo] = useState('');
   const [website, setWebsite] = useState('');
   const [regimen, setRegimen] = useState('');
+  const [taxCondition, setTaxCondition] = useState('');
   const [showOn, setShowOn] = useState<ShowOnState>({
     sale_ticket: true,
     guide: true,
@@ -64,6 +74,7 @@ export function CompanySettingsPanel() {
     setCorreo(data.correo ?? '');
     setWebsite(data.website ?? '');
     setRegimen(data.regimen ?? '');
+    setTaxCondition(data.tax_condition ?? '');
     setShowOn({
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
@@ -87,6 +98,7 @@ export function CompanySettingsPanel() {
         correo: correo.trim() || null,
         website: website.trim() || null,
         regimen: regimen.trim() || null,
+        tax_condition: taxCondition || null,
         show_on: showOn,
       };
       await update.mutateAsync(payload);
@@ -196,6 +208,21 @@ export function CompanySettingsPanel() {
               maxLength={80}
             />
           </div>
+          <div className="space-y-1">
+            <Label htmlFor="company-tax-condition">Condición frente al IVA</Label>
+            <select
+              id="company-tax-condition"
+              value={taxCondition}
+              onChange={(e) => setTaxCondition(e.target.value)}
+              className="bg-surface text-text-primary border-border-strong focus-visible:ring-primary flex h-9 w-full rounded border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {TAX_CONDITION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </CardContent>
       </Card>
 
@@ -210,7 +237,7 @@ export function CompanySettingsPanel() {
           {SHOW_ON_LABELS.map((option) => (
             <div
               key={option.key}
-              className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3"
+              className="border-border bg-bg/30 flex items-center justify-between gap-3 rounded border p-3"
             >
               <div>
                 <div className="text-sm font-medium">{option.label}</div>

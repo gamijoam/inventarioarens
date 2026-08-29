@@ -87,20 +87,20 @@ frontend/
 
 ## Comandos rápidos
 
-| Comando | Descripción |
-|---|---|
-| `pnpm dev` | Servidor de desarrollo con HMR |
-| `pnpm build` | Build de producción → `dist/` |
-| `pnpm preview` | Sirve `dist/` para verificar el build |
-| `pnpm lint` | ESLint |
-| `pnpm lint:fix` | ESLint con autofix |
-| `pnpm typecheck` | TypeScript sin emitir |
-| `pnpm test` | Vitest (unit + integration) |
-| `pnpm test:watch` | Vitest en watch mode |
-| `pnpm e2e` | Playwright (E2E) |
-| `pnpm e2e:api` | Playwright API E2E sin navegador |
-| `pnpm e2e:ui` | Playwright UI E2E con Chromium |
-| `pnpm e2e:install` | Instala chromium para Playwright |
+| Comando            | Descripción                           |
+| ------------------ | ------------------------------------- |
+| `pnpm dev`         | Servidor de desarrollo con HMR        |
+| `pnpm build`       | Build de producción → `dist/`         |
+| `pnpm preview`     | Sirve `dist/` para verificar el build |
+| `pnpm lint`        | ESLint                                |
+| `pnpm lint:fix`    | ESLint con autofix                    |
+| `pnpm typecheck`   | TypeScript sin emitir                 |
+| `pnpm test`        | Vitest (unit + integration)           |
+| `pnpm test:watch`  | Vitest en watch mode                  |
+| `pnpm e2e`         | Playwright (E2E)                      |
+| `pnpm e2e:api`     | Playwright API E2E sin navegador      |
+| `pnpm e2e:ui`      | Playwright UI E2E con Chromium        |
+| `pnpm e2e:install` | Instala chromium para Playwright      |
 
 ### Playwright E2E
 
@@ -123,6 +123,11 @@ PLAYWRIGHT_MANAGED_SERVERS=1 pnpm e2e:ui
 ```
 
 Nunca ejecutar los tests E2E contra producción: los escenarios API crean operaciones de prueba.
+`fiscal.api.spec.ts` requiere dos productos USD de cantidad con stock y una alícuota `exempt`; si no
+existe, intenta crearla y necesita `settings.manage`. El escenario crea un combo, una venta y una
+devolución de prueba, y elimina la promoción al finalizar.
+`fiscal.ui.spec.ts` ejecuta el mismo contrato desde Chromium visible, incluyendo POS, pago y apertura
+del formulario de devolución.
 
 ---
 
@@ -146,7 +151,7 @@ import { PERMISSIONS } from '@/permissions/constants';
 // En componentes:
 <Can I={PERMISSIONS.PRODUCTS_CREATE}>
   <Button>Nuevo producto</Button>
-</Can>
+</Can>;
 
 const canEdit = useCan(PERMISSIONS.PRODUCTS_UPDATE);
 ```
@@ -171,16 +176,16 @@ Ver `docs/AUDIT_2026-07-11/CONTRATO_PARA_FRONTEND.md` para el contrato API compl
 
 ## Roadmap
 
-| Fase | Estado | Alcance |
-|---|---|---|
-| 0 | ☐ Pendiente | Setup base (Vite + React + TS + Tailwind + Radix + TanStack) |
-| 1 | ☐ Pendiente | Auth + multi-tenant + Dashboard + Centro de Inventario |
-| 2 | ☐ Pendiente | Compras + POS + Caja registradora |
-| 3 | ☐ Pendiente | Traslados + Clientes + Proveedores + CxC/CxP |
-| 4 | ☐ Pendiente | Access Control (usuarios, roles, permisos, scopes) |
-| 5 | ☐ Pendiente | SaaS Master (Platform Admin) |
-| 6 | ☐ Pendiente | PWA + Offline |
-| 7 | ☐ Pendiente | Reportes + Analytics |
+| Fase | Estado      | Alcance                                                      |
+| ---- | ----------- | ------------------------------------------------------------ |
+| 0    | ☐ Pendiente | Setup base (Vite + React + TS + Tailwind + Radix + TanStack) |
+| 1    | ☐ Pendiente | Auth + multi-tenant + Dashboard + Centro de Inventario       |
+| 2    | ☐ Pendiente | Compras + POS + Caja registradora                            |
+| 3    | ☐ Pendiente | Traslados + Clientes + Proveedores + CxC/CxP                 |
+| 4    | ☐ Pendiente | Access Control (usuarios, roles, permisos, scopes)           |
+| 5    | ☐ Pendiente | SaaS Master (Platform Admin)                                 |
+| 6    | ☐ Pendiente | PWA + Offline                                                |
+| 7    | ☐ Pendiente | Reportes + Analytics                                         |
 
 Detalle en `docs/FRONTEND_FASES.md`.
 

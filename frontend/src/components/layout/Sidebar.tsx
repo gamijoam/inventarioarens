@@ -335,6 +335,12 @@ const NAV_ITEMS: NavItem[] = [
         permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
       },
       {
+        to: '/settings/fiscal',
+        label: 'Fiscalidad',
+        icon: BadgeDollarSign,
+        permission: PERMISSIONS.SETTINGS_MANAGE,
+      },
+      {
         to: '/settings/telegram',
         label: 'Telegram',
         icon: Send,

@@ -24,6 +24,28 @@ vi.mock('@/features/inventory-center/lookups', () => ({
   useExchangeRateTypes: () => ({ data: [] }),
   useProductImages: () => ({ data: [] }),
   useWarrantyPolicies: () => ({ data: [] }),
+  useFiscalTaxRates: () => ({
+    data: [
+      { id: 3, code: 'IVA16', name: 'IVA general', rate: 16, category: 'taxable', is_active: true },
+      { id: 4, code: 'EXENTO', name: 'Exento', rate: 0, category: 'exempt', is_active: true },
+      {
+        id: 5,
+        code: 'EXONERADO',
+        name: 'Exonerado',
+        rate: 0,
+        category: 'exonerated',
+        is_active: true,
+      },
+      {
+        id: 6,
+        code: 'NO_GRAVADO',
+        name: 'No gravado',
+        rate: 0,
+        category: 'non_taxable',
+        is_active: true,
+      },
+    ],
+  }),
 }));
 
 function makeForm(initial?: Partial<StoreProductValues>) {
@@ -93,6 +115,46 @@ describe('<ProductForm>', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByDisplayValue('iPhone 15')).toBeInTheDocument();
+  });
+
+  it('permite seleccionar el tratamiento fiscal del producto', async () => {
+    const user = userEvent.setup();
+    const form = makeForm();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductForm
+          form={form}
+          tagOptions={[]}
+          onSubmit={() => undefined}
+          isSubmitting={false}
+          submitLabel="Guardar"
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.selectOptions(screen.getByLabelText('Tratamiento fiscal'), '3');
+    expect(form.getValues('fiscal_tax_rate_id')).toBe(3);
+    expect(screen.getByRole('option', { name: /IVA16/ })).toBeInTheDocument();
+  });
+
+  it('muestra tratamientos gravados, exentos, exonerados y no gravados', () => {
+    const form = makeForm();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductForm
+          form={form}
+          tagOptions={[]}
+          onSubmit={() => undefined}
+          isSubmitting={false}
+          submitLabel="Guardar"
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole('option', { name: /IVA16/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /EXENTO/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /EXONERADO/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /NO_GRAVADO/ })).toBeInTheDocument();
   });
 
   it('llama onSubmit al hacer click en el boton submit', async () => {

@@ -137,6 +137,7 @@ export const TRACKING_TYPES = ['quantity', 'serialized'] as const;
 export const UNITS_OF_MEASURE = ['unit', 'kg', 'lt', 'm'] as const;
 export const SALE_CURRENCIES = ['USD', 'VES'] as const;
 export const PRICING_MODES = ['automatic', 'manual'] as const;
+export const FISCAL_TAX_CATEGORIES = ['taxable', 'exempt', 'exonerated', 'non_taxable'] as const;
 export type PricingMode = (typeof PRICING_MODES)[number];
 
 const trimmedString = (max: number) =>
@@ -158,6 +159,12 @@ const optionalNumber = (min = 0) =>
   z.preprocess(
     (v) => (v === '' || v == null ? undefined : Number(v)),
     z.number().min(min).optional(),
+  );
+
+const optionalNullableNumber = (min = 0) =>
+  z.preprocess(
+    (v) => (v === '' || v === undefined ? undefined : v === null ? null : Number(v)),
+    z.number().min(min).nullable().optional(),
   );
 
 export const StoreProductSchema = z
@@ -192,6 +199,7 @@ export const StoreProductSchema = z
     max_stock: optionalNumber(0),
     reorder_quantity: optionalNumber(0),
     warranty_policy_id: optionalNumber(1),
+    fiscal_tax_rate_id: optionalNullableNumber(1),
     is_active: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {
@@ -239,6 +247,7 @@ export const StoreProductSchema = z
       'max_stock',
       'reorder_quantity',
       'warranty_policy_id',
+      'fiscal_tax_rate_id',
     ]) {
       if (cleaned[key] === '' || cleaned[key] === undefined) {
         delete cleaned[key];
@@ -283,6 +292,7 @@ const StoreProductBaseSchema = z.object({
   max_stock: optionalNumber(0),
   reorder_quantity: optionalNumber(0),
   warranty_policy_id: optionalNumber(1),
+  fiscal_tax_rate_id: optionalNullableNumber(1),
   is_active: z.boolean().default(true),
 });
 
@@ -298,6 +308,7 @@ export const BULK_ACTIONS = [
   'deactivate',
   'assign_warranty_policy',
   'assign_exchange_rate_type',
+  'assign_fiscal_tax_rate',
   'fill_missing_price_list',
   'update_price_list',
 ] as const;
@@ -308,12 +319,25 @@ export type PriceStrategy = (typeof PRICE_STRATEGIES)[number];
 
 export const BulkActionSchema = z
   .object({
-    product_ids: z.array(z.number().int().positive()).min(1).max(200),
+    product_ids: z.array(z.number().int().positive()).min(1).max(200).optional(),
+    all_matching: z.boolean().optional(),
+    filters: z
+      .object({
+        search: z.string().max(120).optional(),
+        tracking_type: z.enum(TRACKING_TYPES).optional(),
+        active_status: z.enum(['active', 'inactive', 'all']).optional(),
+        brand_id: z.number().int().positive().optional(),
+        category_id: z.number().int().positive().optional(),
+        tag_id: z.number().int().positive().optional(),
+      })
+      .optional(),
     action: z.enum(BULK_ACTIONS),
     payload: z
       .object({
         warranty_policy_id: z.number().int().positive().optional(),
         sale_exchange_rate_type_id: z.number().int().positive().optional(),
+        fiscal_tax_rate_id: z.number().int().positive().optional(),
+        overwrite_existing: z.boolean().optional(),
         price_list_id: z.number().int().positive().optional(),
         strategy: z.enum(PRICE_STRATEGIES).optional(),
         price: optionalNumber(0),
@@ -324,6 +348,34 @@ export const BulkActionSchema = z
       .default({}),
   })
   .superRefine((data, ctx) => {
+    if (!data.all_matching && (!data.product_ids || data.product_ids.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['product_ids'],
+        message: 'Selecciona al menos un producto.',
+      });
+    }
+    if (data.all_matching && data.product_ids?.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['product_ids'],
+        message: 'No combines productos específicos con todos los resultados.',
+      });
+    }
+    if (data.all_matching && data.action !== 'assign_fiscal_tax_rate') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['all_matching'],
+        message: 'Todos los resultados solo está disponible para clasificación fiscal.',
+      });
+    }
+    if (data.action === 'assign_fiscal_tax_rate' && !data.payload?.fiscal_tax_rate_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['payload', 'fiscal_tax_rate_id'],
+        message: 'Selecciona el tratamiento fiscal a asignar.',
+      });
+    }
     if (data.action === 'assign_warranty_policy' && !data.payload?.warranty_policy_id) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -489,6 +541,18 @@ export const ProductSchema = z.object({
       name: z.string(),
       duration_days: z.number(),
       coverage_type: z.string(),
+    })
+    .nullable()
+    .optional(),
+  fiscal_tax_rate_id: z.number().int().nullable().optional(),
+  fiscal_tax_rate: z
+    .object({
+      id: z.number().int(),
+      code: z.string(),
+      name: z.string(),
+      rate: z.union([z.number(), z.string()]),
+      category: z.enum(FISCAL_TAX_CATEGORIES),
+      is_active: z.boolean(),
     })
     .nullable()
     .optional(),
@@ -734,10 +798,17 @@ export type PriceList = z.infer<typeof PriceListSchema>;
 
 export const BranchSchema = z.object({
   id: z.number().int().positive(),
+  tenant_id: z.number().int().positive().optional(),
   code: z.string(),
   name: z.string(),
   status: z.string().optional(),
   is_active: z.boolean().optional(),
+  fiscal_address: z.string().nullable().optional(),
+  fiscal_city: z.string().nullable().optional(),
+  fiscal_state: z.string().nullable().optional(),
+  fiscal_phone: z.string().nullable().optional(),
+  fiscal_email: z.string().nullable().optional(),
+  tax_condition: z.string().nullable().optional(),
 });
 export type Branch = z.infer<typeof BranchSchema>;
 

@@ -7,6 +7,7 @@ Route::prefix('inventory-center')->group(function (): void {
     Route::get('summary', [InventoryCenterController::class, 'summary']);
     Route::get('export', [InventoryCenterController::class, 'export']);
     Route::post('products/bulk-action', [InventoryCenterController::class, 'bulkAction']);
+    Route::get('products/bulk-operations/{operation}', [InventoryCenterController::class, 'bulkOperation']);
     Route::get('movements', [InventoryCenterController::class, 'movements']);
 
     Route::get('reorder-suggestions', [InventoryCenterController::class, 'reorderSuggestions']);

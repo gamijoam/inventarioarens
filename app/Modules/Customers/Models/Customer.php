@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'name',
+    'fiscal_name',
     'document_type',
     'document_number',
     'phone',

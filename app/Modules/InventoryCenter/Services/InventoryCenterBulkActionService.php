@@ -2,16 +2,29 @@
 
 namespace App\Modules\InventoryCenter\Services;
 
+use App\Modules\Fiscal\Models\FiscalTaxRate;
+use App\Modules\InventoryCenter\Jobs\ApplyProductFiscalClassification;
+use App\Modules\InventoryCenter\Models\ProductBulkOperation;
 use App\Modules\InventoryCenter\Requests\InventoryCenterBulkActionRequest;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Support\Performance\PerformanceProbe;
+use App\Support\Tenancy\TenantManager;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class InventoryCenterBulkActionService
 {
+    public function __construct(
+        private readonly SyncCatalogOutboxService $syncCatalog,
+        private readonly TenantManager $tenantManager,
+    ) {}
+
     public function apply(array $data, ?int $userId): array
     {
         $productIds = array_values(array_unique(array_map('intval', $data['product_ids'])));
@@ -88,6 +101,9 @@ class InventoryCenterBulkActionService
                     $after = $product->refresh()->only(array_keys($changes));
 
                     $this->recordAudit($product, $this->auditAction($action), $before, $after, $userId);
+                    if ($action === InventoryCenterBulkActionRequest::ACTION_ASSIGN_FISCAL_TAX_RATE) {
+                        $this->syncCatalog->productUpdated($product->refresh());
+                    }
 
                     $updated[] = [
                         'id' => $product->id,
@@ -106,6 +122,81 @@ class InventoryCenterBulkActionService
                 ];
             });
         }, 900, ['requested_count' => count($productIds), 'action' => $action]);
+    }
+
+    public function queueFiscalClassification(array $data, ?int $userId): ProductBulkOperation
+    {
+        $filters = $data['filters'] ?? [];
+        $tenant = $this->tenantManager->require();
+        $this->ensureFiscalRateIsActive((int) $data['payload']['fiscal_tax_rate_id']);
+        $requestedCount = $this->filteredProductsQuery($filters)->count('products.id');
+        $operation = ProductBulkOperation::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $userId,
+            'action' => ProductBulkOperation::ACTION_ASSIGN_FISCAL_TAX_RATE,
+            'filters' => $filters,
+            'payload' => $data['payload'] ?? [],
+            'status' => ProductBulkOperation::STATUS_PENDING,
+            'requested_count' => $requestedCount,
+        ]);
+
+        ApplyProductFiscalClassification::dispatch($operation->id, $tenant->id);
+
+        return $operation->refresh();
+    }
+
+    public function processFiscalOperation(ProductBulkOperation $operation): void
+    {
+        $operation->update([
+            'status' => ProductBulkOperation::STATUS_RUNNING,
+            'started_at' => now(),
+            'error' => null,
+        ]);
+
+        try {
+            $this->ensureFiscalRateIsActive((int) ($operation->payload['fiscal_tax_rate_id'] ?? 0));
+            $this->filteredProductsQuery($operation->filters ?? [])
+                ->orderBy('products.id')
+                ->chunkById(100, function ($products) use ($operation): void {
+                    $counts = DB::transaction(function () use ($products, $operation): array {
+                        $updated = 0;
+                        $skipped = 0;
+                        $products = Product::query()
+                            ->whereIn('id', $products->pluck('id'))
+                            ->lockForUpdate()
+                            ->get();
+
+                        foreach ($products as $product) {
+                            if (! $this->applyFiscalClassification($product, $operation->payload ?? [], $operation->user_id)) {
+                                $skipped++;
+
+                                continue;
+                            }
+
+                            $updated++;
+                        }
+
+                        return compact('updated', 'skipped');
+                    });
+
+                    $operation->increment('processed_count', $products->count());
+                    $operation->increment('updated_count', $counts['updated']);
+                    $operation->increment('skipped_count', $counts['skipped']);
+                }, 'id');
+
+            $operation->update([
+                'status' => ProductBulkOperation::STATUS_COMPLETED,
+                'completed_at' => now(),
+            ]);
+        } catch (Throwable $exception) {
+            $operation->update([
+                'status' => ProductBulkOperation::STATUS_FAILED,
+                'error' => $exception->getMessage(),
+                'completed_at' => now(),
+            ]);
+
+            throw $exception;
+        }
     }
 
     private function applyPriceListAction(Product $product, array $payload, bool $overwrite): array
@@ -217,8 +308,88 @@ class InventoryCenterBulkActionService
             InventoryCenterBulkActionRequest::ACTION_ASSIGN_EXCHANGE_RATE_TYPE => (int) $product->sale_exchange_rate_type_id === (int) $payload['sale_exchange_rate_type_id']
                 ? []
                 : ['sale_exchange_rate_type_id' => (int) $payload['sale_exchange_rate_type_id']],
+            InventoryCenterBulkActionRequest::ACTION_ASSIGN_FISCAL_TAX_RATE => $this->fiscalChangesFor($product, $payload),
             default => [],
         };
+    }
+
+    private function fiscalChangesFor(Product $product, array $payload): array
+    {
+        $targetId = (int) $payload['fiscal_tax_rate_id'];
+        if (
+            (! ($payload['overwrite_existing'] ?? false) && $product->fiscal_tax_rate_id !== null)
+            || (int) $product->fiscal_tax_rate_id === $targetId
+        ) {
+            return [];
+        }
+
+        return ['fiscal_tax_rate_id' => $targetId];
+    }
+
+    private function applyFiscalClassification(Product $product, array $payload, ?int $userId): bool
+    {
+        $changes = $this->fiscalChangesFor($product, $payload);
+        if ($changes === []) {
+            return false;
+        }
+
+        $before = $product->only(array_keys($changes));
+        $product->update($changes);
+        $after = $product->refresh()->only(array_keys($changes));
+        $this->recordAudit($product, ProductAudit::ACTION_UPDATED, $before, $after, $userId);
+        $this->syncCatalog->productUpdated($product->refresh());
+
+        return true;
+    }
+
+    private function ensureFiscalRateIsActive(int $taxRateId): void
+    {
+        if (FiscalTaxRate::query()->whereKey($taxRateId)->where('is_active', true)->exists()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'payload.fiscal_tax_rate_id' => 'El tratamiento fiscal seleccionado no está activo.',
+        ]);
+    }
+
+    private function filteredProductsQuery(array $filters): Builder
+    {
+        $query = Product::query()->select('products.*');
+        $search = trim((string) ($filters['search'] ?? ''));
+
+        if ($search !== '') {
+            $like = '%'.mb_strtolower($search).'%';
+            $query->where(function (Builder $query) use ($like): void {
+                $query
+                    ->whereRaw('LOWER(products.name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(products.sku) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(COALESCE(products.barcode, \'\')) LIKE ?', [$like]);
+            });
+        }
+
+        if (! empty($filters['tracking_type'])) {
+            $query->where('products.tracking_type', $filters['tracking_type']);
+        }
+
+        match ($filters['active_status'] ?? 'active') {
+            'all' => null,
+            'inactive' => $query->where('products.is_active', false),
+            default => $query->where('products.is_active', true),
+        };
+
+        foreach (['brand_id', 'category_id', 'tag_id'] as $filter) {
+            if (! empty($filters[$filter])) {
+                if ($filter === 'brand_id') {
+                    $query->where('products.brand_id', (int) $filters[$filter]);
+                } else {
+                    $relation = $filter === 'category_id' ? 'categories' : 'tags';
+                    $query->whereHas($relation, fn (Builder $relationQuery) => $relationQuery->whereKey((int) $filters[$filter]));
+                }
+            }
+        }
+
+        return $query;
     }
 
     private function auditAction(string $action): string

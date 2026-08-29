@@ -5,89 +5,135 @@ import { getOne, getPaginated, postOne } from '@/api/client';
 import type { Paginated } from '@/types/api';
 import { saleKeys } from '@/features/sales/queries';
 
-const moneyValue = z.union([z.number(), z.string()]).nullable().optional().transform((value) => {
-  if (value === null || value === undefined) return 0;
-  const n = typeof value === 'string' ? Number(value) : value;
-  return Number.isFinite(n) ? n : 0;
-});
+const moneyValue = z
+  .union([z.number(), z.string()])
+  .nullable()
+  .optional()
+  .transform((value) => {
+    if (value === null || value === undefined) return 0;
+    const n = typeof value === 'string' ? Number(value) : value;
+    return Number.isFinite(n) ? n : 0;
+  });
 
-export const SalesReturnItemSchema = z.object({
-  id: z.number(),
-  sale_item_id: z.number(),
-  warehouse_id: z.number().nullable().optional(),
-  product_id: z.number(),
-  quantity: moneyValue,
-  refundable_base_amount: moneyValue,
-  product_unit_ids: z.array(z.number()).nullable().optional(),
-  condition: z.string(),
-  reason: z.string().nullable().optional(),
-  product: z.object({
-    id: z.number().optional(),
-    name: z.string().optional(),
-    sku: z.string().nullable().optional(),
-  }).nullable().optional(),
-  warehouse: z.object({
-    id: z.number().optional(),
-    name: z.string().optional(),
-  }).nullable().optional(),
-}).passthrough();
-
-export const SalesReturnSchema = z.object({
-  id: z.number(),
-  sale_id: z.number(),
-  status: z.string(),
-  reason: z.string().nullable().optional(),
-  created_by_name: z.string().nullable().optional(),
-  reviewed_by_name: z.string().nullable().optional(),
-  reviewed_at: z.string().nullable().optional(),
-  rejection_reason: z.string().nullable().optional(),
-  processed_by_name: z.string().nullable().optional(),
-  processed_at: z.string().nullable().optional(),
-  cancelled_by_name: z.string().nullable().optional(),
-  cancelled_at: z.string().nullable().optional(),
-  cancellation_reason: z.string().nullable().optional(),
-  refund_currency: z.string().nullable().optional(),
-  refund_amount: moneyValue,
-  refund_exchange_rate_type_id: z.number().int().nullable().optional(),
-  refund_exchange_rate_type_code: z.string().nullable().optional(),
-  refund_exchange_rate: moneyValue,
-  refund_amount_base: moneyValue,
-  refund_amount_local: moneyValue,
-  refund_method: z.string().nullable().optional(),
-  refund_reference: z.string().nullable().optional(),
-  refund_financial_adjustment_id: z.number().int().nullable().optional(),
-  customer_credit_transaction_id: z.number().int().nullable().optional(),
-  exchange_sale_id: z.number().int().nullable().optional(),
-  refund_financial_adjustment: z.object({
-    id: z.number().int(),
-    document_number: z.string(),
-    status: z.string(),
-    currency: z.string(),
-    amount: moneyValue,
-    amount_base: moneyValue,
-    amount_local: moneyValue,
+export const SalesReturnItemSchema = z
+  .object({
+    id: z.number(),
+    sale_item_id: z.number(),
+    warehouse_id: z.number().nullable().optional(),
+    product_id: z.number(),
+    quantity: moneyValue,
+    refundable_base_amount: moneyValue,
+    fiscal_tax_source: z.string().optional(),
+    fiscal_tax_override_code: z.string().nullable().optional(),
+    fiscal_tax_code: z.string().nullable().optional(),
+    fiscal_tax_name: z.string().nullable().optional(),
+    fiscal_tax_category: z.string().nullable().optional(),
+    fiscal_tax_rate: moneyValue,
+    fiscal_prices_include_tax: z.boolean().optional(),
+    fiscal_taxable_base_amount: moneyValue,
+    fiscal_taxable_local_amount: moneyValue,
+    fiscal_exempt_base_amount: moneyValue,
+    fiscal_exempt_local_amount: moneyValue,
+    fiscal_exonerated_base_amount: moneyValue,
+    fiscal_exonerated_local_amount: moneyValue,
+    fiscal_non_taxable_base_amount: moneyValue,
+    fiscal_non_taxable_local_amount: moneyValue,
+    fiscal_tax_base_amount: moneyValue,
+    fiscal_tax_local_amount: moneyValue,
+    fiscal_total_base_amount: moneyValue,
+    fiscal_total_local_amount: moneyValue,
+    fiscal_snapshot_at: z.string().nullable().optional(),
+    product_unit_ids: z.array(z.number()).nullable().optional(),
+    condition: z.string(),
     reason: z.string().nullable().optional(),
-    applied_at: z.string().nullable().optional(),
-  }).nullable().optional(),
-  process_notes: z.string().nullable().optional(),
-  created_at: z.string().nullable().optional(),
-  sale: z.object({
-    id: z.number().optional(),
-    customer: z.object({
-      id: z.number().int().optional(),
-      name: z.string().optional(),
-      document_number: z.string().nullable().optional(),
-    }).nullable().optional(),
-    receivable: z.object({
-      status: z.string().nullable().optional(),
-      balance_base_amount: moneyValue,
-      balance_local_amount: moneyValue,
-      collected_base_amount: moneyValue,
-      returned_base_amount: moneyValue,
-    }).nullable().optional(),
-  }).nullable().optional(),
-  items: z.array(SalesReturnItemSchema).optional(),
-}).passthrough();
+    product: z
+      .object({
+        id: z.number().optional(),
+        name: z.string().optional(),
+        sku: z.string().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
+    warehouse: z
+      .object({
+        id: z.number().optional(),
+        name: z.string().optional(),
+      })
+      .nullable()
+      .optional(),
+  })
+  .passthrough();
+
+export const SalesReturnSchema = z
+  .object({
+    id: z.number(),
+    sale_id: z.number(),
+    status: z.string(),
+    reason: z.string().nullable().optional(),
+    created_by_name: z.string().nullable().optional(),
+    reviewed_by_name: z.string().nullable().optional(),
+    reviewed_at: z.string().nullable().optional(),
+    rejection_reason: z.string().nullable().optional(),
+    processed_by_name: z.string().nullable().optional(),
+    processed_at: z.string().nullable().optional(),
+    cancelled_by_name: z.string().nullable().optional(),
+    cancelled_at: z.string().nullable().optional(),
+    cancellation_reason: z.string().nullable().optional(),
+    refund_currency: z.string().nullable().optional(),
+    refund_amount: moneyValue,
+    refund_exchange_rate_type_id: z.number().int().nullable().optional(),
+    refund_exchange_rate_type_code: z.string().nullable().optional(),
+    refund_exchange_rate: moneyValue,
+    refund_amount_base: moneyValue,
+    refund_amount_local: moneyValue,
+    refund_method: z.string().nullable().optional(),
+    refund_reference: z.string().nullable().optional(),
+    refund_financial_adjustment_id: z.number().int().nullable().optional(),
+    customer_credit_transaction_id: z.number().int().nullable().optional(),
+    exchange_sale_id: z.number().int().nullable().optional(),
+    refund_financial_adjustment: z
+      .object({
+        id: z.number().int(),
+        document_number: z.string(),
+        status: z.string(),
+        currency: z.string(),
+        amount: moneyValue,
+        amount_base: moneyValue,
+        amount_local: moneyValue,
+        reason: z.string().nullable().optional(),
+        applied_at: z.string().nullable().optional(),
+      })
+      .nullable()
+      .optional(),
+    process_notes: z.string().nullable().optional(),
+    created_at: z.string().nullable().optional(),
+    sale: z
+      .object({
+        id: z.number().optional(),
+        customer: z
+          .object({
+            id: z.number().int().optional(),
+            name: z.string().optional(),
+            document_number: z.string().nullable().optional(),
+          })
+          .nullable()
+          .optional(),
+        receivable: z
+          .object({
+            status: z.string().nullable().optional(),
+            balance_base_amount: moneyValue,
+            balance_local_amount: moneyValue,
+            collected_base_amount: moneyValue,
+            returned_base_amount: moneyValue,
+          })
+          .nullable()
+          .optional(),
+      })
+      .nullable()
+      .optional(),
+    items: z.array(SalesReturnItemSchema).optional(),
+  })
+  .passthrough();
 
 export type SalesReturn = z.infer<typeof SalesReturnSchema>;
 export type SalesReturnStatus = 'requested' | 'approved' | 'rejected' | 'processed' | 'cancelled';
@@ -95,13 +141,13 @@ export type SalesReturnStatus = 'requested' | 'approved' | 'rejected' | 'process
 export interface SalesReturnPayload {
   sale_id: number;
   reason?: string | null;
-  items: Array<{
+  items: {
     sale_item_id: number;
     quantity: number;
     condition: 'sellable' | 'damaged';
     reason?: string | null;
     product_unit_ids?: number[];
-  }>;
+  }[];
 }
 
 export interface ProcessSalesReturnPayload {
@@ -120,18 +166,18 @@ export interface ExchangeSalesReturnPayload {
   cash_register_session_id: number;
   customer_id: number;
   credit_amount: number;
-  items: Array<{
+  items: {
     warehouse_id: number;
     product_id: number;
     quantity: number;
     product_unit_ids?: number[];
-  }>;
-  payments: Array<{
+  }[];
+  payments: {
     method: string;
     currency: 'USD' | 'VES';
     amount: number;
     reference?: string | null;
-  }>;
+  }[];
 }
 
 export const salesReturnKeys = {
@@ -156,7 +202,9 @@ export function useSalesReturns(options: { enabled?: boolean } = {}) {
 
 export function useSalesReturn(id: number | null) {
   return useQuery({
-    queryKey: id ? [...salesReturnKeys.all, 'detail', id] : [...salesReturnKeys.all, 'detail', 'empty'],
+    queryKey: id
+      ? [...salesReturnKeys.all, 'detail', id]
+      : [...salesReturnKeys.all, 'detail', 'empty'],
     queryFn: async () => SalesReturnSchema.parse(await getOne<unknown>(`/sales-returns/${id}`)),
     enabled: Number.isFinite(id) && Number(id) > 0,
   });
@@ -165,7 +213,8 @@ export function useSalesReturn(id: number | null) {
 export function useCreateSalesReturn() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: SalesReturnPayload) => postOne<SalesReturnPayload, SalesReturn>('/sales-returns', payload),
+    mutationFn: (payload: SalesReturnPayload) =>
+      postOne<SalesReturnPayload, SalesReturn>('/sales-returns', payload),
     onSuccess: (_data, payload) => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
@@ -177,7 +226,8 @@ export function useCreateSalesReturn() {
 export function useApproveSalesReturn() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => postOne<Record<string, never>, SalesReturn>(`/sales-returns/${id}/approve`, {}),
+    mutationFn: (id: number) =>
+      postOne<Record<string, never>, SalesReturn>(`/sales-returns/${id}/approve`, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
@@ -188,7 +238,8 @@ export function useApproveSalesReturn() {
 export function useRejectSalesReturn() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) => postOne<{ reason: string }, SalesReturn>(`/sales-returns/${id}/reject`, { reason }),
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      postOne<{ reason: string }, SalesReturn>(`/sales-returns/${id}/reject`, { reason }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
@@ -199,7 +250,8 @@ export function useRejectSalesReturn() {
 export function useProcessSalesReturn() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: ProcessSalesReturnPayload }) => postOne<ProcessSalesReturnPayload, SalesReturn>(`/sales-returns/${id}/process`, payload),
+    mutationFn: ({ id, payload }: { id: number; payload: ProcessSalesReturnPayload }) =>
+      postOne<ProcessSalesReturnPayload, SalesReturn>(`/sales-returns/${id}/process`, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
@@ -210,7 +262,8 @@ export function useProcessSalesReturn() {
 export function useCancelSalesReturn() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) => postOne<{ reason: string }, SalesReturn>(`/sales-returns/${id}/cancel`, { reason }),
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      postOne<{ reason: string }, SalesReturn>(`/sales-returns/${id}/cancel`, { reason }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
@@ -237,7 +290,9 @@ export function useCompleteSalesReturnExchange() {
 
   return useMutation({
     mutationFn: ({ id, pos_order_id }: { id: number; pos_order_id: number }) =>
-      postOne<{ pos_order_id: number }, SalesReturn>(`/sales-returns/${id}/exchange/complete`, { pos_order_id }),
+      postOne<{ pos_order_id: number }, SalesReturn>(`/sales-returns/${id}/exchange/complete`, {
+        pos_order_id,
+      }),
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });

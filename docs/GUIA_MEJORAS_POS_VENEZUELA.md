@@ -2,6 +2,7 @@
 
 Fecha inicial: 2026-08-16
 Última actualización: 2026-08-17
+Última revisión de implementación: 2026-08-29
 Proyecto: INVENTARIOARENS
 
 ## 1. Propósito
@@ -250,6 +251,37 @@ Estado: completada.
 - Ejecutar el comando nuevamente no crea otro movimiento.
 - El scheduler ejecuta la limpieza cada cinco minutos.
 - Verificación: POS backend `88/88`; reserva vencida `1/1`; Pint limpio.
+
+### Etapa 2.1: Identidad Fiscal Base
+
+Estado: base backend/API completada.
+
+- La identidad de empresa reutiliza la sección `tenant_settings.settings.company` para no romper
+  tickets, guías, reportes Z ni sincronización existentes.
+- Se exponen `GET/PATCH /api/fiscal/identity` con razón social, RIF, domicilio, contacto y condición
+  frente al IVA.
+- Se exponen `GET/PATCH /api/fiscal/identity/branches/{branch}` con datos fiscales por sucursal.
+- Las escrituras requieren `settings.manage` y nunca permiten cruzar empresas.
+- La identidad de sucursal se replica por eventos `branch.created`/`branch.updated` con timestamps.
+- El panel de empresa permite seleccionar la condición frente al IVA.
+- Verificación: Fiscal API `6/6`; sync y configuración de empresa `19/19`; frontend fiscal/configuración
+  `47/47`; TypeScript limpio.
+
+La interfaz administrativa completa para editar datos fiscales de cada sucursal se integrará en la
+etapa de UI/operación. Esta subetapa tampoco calcula IVA ni emite documentos fiscales.
+
+### Etapa 3: IVA y reporte interno
+
+Estado: preparación interna implementada.
+
+- Las alícuotas y tratamientos fiscales se administran por empresa.
+- Los productos pueden clasificarse como gravados, exentos, exonerados o no gravados.
+- Las ventas confirmadas conservan el snapshot fiscal usado para calcularlas.
+- `GET /api/reports/fiscal/iva` resume bases, IVA y totales por período, sucursal, cliente o producto.
+- El reporte es preparatorio y no sustituye una factura fiscal, libro fiscal ni declaración.
+
+Permanece pendiente la emisión oficial, que dependerá de definir máquina fiscal, forma libre o
+proveedor digital.
 
 ## 9. Cómo Se Trabajará Cada Cambio
 

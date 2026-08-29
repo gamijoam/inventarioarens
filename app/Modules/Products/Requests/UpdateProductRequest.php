@@ -89,6 +89,12 @@ class UpdateProductRequest extends FormRequest
                 'integer',
                 Rule::exists('warranty_policies', 'id')->whereIn('tenant_id', $tenantIds),
             ],
+            'fiscal_tax_rate_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                Rule::exists('fiscal_tax_rates', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
             'is_active' => ['sometimes', 'boolean'],
 
             // Categorias y tags: el frontend los envia en el body del
@@ -130,6 +136,7 @@ class UpdateProductRequest extends FormRequest
             'category_ids.*.exists' => 'Una o mas categorias seleccionadas no existen en la empresa actual.',
             'tag_ids.*.exists' => 'Uno o mas tags seleccionados no existen en la empresa actual.',
             'sale_currency.in' => 'La moneda de venta debe ser USD o VES.',
+            'fiscal_tax_rate_id.exists' => 'La alicuota fiscal seleccionada no pertenece a la empresa actual.',
             'is_active.boolean' => 'El estado activo debe ser verdadero o falso.',
         ];
     }

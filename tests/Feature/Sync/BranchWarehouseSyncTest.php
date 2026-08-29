@@ -82,6 +82,12 @@ class BranchWarehouseSyncTest extends TestCase
             'code' => 'SUR',
             'name' => 'Sucursal Sur',
             'status' => 'active',
+            'fiscal_address' => 'Av. Sur, Local 1',
+            'fiscal_city' => 'Maracay',
+            'fiscal_state' => 'Aragua',
+            'fiscal_phone' => '+58 243 555 0000',
+            'fiscal_email' => 'sur@empresa.test',
+            'tax_condition' => 'formal',
         ], 1);
         $this->enqueueEvent($tenant->id, 'warehouse.created', [
             'code' => 'ALM-SUR',
@@ -97,7 +103,19 @@ class BranchWarehouseSyncTest extends TestCase
             'tenant_id' => $tenant->id,
             'code' => 'SUR',
             'name' => 'Sucursal Sur',
+            'fiscal_address' => 'Av. Sur, Local 1',
+            'fiscal_city' => 'Maracay',
+            'fiscal_state' => 'Aragua',
+            'fiscal_phone' => '+58 243 555 0000',
+            'fiscal_email' => 'sur@empresa.test',
+            'tax_condition' => 'formal',
         ]);
+        $branch = Branch::withoutGlobalScopes()
+            ->where('tenant_id', $tenant->id)
+            ->where('code', 'SUR')
+            ->firstOrFail();
+        $this->assertNotNull($branch->created_at);
+        $this->assertNotNull($branch->updated_at);
         $this->assertDatabaseHas('warehouses', [
             'tenant_id' => $tenant->id,
             'code' => 'ALM-SUR',

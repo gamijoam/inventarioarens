@@ -17,10 +17,21 @@ describe('StoreCustomerSchema', () => {
       is_active: true,
     });
     expect(result.name).toBe('Juan Perez');
+    expect(result.fiscal_name).toBe('Juan Perez');
     expect(result.document_type).toBe('V');
     expect(result.document_number).toBe('12345678');
     expect(result.is_active).toBe(true);
     expect(result.is_generic).toBe(false);
+  });
+
+  it('usa el nombre comercial como nombre fiscal cuando no se especifica', () => {
+    const result = StoreCustomerSchema.parse({
+      name: 'Cliente Mostrador',
+      document_type: 'V',
+      document_number: '123',
+    });
+
+    expect(result.fiscal_name).toBe('Cliente Mostrador');
   });
 
   it('rechaza nombre vacio', () => {

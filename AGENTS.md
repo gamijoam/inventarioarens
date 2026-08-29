@@ -80,7 +80,7 @@ INVENTARIOARENS/
 ├── app/
 │   ├── Http/Controllers/Controller.php   ← SOLO base. El resto de controllers vive en módulos.
 │   ├── Models/User.php                   ← ÚNICO model fuera de módulos.
-│   ├── Modules/                          ← 40 módulos con MVC propio cada uno.
+│   ├── Modules/                          ← 41 módulos con MVC propio cada uno.
 │   ├── Providers/                        ← AppServiceProvider.
 │   └── Support/
 │       ├── Permissions/BasePermissions.php          ← Catálogo de 102 permisos + 6 roles.
@@ -445,6 +445,24 @@ subject_type, subject_id) en 24h no se duplica.
 - Snapshot del rate: `exchange_rate_type_id`, `exchange_rate_type_code`, `exchange_rate` numérico.
 - NUNCA recalcular historicos — el rate congelado en su fila es la verdad.
 - Las devoluciones procesadas generan nota de crédito clasificada como `customer_credit`; no es CxC ni CxP. `customer_credit` genera además un ledger append-only de saldo a favor. Un canje siempre crea una nueva venta y aplica el crédito sin modificar la venta original.
+
+### 8.6.2 Fiscalización venezolana (fase en construcción)
+- `FiscalTaxRate` es tenant-scoped; sus códigos son únicos por empresa y sus categorías son `taxable`, `exempt`, `exonerated` y `non_taxable`.
+- Los productos pueden referenciar `fiscal_tax_rate_id`; la FK es compuesta por `tenant_id` y el sync replica la clasificación mediante `fiscal_tax_rate_code`, nunca mediante IDs locales.
+- `FiscalTaxCalculator` calcula base imponible, exentos, exonerados, no gravados, IVA y total con el parámetro explícito `pricesIncludeTax`.
+- `Sale`, `SaleItem` y `PosOrder` ya conservan los totales fiscales y el snapshot al confirmar/cobrar. El borrador usa cálculo provisional; la venta confirmada no se recalcula con tasas posteriores.
+- Los precios de venta son netos. Las promociones reducen la base antes del IVA; cada componente de un combo calcula su tratamiento fiscal. Los combos heredan la alícuota del producto o pueden usar `fiscal_tax_mode=override` con un `fiscal_tax_rate_id` del mismo tenant.
+- `fiscal_tax_source` y `fiscal_tax_override_code` conservan el origen del tratamiento en la línea para recalcular borradores sin perder el override. El sync replica códigos naturales y timestamps, nunca IDs locales.
+- Las líneas de `SalesReturnItem` copian el snapshot fiscal de `SaleItem` al solicitar la devolución. Nota de crédito, saldo a favor, reembolso y CxC deben usar esos importes históricos, nunca consultar la alícuota vigente.
+- `Customer.fiscal_name` conserva el nombre legal/fiscal separado del nombre comercial; si se omite al crear un cliente, se deriva de `name` y se replica en el payload de sync.
+- `GET /api/reports/fiscal/iva` es un reporte interno tenant-scoped de ventas confirmadas, agrupado por snapshots fiscales y con desglose USD/VES. No es una factura, declaración ni emisión certificada.
+- La emisión fiscal certificada y la impresora fiscal todavía no están integradas. El ticket sigue siendo comercial.
+- Contratos: `docs/FISCAL_IDENTITY_API.md` y `docs/FISCAL_TAX_RATES_API.md`.
+- Configuración frontend: `/settings/company` administra identidad/condición fiscal y
+  `/settings/fiscal` administra alícuotas. El Centro de Inventario permite seleccionar productos y
+  aplicar un tratamiento fiscal masivamente; `all_matching=true` procesa todos los resultados
+  filtrados en cola y conserva clasificaciones explícitas salvo que el administrador active
+  `overwrite_existing`.
 
 ### 8.6.1 Comisiones V2 — control dinamico
 - El reporte de control por producto usa `sales`, `sale_items`, `pos_orders` y `pos_payments`; el ledger `commission_entries` conserva la comision append-only y no sustituye el detalle de ventas.

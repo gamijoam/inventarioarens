@@ -1,5 +1,29 @@
 # Registro de implementación — 2026-08-28
 
+## 2026-08-29 - Reporte interno de IVA y perfil fiscal de clientes
+
+- Se agregó `fiscal_name` a clientes, con backfill desde `name`, edición en el cliente Administrativo
+  y propagación en eventos de sincronización.
+- Se agregó `GET /api/reports/fiscal/iva`, tenant-scoped y protegido por permisos de reportes, para
+  agrupar ventas confirmadas por snapshots fiscales y mostrar bases, IVA y totales USD/VES.
+- Se agregó el módulo frontend `IVA interno` con filtros de período existentes y exportación CSV.
+- El reporte está explícitamente marcado como interno y no fiscal: no genera factura, número de
+  control, autorización ni declaración tributaria.
+- Verificación TDD: backend focalizado `59/59` tests, `365` aserciones; frontend focalizado `19/19`.
+
+## 2026-08-29 - Clasificación fiscal masiva de productos
+
+- Se agregó `/settings/fiscal` para crear y editar alícuotas `taxable`, `exempt`, `exonerated` y
+  `non_taxable`; las tres categorías no gravadas fuerzan tasa `0%`.
+- El Centro de Inventario ahora permite asignar tratamientos fiscales a productos seleccionados o a
+  todos los resultados filtrados, con confirmación para sobrescribir clasificaciones existentes.
+- Las operaciones masivas globales se procesan en cola, exponen progreso por API y generan auditoría
+  de producto y eventos de sync por cada actualización.
+- Se mantiene como comportamiento seguro que los productos ya clasificados no se sobrescriban por
+  defecto.
+- Pruebas agregadas para las cuatro categorías, aislamiento tenant, cola, progreso y componentes
+  frontend.
+
 ## 2026-08-28 - Cliente Electron del Conector Cloud
 
 - Se agrego una interfaz Electron independiente para vincular el conector mediante codigo temporal,

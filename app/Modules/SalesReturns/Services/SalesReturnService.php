@@ -79,6 +79,7 @@ class SalesReturnService
                     'sale_item_id' => $saleItem->id,
                     'warehouse_id' => $saleItem->warehouse_id,
                     'product_id' => $saleItem->product_id,
+                    ...$this->fiscalReturnSnapshot($saleItem, $quantity),
                     'quantity' => $quantity,
                     'product_unit_ids' => $productUnitIds ?: null,
                     'condition' => $itemData['condition'] ?? SalesReturnItem::CONDITION_SELLABLE,
@@ -415,6 +416,26 @@ class SalesReturnService
                         'quantity' => (float) $item->quantity,
                         'condition' => $item->condition,
                         'reason' => $item->reason,
+                        'fiscal_tax_source' => $item->fiscal_tax_source,
+                        'fiscal_tax_override_code' => $item->fiscal_tax_override_code,
+                        'fiscal_tax_code' => $item->fiscal_tax_code,
+                        'fiscal_tax_name' => $item->fiscal_tax_name,
+                        'fiscal_tax_category' => $item->fiscal_tax_category,
+                        'fiscal_tax_rate' => $item->fiscal_tax_rate === null ? null : (string) $item->fiscal_tax_rate,
+                        'fiscal_prices_include_tax' => (bool) $item->fiscal_prices_include_tax,
+                        'fiscal_taxable_base_amount' => (string) $item->fiscal_taxable_base_amount,
+                        'fiscal_taxable_local_amount' => (string) $item->fiscal_taxable_local_amount,
+                        'fiscal_exempt_base_amount' => (string) $item->fiscal_exempt_base_amount,
+                        'fiscal_exempt_local_amount' => (string) $item->fiscal_exempt_local_amount,
+                        'fiscal_exonerated_base_amount' => (string) $item->fiscal_exonerated_base_amount,
+                        'fiscal_exonerated_local_amount' => (string) $item->fiscal_exonerated_local_amount,
+                        'fiscal_non_taxable_base_amount' => (string) $item->fiscal_non_taxable_base_amount,
+                        'fiscal_non_taxable_local_amount' => (string) $item->fiscal_non_taxable_local_amount,
+                        'fiscal_tax_base_amount' => (string) $item->fiscal_tax_base_amount,
+                        'fiscal_tax_local_amount' => (string) $item->fiscal_tax_local_amount,
+                        'fiscal_total_base_amount' => (string) $item->fiscal_total_base_amount,
+                        'fiscal_total_local_amount' => (string) $item->fiscal_total_local_amount,
+                        'fiscal_snapshot_at' => $item->fiscal_snapshot_at?->toISOString(),
                         'product_serial_units' => $productUnits,
                     ];
                 })->values()->all(),
@@ -654,11 +675,13 @@ class SalesReturnService
                 continue;
             }
 
-            $lineBase = round((float) $saleItem->base_total_amount / $lineQuantity * (float) $returnItem->quantity, 4);
+            $lineBase = $this->returnItemBaseAmount($returnItem, $saleItem, $lineQuantity);
             $baseAmount += $lineBase;
-            $localAmount += $saleItem->exchange_rate
+            $localAmount += $returnItem->fiscal_snapshot_at !== null
+                ? (float) $returnItem->fiscal_total_local_amount
+                : ($saleItem->exchange_rate
                 ? round($lineBase * (float) $saleItem->exchange_rate, 4)
-                : ($saleItem->sale_currency === Product::CURRENCY_VES ? round((float) $saleItem->unit_price * (float) $returnItem->quantity, 4) : 0.0);
+                : ($saleItem->sale_currency === Product::CURRENCY_VES ? round((float) $saleItem->unit_price * (float) $returnItem->quantity, 4) : 0.0));
         }
 
         return [$firstSaleItem, $firstSaleItem->sale_currency, round($baseAmount, 4), round($localAmount, 4)];
@@ -695,7 +718,7 @@ class SalesReturnService
                 continue;
             }
 
-            $maxRefundBase += round(((float) $saleItem->base_total_amount / $quantity) * (float) $returnItem->quantity, 4);
+            $maxRefundBase += $this->returnItemBaseAmount($returnItem, $saleItem, $quantity);
         }
 
         $collectedBase = (float) ($salesReturn->sale->receivable?->collected_base_amount ?? 0);
@@ -711,5 +734,50 @@ class SalesReturnService
                 'refund_amount' => 'El reembolso supera el monto cobrado disponible para esta venta o el monto devuelto aprobado.',
             ]);
         }
+    }
+
+    private function returnItemBaseAmount(SalesReturnItem $returnItem, SaleItem $saleItem, float $saleQuantity): float
+    {
+        if ($returnItem->fiscal_snapshot_at !== null) {
+            return round((float) $returnItem->fiscal_total_base_amount, 4);
+        }
+
+        return round(((float) $saleItem->base_total_amount / $saleQuantity) * (float) $returnItem->quantity, 4);
+    }
+
+    private function fiscalReturnSnapshot(SaleItem $saleItem, float $quantity): array
+    {
+        $saleQuantity = (float) $saleItem->quantity;
+        $ratio = $saleQuantity > 0 ? $quantity / $saleQuantity : 0.0;
+        $amountFields = [
+            'fiscal_taxable_base_amount',
+            'fiscal_taxable_local_amount',
+            'fiscal_exempt_base_amount',
+            'fiscal_exempt_local_amount',
+            'fiscal_exonerated_base_amount',
+            'fiscal_exonerated_local_amount',
+            'fiscal_non_taxable_base_amount',
+            'fiscal_non_taxable_local_amount',
+            'fiscal_tax_base_amount',
+            'fiscal_tax_local_amount',
+            'fiscal_total_base_amount',
+            'fiscal_total_local_amount',
+        ];
+        $snapshot = [
+            'fiscal_tax_source' => $saleItem->fiscal_tax_source,
+            'fiscal_tax_override_code' => $saleItem->fiscal_tax_override_code,
+            'fiscal_tax_code' => $saleItem->fiscal_tax_code,
+            'fiscal_tax_name' => $saleItem->fiscal_tax_name,
+            'fiscal_tax_category' => $saleItem->fiscal_tax_category,
+            'fiscal_tax_rate' => $saleItem->fiscal_tax_rate,
+            'fiscal_prices_include_tax' => (bool) $saleItem->fiscal_prices_include_tax,
+            'fiscal_snapshot_at' => $saleItem->fiscal_snapshot_at,
+        ];
+
+        foreach ($amountFields as $field) {
+            $snapshot[$field] = round((float) $saleItem->{$field} * $ratio, 4);
+        }
+
+        return $snapshot;
     }
 }

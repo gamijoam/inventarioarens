@@ -9,12 +9,20 @@ use Illuminate\Validation\Rule;
 
 class StoreCustomerRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('fiscal_name')) {
+            $this->merge(['fiscal_name' => $this->input('name')]);
+        }
+    }
+
     public function rules(): array
     {
         $tenantId = app(TenantManager::class)->require()->id;
 
         return [
             'name' => ['required', 'string', 'max:255'],
+            'fiscal_name' => ['required', 'string', 'max:255'],
             'document_type' => [
                 'required',
                 'string',

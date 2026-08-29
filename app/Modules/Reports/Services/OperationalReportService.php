@@ -32,6 +32,7 @@ class OperationalReportService
             ['key' => 'movements', 'label' => 'Movimientos', 'permission' => 'reports.movements.view', 'available' => $this->canAny($user, ['reports.view', 'reports.movements.view'])],
             ['key' => 'sales_by_color', 'label' => 'Ventas por color', 'permission' => 'reports.sales.view', 'available' => $this->canAny($user, ['reports.view', 'reports.sales.view'])],
             ['key' => 'finance', 'label' => 'Finanzas', 'permission' => 'finance_reports.view', 'available' => $user->can('finance_reports.view')],
+            ['key' => 'fiscal_iva', 'label' => 'IVA interno', 'permission' => 'reports.sales.view', 'available' => $this->canAny($user, ['reports.view', 'reports.sales.view', 'finance_reports.view'])],
         ];
     }
 

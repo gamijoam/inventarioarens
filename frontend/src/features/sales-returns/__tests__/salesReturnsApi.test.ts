@@ -26,6 +26,10 @@ describe('sales returns api contract', () => {
           sale_item_id: 99,
           product_id: 7,
           quantity: '1.0000',
+          fiscal_tax_source: 'product',
+          fiscal_tax_code: 'IVA16',
+          fiscal_tax_rate: null,
+          fiscal_snapshot_at: null,
           condition: 'sellable',
           product_unit_ids: [33],
         },
@@ -34,6 +38,8 @@ describe('sales returns api contract', () => {
 
     expect(parsed.items?.[0]?.quantity).toBe(1);
     expect(parsed.items?.[0]?.product_unit_ids).toEqual([33]);
+    expect(parsed.items?.[0]?.fiscal_tax_code).toBe('IVA16');
+    expect(parsed.items?.[0]?.fiscal_tax_rate).toBe(0);
     expect(parsed.sale?.receivable?.balance_base_amount).toBe(20);
   });
 

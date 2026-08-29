@@ -86,6 +86,36 @@ export const ReportCatalogItemSchema = z.object({
   available: z.boolean(),
 });
 
+const FiscalVatAmountsSchema = z.object({
+  taxable_base_amount: z.number(),
+  exempt_base_amount: z.number(),
+  exonerated_base_amount: z.number(),
+  non_taxable_base_amount: z.number(),
+  tax_amount: z.number(),
+  total_base_amount: z.number(),
+  taxable_local_amount: z.number(),
+  exempt_local_amount: z.number(),
+  exonerated_local_amount: z.number(),
+  non_taxable_local_amount: z.number(),
+  tax_local_amount: z.number(),
+  total_local_amount: z.number(),
+});
+
+export const FiscalVatReportSchema = z.object({
+  period: z.object({ from: z.string(), to: z.string() }),
+  currency: z.string(),
+  summary: z.object({ sales_count: z.number(), ...FiscalVatAmountsSchema.shape }),
+  rows: z.array(z.object({
+    tax_code: z.string(),
+    category: z.string(),
+    tax_name: z.string().nullable().optional(),
+    tax_rate: z.number().nullable().optional(),
+    sales_count: z.number(),
+    ...FiscalVatAmountsSchema.shape,
+  })),
+  generated_at: z.string(),
+});
+
 export const DailyOperationsSchema = z.object({
   period: z.object({
     from: z.string(),
@@ -371,4 +401,5 @@ export type DailyOperations = z.infer<typeof DailyOperationsSchema>;
 export type SalesDetail = z.infer<typeof SalesDetailSchema>;
 export type CashSessions = z.infer<typeof CashSessionsSchema>;
 export type PaymentMethodsReport = z.infer<typeof PaymentMethodsReportSchema>;
+export type FiscalVatReport = z.infer<typeof FiscalVatReportSchema>;
 export type ReportFilters = z.infer<typeof ReportFiltersSchema>;

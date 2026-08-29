@@ -2,6 +2,7 @@
 
 namespace App\Modules\Promotions\Resources;
 
+use App\Modules\Promotions\Models\Promotion;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,6 +20,16 @@ class PromotionResource extends JsonResource
             'payment_currency' => $this->payment_currency,
             'scope' => $this->scope,
             'allows_combos' => $this->allows_combos,
+            'fiscal_tax_mode' => $this->fiscal_tax_mode ?? Promotion::FISCAL_TAX_MODE_INHERIT,
+            'fiscal_tax_rate_id' => $this->fiscal_tax_rate_id,
+            'fiscal_tax_rate' => $this->whenLoaded('fiscalTaxRate', fn () => $this->fiscalTaxRate ? [
+                'id' => $this->fiscalTaxRate->id,
+                'code' => $this->fiscalTaxRate->code,
+                'name' => $this->fiscalTaxRate->name,
+                'rate' => (float) $this->fiscalTaxRate->rate,
+                'category' => $this->fiscalTaxRate->category,
+                'is_active' => (bool) $this->fiscalTaxRate->is_active,
+            ] : null),
             'price_usd' => $this->price_usd === null ? null : (float) $this->price_usd,
             'discount_percent' => $this->discount_percent === null ? null : (float) $this->discount_percent,
             'discount_amount_usd' => $this->discount_amount_usd === null ? null : (float) $this->discount_amount_usd,

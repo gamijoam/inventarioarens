@@ -9,7 +9,17 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'code', 'status'])]
+#[Fillable([
+    'name',
+    'code',
+    'status',
+    'fiscal_address',
+    'fiscal_city',
+    'fiscal_state',
+    'fiscal_phone',
+    'fiscal_email',
+    'tax_condition',
+])]
 class Branch extends Model
 {
     use BelongsToTenant, Syncable;

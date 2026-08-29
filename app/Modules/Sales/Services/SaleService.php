@@ -4,6 +4,7 @@ namespace App\Modules\Sales\Services;
 
 use App\Models\User;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
+use App\Modules\Fiscal\Services\FiscalSaleTaxService;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
@@ -21,6 +22,7 @@ class SaleService
     public function __construct(
         private readonly ProductPriceService $prices,
         private readonly InventoryMovementService $inventory,
+        private readonly FiscalSaleTaxService $fiscalTaxes,
     ) {}
 
     public function createDraft(User $user, array $items, ?int $customerId = null): Sale
@@ -32,13 +34,12 @@ class SaleService
                 'created_by' => $user->id,
             ]);
 
-            $totalBase = 0.0;
-            $totalLocal = 0.0;
             $createdItems = [];
+            $fiscalLines = [];
 
             foreach ($items as $itemIndex => $item) {
                 $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
-                $product = Product::query()->with('warrantyPolicy')->findOrFail($item['product_id']);
+                $product = Product::query()->with(['warrantyPolicy', 'fiscalTaxRate'])->findOrFail($item['product_id']);
                 $quantity = (float) $item['quantity'];
 
                 if ($quantity <= 0) {
@@ -72,6 +73,12 @@ class SaleService
                 $netTotalAmount = $promotionApplied ? $totalAmount : round($totalAmount - $discount['amount'], 4);
                 $netBaseTotal = $promotionApplied ? $baseTotal : round($baseTotal - $discount['base_amount'], 4);
                 $netLocalTotal = $promotionApplied ? $localTotal : round($localTotal - $discount['local_amount'], 4);
+                $fiscalTaxRateId = isset($item['_fiscal_tax_rate_id'])
+                    ? (int) $item['_fiscal_tax_rate_id']
+                    : null;
+                $fiscalTaxRate = $this->fiscalTaxes->resolveRateForProduct($product, $fiscalTaxRateId);
+                $fiscal = $this->fiscalTaxes->calculateProduct($product, $netBaseTotal, $netLocalTotal, $fiscalTaxRate);
+                $fiscalLines[] = $fiscal;
 
                 $createdItems[$itemIndex] = SaleItem::create([
                     'sale_id' => $sale->id,
@@ -87,6 +94,10 @@ class SaleService
                     'total_amount' => $netTotalAmount,
                     'base_unit_price' => $baseUnitPrice,
                     'base_total_amount' => $netBaseTotal,
+                    'local_total_amount' => $netLocalTotal,
+                    ...$fiscal,
+                    'fiscal_tax_source' => $fiscalTaxRateId === null ? 'product' : 'promotion_override',
+                    'fiscal_tax_override_code' => $fiscalTaxRateId === null ? null : $fiscalTaxRate?->code,
                     'discount_type' => $discount['type'],
                     'discount_value' => $discount['value'],
                     'discount_amount' => $discount['amount'],
@@ -112,19 +123,61 @@ class SaleService
                     'warranty_conditions' => $product->warrantyPolicy?->conditions,
                 ]);
 
-                $totalBase += $netBaseTotal;
-                $totalLocal += $netLocalTotal;
             }
 
             $this->persistPromotionApplications($sale, $items, $createdItems);
 
+            $fiscalTotals = $this->fiscalTaxes->aggregate($fiscalLines);
             $sale->update([
-                'total_base_amount' => $totalBase,
-                'total_local_amount' => $totalLocal,
+                'total_base_amount' => $fiscalTotals['fiscal_total_base_amount'],
+                'total_local_amount' => $fiscalTotals['fiscal_total_local_amount'],
+                ...$this->saleFiscalFields($fiscalTotals),
             ]);
 
-            return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse']);
+            return $sale->refresh()->load(['customer', 'items.product.fiscalTaxRate', 'items.variant', 'items.warehouse']);
         });
+    }
+
+    public function recalculateFiscalTotals(Sale $sale, bool $freezeSnapshot = false): Sale
+    {
+        $sale->loadMissing('items.product.fiscalTaxRate');
+        $fiscalLines = [];
+        $snapshotAt = $freezeSnapshot ? now() : null;
+
+        foreach ($sale->items as $item) {
+            $overrideCode = $item->fiscal_tax_source === 'promotion_override'
+                ? $item->fiscal_tax_override_code
+                : null;
+            $fiscalTaxRate = $this->fiscalTaxes->resolveRateForProduct($item->product, null, $overrideCode);
+            $fiscal = $this->fiscalTaxes->calculateProduct(
+                $item->product,
+                $item->base_total_amount,
+                $item->local_total_amount,
+                $fiscalTaxRate,
+            );
+            $fiscalLines[] = $fiscal;
+            $item->update([
+                ...$fiscal,
+                'fiscal_snapshot_at' => $snapshotAt,
+            ]);
+        }
+
+        $fiscalTotals = $this->fiscalTaxes->aggregate($fiscalLines);
+        $sale->update([
+            'total_base_amount' => $fiscalTotals['fiscal_total_base_amount'],
+            'total_local_amount' => $fiscalTotals['fiscal_total_local_amount'],
+            ...$this->saleFiscalFields($fiscalTotals),
+            'fiscal_snapshot_at' => $snapshotAt,
+        ]);
+
+        return $sale->refresh()->load(['customer', 'items.product.fiscalTaxRate', 'items.variant', 'items.warehouse']);
+    }
+
+    private function saleFiscalFields(array $fiscalTotals): array
+    {
+        return collect($fiscalTotals)
+            ->except(['fiscal_total_base_amount', 'fiscal_total_local_amount'])
+            ->all();
     }
 
     /**
@@ -187,11 +240,13 @@ class SaleService
     public function confirm(Sale $sale, User $user): Sale
     {
         return DB::transaction(function () use ($sale, $user): Sale {
-            $sale = Sale::query()->with(['items.product', 'items.variant', 'items.warehouse'])->lockForUpdate()->findOrFail($sale->id);
+            $sale = Sale::query()->with(['items.product.fiscalTaxRate', 'items.variant', 'items.warehouse'])->lockForUpdate()->findOrFail($sale->id);
 
             if ($sale->status !== Sale::STATUS_DRAFT) {
                 throw ValidationException::withMessages(['status' => 'Solo se pueden confirmar ventas en borrador.']);
             }
+
+            $sale = $this->recalculateFiscalTotals($sale, true);
 
             foreach ($sale->items as $item) {
                 $productUnits = $this->validatedProductUnitsForSaleItem($item);
@@ -265,7 +320,7 @@ class SaleService
             'cancelled_at' => now(),
         ]);
 
-        return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse']);
+        return $sale->refresh()->load(['customer', 'items.product.fiscalTaxRate', 'items.variant', 'items.warehouse']);
     }
 
     private function validatedProductUnitsForSaleItem(SaleItem $item): array

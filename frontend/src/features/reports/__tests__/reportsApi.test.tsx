@@ -6,6 +6,7 @@ import {
   buildFinancePayablesQuery,
   buildFinanceReceivablesQuery,
   buildFinanceSummaryQuery,
+  buildFiscalVatReportQuery,
   buildLowStockReportQuery,
   buildMovementReportQuery,
   buildPaymentMethodsReportQuery,
@@ -19,6 +20,7 @@ import {
   MovementReportRowSchema,
   SalesDetailSchema,
   StockReportRowSchema,
+  FiscalVatReportSchema,
 } from '../schemas';
 
 describe('reports api', () => {
@@ -55,6 +57,16 @@ describe('reports api', () => {
     expect(buildFinancePayablesQuery({ status: 'paid' })).toBe(
       '/finance-reports/payables?status=paid',
     );
+  });
+
+  it('builds the internal VAT report query', () => {
+    expect(
+      buildFiscalVatReportQuery({
+        branch_id: 4,
+        date_from: '2026-08-01',
+        date_to: '2026-08-31',
+      }),
+    ).toBe('/reports/fiscal/iva?branch_id=4&date_from=2026-08-01&date_to=2026-08-31');
   });
 
   it('builds modular v2 report filters', () => {
@@ -219,5 +231,49 @@ describe('reports api', () => {
         movement_breakdown: [],
       }),
     ).toMatchObject({ summary: { open_count: 1 } });
+  });
+
+  it('parses the internal VAT report response', () => {
+    expect(
+      FiscalVatReportSchema.parse({
+        period: { from: '2026-08-01', to: '2026-08-31' },
+        currency: 'USD',
+        summary: {
+          sales_count: 1,
+          taxable_base_amount: 100,
+          exempt_base_amount: 50,
+          exonerated_base_amount: 0,
+          non_taxable_base_amount: 0,
+          tax_amount: 16,
+          total_base_amount: 166,
+          taxable_local_amount: 100,
+          exempt_local_amount: 50,
+          exonerated_local_amount: 0,
+          non_taxable_local_amount: 0,
+          tax_local_amount: 16,
+          total_local_amount: 166,
+        },
+        rows: [{
+          tax_code: 'IVA16',
+          category: 'taxable',
+          tax_name: 'IVA general',
+          tax_rate: 16,
+          sales_count: 1,
+          taxable_base_amount: 100,
+          exempt_base_amount: 0,
+          exonerated_base_amount: 0,
+          non_taxable_base_amount: 0,
+          tax_amount: 16,
+          total_base_amount: 116,
+          taxable_local_amount: 100,
+          exempt_local_amount: 0,
+          exonerated_local_amount: 0,
+          non_taxable_local_amount: 0,
+          tax_local_amount: 16,
+          total_local_amount: 116,
+        }],
+        generated_at: '2026-08-31T12:00:00.000000Z',
+      }),
+    ).toMatchObject({ summary: { tax_amount: 16 }, rows: [{ tax_code: 'IVA16' }] });
   });
 });

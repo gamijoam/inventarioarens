@@ -51,7 +51,7 @@ class PromotionService
             $this->assertPaymentCurrencyAllowed($promotion, $payments);
         }
 
-        return match ($promotion->benefit_type) {
+        $result = match ($promotion->benefit_type) {
             Promotion::BENEFIT_FIXED_BUNDLE_PRICE => $this->applyFixedBundle($items, $promotion),
             Promotion::BENEFIT_PERCENT_DISCOUNT => $this->applyPercentageDiscount($items, $promotion),
             Promotion::BENEFIT_FIXED_DISCOUNT => $this->applyFixedDiscount($items, $promotion),
@@ -62,6 +62,8 @@ class PromotionService
                 'promotion_id' => 'Este tipo de promocion aun no esta disponible para checkout.',
             ]),
         };
+
+        return $this->applyFiscalTaxTreatment($result, $promotion);
     }
 
     /**
@@ -175,10 +177,11 @@ class PromotionService
             $slot = 'combo:'.$instanceUuid;
 
             foreach ($indexes as $position => $index) {
+                $allocated = $this->applyFiscalTaxTreatment($after[$position], $promotion);
                 $result[$index] = $this->appendAllocation(
-                    $after[$position],
+                    $allocated,
                     $before[$position],
-                    $after[$position],
+                    $allocated,
                     $promotion,
                     $slot,
                     Promotion::SCOPE_COMBO,
@@ -236,6 +239,34 @@ class PromotionService
         }
 
         return $after;
+    }
+
+    /**
+     * @param  array<string, mixed>|list<array<string, mixed>>  $items
+     * @return array<string, mixed>|list<array<string, mixed>>
+     */
+    private function applyFiscalTaxTreatment(array $items, Promotion $promotion): array
+    {
+        if ($promotion->scope !== Promotion::SCOPE_COMBO || $promotion->fiscal_tax_mode !== Promotion::FISCAL_TAX_MODE_OVERRIDE) {
+            return $items;
+        }
+
+        if (! $promotion->fiscal_tax_rate_id) {
+            throw ValidationException::withMessages([
+                'promotion_id' => 'El combo requiere una alicuota fiscal para aplicar su override.',
+            ]);
+        }
+
+        if (array_is_list($items)) {
+            return array_map(
+                fn (array $item): array => $this->applyFiscalTaxTreatment($item, $promotion),
+                $items,
+            );
+        }
+
+        $items['_fiscal_tax_rate_id'] = (int) $promotion->fiscal_tax_rate_id;
+
+        return $items;
     }
 
     /**

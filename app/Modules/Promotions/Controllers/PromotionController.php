@@ -22,7 +22,7 @@ class PromotionController extends Controller
 
         return PromotionResource::collection(
             Promotion::query()
-                ->with(['items.product'])
+                ->with(['items.product', 'fiscalTaxRate'])
                 ->when($scope = $request->route('promotion_scope'), fn ($query) => $query->where('scope', $scope))
                 ->when($request->boolean('active_only'), fn ($query) => $query->where('is_active', true))
                 ->orderByDesc('priority')
@@ -36,7 +36,7 @@ class PromotionController extends Controller
         abort_unless($request->user()?->can('promotions.view'), Response::HTTP_FORBIDDEN);
         $this->assertRouteScope($request, $promotion);
 
-        return PromotionResource::make($promotion->load('items.product'));
+        return PromotionResource::make($promotion->load(['items.product', 'fiscalTaxRate']));
     }
 
     public function store(StorePromotionRequest $request, SyncCatalogOutboxService $syncCatalog): JsonResponse
@@ -59,9 +59,9 @@ class PromotionController extends Controller
 
             return $promotion;
         });
-        $syncCatalog->promotionCreated($promotion->load('items.product'));
+        $syncCatalog->promotionCreated($promotion->load(['items.product', 'fiscalTaxRate']));
 
-        return PromotionResource::make($promotion->load('items.product'))
+        return PromotionResource::make($promotion->load(['items.product', 'fiscalTaxRate']))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
@@ -84,6 +84,10 @@ class PromotionController extends Controller
             if ($data['scope'] !== Promotion::SCOPE_INVOICE) {
                 $data['allows_combos'] = false;
             }
+            if ($data['scope'] !== Promotion::SCOPE_COMBO) {
+                $data['fiscal_tax_mode'] = Promotion::FISCAL_TAX_MODE_INHERIT;
+                $data['fiscal_tax_rate_id'] = null;
+            }
             $promotion->update($data);
 
             if ($items !== null) {
@@ -91,9 +95,9 @@ class PromotionController extends Controller
                 $promotion->items()->createMany($this->normalizeItems($items));
             }
         });
-        $syncCatalog->promotionUpdated($promotion->refresh()->load('items.product'));
+        $syncCatalog->promotionUpdated($promotion->refresh()->load(['items.product', 'fiscalTaxRate']));
 
-        return PromotionResource::make($promotion->refresh()->load('items.product'));
+        return PromotionResource::make($promotion->refresh()->load(['items.product', 'fiscalTaxRate']));
     }
 
     public function destroy(Request $request, Promotion $promotion, SyncCatalogOutboxService $syncCatalog): Response
@@ -102,7 +106,7 @@ class PromotionController extends Controller
         $this->assertRouteScope($request, $promotion);
 
         $promotion->update(['is_active' => false]);
-        $syncCatalog->promotionDeleted($promotion->refresh()->load('items.product'));
+        $syncCatalog->promotionDeleted($promotion->refresh()->load(['items.product', 'fiscalTaxRate']));
 
         return response()->noContent();
     }

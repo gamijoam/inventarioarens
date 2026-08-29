@@ -2,6 +2,7 @@
 
 namespace App\Modules\InventoryCenter\Controllers;
 
+use App\Modules\InventoryCenter\Models\ProductBulkOperation;
 use App\Modules\InventoryCenter\Requests\InventoryCenterBulkActionRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductAuditsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductMovementsRequest;
@@ -10,6 +11,7 @@ use App\Modules\InventoryCenter\Requests\InventoryCenterSummaryRequest;
 use App\Modules\InventoryCenter\Requests\RecalculateProductPriceRequest;
 use App\Modules\InventoryCenter\Requests\ReorderSuggestionsRequest;
 use App\Modules\InventoryCenter\Requests\UpdateProductProfitMarginRequest;
+use App\Modules\InventoryCenter\Resources\ProductBulkOperationResource;
 use App\Modules\InventoryCenter\Services\InventoryAlertService;
 use App\Modules\InventoryCenter\Services\InventoryCenterBulkActionService;
 use App\Modules\InventoryCenter\Services\InventoryCenterMovementService;
@@ -44,9 +46,25 @@ class InventoryCenterController extends Controller
 
     public function bulkAction(InventoryCenterBulkActionRequest $request, InventoryCenterBulkActionService $service): JsonResponse
     {
+        if ($request->boolean('all_matching')) {
+            return ProductBulkOperationResource::make($service->queueFiscalClassification(
+                $request->validated(),
+                $request->user()?->id,
+            ))
+                ->response()
+                ->setStatusCode(Response::HTTP_ACCEPTED);
+        }
+
         return response()->json([
             'data' => $service->apply($request->validated(), $request->user()?->id),
         ]);
+    }
+
+    public function bulkOperation(Request $request, ProductBulkOperation $operation): ProductBulkOperationResource
+    {
+        abort_unless($request->user()?->can('products.update'), Response::HTTP_FORBIDDEN);
+
+        return ProductBulkOperationResource::make($operation);
     }
 
     public function movements(InventoryCenterProductMovementsRequest $request, InventoryCenterMovementService $service): JsonResponse

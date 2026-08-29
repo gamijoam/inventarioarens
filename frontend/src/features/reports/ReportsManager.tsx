@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Download,
   Landmark,
+  Percent,
   ReceiptText,
   RefreshCw,
   Wallet,
@@ -34,6 +35,7 @@ import {
   useFinancePayables,
   useFinanceReceivables,
   useFinanceSummary,
+  useFiscalVatReport,
   useLowStockReport,
   useMovementReport,
   usePaymentMethodsReport,
@@ -43,6 +45,7 @@ import {
   type DailyOperations,
   type FinancePayableRow,
   type FinanceReceivableRow,
+  type FiscalVatReport,
   type MovementReportRow,
   type PaymentMethodsReport,
   type ReportFilters,
@@ -59,6 +62,7 @@ const MODULES = [
   { key: 'stock', label: 'Inventario', icon: Boxes },
   { key: 'movements', label: 'Movimientos', icon: ClipboardList },
   { key: 'finance', label: 'Finanzas', icon: Landmark },
+  { key: 'fiscal_iva', label: 'IVA interno', icon: Percent },
 ] as const;
 
 const MOVEMENT_TYPES = [
@@ -130,6 +134,7 @@ export function ReportsManager({
     if (module.key === 'cash' || module.key === 'payments') return canCashReports;
     if (module.key === 'stock') return canInventoryReports;
     if (module.key === 'movements') return canMovementReports;
+    if (module.key === 'fiscal_iva') return canSalesReports || canFinanceReports;
     return canFinanceReports;
   });
 
@@ -162,6 +167,10 @@ export function ReportsManager({
     canFinanceReports && activeModule === 'finance',
   );
   const payables = useFinancePayables(filters, canFinanceReports && activeModule === 'finance');
+  const fiscalVat = useFiscalVatReport(
+    filters,
+    (canSalesReports || canFinanceReports) && activeModule === 'fiscal_iva',
+  );
 
   if (availableModules.length === 0) {
     return (
@@ -198,6 +207,7 @@ export function ReportsManager({
       void receivables.refetch();
       void payables.refetch();
     }
+    if (activeModule === 'fiscal_iva') void fiscalVat.refetch();
   }
 
   return (
@@ -339,6 +349,17 @@ export function ReportsManager({
           updateFilter={updateFilter}
         />
       )}
+      {activeModule === 'fiscal_iva' && (
+        <FiscalVatPanel
+          data={fiscalVat.data}
+          isLoading={fiscalVat.isLoading}
+          onExport={
+            canExport && fiscalVat.data
+              ? () => downloadCsv('reporte-iva-interno.csv', fiscalVat.data.rows)
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }
@@ -412,6 +433,91 @@ function DailyPanel({
           </div>
         </div>
         <PaymentMethodsTable rows={data.payment_methods} />
+      </div>
+    </ReportPanel>
+  );
+}
+
+function FiscalVatPanel({
+  data,
+  isLoading,
+  onExport,
+}: {
+  data?: FiscalVatReport;
+  isLoading: boolean;
+  onExport?: () => void;
+}) {
+  if (isLoading) return <TableSkeleton />;
+  if (!data) {
+    return <EmptyState title="Sin datos fiscales" description="No se pudo cargar el resumen interno de IVA." />;
+  }
+
+  return (
+    <ReportPanel
+      title="IVA interno"
+      description={`Resumen de snapshots fiscales confirmados entre ${data.period.from} y ${data.period.to}. No es una factura fiscal.`}
+      onExport={onExport}
+    >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <Metric
+          icon={ReceiptText}
+          label="Ventas confirmadas"
+          value={String(data.summary.sales_count)}
+          helper="Incluidas en el período"
+        />
+        <Metric
+          icon={Percent}
+          label="IVA calculado"
+          value={formatMoney(data.summary.tax_amount)}
+          helper="Base USD"
+          tone="warning"
+        />
+        <Metric
+          icon={Landmark}
+          label="Base gravada"
+          value={formatMoney(data.summary.taxable_base_amount)}
+          helper="Antes de IVA"
+        />
+        <Metric
+          icon={Banknote}
+          label="Total ventas"
+          value={formatMoney(data.summary.total_base_amount)}
+          helper="Base + IVA"
+        />
+      </div>
+
+      <div className="border-border mt-4 overflow-auto rounded-md border">
+        <table className="w-full min-w-[820px] text-sm">
+          <thead className="bg-bg text-text-muted text-left text-xs uppercase">
+            <tr>
+              <th className="px-3 py-2">Tratamiento</th>
+              <th className="px-3 py-2">Categoría</th>
+              <th className="px-3 py-2 text-right">Alícuota</th>
+              <th className="px-3 py-2 text-right">Base</th>
+              <th className="px-3 py-2 text-right">IVA</th>
+              <th className="px-3 py-2 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-border divide-y">
+            {data.rows.map((row) => (
+              <tr key={`${row.tax_code}-${row.tax_rate ?? 'none'}-${row.category}`}>
+                <td className="px-3 py-2 font-medium">{row.tax_name ?? row.tax_code}</td>
+                <td className="px-3 py-2">{row.category}</td>
+                <td className="px-3 py-2 text-right">{row.tax_rate === null ? '-' : `${row.tax_rate}%`}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {formatMoney(
+                    row.taxable_base_amount +
+                      row.exempt_base_amount +
+                      row.exonerated_base_amount +
+                      row.non_taxable_base_amount,
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatMoney(row.tax_amount)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatMoney(row.total_base_amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </ReportPanel>
   );

@@ -12,6 +12,7 @@ use App\Modules\Commissions\Models\CommissionEntry;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Products\Models\Product;
@@ -556,6 +557,75 @@ class SalesReturnApiTest extends TestCase
         $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->getJson("/api/customers/{$customer->id}/credit")
             ->assertOk()
             ->assertJsonPath('data.available_base_amount', 100);
+    }
+
+    public function test_return_uses_the_original_fiscal_snapshot_after_tax_rate_changes(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Fiscal Return', 'slug' => 'empresa-fiscal-return']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'RET-FISCAL');
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity_available' => 2]);
+        $taxRate = FiscalTaxRate::create([
+            'code' => 'IVA16',
+            'name' => 'IVA general',
+            'rate' => 16,
+            'category' => FiscalTaxRate::CATEGORY_TAXABLE,
+            'is_active' => true,
+        ]);
+        $product->update(['fiscal_tax_rate_id' => $taxRate->id]);
+        $customer = Customer::create([
+            'name' => 'Cliente Fiscal Return',
+            'document_type' => Customer::DOCUMENT_V,
+            'document_number' => 'V-RET-FISCAL',
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Gerente', [
+            'sales.create',
+            'sales_returns.create',
+            'sales_returns.review',
+            'sales_returns.process',
+            'sales_returns.refund',
+            'customers.view',
+        ]);
+        $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [], $customer->id);
+        $this->assertSame(116.0, (float) $sale->total_base_amount);
+        $this->assertSame(16.0, (float) $sale->items->first()->fiscal_tax_base_amount);
+
+        $created = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/sales-returns', [
+            'sale_id' => $sale->id,
+            'items' => [['sale_item_id' => $sale->items->first()->id, 'quantity' => 1]],
+        ])->assertCreated()
+            ->assertJsonPath('data.items.0.refundable_base_amount', 116)
+            ->assertJsonPath('data.items.0.fiscal_tax_rate', 16);
+        $returnId = $created->json('data.id');
+
+        $taxRate->update(['rate' => 20]);
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/approve")->assertOk();
+        $processed = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson("/api/sales-returns/{$returnId}/process", [
+            'refund_mode' => 'customer_credit',
+        ])->assertOk();
+
+        $this->assertSame(116.0, (float) DB::table('customer_credit_transactions')
+            ->where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->where('type', 'issued')
+            ->value('amount_base'));
+        $this->assertDatabaseHas('sales_return_items', [
+            'id' => $created->json('data.items.0.id'),
+            'fiscal_tax_rate' => '16.0000',
+            'fiscal_tax_base_amount' => '16.0000',
+            'fiscal_total_base_amount' => '116.0000',
+        ]);
+        $this->assertDatabaseHas('customer_credit_transactions', [
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customer->id,
+            'type' => 'issued',
+            'amount_base' => '116.0000',
+        ]);
+        $this->assertDatabaseHas('accounts_receivables', [
+            'tenant_id' => $tenant->id,
+            'sale_id' => $sale->id,
+            'returned_base_amount' => '116.0000',
+        ]);
     }
 
     public function test_customer_credit_can_be_used_for_exchange_and_collects_difference(): void

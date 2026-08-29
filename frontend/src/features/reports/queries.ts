@@ -9,6 +9,7 @@ export const reportKeys = {
   salesDetail: (filters: unknown) => [...reportKeys.all, 'sales-detail', filters] as const,
   cashSessions: (filters: unknown) => [...reportKeys.all, 'cash-sessions', filters] as const,
   paymentMethods: (filters: unknown) => [...reportKeys.all, 'payment-methods', filters] as const,
+  fiscalVat: (filters: unknown) => [...reportKeys.all, 'fiscal-vat', filters] as const,
   financeSummary: (filters: unknown) => [...reportKeys.all, 'finance-summary', filters] as const,
   financeReceivables: (filters: unknown) =>
     [...reportKeys.all, 'finance-receivables', filters] as const,

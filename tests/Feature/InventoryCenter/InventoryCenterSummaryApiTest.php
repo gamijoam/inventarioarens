@@ -4,24 +4,30 @@ namespace Tests\Feature\InventoryCenter;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
-use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\InventoryCenter\Jobs\ApplyProductFiscalClassification;
+use App\Modules\InventoryCenter\Models\ProductBulkOperation;
+use App\Modules\InventoryCenter\Services\InventoryCenterBulkActionService;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Tenancy\Models\Tenant;
-use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Modules\Warranties\Models\WarrantyPolicy;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class InventoryCenterSummaryApiTest extends TestCase
@@ -266,6 +272,181 @@ class InventoryCenterSummaryApiTest extends TestCase
             'action' => ProductAudit::ACTION_UPDATED,
             'created_by' => $user->id,
         ]);
+    }
+
+    public function test_inventory_center_bulk_action_assigns_fiscal_categories_and_preserves_existing_classifications(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Fiscal', 'slug' => 'empresa-fiscal']);
+        $user = $this->inventoryUser($tenant, ['products.view', 'inventory.view', 'products.update']);
+        $this->useTenant($tenant);
+
+        $iva = FiscalTaxRate::create([
+            'code' => 'IVA16',
+            'name' => 'IVA general',
+            'rate' => 16,
+            'category' => FiscalTaxRate::CATEGORY_TAXABLE,
+            'is_active' => true,
+        ]);
+        $exento = FiscalTaxRate::create([
+            'code' => 'EXENTO',
+            'name' => 'Exento',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXEMPT,
+            'is_active' => true,
+        ]);
+        $exonerado = FiscalTaxRate::create([
+            'code' => 'EXONERADO',
+            'name' => 'Exonerado',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXONERATED,
+            'is_active' => true,
+        ]);
+        $noGravado = FiscalTaxRate::create([
+            'code' => 'NO_GRAVADO',
+            'name' => 'No gravado',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_NON_TAXABLE,
+            'is_active' => true,
+        ]);
+        $products = collect([
+            ['name' => 'Producto sin clasificar', 'sku' => 'FISCAL-NULL', 'fiscal_tax_rate_id' => null],
+            ['name' => 'Producto exento', 'sku' => 'FISCAL-EXENTO', 'fiscal_tax_rate_id' => $exento->id],
+            ['name' => 'Producto exonerado', 'sku' => 'FISCAL-EXONERADO', 'fiscal_tax_rate_id' => $exonerado->id],
+            ['name' => 'Producto no gravado', 'sku' => 'FISCAL-NOGRAVADO', 'fiscal_tax_rate_id' => $noGravado->id],
+        ])->map(fn (array $attributes): Product => Product::create([
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_USD,
+            ...$attributes,
+        ]));
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'product_ids' => $products->pluck('id')->all(),
+                'action' => 'assign_fiscal_tax_rate',
+                'payload' => [
+                    'fiscal_tax_rate_id' => $iva->id,
+                    'overwrite_existing' => false,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.updated_count', 1)
+            ->assertJsonPath('data.skipped_count', 3);
+
+        $this->assertDatabaseHas('products', [
+            'id' => $products[0]->id,
+            'fiscal_tax_rate_id' => $iva->id,
+        ]);
+        $this->assertDatabaseHas('products', [
+            'id' => $products[1]->id,
+            'fiscal_tax_rate_id' => $exento->id,
+        ]);
+        $this->assertDatabaseHas('products', [
+            'id' => $products[2]->id,
+            'fiscal_tax_rate_id' => $exonerado->id,
+        ]);
+        $this->assertDatabaseHas('products', [
+            'id' => $products[3]->id,
+            'fiscal_tax_rate_id' => $noGravado->id,
+        ]);
+
+        $event = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'product.updated')
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($event);
+        $this->assertSame('IVA16', json_decode((string) $event->payload, true)['fiscal_tax_rate_code']);
+    }
+
+    public function test_inventory_center_can_queue_fiscal_classification_for_all_filtered_products(): void
+    {
+        Queue::fake();
+
+        $tenant = Tenant::create(['name' => 'Empresa Fiscal Masiva', 'slug' => 'empresa-fiscal-masiva']);
+        $user = $this->inventoryUser($tenant, ['products.view', 'inventory.view', 'products.update']);
+        $this->useTenant($tenant);
+        $iva = FiscalTaxRate::create([
+            'code' => 'IVA16',
+            'name' => 'IVA general',
+            'rate' => 16,
+            'category' => FiscalTaxRate::CATEGORY_TAXABLE,
+            'is_active' => true,
+        ]);
+        $exento = FiscalTaxRate::create([
+            'code' => 'EXENTO',
+            'name' => 'Exento',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXEMPT,
+            'is_active' => true,
+        ]);
+        $first = Product::create(['name' => 'Activo sin fiscal', 'sku' => 'ALL-001', 'base_price' => 10]);
+        $second = Product::create(['name' => 'Activo exento', 'sku' => 'ALL-002', 'base_price' => 10, 'fiscal_tax_rate_id' => $exento->id]);
+        $inactive = Product::create(['name' => 'Inactivo sin fiscal', 'sku' => 'ALL-003', 'base_price' => 10, 'is_active' => false]);
+
+        $response = $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'all_matching' => true,
+                'filters' => ['active_status' => 'active'],
+                'action' => 'assign_fiscal_tax_rate',
+                'payload' => [
+                    'fiscal_tax_rate_id' => $iva->id,
+                    'overwrite_existing' => false,
+                ],
+            ])
+            ->assertStatus(202)
+            ->assertJsonPath('data.status', ProductBulkOperation::STATUS_PENDING);
+
+        $operationId = (int) $response->json('data.id');
+        Queue::assertPushed(ApplyProductFiscalClassification::class, function (ApplyProductFiscalClassification $job) use ($operationId, $tenant): bool {
+            return $job->operationId === $operationId && $job->tenantId === $tenant->id;
+        });
+
+        (new ApplyProductFiscalClassification($operationId, $tenant->id))->handle(
+            app(InventoryCenterBulkActionService::class),
+            app(TenantManager::class),
+        );
+
+        $this->assertDatabaseHas('products', ['id' => $first->id, 'fiscal_tax_rate_id' => $iva->id]);
+        $this->assertDatabaseHas('products', ['id' => $second->id, 'fiscal_tax_rate_id' => $exento->id]);
+        $this->assertDatabaseHas('products', ['id' => $inactive->id, 'fiscal_tax_rate_id' => null]);
+        $this->assertDatabaseHas('product_bulk_operations', [
+            'id' => $operationId,
+            'status' => ProductBulkOperation::STATUS_COMPLETED,
+            'requested_count' => 2,
+            'updated_count' => 1,
+            'skipped_count' => 1,
+        ]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/inventory-center/products/bulk-operations/{$operationId}")
+            ->assertOk()
+            ->assertJsonPath('data.progress_percent', 100)
+            ->assertJsonPath('data.status', ProductBulkOperation::STATUS_COMPLETED);
+
+        $otherTenant = Tenant::create(['name' => 'Otra Empresa', 'slug' => 'otra-empresa-fiscal']);
+        $otherUser = $this->inventoryUser($otherTenant, ['products.view', 'inventory.view', 'products.update']);
+        $this->actingAs($otherUser)
+            ->withHeader('X-Tenant', $otherTenant->slug)
+            ->getJson("/api/inventory-center/products/bulk-operations/{$operationId}")
+            ->assertNotFound();
+    }
+
+    public function test_inventory_center_rejects_all_matching_for_non_fiscal_actions(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Fiscal Restriccion', 'slug' => 'empresa-fiscal-restriccion']);
+        $user = $this->inventoryUser($tenant, ['products.view', 'inventory.view', 'products.update']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/inventory-center/products/bulk-action', [
+                'all_matching' => true,
+                'action' => 'deactivate',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['all_matching']);
     }
 
     public function test_inventory_center_bulk_action_fills_missing_price_list_without_overwriting_existing_prices(): void
@@ -1086,7 +1267,7 @@ class InventoryCenterSummaryApiTest extends TestCase
 
     private function assertStockOfProduct(Tenant $tenant, User $user, int $productId, ?int $warehouseId, float $expectedAvailable): void
     {
-        $url = "/api/inventory-center/summary?low_stock_threshold=3";
+        $url = '/api/inventory-center/summary?low_stock_threshold=3';
         if ($warehouseId !== null) {
             $url .= "&warehouse_id={$warehouseId}";
         }
@@ -1099,11 +1280,11 @@ class InventoryCenterSummaryApiTest extends TestCase
 
         $products = $response->json('data.products');
         $product = collect($products)->firstWhere('id', $productId);
-        $this->assertNotNull($product, "Producto {$productId} no aparece en el listado para warehouse_id=" . ($warehouseId ?? 'null'));
+        $this->assertNotNull($product, "Producto {$productId} no aparece en el listado para warehouse_id=".($warehouseId ?? 'null'));
         $this->assertEquals(
             $expectedAvailable,
             (float) $product['stock']['available'],
-            "Stock disponible incorrecto para producto {$productId} con warehouse_id=" . ($warehouseId ?? 'null')
+            "Stock disponible incorrecto para producto {$productId} con warehouse_id=".($warehouseId ?? 'null')
         );
     }
 

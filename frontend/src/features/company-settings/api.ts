@@ -13,6 +13,7 @@ export const CompanySettingsSchema = z.object({
   correo: z.string().nullable().optional(),
   website: z.string().nullable().optional(),
   regimen: z.string().nullable().optional(),
+  tax_condition: z.string().nullable().optional(),
   show_on: z
     .object({
       sale_ticket: z.boolean().optional(),
@@ -71,7 +72,7 @@ export function useUpdateCompanySettings() {
       return parsed.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.all });
     },
   });
 }

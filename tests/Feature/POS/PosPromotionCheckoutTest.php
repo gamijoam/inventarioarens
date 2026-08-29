@@ -9,16 +9,19 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sync\Models\SyncOutbox;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -75,6 +78,157 @@ class PosPromotionCheckoutTest extends TestCase
             ->latest('id')
             ->firstOrFail();
         $this->assertSame('COMBO-50', collect($event->payload['items'])->first()['promotion_code']);
+    }
+
+    public function test_combo_calculates_tax_per_component_after_allocating_bundle_discount(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
+        $this->useTenant($tenant);
+        $taxable = FiscalTaxRate::create([
+            'code' => 'IVA16',
+            'name' => 'IVA general',
+            'rate' => 16,
+            'category' => FiscalTaxRate::CATEGORY_TAXABLE,
+            'is_active' => true,
+        ]);
+        $exempt = FiscalTaxRate::create([
+            'code' => 'EXENTO',
+            'name' => 'Exento',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXEMPT,
+            'is_active' => true,
+        ]);
+        $phone->update(['fiscal_tax_rate_id' => $taxable->id]);
+        $charger->update(['fiscal_tax_rate_id' => $exempt->id]);
+        $promotion = $this->createBundlePromotion($tenant, $cashier, $phone, $charger, 50, 'COMBO-FISCAL');
+
+        $response = $this->checkout($tenant, $cashier, [
+            'promotion_id' => $promotion['id'],
+            'items' => $this->bundleItems($warehouse, $phone, $charger),
+            'payments' => [$this->cashPayment(55.8182)],
+            'cash_register_session_id' => $session->id,
+        ])->assertCreated();
+
+        $this->assertSame(
+            50.0,
+            (float) $response->json('data.sale.items.0.base_total_amount')
+                + (float) $response->json('data.sale.items.1.base_total_amount'),
+        );
+        $this->assertSame(5.8182, (float) $response->json('data.sale.fiscal_tax_base_amount'));
+        $this->assertSame(55.8182, (float) $response->json('data.sale.total_base_amount'));
+        $this->assertSame(5.8182, (float) $response->json('data.sale.items.0.fiscal_tax_base_amount'));
+        $this->assertSame('IVA16', $response->json('data.sale.items.0.fiscal_tax_code'));
+        $this->assertSame('EXENTO', $response->json('data.sale.items.1.fiscal_tax_code'));
+    }
+
+    public function test_pending_order_recalculates_iva_before_payment_and_freezes_it_on_confirmation(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone] = $this->posFixture();
+        $this->useTenant($tenant);
+        $taxRate = FiscalTaxRate::create([
+            'code' => 'IVA16',
+            'name' => 'IVA general',
+            'rate' => 16,
+            'category' => FiscalTaxRate::CATEGORY_TAXABLE,
+            'is_active' => true,
+        ]);
+        $phone->update(['fiscal_tax_rate_id' => $taxRate->id]);
+
+        $pending = $this->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $phone->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated();
+
+        $taxRate->update(['rate' => 15]);
+        $this->useTenant($tenant);
+
+        $response = $this->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders/'.$pending->json('data.id').'/payments', [
+                'cash_register_session_id' => $session->id,
+                'payments' => [$this->cashPayment(46)],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.total_base_amount', '46.0000')
+            ->assertJsonPath('data.sale.items.0.fiscal_tax_rate', 15)
+            ->assertJsonPath('data.sale.fiscal_tax_base_amount', 6)
+            ->assertJsonPath('data.sale.fiscal_snapshot_at', fn (mixed $value): bool => $value !== null);
+
+        $event = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'pos.order.paid')
+            ->latest('id')
+            ->first();
+        $payload = json_decode((string) $event->payload, true);
+        $this->assertSame('6.0000', $payload['fiscal_tax_base_amount']);
+        $this->assertSame('15.0000', $payload['items'][0]['fiscal_tax_rate']);
+    }
+
+    public function test_combo_can_override_component_tax_treatment_explicitly(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
+        $this->useTenant($tenant);
+        $taxable = FiscalTaxRate::create([
+            'code' => 'IVA16',
+            'name' => 'IVA general',
+            'rate' => 16,
+            'category' => FiscalTaxRate::CATEGORY_TAXABLE,
+            'is_active' => true,
+        ]);
+        $exempt = FiscalTaxRate::create([
+            'code' => 'EXENTO',
+            'name' => 'Exento',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXEMPT,
+            'is_active' => true,
+        ]);
+        $phone->update(['fiscal_tax_rate_id' => $taxable->id]);
+        $charger->update(['fiscal_tax_rate_id' => $taxable->id]);
+        $promotion = $this->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/promotions', [
+                'name' => 'Combo exento',
+                'code' => 'COMBO-EXENTO',
+                'benefit_type' => 'fixed_bundle_price',
+                'price_usd' => 50,
+                'fiscal_tax_mode' => 'override',
+                'fiscal_tax_rate_id' => $exempt->id,
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 1],
+                    ['product_id' => $charger->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertSame(Promotion::FISCAL_TAX_MODE_OVERRIDE, $promotion['fiscal_tax_mode']);
+        $this->assertSame($exempt->id, $promotion['fiscal_tax_rate_id']);
+        $promotionEvent = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'promotion.created')
+            ->latest('id')
+            ->first();
+        $this->assertSame(Promotion::FISCAL_TAX_MODE_OVERRIDE, json_decode((string) $promotionEvent->payload, true)['fiscal_tax_mode']);
+        $this->assertSame($exempt->code, json_decode((string) $promotionEvent->payload, true)['fiscal_tax_rate_code']);
+
+        $this->checkout($tenant, $cashier, [
+            'promotion_id' => $promotion['id'],
+            'items' => $this->bundleItems($warehouse, $phone, $charger),
+            'payments' => [$this->cashPayment(50)],
+            'cash_register_session_id' => $session->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.sale.total_base_amount', 50)
+            ->assertJsonPath('data.sale.fiscal_tax_base_amount', 0)
+            ->assertJsonPath('data.sale.items.0.fiscal_tax_category', FiscalTaxRate::CATEGORY_EXEMPT)
+            ->assertJsonPath('data.sale.items.1.fiscal_tax_category', FiscalTaxRate::CATEGORY_EXEMPT);
     }
 
     public function test_checkout_applies_percentage_discount_only_to_selected_products(): void

@@ -13,3 +13,4 @@ export {
   useWarehouses,
   useProductImages,
 } from './api';
+export { useFiscalTaxRates } from '@/features/fiscal-identity/taxRates';

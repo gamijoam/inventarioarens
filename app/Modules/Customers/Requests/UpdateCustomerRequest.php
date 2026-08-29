@@ -17,6 +17,7 @@ class UpdateCustomerRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'fiscal_name' => ['sometimes', 'required', 'string', 'max:255'],
             'document_type' => [
                 'sometimes',
                 'required',

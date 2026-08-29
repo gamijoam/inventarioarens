@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Reports\Controllers\FiscalReportController;
 use App\Modules\Reports\Controllers\InventoryReportController;
 use App\Modules\Reports\Controllers\OperationalReportController;
 use Illuminate\Support\Facades\Route;
@@ -11,6 +12,7 @@ Route::prefix('reports')->group(function (): void {
     Route::get('cash-sessions', [OperationalReportController::class, 'cashSessions']);
     Route::get('payment-methods', [OperationalReportController::class, 'paymentMethods']);
     Route::get('sales-by-color', [OperationalReportController::class, 'salesByColor']);
+    Route::get('fiscal/iva', [FiscalReportController::class, 'iva']);
     Route::get('stock', [InventoryReportController::class, 'stock']);
     Route::get('stock/low', [InventoryReportController::class, 'lowStock']);
     Route::get('stock-by-variant', [InventoryReportController::class, 'stockByVariant']);

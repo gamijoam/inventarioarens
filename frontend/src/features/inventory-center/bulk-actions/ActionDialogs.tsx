@@ -1,5 +1,5 @@
 /**
- * ActionDialogs: 5 dialogs condicionales para las acciones bulk.
+ * ActionDialogs: dialogs condicionales para las acciones bulk.
  *  1. activate         (sin payload)
  *  2. deactivate       (sin payload)
  *  3. assign_warranty_policy (payload.warranty_policy_id)
@@ -27,13 +27,19 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Label } from '@/components/ui/Label';
+import { Switch } from '@/components/ui/Switch';
 
-import { useBulkAction } from './useBulkAction';
+import { useBulkAction, type BulkActionResponse } from './useBulkAction';
 import {
   useWarrantyPolicies,
   useExchangeRateTypes,
+  useFiscalTaxRates,
   usePriceLists,
 } from '@/features/inventory-center/lookups';
+import {
+  FISCAL_TAX_CATEGORY_LABELS,
+  type FiscalTaxRate,
+} from '@/features/fiscal-identity/taxRates';
 import { SALE_CURRENCIES, type BulkAction } from '@/features/inventory-center/schemas';
 
 const ACTION_LABELS: Record<string, string> = {
@@ -41,6 +47,7 @@ const ACTION_LABELS: Record<string, string> = {
   deactivate: 'Desactivar productos',
   assign_warranty_policy: 'Asignar politica de garantia',
   assign_exchange_rate_type: 'Asignar tipo de tasa',
+  assign_fiscal_tax_rate: 'Asignar tratamiento fiscal',
   fill_missing_price_list: 'Rellenar precios faltantes',
   update_price_list: 'Actualizar precios',
 };
@@ -50,6 +57,8 @@ const ACTION_DESCRIPTIONS: Record<string, string> = {
   deactivate: 'Marca los productos seleccionados como inactivos. No podran venderse.',
   assign_warranty_policy: 'Asigna la politica de garantia seleccionada a todos los productos.',
   assign_exchange_rate_type: 'Asigna el tipo de tasa de cambio a todos los productos.',
+  assign_fiscal_tax_rate:
+    'Asigna IVA, exento, exonerado o no gravado a los productos seleccionados.',
   fill_missing_price_list:
     'Crea precio en la lista seleccionada para productos que no tienen aun (no sobreescribe).',
   update_price_list:
@@ -66,6 +75,8 @@ const BulkActionFormSchema = z
   .object({
     warranty_policy_id: z.coerce.number().int().positive().optional(),
     sale_exchange_rate_type_id: z.coerce.number().int().positive().optional(),
+    fiscal_tax_rate_id: z.coerce.number().int().positive().optional(),
+    overwrite_existing: z.boolean().optional(),
     price_list_id: z.coerce.number().int().positive().optional(),
     strategy: z.enum(['base_price', 'fixed_price', 'percent_over_base']).optional(),
     price: z.coerce.number().min(0).optional(),
@@ -77,7 +88,11 @@ const BulkActionFormSchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Indica el monto.' });
     }
     if (data.strategy === 'percent_over_base' && data.percent == null) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['percent'], message: 'Indica el porcentaje.' });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['percent'],
+        message: 'Indica el porcentaje.',
+      });
     }
   });
 type BulkActionFormValues = z.infer<typeof BulkActionFormSchema>;
@@ -87,12 +102,23 @@ export interface ActionDialogProps {
   onOpenChange: (open: boolean) => void;
   action: BulkAction;
   productIds: number[];
-  onSuccess?: () => void;
+  allMatching?: boolean;
+  filters?: Record<string, unknown>;
+  onSuccess?: (result: BulkActionResponse) => void;
 }
 
-export function ActionDialog({ open, onOpenChange, action, productIds, onSuccess }: ActionDialogProps) {
+export function ActionDialog({
+  open,
+  onOpenChange,
+  action,
+  productIds,
+  allMatching = false,
+  filters = {},
+  onSuccess,
+}: ActionDialogProps) {
   const { data: warrantyPolicies = [] } = useWarrantyPolicies();
   const { data: rateTypes = [] } = useExchangeRateTypes();
+  const { data: fiscalTaxRates = [] } = useFiscalTaxRates();
   const { data: priceLists = [] } = usePriceLists();
   const bulkAction = useBulkAction();
 
@@ -114,12 +140,17 @@ export function ActionDialog({ open, onOpenChange, action, productIds, onSuccess
 
   const needsWarranty = action === 'assign_warranty_policy';
   const needsRate = action === 'assign_exchange_rate_type';
+  const needsFiscalRate = action === 'assign_fiscal_tax_rate';
   const needsPriceList = action === 'fill_missing_price_list' || action === 'update_price_list';
 
   const handleConfirm = form.handleSubmit(async (values) => {
     const payload: Record<string, unknown> = {};
     if (needsWarranty) payload.warranty_policy_id = values.warranty_policy_id;
     if (needsRate) payload.sale_exchange_rate_type_id = values.sale_exchange_rate_type_id;
+    if (needsFiscalRate) {
+      payload.fiscal_tax_rate_id = values.fiscal_tax_rate_id;
+      payload.overwrite_existing = values.overwrite_existing ?? false;
+    }
     if (needsPriceList) {
       payload.price_list_id = values.price_list_id;
       payload.strategy = values.strategy;
@@ -127,13 +158,15 @@ export function ActionDialog({ open, onOpenChange, action, productIds, onSuccess
       if (values.strategy === 'fixed_price') payload.price = values.price;
       if (values.strategy === 'percent_over_base') payload.percent = values.percent;
     }
-    await bulkAction.mutateAsync({
+    const result = await bulkAction.mutateAsync({
       product_ids: productIds,
       action,
       payload,
+      all_matching: allMatching,
+      filters: allMatching ? filters : undefined,
     });
     onOpenChange(false);
-    onSuccess?.();
+    onSuccess?.(result);
   });
 
   const title = ACTION_LABELS[action] ?? action;
@@ -145,7 +178,13 @@ export function ActionDialog({ open, onOpenChange, action, productIds, onSuccess
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {description} Aplica a <strong>{productIds.length}</strong> producto(s) seleccionado(s).
+            {description} Aplica a{' '}
+            <strong>
+              {allMatching
+                ? 'todos los resultados filtrados'
+                : `${productIds.length} producto(s) seleccionado(s)`}
+            </strong>
+            .
           </DialogDescription>
         </DialogHeader>
 
@@ -175,11 +214,9 @@ export function ActionDialog({ open, onOpenChange, action, productIds, onSuccess
               <Select
                 value={form.watch('sale_exchange_rate_type_id')?.toString() ?? ''}
                 onChange={(e) =>
-                  form.setValue(
-                    'sale_exchange_rate_type_id',
-                    Number(e.target.value) || undefined,
-                    { shouldValidate: true },
-                  )
+                  form.setValue('sale_exchange_rate_type_id', Number(e.target.value) || undefined, {
+                    shouldValidate: true,
+                  })
                 }
               >
                 <option value="">— Selecciona —</option>
@@ -190,6 +227,51 @@ export function ActionDialog({ open, onOpenChange, action, productIds, onSuccess
                 ))}
               </Select>
             </Field>
+          )}
+
+          {needsFiscalRate && (
+            <>
+              <Field
+                label="Tratamiento fiscal"
+                required
+                error={form.formState.errors.fiscal_tax_rate_id?.message}
+              >
+                <Select
+                  value={form.watch('fiscal_tax_rate_id')?.toString() ?? ''}
+                  onChange={(e) =>
+                    form.setValue('fiscal_tax_rate_id', Number(e.target.value) || undefined, {
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  <option value="">— Selecciona —</option>
+                  {fiscalTaxRates
+                    .filter((rate) => rate.is_active)
+                    .map((rate: FiscalTaxRate) => (
+                      <option key={rate.id} value={rate.id}>
+                        {rate.code} · {rate.name} ({rate.rate}%) ·{' '}
+                        {FISCAL_TAX_CATEGORY_LABELS[rate.category]}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+              <div className="flex items-start gap-2">
+                <Switch
+                  id="bulk-fiscal-overwrite"
+                  checked={Boolean(form.watch('overwrite_existing'))}
+                  onCheckedChange={(value) => form.setValue('overwrite_existing', value)}
+                />
+                <div className="space-y-0.5">
+                  <Label htmlFor="bulk-fiscal-overwrite">
+                    Sobrescribir clasificaciones existentes
+                  </Label>
+                  <p className="text-text-muted text-xs">
+                    Desactivado conserva productos ya marcados como exentos, exonerados o no
+                    gravados.
+                  </p>
+                </div>
+              </div>
+            </>
           )}
 
           {needsPriceList && (
@@ -243,7 +325,11 @@ export function ActionDialog({ open, onOpenChange, action, productIds, onSuccess
               )}
 
               {form.watch('strategy') === 'percent_over_base' && (
-                <Field label="Porcentaje (%)" required error={form.formState.errors.percent?.message}>
+                <Field
+                  label="Porcentaje (%)"
+                  required
+                  error={form.formState.errors.percent?.message}
+                >
                   <Input
                     type="number"
                     step="0.01"
@@ -308,7 +394,7 @@ function Field({
         {required && <span className="text-danger">*</span>}
       </Label>
       {children}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && <p className="text-danger text-xs">{error}</p>}
     </div>
   );
 }

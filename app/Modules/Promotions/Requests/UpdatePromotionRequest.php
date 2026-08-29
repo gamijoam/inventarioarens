@@ -50,6 +50,16 @@ class UpdatePromotionRequest extends FormRequest
                 Promotion::PAYMENT_CURRENCY_VES,
             ])],
             'allows_combos' => ['sometimes', 'boolean'],
+            'fiscal_tax_mode' => ['sometimes', 'string', Rule::in([
+                Promotion::FISCAL_TAX_MODE_INHERIT,
+                Promotion::FISCAL_TAX_MODE_OVERRIDE,
+            ])],
+            'fiscal_tax_rate_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                Rule::exists('fiscal_tax_rates', 'id')->where('tenant_id', $tenantId),
+            ],
             'price_usd' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'discount_percent' => [
                 Rule::requiredIf($this->input('benefit_type') === Promotion::BENEFIT_PERCENT_DISCOUNT),
@@ -86,15 +96,39 @@ class UpdatePromotionRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator): void {
-            if (! $this->has('items') || ($this->input('benefit_type') ?? $this->route('promotion')?->benefit_type) !== Promotion::BENEFIT_BUY_X_GET_Y) {
-                return;
+            if ($this->has('items') && ($this->input('benefit_type') ?? $this->route('promotion')?->benefit_type) === Promotion::BENEFIT_BUY_X_GET_Y) {
+                $roles = collect($this->input('items', []))->pluck('item_role');
+                if (! $roles->contains('trigger') || ! $roles->contains('reward')) {
+                    $validator->errors()->add('items', 'La promocion debe tener componentes trigger y reward.');
+                }
             }
 
-            $roles = collect($this->input('items', []))->pluck('item_role');
-            if (! $roles->contains('trigger') || ! $roles->contains('reward')) {
-                $validator->errors()->add('items', 'La promocion debe tener componentes trigger y reward.');
-            }
+            $this->validateFiscalTaxMode($validator);
         });
+    }
+
+    private function validateFiscalTaxMode($validator): void
+    {
+        $promotion = $this->route('promotion');
+        $benefitType = $this->input('benefit_type', $promotion?->benefit_type);
+        $mode = $this->input('fiscal_tax_mode', $promotion?->fiscal_tax_mode ?? Promotion::FISCAL_TAX_MODE_INHERIT);
+        $rateId = $this->input('fiscal_tax_rate_id', $promotion?->fiscal_tax_rate_id);
+        $isCombo = in_array($benefitType, [
+            Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
+            Promotion::BENEFIT_BUY_X_GET_Y,
+        ], true);
+
+        if (! $isCombo && ($this->filled('fiscal_tax_mode') || $this->has('fiscal_tax_rate_id'))) {
+            $validator->errors()->add('fiscal_tax_mode', 'El tratamiento fiscal especial solo aplica a combos.');
+        }
+
+        if ($isCombo && $mode === Promotion::FISCAL_TAX_MODE_OVERRIDE && ! $rateId) {
+            $validator->errors()->add('fiscal_tax_rate_id', 'Un combo con override fiscal requiere una alicuota.');
+        }
+
+        if ($isCombo && $mode === Promotion::FISCAL_TAX_MODE_INHERIT && $this->has('fiscal_tax_rate_id') && $this->input('fiscal_tax_rate_id') !== null) {
+            $validator->errors()->add('fiscal_tax_rate_id', 'El modo inherit_product_tax no puede incluir una alicuota override.');
+        }
     }
 
     protected function prepareForValidation(): void

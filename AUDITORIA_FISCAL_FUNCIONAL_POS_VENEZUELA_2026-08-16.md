@@ -1,6 +1,7 @@
 # Auditoría Fiscal Y Funcional POS Venezuela
 
 Fecha: 2026-08-16
+Última revisión de implementación: 2026-08-29
 Repositorio: `INVENTARIOARENS`
 Alcance: backend Laravel, frontend React/Electron, API, base de datos, impresión, sync, tests y documentación.
 Modo: solo lectura. No se modificó código ni el prompt original.
@@ -9,7 +10,7 @@ Modo: solo lectura. No se modificó código ni el prompt original.
 
 El sistema tiene una base sólida como **SaaS comercial de inventario, POS, caja, CxC/CxP, promociones, sincronización y tickets no fiscales**.
 
-No está preparado actualmente para comercializarse como sistema de **facturación fiscal venezolana**. El bloqueo principal no es la homologación de software: es que faltan las entidades y flujos fiscales esenciales: impuestos/IVA, factura fiscal, series, numeración fiscal, número de control, notas fiscales, configuración fiscal del emisor, máquina fiscal y facturación digital.
+No está preparado actualmente para comercializarse como sistema de **facturación fiscal venezolana**. El bloqueo principal no es la homologación de software: faltan `FiscalDocument`, factura fiscal, series, numeración fiscal, número de control, notas fiscales, medio autorizado de emisión, máquina fiscal y facturación digital. El catálogo y cálculo interno de IVA ya están implementados como preparación.
 
 El ticket actual se identifica correctamente como `Documento no fiscal`, pero el producto debe mantener una separación explícita entre:
 
@@ -24,17 +25,47 @@ El ticket actual se identifica correctamente como `Documento no fiscal`, pero el
 
 Los porcentajes representan cobertura funcional aproximada, no cumplimiento legal ni certificación.
 
-| Área | Preparación | Justificación |
-|---|---:|---|
-| POS general | 80% | Checkout, caja, inventario, pagos, promociones, órdenes pendientes y tests amplios. Persisten riesgos de concurrencia, reservas y servicios sin stock. |
-| Facturación comercial | 65% | Ventas, tickets, PDFs, recibos internos y devoluciones comerciales. No existe factura fiscal. |
-| Cumplimiento fiscal Venezuela | 10% | El ticket no fiscal existe y hay moneda/tasa, pero faltan IVA, documentos, numeración, control y emisor fiscal. |
-| Seguridad | 72% | Auth, tenant, RBAC, CSRF y varias policies existen; hay riesgos de settings, idempotencia, scopes y auditoría financiera. |
-| Integridad de datos | 62% | Muchos decimales, FKs tenant y transacciones; faltan constraints de variantes, cascadas seguras, versiones y concurrencia real. |
-| Facturación digital | 0% | No hay proveedor, autorización, número de control, respuesta fiscal, reintentos ni consulta por diez años. |
-| Máquina fiscal | 0% | Existe ESC/POS genérico, no protocolo fiscal, SDK, estado, X/Z ni adaptadores por marca. |
-| Multimoneda | 65% | USD/VES, tasas y pagos mixtos funcionan; monedas ISO configurables y algunas precisiones históricas faltan. |
-| Auditoría | 45% | `AuditLogger` existe y cubre algunas áreas, pero no pagos, CxC/CxP, devoluciones, ajustes y emisión fiscal. |
+| Área                          | Preparación | Justificación                                                                                                                                          |
+| ----------------------------- | ----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POS general                   |         80% | Checkout, caja, inventario, pagos, promociones, órdenes pendientes y tests amplios. Persisten riesgos de concurrencia, reservas y servicios sin stock. |
+| Facturación comercial         |         65% | Ventas, tickets, PDFs, recibos internos y devoluciones comerciales. No existe factura fiscal.                                                          |
+| Cumplimiento fiscal Venezuela |         10% | El ticket no fiscal existe y hay moneda/tasa, pero faltan IVA, documentos, numeración, control y emisor fiscal.                                        |
+| Seguridad                     |         72% | Auth, tenant, RBAC, CSRF y varias policies existen; hay riesgos de settings, idempotencia, scopes y auditoría financiera.                              |
+| Integridad de datos           |         62% | Muchos decimales, FKs tenant y transacciones; faltan constraints de variantes, cascadas seguras, versiones y concurrencia real.                        |
+| Facturación digital           |          0% | No hay proveedor, autorización, número de control, respuesta fiscal, reintentos ni consulta por diez años.                                             |
+| Máquina fiscal                |          0% | Existe ESC/POS genérico, no protocolo fiscal, SDK, estado, X/Z ni adaptadores por marca.                                                               |
+| Multimoneda                   |         65% | USD/VES, tasas y pagos mixtos funcionan; monedas ISO configurables y algunas precisiones históricas faltan.                                            |
+| Auditoría                     |         45% | `AuditLogger` existe y cubre algunas áreas, pero no pagos, CxC/CxP, devoluciones, ajustes y emisión fiscal.                                            |
+
+### Revisión De Línea Base 2026-08-29
+
+La rama `programa-fiscal` fue sincronizada con `main` y la Etapa 1 operativa de este documento ya
+está incorporada y validada: idempotencia tenant-scoped, aprobaciones atómicas de inventario,
+créditos a favor, ACK seguro de sync, reconciliación de stock y expiración de reservas.
+
+La identidad fiscal base de empresa y sucursal también quedó implementada:
+
+- `GET/PATCH /api/fiscal/identity` administra la identidad de la empresa.
+- `GET/PATCH /api/fiscal/identity/branches/{branch}` administra datos fiscales de sucursal.
+- La empresa reutiliza `tenant_settings.settings.company` para conservar compatibilidad con tickets
+  comerciales y sync existente.
+- Las sucursales conservan dirección, ciudad, estado, contacto y condición IVA en columnas
+  tenant-scoped y los replican por eventos de branch.
+- Las escrituras exigen `settings.manage`; la lectura y el acceso a sucursales respetan el tenant.
+
+La revisión del 2026-08-29 agregó clasificación fiscal de productos, snapshots de IVA en ventas y
+devoluciones, además de un reporte interno tenant-scoped por período. También se agregó el nombre
+fiscal separado del nombre comercial del cliente y su propagación por sync.
+
+Esto no cambia el veredicto fiscal: todavía no existe `FiscalDocument`, numeración fiscal, número de
+control ni medio autorizado de emisión. El cálculo y reporte de IVA actuales son preparatorios e
+internos, no una emisión fiscal certificada.
+
+Validación posterior al merge:
+
+- Backend modular SQLite: `1.523` tests ejecutados, `1.519` pasados y `4` skips existentes.
+- Frontend: `148` archivos de test, `854` pasados y `1` skip.
+- TypeScript, ESLint, Prettier y Pint: correctos.
 
 ## 2. Marco Normativo Consultado
 
@@ -90,44 +121,44 @@ La PA `SNAT/2026/00084`, publicada según las fuentes consultadas en Gaceta Ofic
 
 ## 4. Auditoría Por Área
 
-| Área | Estado | Prioridad | Evidencia | Acción |
-|---|---|---:|---|---|
-| 1. Empresa, sucursal y fiscal | 🚨 ERROR CRÍTICO | P0 | `Tenant.php`, `Branch.php`, migraciones de tenants/branches | Crear configuración fiscal tipada por empresa/sucursal |
-| 2. Productos y servicios | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | `Product.php`, `ProductResource.php`, `ProductService` | Agregar tipo servicio y fiscalidad; respetar `track_stock=false` en backend |
-| 3. Clientes | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | `Customer.php`, requests de customers, POS customer_name | Normalizar RIF/cédula y formalizar consumidor final |
-| 4. Proceso de venta | 🟡 IMPLEMENTADO PARCIALMENTE | P0 | `PosCheckoutService`, `SaleService`, `PosOrder` | Agregar snapshot fiscal completo |
-| 5. IVA | 🔴 NO IMPLEMENTADO | P0 | Ausencia de tax model/migrations/fields | Tax engine, alícuotas y cálculo por línea/documento |
-| 6. Documentos fiscales | 🔴 NO IMPLEMENTADO | P0 | No existe módulo Billing/Fiscal/Invoice | Separar venta comercial de documento fiscal |
-| 7. Factura | 🚨 ERROR CRÍTICO | P0 | `pos-ticket.blade.php` dice Documento no fiscal | Implementar factura fiscal con todos los campos normativos |
-| 8. Numeración | ⚠️ IMPLEMENTADO PERO CON RIESGO | P1 | servicios `MAX()+1`; no hay secuencia fiscal | Contadores transaccionales por empresa/sucursal/serie |
-| 9. Número de control | 🔴 NO IMPLEMENTADO | P0 | No hay tabla, campo ni endpoint | Recibirlo de imprenta/proveedor; nunca inventarlo |
-| 10. Modos de facturación | 🔴 NO IMPLEMENTADO | P0 | `PrinterStation` solo define salida térmica/digital | Crear adaptadores fiscal/no fiscal |
-| 11. Forma libre | 🔴 NO IMPLEMENTADO | P0 | `PrintProfile` solo visual | Rangos, imprenta, control, consumo y contingencia |
-| 12. Máquina fiscal | 🔴 NO IMPLEMENTADO | P0 | ESC/POS genérico no fiscal | `FiscalPrinterAdapter` por marca y protocolo |
-| 13. Facturación digital | 🔴 NO IMPLEMENTADO | P0 | Dompdf/PrintServer local solamente | Proveedor, autorización, control, estados, reintentos y consulta |
-| 14. Nota de crédito | 🟡 IMPLEMENTADO PARCIALMENTE | P0 | `FinancialAdjustment`/`customer_credit` | Separar nota fiscal de ajuste financiero |
-| 15. Nota de débito | 🔴 NO IMPLEMENTADO | P1 | No hay entidad/ruta/estado | Implementar documento enlazado a original |
-| 16. No borrado | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | API no expone DELETE; cascadas existen | Restrict/nullOnDelete y guardas ORM |
-| 17. Estados | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | SalesReturns, POS orders, financial adjustments | Máquina de estados fiscal y transiciones atómicas |
-| 18. Audit log | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | `AuditLogger` parcial | Auditar pagos, emisión, devoluciones, ajustes y anulaciones |
-| 19. Multimoneda | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | USD/VES, tasas, snapshots numéricos | Catálogo ISO, tasa ID/fecha y precisión uniforme |
-| 20. Formas de pago | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | POS payments y CashRegister | Corregir vuelto mixto y crédito concurrente |
-| 21. No fiscales | ✅ IMPLEMENTADO CORRECTAMENTE | P2 | Ticket, cotización/orden y guía operativa | Rotular siempre no fiscal; separar nombres “invoice promotion” |
-| 22. Sucursales | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | branches/warehouses/cash sessions | Configuración fiscal y validación cross-branch |
-| 23. Cajas/terminales | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | CashRegisterService/PosTerminal | Evitar doble sesión y habilitar arqueo dual desde POS |
-| 24. Inventario | ✅ IMPLEMENTADO CORRECTAMENTE, con riesgos | P1 | InventoryMovementService, POS, transfers | Reconciliación, TTL reservas y concurrencia real |
-| 25. Seguridad | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | Auth, RBAC, policies, tenant middleware | Idempotencia, scopes, settings y auditoría |
-| 26. Idempotencia | 🚨 ERROR CRÍTICO | P0 | `IdempotencyKey`, rutas sin middleware | Reserva atómica y claves desde frontend |
-| 27. Transacciones | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | checkout transaccional; transiciones y secuencias no uniformes | Atomicidad por operación y outbox |
-| 28. Concurrencia | ⚠️ IMPLEMENTADO PERO CON RIESGO | P1 | secuencias, crédito, sesiones, stock balance | Pruebas reales en dos procesos/conexiones |
-| 29. Contingencia | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | local-first/sync/print; sin contingencia fiscal | Estado durable, retries, TTL, fiscal offline |
-| 30. Reportes | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | Reports/FinanceReports/Operational | Corregir confirmadas, IVA y export completo |
-| 31. Base de datos | 🟡 IMPLEMENTADO PARCIALMENTE | P0 | muchas entidades operativas; faltan fiscales | Crear tax/invoice/fiscal/control entities |
-| 32. Integridad | ⚠️ IMPLEMENTADO PERO CON RIESGO | P1 | decimals correctos; FKs/cascades/variants incompletos | Índices, FKs compuestas, restrict y versionado |
-| 33. Frontend | 🟡 IMPLEMENTADO PARCIALMENTE | P0 | POS muestra total/tasa, no IVA/document type | UI fiscal y confirmaciones críticas |
-| 34. Backend | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | FormRequests/services/policies; orquestador grande | Desacoplar Billing/Fiscal/Accounting |
-| 35. API | 🟡 IMPLEMENTADO PARCIALMENTE | P1 | auth/resources/errors/request ID | versionado, OpenAPI, error codes y rate limits |
-| 36. Arquitectura | 🟡 IMPLEMENTADO PARCIALMENTE | P0 | monolito modular sin Fiscal/Billing/Accounting | Crear bounded contexts y adaptadores |
+| Área                          | Estado                                     | Prioridad | Evidencia                                                      | Acción                                                                      |
+| ----------------------------- | ------------------------------------------ | --------: | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1. Empresa, sucursal y fiscal | 🚨 ERROR CRÍTICO                           |        P0 | `Tenant.php`, `Branch.php`, migraciones de tenants/branches    | Crear configuración fiscal tipada por empresa/sucursal                      |
+| 2. Productos y servicios      | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | `Product.php`, `ProductResource.php`, `ProductService`         | Agregar tipo servicio y fiscalidad; respetar `track_stock=false` en backend |
+| 3. Clientes                   | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | `Customer.php`, requests de customers, POS customer_name       | Normalizar RIF/cédula y formalizar consumidor final                         |
+| 4. Proceso de venta           | 🟡 IMPLEMENTADO PARCIALMENTE               |        P0 | `PosCheckoutService`, `SaleService`, `PosOrder`                | Agregar snapshot fiscal completo                                            |
+| 5. IVA                        | 🔴 NO IMPLEMENTADO                         |        P0 | Ausencia de tax model/migrations/fields                        | Tax engine, alícuotas y cálculo por línea/documento                         |
+| 6. Documentos fiscales        | 🔴 NO IMPLEMENTADO                         |        P0 | No existe módulo Billing/Fiscal/Invoice                        | Separar venta comercial de documento fiscal                                 |
+| 7. Factura                    | 🚨 ERROR CRÍTICO                           |        P0 | `pos-ticket.blade.php` dice Documento no fiscal                | Implementar factura fiscal con todos los campos normativos                  |
+| 8. Numeración                 | ⚠️ IMPLEMENTADO PERO CON RIESGO            |        P1 | servicios `MAX()+1`; no hay secuencia fiscal                   | Contadores transaccionales por empresa/sucursal/serie                       |
+| 9. Número de control          | 🔴 NO IMPLEMENTADO                         |        P0 | No hay tabla, campo ni endpoint                                | Recibirlo de imprenta/proveedor; nunca inventarlo                           |
+| 10. Modos de facturación      | 🔴 NO IMPLEMENTADO                         |        P0 | `PrinterStation` solo define salida térmica/digital            | Crear adaptadores fiscal/no fiscal                                          |
+| 11. Forma libre               | 🔴 NO IMPLEMENTADO                         |        P0 | `PrintProfile` solo visual                                     | Rangos, imprenta, control, consumo y contingencia                           |
+| 12. Máquina fiscal            | 🔴 NO IMPLEMENTADO                         |        P0 | ESC/POS genérico no fiscal                                     | `FiscalPrinterAdapter` por marca y protocolo                                |
+| 13. Facturación digital       | 🔴 NO IMPLEMENTADO                         |        P0 | Dompdf/PrintServer local solamente                             | Proveedor, autorización, control, estados, reintentos y consulta            |
+| 14. Nota de crédito           | 🟡 IMPLEMENTADO PARCIALMENTE               |        P0 | `FinancialAdjustment`/`customer_credit`                        | Separar nota fiscal de ajuste financiero                                    |
+| 15. Nota de débito            | 🔴 NO IMPLEMENTADO                         |        P1 | No hay entidad/ruta/estado                                     | Implementar documento enlazado a original                                   |
+| 16. No borrado                | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | API no expone DELETE; cascadas existen                         | Restrict/nullOnDelete y guardas ORM                                         |
+| 17. Estados                   | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | SalesReturns, POS orders, financial adjustments                | Máquina de estados fiscal y transiciones atómicas                           |
+| 18. Audit log                 | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | `AuditLogger` parcial                                          | Auditar pagos, emisión, devoluciones, ajustes y anulaciones                 |
+| 19. Multimoneda               | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | USD/VES, tasas, snapshots numéricos                            | Catálogo ISO, tasa ID/fecha y precisión uniforme                            |
+| 20. Formas de pago            | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | POS payments y CashRegister                                    | Corregir vuelto mixto y crédito concurrente                                 |
+| 21. No fiscales               | ✅ IMPLEMENTADO CORRECTAMENTE              |        P2 | Ticket, cotización/orden y guía operativa                      | Rotular siempre no fiscal; separar nombres “invoice promotion”              |
+| 22. Sucursales                | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | branches/warehouses/cash sessions                              | Configuración fiscal y validación cross-branch                              |
+| 23. Cajas/terminales          | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | CashRegisterService/PosTerminal                                | Evitar doble sesión y habilitar arqueo dual desde POS                       |
+| 24. Inventario                | ✅ IMPLEMENTADO CORRECTAMENTE, con riesgos |        P1 | InventoryMovementService, POS, transfers                       | Reconciliación, TTL reservas y concurrencia real                            |
+| 25. Seguridad                 | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | Auth, RBAC, policies, tenant middleware                        | Idempotencia, scopes, settings y auditoría                                  |
+| 26. Idempotencia              | 🚨 ERROR CRÍTICO                           |        P0 | `IdempotencyKey`, rutas sin middleware                         | Reserva atómica y claves desde frontend                                     |
+| 27. Transacciones             | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | checkout transaccional; transiciones y secuencias no uniformes | Atomicidad por operación y outbox                                           |
+| 28. Concurrencia              | ⚠️ IMPLEMENTADO PERO CON RIESGO            |        P1 | secuencias, crédito, sesiones, stock balance                   | Pruebas reales en dos procesos/conexiones                                   |
+| 29. Contingencia              | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | local-first/sync/print; sin contingencia fiscal                | Estado durable, retries, TTL, fiscal offline                                |
+| 30. Reportes                  | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | Reports/FinanceReports/Operational                             | Corregir confirmadas, IVA y export completo                                 |
+| 31. Base de datos             | 🟡 IMPLEMENTADO PARCIALMENTE               |        P0 | muchas entidades operativas; faltan fiscales                   | Crear tax/invoice/fiscal/control entities                                   |
+| 32. Integridad                | ⚠️ IMPLEMENTADO PERO CON RIESGO            |        P1 | decimals correctos; FKs/cascades/variants incompletos          | Índices, FKs compuestas, restrict y versionado                              |
+| 33. Frontend                  | 🟡 IMPLEMENTADO PARCIALMENTE               |        P0 | POS muestra total/tasa, no IVA/document type                   | UI fiscal y confirmaciones críticas                                         |
+| 34. Backend                   | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | FormRequests/services/policies; orquestador grande             | Desacoplar Billing/Fiscal/Accounting                                        |
+| 35. API                       | 🟡 IMPLEMENTADO PARCIALMENTE               |        P1 | auth/resources/errors/request ID                               | versionado, OpenAPI, error codes y rate limits                              |
+| 36. Arquitectura              | 🟡 IMPLEMENTADO PARCIALMENTE               |        P0 | monolito modular sin Fiscal/Billing/Accounting                 | Crear bounded contexts y adaptadores                                        |
 
 ## 5. Evidencia De Funcionalidades Bien Implementadas
 
@@ -157,7 +188,7 @@ La PA `SNAT/2026/00084`, publicada según las fuentes consultadas en Gaceta Ofic
 
 ### 🚨 Problemas críticos
 
-1. Ausencia completa del núcleo fiscal: IVA, documentos, numeración, control y emisor.
+1. Ausencia del núcleo de emisión fiscal: documentos, numeración, control y medio autorizado.
 2. Idempotencia concurrente defectuosa y no activada uniformemente en frontend/mutaciones.
 3. Posible doble aplicación de stock en aprobación concurrente de movimientos.
 4. Posible doble uso de crédito a favor.
@@ -168,7 +199,7 @@ La PA `SNAT/2026/00084`, publicada según las fuentes consultadas en Gaceta Ofic
 ### 🔴 Funcionalidades faltantes
 
 - Factura fiscal, nota de débito fiscal y nota de crédito fiscal.
-- Tax engine, IVA por alícuota, exento/exonerado y snapshots fiscales.
+- Reporte interno de IVA y clasificación por alícuota, exento/exonerado/no gravado.
 - FiscalDocument/Billing/Fiscal Engine/Accounting ledger.
 - Número de control, imprenta autorizada/digital, series y secuencias fiscales.
 - Máquina fiscal y adaptadores de marcas.
@@ -198,50 +229,50 @@ La PA `SNAT/2026/00084`, publicada según las fuentes consultadas en Gaceta Ofic
 
 ### FASE 1 — Bloqueadores críticos
 
-| Tarea | Módulos/archivos | Dificultad | Dependencias | Prioridad | Riesgo | Pruebas |
-|---|---|---:|---|---|---|---|
-| Corregir carrera de idempotencia | `IdempotencyKey`, migrations, POS routes | Alta | DB target | P0 | Duplicación de ventas/pagos | Dos procesos con misma clave |
-| Activar idempotency key en frontend | `api/client`, `pos/api` | Media | Contrato middleware | P0 | Retry duplicado | Timeout/retry checkout/pago |
-| Corregir crédito concurrente | `CustomerCreditService`, returns/POS | Alta | Lock de cliente/ledger | P0 | Saldo negativo | Dos consumos simultáneos |
-| Corregir stock balance nullable | migraciones/inventory service | Media | SQLite/PostgreSQL | P0 | Stock inconsistente | Primer movimiento concurrente |
-| Bloquear aprobación manual | controller/service | Media | transacción/lock | P0 | Stock doble | Dos approves simultáneos |
-| Corregir sync failed ACK | Sync worker/applier | Alta | contrato outbox | P0 | Datos divergentes | Evento failed y retry |
+| Tarea                               | Módulos/archivos                         | Dificultad | Dependencias           | Prioridad | Riesgo                      | Pruebas                       |
+| ----------------------------------- | ---------------------------------------- | ---------: | ---------------------- | --------- | --------------------------- | ----------------------------- |
+| Corregir carrera de idempotencia    | `IdempotencyKey`, migrations, POS routes |       Alta | DB target              | P0        | Duplicación de ventas/pagos | Dos procesos con misma clave  |
+| Activar idempotency key en frontend | `api/client`, `pos/api`                  |      Media | Contrato middleware    | P0        | Retry duplicado             | Timeout/retry checkout/pago   |
+| Corregir crédito concurrente        | `CustomerCreditService`, returns/POS     |       Alta | Lock de cliente/ledger | P0        | Saldo negativo              | Dos consumos simultáneos      |
+| Corregir stock balance nullable     | migraciones/inventory service            |      Media | SQLite/PostgreSQL      | P0        | Stock inconsistente         | Primer movimiento concurrente |
+| Bloquear aprobación manual          | controller/service                       |      Media | transacción/lock       | P0        | Stock doble                 | Dos approves simultáneos      |
+| Corregir sync failed ACK            | Sync worker/applier                      |       Alta | contrato outbox        | P0        | Datos divergentes           | Evento failed y retry         |
 
 ### FASE 2 — Núcleo fiscal
 
-| Tarea | Módulos/archivos | Dificultad | Dependencias | Prioridad | Riesgo | Pruebas |
-|---|---|---:|---|---|---|---|
-| Identidad fiscal tenant/sucursal | Tenancy, Branches, settings | Media | asesoría tributaria | P0 | Emisor inválido | RIF/domicilio/config incompleta |
-| Tax catalog y Tax Engine | nuevo `Tax/Fiscal` | Alta | reglas IVA vigentes | P0 | IVA incorrecto | alícuotas, exentos, descuentos |
-| FiscalDocument y líneas | nuevo `Billing/Fiscal` | Alta | tax engine | P0 | documento irreconstruible | invoice/credit/debit |
-| Secuencias/series/control | nuevo módulo fiscal | Alta | imprenta/máquina/proveedor | P0 | duplicados | concurrencia, rollback |
-| Document mode no fiscal/fiscal | POS/Printing/Fiscal | Media | FiscalDocument | P0 | confusión cliente | UI y payloads |
+| Tarea                            | Módulos/archivos            | Dificultad | Dependencias               | Prioridad | Riesgo                    | Pruebas                         |
+| -------------------------------- | --------------------------- | ---------: | -------------------------- | --------- | ------------------------- | ------------------------------- |
+| Identidad fiscal tenant/sucursal | Tenancy, Branches, settings |      Media | asesoría tributaria        | P0        | Emisor inválido           | RIF/domicilio/config incompleta |
+| Tax catalog y Tax Engine         | nuevo `Tax/Fiscal`          |       Alta | reglas IVA vigentes        | P0        | IVA incorrecto            | alícuotas, exentos, descuentos  |
+| FiscalDocument y líneas          | nuevo `Billing/Fiscal`      |       Alta | tax engine                 | P0        | documento irreconstruible | invoice/credit/debit            |
+| Secuencias/series/control        | nuevo módulo fiscal         |       Alta | imprenta/máquina/proveedor | P0        | duplicados                | concurrencia, rollback          |
+| Document mode no fiscal/fiscal   | POS/Printing/Fiscal         |      Media | FiscalDocument             | P0        | confusión cliente         | UI y payloads                   |
 
 ### FASE 3 — Facturación digital
 
-| Tarea | Módulos/archivos | Dificultad | Dependencias | Prioridad | Riesgo | Pruebas |
-|---|---|---:|---|---|---|---|
-| Adaptador imprenta digital | nuevo `Fiscal/Adapters` | Alta | proveedor autorizado | P0 | emisión inválida | contract tests, sandbox |
-| Estados y reintentos | jobs/outbox/fiscal docs | Alta | idempotency | P0 | duplicación | timeout, retry, rejected |
-| Consulta/retención | storage, FiscalDocument | Media | requisitos de conservación | P1 | pérdida de evidencia | diez años, exportación |
-| Envío al cliente | mail/notifications | Media | documento aceptado | P2 | entrega no demostrada | correo, reintento |
+| Tarea                      | Módulos/archivos        | Dificultad | Dependencias               | Prioridad | Riesgo                | Pruebas                  |
+| -------------------------- | ----------------------- | ---------: | -------------------------- | --------- | --------------------- | ------------------------ |
+| Adaptador imprenta digital | nuevo `Fiscal/Adapters` |       Alta | proveedor autorizado       | P0        | emisión inválida      | contract tests, sandbox  |
+| Estados y reintentos       | jobs/outbox/fiscal docs |       Alta | idempotency                | P0        | duplicación           | timeout, retry, rejected |
+| Consulta/retención         | storage, FiscalDocument |      Media | requisitos de conservación | P1        | pérdida de evidencia  | diez años, exportación   |
+| Envío al cliente           | mail/notifications      |      Media | documento aceptado         | P2        | entrega no demostrada | correo, reintento        |
 
 ### FASE 4 — Máquina fiscal
 
-| Tarea | Módulos/archivos | Dificultad | Dependencias | Prioridad | Riesgo | Pruebas |
-|---|---|---:|---|---|---|---|
-| `FiscalPrinterAdapter` | Printing/Fiscal | Alta | marca/SDK | P0 | hardware fiscal | mock y equipo real |
-| Estados X/Z/cierre | CashRegister/Fiscal | Alta | protocolo fabricante | P1 | cierre incorrecto | reportes y recovery |
-| Contingencia | POS/Fiscal/Local Motor | Alta | forma libre autorizada | P1 | ventas sin documento | caída internet/equipo |
+| Tarea                  | Módulos/archivos       | Dificultad | Dependencias           | Prioridad | Riesgo               | Pruebas               |
+| ---------------------- | ---------------------- | ---------: | ---------------------- | --------- | -------------------- | --------------------- |
+| `FiscalPrinterAdapter` | Printing/Fiscal        |       Alta | marca/SDK              | P0        | hardware fiscal      | mock y equipo real    |
+| Estados X/Z/cierre     | CashRegister/Fiscal    |       Alta | protocolo fabricante   | P1        | cierre incorrecto    | reportes y recovery   |
+| Contingencia           | POS/Fiscal/Local Motor |       Alta | forma libre autorizada | P1        | ventas sin documento | caída internet/equipo |
 
 ### FASE 5 — Seguridad y auditoría
 
-| Tarea | Módulos/archivos | Dificultad | Dependencias | Prioridad | Riesgo | Pruebas |
-|---|---|---:|---|---|---|---|
-| Audit log financiero append-only | Audit, POS, CxC/CxP, returns | Media | catálogo eventos | P1 | trazabilidad insuficiente | actor/IP/request/old-new |
-| Restringir tenant settings | Tenancy settings/policies | Baja | permisos | P1 | configuración alterada | miembro sin permiso |
-| Scopes uniformes | Reports/Inventory | Media | ScopeResolver | P1 | fuga de datos | cross-branch/warehouse |
-| Errores/request ID/OpenAPI | API/frontend/docs | Media | contrato v1 | P2 | soporte y clientes frágiles | 4xx/5xx/OpenAPI |
+| Tarea                            | Módulos/archivos             | Dificultad | Dependencias     | Prioridad | Riesgo                      | Pruebas                  |
+| -------------------------------- | ---------------------------- | ---------: | ---------------- | --------- | --------------------------- | ------------------------ |
+| Audit log financiero append-only | Audit, POS, CxC/CxP, returns |      Media | catálogo eventos | P1        | trazabilidad insuficiente   | actor/IP/request/old-new |
+| Restringir tenant settings       | Tenancy settings/policies    |       Baja | permisos         | P1        | configuración alterada      | miembro sin permiso      |
+| Scopes uniformes                 | Reports/Inventory            |      Media | ScopeResolver    | P1        | fuga de datos               | cross-branch/warehouse   |
+| Errores/request ID/OpenAPI       | API/frontend/docs            |      Media | contrato v1      | P2        | soporte y clientes frágiles | 4xx/5xx/OpenAPI          |
 
 ### FASE 6 — Mejoras
 

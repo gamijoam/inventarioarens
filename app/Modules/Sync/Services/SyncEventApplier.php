@@ -5,6 +5,7 @@ namespace App\Modules\Sync\Services;
 use App\Models\User;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
@@ -70,6 +71,8 @@ class SyncEventApplier
         'exchange_rate_type.created',
         'exchange_rate.updated',
         'exchange_rate.created',
+        'fiscal_tax_rate.updated',
+        'fiscal_tax_rate.created',
         'cash_register.updated',
         'cash_register.created',
         'product_entry.created',
@@ -136,6 +139,8 @@ class SyncEventApplier
         'exchange_rate_type.created',
         'exchange_rate.updated',
         'exchange_rate.created',
+        'fiscal_tax_rate.updated',
+        'fiscal_tax_rate.created',
         'payment_method.updated',
         'payment_method.created',
         'cash_register.updated',
@@ -303,6 +308,7 @@ class SyncEventApplier
                 'tag.updated', 'tag.created', 'tag.deleted' => $this->applyTag($tenant, $payload),
                 'exchange_rate_type.updated', 'exchange_rate_type.created' => $this->applyExchangeRateType($tenant, $payload),
                 'exchange_rate.updated', 'exchange_rate.created' => $this->applyExchangeRate($tenant, $payload),
+                'fiscal_tax_rate.updated', 'fiscal_tax_rate.created' => $this->applyFiscalTaxRate($tenant, $payload),
                 'payment_method.updated', 'payment_method.created' => $this->applyPaymentMethod($tenant, $payload),
                 'product_entry.created' => $this->applyProductEntry($tenant, $payload),
                 'product_exit.created' => $this->applyProductExit($tenant, $payload),
@@ -353,14 +359,22 @@ class SyncEventApplier
     {
         $code = mb_strtoupper($this->requiredString($payload, 'code'));
 
+        $fields = [
+            'name' => $this->requiredString($payload, 'name'),
+            'status' => $payload['status'] ?? 'active',
+            'updated_at' => now(),
+        ];
+
+        foreach (['fiscal_address', 'fiscal_city', 'fiscal_state', 'fiscal_phone', 'fiscal_email', 'tax_condition'] as $field) {
+            if (array_key_exists($field, $payload)) {
+                $fields[$field] = $payload[$field];
+            }
+        }
+
         $this->upsertByKeys(
             'branches',
             ['tenant_id' => $tenant->id, 'code' => $code],
-            [
-                'name' => $this->requiredString($payload, 'name'),
-                'status' => $payload['status'] ?? 'active',
-                'updated_at' => now(),
-            ]
+            $fields,
         );
 
         $remoteId = (int) ($payload['_sync_aggregate_id'] ?? 0);
@@ -433,6 +447,10 @@ class SyncEventApplier
             'catalog_product_id' => isset($payload['catalog_product_id']) ? (int) $payload['catalog_product_id'] : null,
             'updated_at' => $now,
         ];
+
+        if (array_key_exists('fiscal_tax_rate_code', $payload)) {
+            $fields['fiscal_tax_rate_id'] = $this->fiscalTaxRateId($tenant, $payload['fiscal_tax_rate_code']);
+        }
 
         $product = DB::table('products')->where('tenant_id', $tenant->id)
             ->when(isset($payload['catalog_product_id']), fn ($query) => $query->where('catalog_product_id', (int) $payload['catalog_product_id']))
@@ -524,6 +542,7 @@ class SyncEventApplier
             ],
             [
                 'name' => $this->requiredString($payload, 'name'),
+                'fiscal_name' => $this->nullableString($payload['fiscal_name'] ?? $payload['name'] ?? null),
                 'phone' => $this->nullableString($payload['phone'] ?? null),
                 'email' => $this->nullableLowerString($payload['email'] ?? null),
                 'fiscal_address' => $payload['fiscal_address'] ?? null,
@@ -2280,6 +2299,12 @@ class SyncEventApplier
             'starts_at' => $payload['starts_at'] ?? null,
             'ends_at' => $payload['ends_at'] ?? null,
         ]);
+        if (array_key_exists('fiscal_tax_mode', $payload)) {
+            $promotion->fiscal_tax_mode = $payload['fiscal_tax_mode'];
+        }
+        if (array_key_exists('fiscal_tax_rate_code', $payload)) {
+            $promotion->fiscal_tax_rate_id = $this->fiscalTaxRateId($tenant, $payload['fiscal_tax_rate_code']);
+        }
         $promotion->save();
         $promotion->items()->delete();
 
@@ -2639,6 +2664,44 @@ class SyncEventApplier
         return 'applied';
     }
 
+    private function applyFiscalTaxRate(Tenant $tenant, array $payload): string
+    {
+        $code = mb_strtoupper($this->requiredString($payload, 'code'));
+        $category = $this->requiredString($payload, 'category');
+
+        if (! in_array($category, FiscalTaxRate::CATEGORIES, true)) {
+            throw new RuntimeException('La categoria fiscal recibida no es valida.');
+        }
+
+        $this->upsertByKeys(
+            'fiscal_tax_rates',
+            ['tenant_id' => $tenant->id, 'code' => $code],
+            [
+                'name' => $this->requiredString($payload, 'name'),
+                'rate' => $payload['rate'] ?? 0,
+                'category' => $category,
+                'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+                'updated_at' => now(),
+            ],
+        );
+
+        $remoteId = (int) ($payload['_sync_aggregate_id'] ?? 0);
+        if ($remoteId > 0) {
+            $this->rememberEntityMapping(
+                $tenant,
+                'fiscal_tax_rate',
+                $remoteId,
+                (int) DB::table('fiscal_tax_rates')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('code', $code)
+                    ->value('id'),
+                $code,
+            );
+        }
+
+        return 'applied';
+    }
+
     private function applyWarrantyPolicy(Tenant $tenant, array $payload): string
     {
         $name = $this->requiredString($payload, 'name');
@@ -2901,6 +2964,8 @@ class SyncEventApplier
         $status = $orderPayload['status'] ?? $payload['status'] ?? 'open';
         $saleStatus = $salePayload['status'] ?? $payload['sale_status'] ?? ($status === 'paid' ? 'confirmed' : 'draft');
         $cancelledAt = $this->nullableDate($salePayload['cancelled_at'] ?? null);
+        $saleFiscalValues = $this->fiscalDocumentValues($salePayload, $payload);
+        $orderFiscalValues = $this->fiscalDocumentValues($orderPayload, $payload, $salePayload);
 
         $customerId = $this->customerIdByDocument(
             $tenant,
@@ -2930,6 +2995,7 @@ class SyncEventApplier
                 'confirmed_at' => $this->nullableDate($salePayload['confirmed_at'] ?? null) ?? ($saleStatus === 'confirmed' ? ($paidAt ?? $closedAt ?? $now) : null),
                 'cancelled_at' => $cancelledAt,
                 'updated_at' => $now,
+                ...$saleFiscalValues,
             ]
         );
 
@@ -2960,6 +3026,7 @@ class SyncEventApplier
                 'paid_at' => $paidAt,
                 'closed_at' => $closedAt,
                 'updated_at' => $now,
+                ...$orderFiscalValues,
             ]
         );
 
@@ -3159,6 +3226,7 @@ class SyncEventApplier
                     'warranty_starts_at' => $this->nullableDate($item['warranty_starts_at'] ?? null),
                     'warranty_expires_at' => $this->nullableDate($item['warranty_expires_at'] ?? null),
                     'updated_at' => $now,
+                    ...$this->fiscalLineValues($item),
                 ]
             );
 
@@ -3422,6 +3490,7 @@ class SyncEventApplier
                 'product_unit_ids' => $serialUnitIds === [] ? null : json_encode($serialUnitIds),
                 'condition' => $item['condition'] ?? SalesReturnItem::CONDITION_SELLABLE,
                 'reason' => $item['reason'] ?? null,
+                ...$this->fiscalReturnItemValues($item),
                 'updated_at' => now(),
             ]);
 
@@ -3729,6 +3798,7 @@ class SyncEventApplier
                 'confirmed_at' => $this->nullableDate($payload['confirmed_at'] ?? null) ?? $now,
                 'cancelled_at' => $this->nullableDate($payload['cancelled_at'] ?? null),
                 'updated_at' => $now,
+                ...$this->fiscalDocumentValues($payload),
             ]
         );
 
@@ -3792,6 +3862,7 @@ class SyncEventApplier
                     'discount_type' => $item['discount_type'] ?? null,
                     'discount_value' => $item['discount_value'] ?? 0,
                     'discount_amount' => $item['discount_amount'] ?? 0,
+                    ...$this->fiscalLineValues($item),
                     'promotion_code' => $item['promotion_code'] ?? null,
                     'promotion_name' => $item['promotion_name'] ?? null,
                     'promotion_benefit_type' => $item['promotion_benefit_type'] ?? null,
@@ -4228,6 +4299,138 @@ class SyncEventApplier
         }
 
         return Carbon::parse($value);
+    }
+
+    private function fiscalDocumentValues(array ...$sources): array
+    {
+        $fields = [
+            'fiscal_taxable_base_amount',
+            'fiscal_taxable_local_amount',
+            'fiscal_exempt_base_amount',
+            'fiscal_exempt_local_amount',
+            'fiscal_exonerated_base_amount',
+            'fiscal_exonerated_local_amount',
+            'fiscal_non_taxable_base_amount',
+            'fiscal_non_taxable_local_amount',
+            'fiscal_tax_base_amount',
+            'fiscal_tax_local_amount',
+            'fiscal_snapshot_at',
+        ];
+        $values = [];
+
+        foreach ($fields as $field) {
+            foreach ($sources as $source) {
+                if (! array_key_exists($field, $source)) {
+                    continue;
+                }
+
+                $values[$field] = $field === 'fiscal_snapshot_at'
+                    ? $this->nullableDate($source[$field])
+                    : $source[$field];
+                break;
+            }
+        }
+
+        return $values;
+    }
+
+    private function fiscalLineValues(array $item): array
+    {
+        $fields = [
+            'local_total_amount',
+            'fiscal_tax_code',
+            'fiscal_tax_source',
+            'fiscal_tax_override_code',
+            'fiscal_tax_name',
+            'fiscal_tax_category',
+            'fiscal_tax_rate',
+            'fiscal_prices_include_tax',
+            'fiscal_taxable_base_amount',
+            'fiscal_taxable_local_amount',
+            'fiscal_exempt_base_amount',
+            'fiscal_exempt_local_amount',
+            'fiscal_exonerated_base_amount',
+            'fiscal_exonerated_local_amount',
+            'fiscal_non_taxable_base_amount',
+            'fiscal_non_taxable_local_amount',
+            'fiscal_tax_base_amount',
+            'fiscal_tax_local_amount',
+            'fiscal_total_base_amount',
+            'fiscal_total_local_amount',
+            'fiscal_snapshot_at',
+        ];
+        $values = [];
+
+        foreach ($fields as $field) {
+            if (! array_key_exists($field, $item)) {
+                continue;
+            }
+
+            $values[$field] = $field === 'fiscal_snapshot_at'
+                ? $this->nullableDate($item[$field])
+                : $item[$field];
+        }
+
+        return $values;
+    }
+
+    private function fiscalReturnItemValues(array $item): array
+    {
+        $fields = [
+            'fiscal_tax_source',
+            'fiscal_tax_override_code',
+            'fiscal_tax_code',
+            'fiscal_tax_name',
+            'fiscal_tax_category',
+            'fiscal_tax_rate',
+            'fiscal_prices_include_tax',
+            'fiscal_taxable_base_amount',
+            'fiscal_taxable_local_amount',
+            'fiscal_exempt_base_amount',
+            'fiscal_exempt_local_amount',
+            'fiscal_exonerated_base_amount',
+            'fiscal_exonerated_local_amount',
+            'fiscal_non_taxable_base_amount',
+            'fiscal_non_taxable_local_amount',
+            'fiscal_tax_base_amount',
+            'fiscal_tax_local_amount',
+            'fiscal_total_base_amount',
+            'fiscal_total_local_amount',
+            'fiscal_snapshot_at',
+        ];
+        $values = [];
+
+        foreach ($fields as $field) {
+            if (! array_key_exists($field, $item)) {
+                continue;
+            }
+
+            $values[$field] = $field === 'fiscal_snapshot_at'
+                ? $this->nullableDate($item[$field])
+                : $item[$field];
+        }
+
+        return $values;
+    }
+
+    private function fiscalTaxRateId(Tenant $tenant, mixed $code): ?int
+    {
+        $code = $this->nullableString($code);
+
+        if ($code === null) {
+            return null;
+        }
+
+        $id = DB::table('fiscal_tax_rates')
+            ->where('tenant_id', $tenant->id)
+            ->where('code', mb_strtoupper($code))
+            ->value('id');
+
+        if (! $id) {
+            throw new RuntimeException("La alicuota fiscal {$code} no existe en el tenant destino.");
+        }
+
+        return (int) $id;
     }
 
     private function warrantyPolicyId(Tenant $tenant, array $payload): ?int

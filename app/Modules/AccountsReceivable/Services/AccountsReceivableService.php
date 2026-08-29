@@ -273,16 +273,20 @@ class AccountsReceivableService
             foreach ($return->items as $item) {
                 $saleItem = $item->saleItem;
                 $quantity = (float) $item->quantity;
-                $returnedBase += $this->returnBaseAmount($saleItem, $quantity);
-                $returnedLocal += $this->localReturnAmount($saleItem, $quantity);
+                $returnedBase += $this->returnBaseAmount($item, $saleItem, $quantity);
+                $returnedLocal += $this->localReturnAmount($item, $saleItem, $quantity);
             }
         }
 
         return [round($returnedBase, 4), round($returnedLocal, 4)];
     }
 
-    private function returnBaseAmount($saleItem, float $quantity): float
+    private function returnBaseAmount($returnItem, $saleItem, float $quantity): float
     {
+        if ($returnItem->fiscal_snapshot_at !== null) {
+            return round((float) $returnItem->fiscal_total_base_amount, 4);
+        }
+
         $lineQuantity = (float) $saleItem->quantity;
 
         if ($lineQuantity <= 0.0) {
@@ -294,8 +298,12 @@ class AccountsReceivableService
         return round($perUnitBase * $quantity, 4);
     }
 
-    private function localReturnAmount($saleItem, float $quantity): float
+    private function localReturnAmount($returnItem, $saleItem, float $quantity): float
     {
+        if ($returnItem->fiscal_snapshot_at !== null) {
+            return round((float) $returnItem->fiscal_total_local_amount, 4);
+        }
+
         $lineQuantity = (float) $saleItem->quantity;
 
         if ($lineQuantity <= 0.0) {

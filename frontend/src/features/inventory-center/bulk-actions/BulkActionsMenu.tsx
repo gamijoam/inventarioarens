@@ -1,5 +1,5 @@
 /**
- * BulkActionsMenu: DropdownMenu con 5 acciones masivas sobre los productos
+ * BulkActionsMenu: DropdownMenu con acciones masivas sobre los productos
  * seleccionados. Solo se renderiza si hay al menos 1 producto seleccionado.
  */
 import { useState } from 'react';
@@ -15,11 +15,19 @@ import { Button } from '@/components/ui/Button';
 import { ChevronDown, CheckSquare, X } from 'lucide-react';
 
 import { ActionDialog } from './ActionDialogs';
+import { useBulkOperation } from './useBulkAction';
 import { BULK_ACTIONS, type BulkAction } from '@/features/inventory-center/schemas';
 
 export interface BulkActionsMenuProps {
   selectedIds: number[];
+  allMatching: boolean;
+  allVisibleSelected: boolean;
+  totalMatching: number;
+  visibleCount: number;
+  filters: Record<string, unknown>;
   onClearSelection: () => void;
+  onSelectAllMatching: () => void;
+  onUseVisibleSelection: () => void;
   onSuccess?: () => void;
 }
 
@@ -28,19 +36,33 @@ const ACTION_LABELS: Record<BulkAction, string> = {
   deactivate: 'Desactivar',
   assign_warranty_policy: 'Asignar garantia...',
   assign_exchange_rate_type: 'Asignar tipo de tasa...',
+  assign_fiscal_tax_rate: 'Asignar tratamiento fiscal...',
   fill_missing_price_list: 'Rellenar lista de precio...',
   update_price_list: 'Actualizar lista de precio...',
 };
 
-export function BulkActionsMenu({ selectedIds, onClearSelection, onSuccess }: BulkActionsMenuProps) {
+export function BulkActionsMenu({
+  selectedIds,
+  allMatching,
+  allVisibleSelected,
+  totalMatching,
+  visibleCount,
+  filters,
+  onClearSelection,
+  onSelectAllMatching,
+  onUseVisibleSelection,
+  onSuccess,
+}: BulkActionsMenuProps) {
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [operationId, setOperationId] = useState<number | null>(null);
+  const { data: operation } = useBulkOperation(operationId);
 
   if (selectedIds.length === 0) return null;
 
   return (
     <>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2 text-sm">
-        <CheckSquare className="size-4 text-primary" aria-hidden="true" />
+      <div className="border-border bg-bg flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+        <CheckSquare className="text-primary size-4" aria-hidden="true" />
         <span className="font-medium">
           {selectedIds.length} seleccionado{selectedIds.length === 1 ? '' : 's'}
         </span>
@@ -83,12 +105,50 @@ export function BulkActionsMenu({ selectedIds, onClearSelection, onSuccess }: Bu
             if (!open) setActiveAction(null);
           }}
           action={activeAction as BulkAction}
-          productIds={selectedIds}
-          onSuccess={() => {
+          productIds={allMatching ? [] : selectedIds}
+          allMatching={allMatching}
+          filters={filters}
+          onSuccess={(result) => {
             setActiveAction(null);
-            onSuccess?.();
+            if (result.status && result.id) {
+              setOperationId(result.id);
+            } else {
+              onSuccess?.();
+            }
           }}
         />
+      )}
+
+      {operation && (
+        <div className="border-border bg-surface mt-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+          <span>
+            {operation.status === 'completed'
+              ? `Clasificación fiscal terminada: ${operation.updated_count ?? 0} actualizados, ${operation.skipped_count ?? 0} conservados.`
+              : operation.status === 'failed'
+                ? 'La clasificación fiscal masiva no pudo completarse.'
+                : `Clasificando productos: ${operation.progress_percent ?? 0}% (${operation.processed_count ?? 0} de ${operation.requested_count ?? 0}).`}
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => setOperationId(null)}>
+            Ocultar
+          </Button>
+        </div>
+      )}
+
+      {allVisibleSelected && totalMatching > visibleCount && (
+        <div className="border-primary/30 bg-primary/5 mt-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+          <span>
+            {allMatching
+              ? `Se seleccionaron los ${totalMatching.toLocaleString('es-VE')} productos filtrados.`
+              : `Se seleccionaron los ${visibleCount} productos de esta página.`}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={allMatching ? onUseVisibleSelection : onSelectAllMatching}
+          >
+            {allMatching ? 'Usar solo esta página' : `Seleccionar los ${totalMatching} resultados`}
+          </Button>
+        </div>
       )}
     </>
   );

@@ -124,6 +124,9 @@ Route::middleware(['api.auth', 'tenant'])
 Route::middleware('api.auth')
     ->group(base_path('app/Modules/Tenancy/routes.php'));
 
+Route::middleware(['api.auth', 'tenant'])
+    ->group(base_path('app/Modules/Fiscal/routes.php'));
+
 Route::middleware(['api.auth', 'tenant', 'capability:warranties'])
     ->group(base_path('app/Modules/Warranties/routes.php'));
 

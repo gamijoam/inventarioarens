@@ -3727,6 +3727,18 @@ Filtros:
 - `date_from`
 - `date_to`
 
+### Reporte interno de IVA
+
+```txt
+GET /api/reports/fiscal/iva
+```
+
+Permiso requerido: `reports.view`, `reports.sales.view` o `finance_reports.view`.
+
+El reporte agrupa ventas confirmadas del tenant actual utilizando los snapshots fiscales de sus
+líneas. Acepta `date`, `date_from`, `date_to`, `branch_id`, `customer_id` y `product_id`. Es un
+reporte interno de control; no es una factura fiscal ni genera número de control o autorización.
+
 ## Kardex
 
 Archivo de rutas:

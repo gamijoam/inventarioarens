@@ -8,6 +8,7 @@ import {
   FinanceSummarySchema,
   CashSessionsSchema,
   DailyOperationsSchema,
+  FiscalVatReportSchema,
   MovementReportRowSchema,
   PaymentMethodsReportSchema,
   ReportCatalogItemSchema,
@@ -15,6 +16,7 @@ import {
   StockReportRowSchema,
   type CashSessions,
   type DailyOperations,
+  type FiscalVatReport,
   type FinancePayableRow,
   type FinanceReceivableRow,
   type FinanceSummary,
@@ -80,6 +82,10 @@ export function buildCashSessionsQuery(filters: ReportFilters = {}): string {
 
 export function buildPaymentMethodsReportQuery(filters: ReportFilters = {}): string {
   return `/reports/payment-methods${toQueryString(filters)}`;
+}
+
+export function buildFiscalVatReportQuery(filters: ReportFilters = {}): string {
+  return `/reports/fiscal/iva${toQueryString(filters)}`;
 }
 
 export function buildFinanceSummaryQuery(filters: ReportFilters = {}): string {
@@ -172,6 +178,15 @@ export function usePaymentMethodsReport(filters: ReportFilters, enabled: boolean
   });
 }
 
+export function useFiscalVatReport(filters: ReportFilters, enabled: boolean) {
+  return useQuery({
+    queryKey: reportKeys.fiscalVat(filters),
+    queryFn: async () =>
+      FiscalVatReportSchema.parse(await getOne<unknown>(buildFiscalVatReportQuery(filters))),
+    enabled,
+  });
+}
+
 export function useFinanceSummary(filters: ReportFilters, enabled: boolean) {
   return useQuery({
     queryKey: reportKeys.financeSummary(filters),
@@ -226,6 +241,7 @@ function csvCell(value: unknown): string {
 export type {
   CashSessions,
   DailyOperations,
+  FiscalVatReport,
   FinancePayableRow,
   FinanceReceivableRow,
   FinanceSummary,

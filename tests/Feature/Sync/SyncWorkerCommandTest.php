@@ -251,6 +251,7 @@ class SyncWorkerCommandTest extends TestCase
                     'aggregate_id' => 88,
                     'payload' => [
                         'name' => 'Cliente Web Nube',
+                        'fiscal_name' => 'Cliente Fiscal Web Nube',
                         'document_type' => 'V',
                         'document_number' => '88442211',
                         'phone' => '04148844221',
@@ -284,6 +285,7 @@ class SyncWorkerCommandTest extends TestCase
             'document_type' => 'V',
             'document_number' => '88442211',
             'name' => 'Cliente Web Nube',
+            'fiscal_name' => 'Cliente Fiscal Web Nube',
             'email' => 'cliente.web@example.com',
             'is_active' => true,
         ]);

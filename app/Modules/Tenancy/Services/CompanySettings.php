@@ -25,6 +25,7 @@ class CompanySettings
         'correo' => null,
         'website' => null,
         'regimen' => null,
+        'tax_condition' => null,
         'show_on' => [
             'sale_ticket' => true,
             'guide' => true,

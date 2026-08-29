@@ -2,10 +2,12 @@
 
 namespace App\Modules\Promotions\Models;
 
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -24,6 +26,8 @@ use Illuminate\Support\Carbon;
     'ends_at',
     'scope',
     'allows_combos',
+    'fiscal_tax_mode',
+    'fiscal_tax_rate_id',
 ])]
 class Promotion extends Model
 {
@@ -55,6 +59,10 @@ class Promotion extends Model
 
     public const SCOPE_LEGACY_PRODUCT_DISCOUNT = 'legacy_product_discount';
 
+    public const FISCAL_TAX_MODE_INHERIT = 'inherit_product_tax';
+
+    public const FISCAL_TAX_MODE_OVERRIDE = 'override';
+
     /**
      * Descuentos que se aplican sobre el total del ticket. Los items son
      * opcionales para conservar la posibilidad de restringir promociones
@@ -77,6 +85,11 @@ class Promotion extends Model
         return $this->hasMany(PromotionItem::class);
     }
 
+    public function fiscalTaxRate(): BelongsTo
+    {
+        return $this->belongsTo(FiscalTaxRate::class);
+    }
+
     protected function casts(): array
     {
         return [
@@ -88,6 +101,7 @@ class Promotion extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
             'allows_combos' => 'boolean',
+            'fiscal_tax_rate_id' => 'integer',
         ];
     }
 

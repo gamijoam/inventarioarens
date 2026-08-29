@@ -59,6 +59,7 @@ class TenantSettingController extends Controller
             'settings.company.correo' => ['nullable', 'email', 'max:150'],
             'settings.company.website' => ['nullable', 'string', 'max:150'],
             'settings.company.regimen' => ['nullable', 'string', 'max:80'],
+            'settings.company.tax_condition' => ['nullable', 'string', 'max:30'],
             'settings.company.show_on' => ['sometimes', 'array'],
             'settings.company.show_on.sale_ticket' => ['sometimes', 'boolean'],
             'settings.company.show_on.guide' => ['sometimes', 'boolean'],

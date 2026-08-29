@@ -17,6 +17,7 @@ const data = {
   correo: 'info@comercialarens.com',
   website: 'https://comercialarens.com',
   regimen: 'Contribuyente formal',
+  tax_condition: 'ordinary',
   show_on: { sale_ticket: true, guide: false, report_z: true },
 };
 
@@ -41,15 +42,16 @@ describe('CompanySettingsPanel', () => {
     render(<CompanySettingsPanel />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Razón social / nombre fiscal')).toHaveValue('Comercial Arens, C.A.');
+      expect(screen.getByLabelText('Razón social / nombre fiscal')).toHaveValue(
+        'Comercial Arens, C.A.',
+      );
       expect(screen.getByLabelText('RIF')).toHaveValue('J-12345678-9');
       expect(screen.getByLabelText('Teléfono')).toHaveValue('+58 212 555 0101');
+      expect(screen.getByLabelText('Condición frente al IVA')).toHaveValue('ordinary');
     });
 
-    const guideToggle = screen.getByTestId('company-show-guide') as HTMLInputElement;
-    expect(guideToggle.checked).toBe(false);
-    const ticketToggle = screen.getByTestId('company-show-sale_ticket') as HTMLInputElement;
-    expect(ticketToggle.checked).toBe(true);
+    expect(screen.getByTestId('company-show-guide')).not.toBeChecked();
+    expect(screen.getByTestId('company-show-sale_ticket')).toBeChecked();
   });
 
   it('guarda el payload con los datos y los toggles de visibilidad', async () => {
@@ -74,11 +76,13 @@ describe('CompanySettingsPanel', () => {
       rif: string;
       razon_social: string;
       show_on: { sale_ticket: boolean; guide: boolean; report_z: boolean };
+      tax_condition: string;
     };
     expect(payload.rif).toBe('J-99999999-9');
     expect(payload.razon_social).toBe('Comercial Arens, C.A.');
     expect(payload.show_on.sale_ticket).toBe(true);
     expect(payload.show_on.guide).toBe(true);
     expect(payload.show_on.report_z).toBe(true);
+    expect(payload.tax_condition).toBe('ordinary');
   });
 });

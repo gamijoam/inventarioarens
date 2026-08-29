@@ -23,6 +23,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'customer_name',
     'total_base_amount',
     'total_local_amount',
+    'fiscal_taxable_base_amount',
+    'fiscal_taxable_local_amount',
+    'fiscal_exempt_base_amount',
+    'fiscal_exempt_local_amount',
+    'fiscal_exonerated_base_amount',
+    'fiscal_exonerated_local_amount',
+    'fiscal_non_taxable_base_amount',
+    'fiscal_non_taxable_local_amount',
+    'fiscal_tax_base_amount',
+    'fiscal_tax_local_amount',
+    'fiscal_snapshot_at',
     'paid_base_amount',
     'paid_local_amount',
     'opened_at',
@@ -40,6 +51,7 @@ class PosOrder extends Model
     public const STATUS_CANCELLED = 'cancelled';
 
     public const RESERVATION_TTL_MINUTES = 30;
+
     public const STATUS_VOIDED = 'voided';
 
     protected function casts(): array
@@ -51,6 +63,17 @@ class PosOrder extends Model
             'reserved_until' => 'datetime',
             'total_base_amount' => 'decimal:4',
             'total_local_amount' => 'decimal:4',
+            'fiscal_taxable_base_amount' => 'decimal:4',
+            'fiscal_taxable_local_amount' => 'decimal:4',
+            'fiscal_exempt_base_amount' => 'decimal:4',
+            'fiscal_exempt_local_amount' => 'decimal:4',
+            'fiscal_exonerated_base_amount' => 'decimal:4',
+            'fiscal_exonerated_local_amount' => 'decimal:4',
+            'fiscal_non_taxable_base_amount' => 'decimal:4',
+            'fiscal_non_taxable_local_amount' => 'decimal:4',
+            'fiscal_tax_base_amount' => 'decimal:4',
+            'fiscal_tax_local_amount' => 'decimal:4',
+            'fiscal_snapshot_at' => 'datetime',
             'paid_base_amount' => 'decimal:4',
             'paid_local_amount' => 'decimal:4',
         ];

@@ -4,6 +4,7 @@ namespace Tests\Feature\Promotions;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Products\Models\Product;
 use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sync\Models\SyncOutbox;
@@ -74,6 +75,7 @@ class PromotionApiTest extends TestCase
         $this->assertSame('fixed_bundle_price', $response->json('data.benefit_type'));
         $this->assertSame(50.0, (float) $response->json('data.price_usd'));
         $this->assertSame('USD', $response->json('data.price_currency'));
+        $this->assertSame(Promotion::FISCAL_TAX_MODE_INHERIT, $response->json('data.fiscal_tax_mode'));
         $this->assertCount(2, $response->json('data.items'));
 
         $this->assertDatabaseHas('promotions', [
@@ -191,6 +193,38 @@ class PromotionApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['items']);
+    }
+
+    public function test_combo_override_requires_a_tax_rate_from_the_same_tenant(): void
+    {
+        [$tenant, $admin] = $this->tenantAndUser(['promotions.create']);
+        [, $phone, $charger] = $this->bundleProducts($tenant);
+        [$otherTenant] = $this->tenantAndUser([], 'other-tax-tenant');
+        $this->useTenant($otherTenant);
+        $otherRate = FiscalTaxRate::create([
+            'code' => 'OTHER-EXEMPT',
+            'name' => 'Exento otra empresa',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXEMPT,
+            'is_active' => true,
+        ]);
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/combos', [
+                'name' => 'Combo con alicuota ajena',
+                'benefit_type' => Promotion::BENEFIT_FIXED_BUNDLE_PRICE,
+                'price_usd' => 50,
+                'fiscal_tax_mode' => Promotion::FISCAL_TAX_MODE_OVERRIDE,
+                'fiscal_tax_rate_id' => $otherRate->id,
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 1],
+                    ['product_id' => $charger->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['fiscal_tax_rate_id']);
     }
 
     public function test_administrator_can_restrict_a_promotion_to_ves_payments(): void

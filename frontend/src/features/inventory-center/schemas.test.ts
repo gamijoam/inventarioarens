@@ -8,10 +8,32 @@ import {
   StoreExchangeRateTypeSchema,
   StoreExchangeRateSchema,
   StoreBranchSchema,
+  BranchSchema,
   StoreWarehouseSchema,
   StoreWarrantyPolicySchema,
   StorePriceListSchema,
 } from './schemas';
+
+describe('BranchSchema', () => {
+  it('preserva la identidad fiscal nullable de la sucursal', () => {
+    const result = BranchSchema.parse({
+      id: 1,
+      tenant_id: 2,
+      name: 'Sucursal Centro',
+      code: 'CENTRO',
+      status: 'active',
+      fiscal_address: null,
+      fiscal_city: 'Caracas',
+      fiscal_state: null,
+      fiscal_phone: null,
+      fiscal_email: null,
+      tax_condition: null,
+    });
+
+    expect(result.fiscal_city).toBe('Caracas');
+    expect(result.tax_condition).toBeNull();
+  });
+});
 
 describe('StoreProductSchema', () => {
   const valid = {
@@ -36,6 +58,15 @@ describe('StoreProductSchema', () => {
     const result = StoreProductSchema.parse(valid);
     expect(result.name).toBe('iPhone 15');
     expect(result.sku).toBe('IPH15-128');
+  });
+
+  it('permite seleccionar o limpiar la alicuota fiscal', () => {
+    expect(StoreProductSchema.parse({ ...valid, fiscal_tax_rate_id: 3 }).fiscal_tax_rate_id).toBe(
+      3,
+    );
+    expect(
+      StoreProductSchema.parse({ ...valid, fiscal_tax_rate_id: null }).fiscal_tax_rate_id,
+    ).toBeNull();
   });
 
   it('rechaza nombre vacio', () => {
@@ -63,7 +94,9 @@ describe('StoreProductSchema', () => {
 
   it('acepta image_url vacia o http(s) válida', () => {
     expect(StoreProductSchema.safeParse({ ...valid, image_url: '' }).success).toBe(true);
-    expect(StoreProductSchema.safeParse({ ...valid, image_url: 'https://example.com/x.jpg' }).success).toBe(true);
+    expect(
+      StoreProductSchema.safeParse({ ...valid, image_url: 'https://example.com/x.jpg' }).success,
+    ).toBe(true);
     expect(StoreProductSchema.safeParse({ ...valid, image_url: 'not-a-url' }).success).toBe(false);
   });
 });
@@ -93,6 +126,11 @@ describe('UpdateProductSchema', () => {
     expect(result.success).toBe(true);
     expect(result.data?.base_price).toBe(123.5);
   });
+
+  it('permite quitar la alicuota fiscal de un producto', () => {
+    const result = UpdateProductSchema.parse({ fiscal_tax_rate_id: null });
+    expect(result.fiscal_tax_rate_id).toBeNull();
+  });
 });
 
 describe('BulkActionSchema', () => {
@@ -118,6 +156,25 @@ describe('BulkActionSchema', () => {
       product_ids: [1],
       action: 'fill_missing_price_list',
       payload: { price_list_id: 5, strategy: 'base_price' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('permite clasificar masivamente con cualquiera de los tratamientos fiscales', () => {
+    const result = BulkActionSchema.safeParse({
+      product_ids: [1, 2],
+      action: 'assign_fiscal_tax_rate',
+      payload: { fiscal_tax_rate_id: 8, overwrite_existing: false },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('permite seleccionar todos los resultados filtrados para una accion fiscal', () => {
+    const result = BulkActionSchema.safeParse({
+      all_matching: true,
+      filters: { active_status: 'active', search: 'cable' },
+      action: 'assign_fiscal_tax_rate',
+      payload: { fiscal_tax_rate_id: 8 },
     });
     expect(result.success).toBe(true);
   });
@@ -179,6 +236,15 @@ describe('ProductSchema (response del backend)', () => {
     average_cost_visible: true,
     warranty_policy_id: null,
     warranty_policy: null,
+    fiscal_tax_rate_id: 2,
+    fiscal_tax_rate: {
+      id: 2,
+      code: 'IVA16',
+      name: 'IVA general',
+      rate: 16,
+      category: 'taxable',
+      is_active: true,
+    },
     can_change_tracking_type: true,
     units_count: 0,
     is_active: true,
@@ -190,6 +256,7 @@ describe('ProductSchema (response del backend)', () => {
     const result = ProductSchema.parse(backendSample);
     expect(result.id).toBe(5);
     expect(result.base_price).toBe(5000);
+    expect(result.fiscal_tax_rate?.code).toBe('IVA16');
   });
 
   it('acepta stock levels con decimales (no solo enteros)', () => {
@@ -290,15 +357,25 @@ describe('StoreExchangeRateSchema', () => {
 
   it('rechaza rate <= 0', () => {
     expect(() =>
-      StoreExchangeRateSchema.parse({ exchange_rate_type_id: 1, rate: 0, effective_at: '2026-07-14' }),
+      StoreExchangeRateSchema.parse({
+        exchange_rate_type_id: 1,
+        rate: 0,
+        effective_at: '2026-07-14',
+      }),
     ).toThrow();
     expect(() =>
-      StoreExchangeRateSchema.parse({ exchange_rate_type_id: 1, rate: -1, effective_at: '2026-07-14' }),
+      StoreExchangeRateSchema.parse({
+        exchange_rate_type_id: 1,
+        rate: -1,
+        effective_at: '2026-07-14',
+      }),
     ).toThrow();
   });
 
   it('rechaza sin exchange_rate_type_id', () => {
-    expect(() => StoreExchangeRateSchema.parse({ rate: 36.5, effective_at: '2026-07-14' })).toThrow();
+    expect(() =>
+      StoreExchangeRateSchema.parse({ rate: 36.5, effective_at: '2026-07-14' }),
+    ).toThrow();
   });
 
   it('respeta currencies custom', () => {
@@ -320,7 +397,11 @@ describe('StoreExchangeRateSchema', () => {
 
 describe('StoreBranchSchema', () => {
   it('normaliza code a uppercase + trim', () => {
-    const result = StoreBranchSchema.parse({ name: '  Centro  ', code: '  centro  ', status: 'active' });
+    const result = StoreBranchSchema.parse({
+      name: '  Centro  ',
+      code: '  centro  ',
+      status: 'active',
+    });
     expect(result.name).toBe('Centro');
     expect(result.code).toBe('CENTRO');
     expect(result.status).toBe('active');
@@ -338,12 +419,18 @@ describe('StoreBranchSchema', () => {
 
 describe('StoreWarehouseSchema', () => {
   it('requiere branch_id positivo', () => {
-    expect(() => StoreWarehouseSchema.parse({ name: 'Almacen', code: 'MAIN', branch_id: 0 })).toThrow();
+    expect(() =>
+      StoreWarehouseSchema.parse({ name: 'Almacen', code: 'MAIN', branch_id: 0 }),
+    ).toThrow();
     expect(() => StoreWarehouseSchema.parse({ name: 'Almacen', code: 'MAIN' })).toThrow();
   });
 
   it('normaliza code a uppercase + trim', () => {
-    const result = StoreWarehouseSchema.parse({ branch_id: 1, name: '  Principal  ', code: '  main  ' });
+    const result = StoreWarehouseSchema.parse({
+      branch_id: 1,
+      name: '  Principal  ',
+      code: '  main  ',
+    });
     expect(result.name).toBe('Principal');
     expect(result.code).toBe('MAIN');
     expect(result.status).toBe('active');
@@ -353,7 +440,12 @@ describe('StoreWarehouseSchema', () => {
     const result = StoreWarehouseSchema.parse({ branch_id: 1, name: 'Almacen', code: 'MAIN' });
     expect(result.is_default).toBe(false);
 
-    const withDefault = StoreWarehouseSchema.parse({ branch_id: 1, name: 'Almacen', code: 'MAIN', is_default: true });
+    const withDefault = StoreWarehouseSchema.parse({
+      branch_id: 1,
+      name: 'Almacen',
+      code: 'MAIN',
+      is_default: true,
+    });
     expect(withDefault.is_default).toBe(true);
   });
 });
@@ -427,7 +519,11 @@ describe('StorePriceListSchema', () => {
   });
 
   it('acepta incremento automatico sobre el precio base', () => {
-    const result = StorePriceListSchema.parse({ name: 'Mayor', code: 'MAYOR', markup_percentage: 45 });
+    const result = StorePriceListSchema.parse({
+      name: 'Mayor',
+      code: 'MAYOR',
+      markup_percentage: 45,
+    });
     expect(result.markup_percentage).toBe(45);
   });
 

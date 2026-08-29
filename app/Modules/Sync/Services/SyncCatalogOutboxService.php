@@ -9,6 +9,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\Customers\Models\Customer;
+use App\Modules\Fiscal\Models\FiscalTaxRate;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
@@ -178,6 +179,16 @@ class SyncCatalogOutboxService
         $this->recordWarrantyPolicy('warranty_policy.updated', $policy);
     }
 
+    public function fiscalTaxRateCreated(FiscalTaxRate $taxRate): void
+    {
+        $this->recordFiscalTaxRate('fiscal_tax_rate.created', $taxRate);
+    }
+
+    public function fiscalTaxRateUpdated(FiscalTaxRate $taxRate): void
+    {
+        $this->recordFiscalTaxRate('fiscal_tax_rate.updated', $taxRate);
+    }
+
     public function promotionCreated(Promotion $promotion): void
     {
         $this->recordPromotion('promotion.created', $promotion);
@@ -293,6 +304,17 @@ class SyncCatalogOutboxService
                 'customer_document_number' => $sale->customer?->document_number,
                 'total_base_amount' => (string) $sale->total_base_amount,
                 'total_local_amount' => (string) $sale->total_local_amount,
+                'fiscal_taxable_base_amount' => (string) $sale->fiscal_taxable_base_amount,
+                'fiscal_taxable_local_amount' => (string) $sale->fiscal_taxable_local_amount,
+                'fiscal_exempt_base_amount' => (string) $sale->fiscal_exempt_base_amount,
+                'fiscal_exempt_local_amount' => (string) $sale->fiscal_exempt_local_amount,
+                'fiscal_exonerated_base_amount' => (string) $sale->fiscal_exonerated_base_amount,
+                'fiscal_exonerated_local_amount' => (string) $sale->fiscal_exonerated_local_amount,
+                'fiscal_non_taxable_base_amount' => (string) $sale->fiscal_non_taxable_base_amount,
+                'fiscal_non_taxable_local_amount' => (string) $sale->fiscal_non_taxable_local_amount,
+                'fiscal_tax_base_amount' => (string) $sale->fiscal_tax_base_amount,
+                'fiscal_tax_local_amount' => (string) $sale->fiscal_tax_local_amount,
+                'fiscal_snapshot_at' => $sale->fiscal_snapshot_at?->toISOString(),
                 'confirmed_at' => $sale->confirmed_at?->toISOString(),
                 'cancelled_at' => $sale->cancelled_at?->toISOString(),
                 'items' => $sale->items->map(fn ($item): array => [
@@ -306,6 +328,27 @@ class SyncCatalogOutboxService
                     'unit_price' => (string) $item->unit_price,
                     'base_unit_price' => (string) $item->base_unit_price,
                     'base_total_amount' => (string) $item->base_total_amount,
+                    'local_total_amount' => (string) $item->local_total_amount,
+                    'fiscal_tax_code' => $item->fiscal_tax_code,
+                    'fiscal_tax_source' => $item->fiscal_tax_source,
+                    'fiscal_tax_override_code' => $item->fiscal_tax_override_code,
+                    'fiscal_tax_name' => $item->fiscal_tax_name,
+                    'fiscal_tax_category' => $item->fiscal_tax_category,
+                    'fiscal_tax_rate' => $item->fiscal_tax_rate === null ? null : (string) $item->fiscal_tax_rate,
+                    'fiscal_prices_include_tax' => (bool) $item->fiscal_prices_include_tax,
+                    'fiscal_taxable_base_amount' => (string) $item->fiscal_taxable_base_amount,
+                    'fiscal_taxable_local_amount' => (string) $item->fiscal_taxable_local_amount,
+                    'fiscal_exempt_base_amount' => (string) $item->fiscal_exempt_base_amount,
+                    'fiscal_exempt_local_amount' => (string) $item->fiscal_exempt_local_amount,
+                    'fiscal_exonerated_base_amount' => (string) $item->fiscal_exonerated_base_amount,
+                    'fiscal_exonerated_local_amount' => (string) $item->fiscal_exonerated_local_amount,
+                    'fiscal_non_taxable_base_amount' => (string) $item->fiscal_non_taxable_base_amount,
+                    'fiscal_non_taxable_local_amount' => (string) $item->fiscal_non_taxable_local_amount,
+                    'fiscal_tax_base_amount' => (string) $item->fiscal_tax_base_amount,
+                    'fiscal_tax_local_amount' => (string) $item->fiscal_tax_local_amount,
+                    'fiscal_total_base_amount' => (string) $item->fiscal_total_base_amount,
+                    'fiscal_total_local_amount' => (string) $item->fiscal_total_local_amount,
+                    'fiscal_snapshot_at' => $item->fiscal_snapshot_at?->toISOString(),
                     'total_amount' => (string) $item->total_amount,
                     'sale_currency' => $item->sale_currency,
                     'exchange_rate_type_code' => $item->exchange_rate_type_code,
@@ -435,6 +478,12 @@ class SyncCatalogOutboxService
                 'code' => $branch->code,
                 'name' => $branch->name,
                 'status' => $branch->status,
+                'fiscal_address' => $branch->fiscal_address,
+                'fiscal_city' => $branch->fiscal_city,
+                'fiscal_state' => $branch->fiscal_state,
+                'fiscal_phone' => $branch->fiscal_phone,
+                'fiscal_email' => $branch->fiscal_email,
+                'tax_condition' => $branch->tax_condition,
             ],
             idempotencyKey: $this->eventKey($eventType, 'branch', $branch->id, $branch->updated_at),
         );
@@ -978,7 +1027,7 @@ class SyncCatalogOutboxService
 
     private function recordProduct(string $eventType, Product $product): void
     {
-        $product->loadMissing(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
+        $product->loadMissing(['saleExchangeRateType', 'warrantyPolicy', 'fiscalTaxRate', 'brand', 'categories', 'tags']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -1009,6 +1058,7 @@ class SyncCatalogOutboxService
                 'warranty_policy_coverage_type' => $product->warrantyPolicy?->coverage_type,
                 'warranty_policy_conditions' => $product->warrantyPolicy?->conditions,
                 'warranty_policy_is_active' => $product->warrantyPolicy ? (bool) $product->warrantyPolicy->is_active : null,
+                'fiscal_tax_rate_code' => $product->fiscalTaxRate?->code,
                 'min_stock' => $product->min_stock === null ? null : (string) $product->min_stock,
                 'max_stock' => $product->max_stock === null ? null : (string) $product->max_stock,
                 'reorder_quantity' => $product->reorder_quantity === null ? null : (string) $product->reorder_quantity,
@@ -1122,9 +1172,28 @@ class SyncCatalogOutboxService
         );
     }
 
+    private function recordFiscalTaxRate(string $eventType, FiscalTaxRate $taxRate): void
+    {
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'fiscal_tax_rate',
+            aggregateId: $taxRate->id,
+            payload: [
+                'code' => $taxRate->code,
+                'name' => $taxRate->name,
+                'rate' => (string) $taxRate->rate,
+                'category' => $taxRate->category,
+                'is_active' => (bool) $taxRate->is_active,
+                'created_at' => $taxRate->created_at?->toISOString(),
+                'updated_at' => $taxRate->updated_at?->toISOString(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'fiscal_tax_rate', $taxRate->id, $taxRate->updated_at),
+        );
+    }
+
     private function recordPromotion(string $eventType, Promotion $promotion): void
     {
-        $promotion->loadMissing('items.product');
+        $promotion->loadMissing(['items.product', 'fiscalTaxRate']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -1136,6 +1205,8 @@ class SyncCatalogOutboxService
                 'code' => $promotion->code,
                 'scope' => $promotion->scope,
                 'allows_combos' => (bool) $promotion->allows_combos,
+                'fiscal_tax_mode' => $promotion->fiscal_tax_mode,
+                'fiscal_tax_rate_code' => $promotion->fiscalTaxRate?->code,
                 'benefit_type' => $promotion->benefit_type,
                 'price_currency' => $promotion->price_currency,
                 'payment_currency' => $promotion->payment_currency,
@@ -1186,6 +1257,7 @@ class SyncCatalogOutboxService
             aggregateId: $customer->id,
             payload: [
                 'name' => $customer->name,
+                'fiscal_name' => $customer->fiscal_name,
                 'document_type' => $customer->document_type,
                 'document_number' => $customer->document_number,
                 'phone' => $customer->phone,

@@ -2,6 +2,8 @@
 
 namespace App\Modules\InventoryCenter\Requests;
 
+use App\Modules\InventoryCenter\Models\ProductBulkOperation;
+use App\Modules\Products\Models\Product;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -21,6 +23,8 @@ class InventoryCenterBulkActionRequest extends FormRequest
 
     public const ACTION_UPDATE_PRICE_LIST = 'update_price_list';
 
+    public const ACTION_ASSIGN_FISCAL_TAX_RATE = ProductBulkOperation::ACTION_ASSIGN_FISCAL_TAX_RATE;
+
     public const PRICE_STRATEGY_BASE_PRICE = 'base_price';
 
     public const PRICE_STRATEGY_FIXED_PRICE = 'fixed_price';
@@ -38,7 +42,7 @@ class InventoryCenterBulkActionRequest extends FormRequest
         $tenantIds = [$tenantId];
 
         return [
-            'product_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'product_ids' => ['nullable', 'array', 'min:1', 'max:200'],
             'product_ids.*' => [
                 'integer',
                 'distinct',
@@ -54,8 +58,20 @@ class InventoryCenterBulkActionRequest extends FormRequest
                     self::ACTION_ASSIGN_EXCHANGE_RATE_TYPE,
                     self::ACTION_FILL_MISSING_PRICE_LIST,
                     self::ACTION_UPDATE_PRICE_LIST,
+                    self::ACTION_ASSIGN_FISCAL_TAX_RATE,
                 ]),
             ],
+            'all_matching' => ['sometimes', 'boolean'],
+            'filters' => ['nullable', 'array'],
+            'filters.search' => ['nullable', 'string', 'max:120'],
+            'filters.tracking_type' => ['nullable', Rule::in([
+                Product::TRACKING_QUANTITY,
+                Product::TRACKING_SERIALIZED,
+            ])],
+            'filters.active_status' => ['nullable', Rule::in(['active', 'inactive', 'all'])],
+            'filters.brand_id' => ['nullable', 'integer', Rule::exists('brands', 'id')->whereIn('tenant_id', $tenantIds)],
+            'filters.category_id' => ['nullable', 'integer', Rule::exists('categories', 'id')->whereIn('tenant_id', $tenantIds)],
+            'filters.tag_id' => ['nullable', 'integer', Rule::exists('tags', 'id')->whereIn('tenant_id', $tenantIds)],
             'payload' => ['nullable', 'array'],
             'payload.price_list_id' => [
                 'nullable',
@@ -84,6 +100,14 @@ class InventoryCenterBulkActionRequest extends FormRequest
                 'integer',
                 Rule::exists('exchange_rate_types', 'id')->whereIn('tenant_id', $tenantIds),
             ],
+            'payload.fiscal_tax_rate_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('fiscal_tax_rates', 'id')
+                    ->whereIn('tenant_id', $tenantIds)
+                    ->where('is_active', true),
+            ],
+            'payload.overwrite_existing' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -105,6 +129,25 @@ class InventoryCenterBulkActionRequest extends FormRequest
                     && ! $this->filled('payload.sale_exchange_rate_type_id')
                 ) {
                     $validator->errors()->add('payload.sale_exchange_rate_type_id', 'Selecciona el tipo de tasa a asignar.');
+                }
+
+                if ($this->boolean('all_matching')) {
+                    if ($action !== self::ACTION_ASSIGN_FISCAL_TAX_RATE) {
+                        $validator->errors()->add('all_matching', 'La selección de todos los resultados solo está disponible para clasificación fiscal.');
+                    }
+
+                    if ($this->filled('product_ids')) {
+                        $validator->errors()->add('product_ids', 'No combines productos específicos con todos los resultados filtrados.');
+                    }
+                } elseif (! is_array($this->input('product_ids')) || count($this->input('product_ids')) < 1) {
+                    $validator->errors()->add('product_ids', 'Selecciona al menos un producto.');
+                }
+
+                if (
+                    $action === self::ACTION_ASSIGN_FISCAL_TAX_RATE
+                    && ! $this->filled('payload.fiscal_tax_rate_id')
+                ) {
+                    $validator->errors()->add('payload.fiscal_tax_rate_id', 'Selecciona el tratamiento fiscal a asignar.');
                 }
 
                 if (! in_array($action, [self::ACTION_FILL_MISSING_PRICE_LIST, self::ACTION_UPDATE_PRICE_LIST], true)) {
@@ -146,6 +189,10 @@ class InventoryCenterBulkActionRequest extends FormRequest
             'product_ids.*.distinct' => 'La selección contiene productos repetidos.',
             'action.required' => 'Selecciona una acción masiva.',
             'action.in' => 'La acción masiva seleccionada no es válida.',
+            'payload.fiscal_tax_rate_id.exists' => 'El tratamiento fiscal seleccionado no pertenece a la empresa actual.',
+            'filters.brand_id.exists' => 'La marca seleccionada no pertenece a la empresa actual.',
+            'filters.category_id.exists' => 'La categoría seleccionada no pertenece a la empresa actual.',
+            'filters.tag_id.exists' => 'La etiqueta seleccionada no pertenece a la empresa actual.',
             'payload.warranty_policy_id.exists' => 'La política de garantía seleccionada no pertenece a la empresa actual.',
             'payload.price_list_id.exists' => 'La lista de precio seleccionada no pertenece a la empresa actual.',
             'payload.strategy.in' => 'La estrategia de precio seleccionada no es válida.',

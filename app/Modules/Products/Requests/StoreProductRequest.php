@@ -87,6 +87,11 @@ class StoreProductRequest extends FormRequest
                 'integer',
                 Rule::exists('warranty_policies', 'id')->whereIn('tenant_id', $tenantIds),
             ],
+            'fiscal_tax_rate_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('fiscal_tax_rates', 'id')->whereIn('tenant_id', $tenantIds),
+            ],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
@@ -123,6 +128,7 @@ class StoreProductRequest extends FormRequest
             'average_cost.prohibited' => 'El costo promedio se calcula automaticamente, no se puede asignar manualmente.',
             'brand_id.exists' => 'La marca seleccionada no pertenece a la empresa actual.',
             'sale_currency.in' => 'La moneda de venta debe ser USD o VES.',
+            'fiscal_tax_rate_id.exists' => 'La alicuota fiscal seleccionada no pertenece a la empresa actual.',
             'is_active.boolean' => 'El estado activo debe ser verdadero o falso.',
         ];
     }

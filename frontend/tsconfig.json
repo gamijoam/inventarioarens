@@ -29,7 +29,14 @@
 
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "e2e/transfers.ui.spec.ts", "vite.config.ts", "vitest.setup.ts"],
+  "include": [
+    "src",
+    "e2e/transfers.ui.spec.ts",
+    "e2e/fiscal.api.spec.ts",
+    "e2e/fiscal.ui.spec.ts",
+    "vite.config.ts",
+    "vitest.setup.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",

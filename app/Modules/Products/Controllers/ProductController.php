@@ -40,7 +40,7 @@ class ProductController extends Controller
         $normalizedSearch = mb_strtolower($search);
         $limit = min(max((int) $request->query('limit', 25), 1), 100);
 
-        $relations = ['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'];
+        $relations = ['saleExchangeRateType', 'warrantyPolicy', 'fiscalTaxRate', 'brand', 'categories.parent', 'tags'];
         if ($request->boolean('with_images')) {
             $relations[] = 'images.variants';
         }
@@ -162,7 +162,7 @@ class ProductController extends Controller
         $product = DB::transaction(function () use ($data, $categoryIds, $tagIds, $userId, $syncCatalog, $propagation): Product {
             $created = Product::create($data)
                 ->refresh()
-                ->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
+                ->load(['saleExchangeRateType', 'warrantyPolicy', 'fiscalTaxRate', 'brand', 'categories', 'tags']);
 
             if ($categoryIds !== []) {
                 $created->categories()->syncWithPivotValues($categoryIds, ['tenant_id' => $created->tenant_id]);
@@ -182,7 +182,7 @@ class ProductController extends Controller
                 $propagation->propagateReferencedCatalogForMaster($created);
             }
 
-            return $created->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories', 'tags']);
+            return $created->load(['saleExchangeRateType', 'warrantyPolicy', 'fiscalTaxRate', 'brand', 'categories', 'tags']);
         });
 
         return ProductResource::make($product)
@@ -197,6 +197,7 @@ class ProductController extends Controller
         $product->load([
             'saleExchangeRateType',
             'warrantyPolicy',
+            'fiscalTaxRate',
             'brand',
             'categories.parent',
             'tags',
@@ -430,7 +431,7 @@ class ProductController extends Controller
             }
 
             return $product->refresh()
-                ->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'])
+                ->load(['saleExchangeRateType', 'warrantyPolicy', 'fiscalTaxRate', 'brand', 'categories.parent', 'tags'])
                 ->loadCount('units');
         });
 

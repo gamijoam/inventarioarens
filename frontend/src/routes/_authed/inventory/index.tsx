@@ -114,6 +114,7 @@ function InventoryListPage() {
   const [searchInput, setSearchInput] = useState(search.search);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [allMatching, setAllMatching] = useState(false);
 
   const filters = useMemo(
     () => ({
@@ -150,6 +151,7 @@ function InventoryListPage() {
   const columns = useColumns(
     selectedIds,
     setSelectedIds,
+    setAllMatching,
     data?.data ?? [],
     search,
     activeRate?.rate ?? null,
@@ -195,8 +197,28 @@ function InventoryListPage() {
 
       <BulkActionsMenu
         selectedIds={Array.from(selectedIds)}
-        onClearSelection={() => setSelectedIds(new Set())}
-        onSuccess={() => setSelectedIds(new Set())}
+        allMatching={allMatching}
+        allVisibleSelected={
+          (data?.data.length ?? 0) > 0 &&
+          data?.data.every((product) => selectedIds.has(product.id)) === true
+        }
+        totalMatching={data?.meta.total ?? 0}
+        visibleCount={data?.data.length ?? 0}
+        filters={{
+          search: search.search || undefined,
+          tracking_type: search.tracking === 'all' ? undefined : search.tracking,
+          active_status: search.status,
+        }}
+        onClearSelection={() => {
+          setSelectedIds(new Set());
+          setAllMatching(false);
+        }}
+        onSelectAllMatching={() => setAllMatching(true)}
+        onUseVisibleSelection={() => setAllMatching(false)}
+        onSuccess={() => {
+          setSelectedIds(new Set());
+          setAllMatching(false);
+        }}
       />
 
       {/* Filtros */}
@@ -372,6 +394,7 @@ const selectClass = cn(
 function useColumns(
   selectedIds: Set<number>,
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<number>>>,
+  setAllMatching: React.Dispatch<React.SetStateAction<boolean>>,
   data: Product[],
   search: InventorySearch,
   activeRate: number | null,
@@ -392,6 +415,7 @@ function useColumns(
               } else {
                 setSelectedIds(new Set());
               }
+              setAllMatching(false);
             }}
             aria-label="Seleccionar todo"
           />
@@ -406,6 +430,7 @@ function useColumns(
                 else next.delete(info.row.original.id);
                 return next;
               });
+              setAllMatching(false);
             }}
             aria-label={`Seleccionar ${info.row.original.name}`}
             data-testid={`select-${info.row.original.id}`}
@@ -420,13 +445,13 @@ function useColumns(
           const src = row.primary_image_url ?? row.images?.[0]?.thumb_url ?? row.image_url;
           if (!src) {
             return (
-              <div className="flex size-10 items-center justify-center rounded border border-border bg-bg text-[10px] text-text-muted">
+              <div className="border-border bg-bg text-text-muted flex size-10 items-center justify-center rounded border text-[10px]">
                 —
               </div>
             );
           }
           return (
-            <div className="size-10 overflow-hidden rounded border border-border bg-bg">
+            <div className="border-border bg-bg size-10 overflow-hidden rounded border">
               <img
                 src={src}
                 alt={row.name}
@@ -567,7 +592,16 @@ function useColumns(
     // selectedIds y setSelectedIds se incluyen como deps intencionalmente:
     // cambian cuando el user selecciona/deselecciona filas y la tabla
     // debe re-renderizar los checkboxes de cada fila.
-    [columnHelper, selectedIds, setSelectedIds, data, search.warehouse_id, activeRate, priceLists],
+    [
+      columnHelper,
+      selectedIds,
+      setSelectedIds,
+      setAllMatching,
+      data,
+      search.warehouse_id,
+      activeRate,
+      priceLists,
+    ],
   );
 }
 
@@ -631,10 +665,7 @@ function PriceListCell({
 
   // Precio efectivo de una lista respetando la cadena de lista base
   // (ej. CASHEA = DETAL + 16%), con guard de ciclos.
-  const effectivePrice = (
-    list: PriceList,
-    seen = new Set<number>(),
-  ): number | null => {
+  const effectivePrice = (list: PriceList, seen = new Set<number>()): number | null => {
     if (seen.has(list.id)) return product.base_price != null ? Number(product.base_price) : null;
     seen.add(list.id);
 

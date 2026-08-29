@@ -9,7 +9,7 @@
  *  2. Imagenes (galeria, SOLO si productId esta definido - modo edit)
  *  3. Catalogos (brand, categories, tags) — con inline create.
  *  4. Control de stock (tracking_type, unit_of_measure, track_stock, min/max/reorder)
-  *  5. Precios (costo, recargo, precio de venta, sale_currency)
+ *  5. Precios (costo, recargo, precio de venta, sale_currency)
  *  6. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
  */
 import { type UseFormReturn } from 'react-hook-form';
@@ -39,6 +39,7 @@ import {
   useBrands,
   useCategoriesTree,
   useExchangeRateTypes,
+  useFiscalTaxRates,
   useProductImages,
   useWarrantyPolicies,
 } from '@/features/inventory-center/lookups';
@@ -46,6 +47,7 @@ import { InlineCatalogCreate } from './InlineCatalogCreate';
 import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
 import { InlineWarrantyPolicyCreate } from './InlineWarrantyPolicyCreate';
 import { ImageGallery } from './ImageGallery';
+import { FISCAL_TAX_CATEGORY_LABELS } from '@/features/fiscal-identity/taxRates';
 
 export interface ProductFormProps {
   // Acepta cualquier UseFormReturn cuyo TFieldValues extienda nuestro schema.
@@ -79,10 +81,12 @@ export function ProductForm({
   const { data: categoryTree = [] } = useCategoriesTree();
   const { data: warrantyPolicies = [] } = useWarrantyPolicies();
   const { data: rateTypes = [] } = useExchangeRateTypes();
+  const { data: fiscalTaxRates = [] } = useFiscalTaxRates();
   // Galeria de imagenes (Sprint de imagenes Nivel 2). Solo se carga si
   // hay productId (modo edit). El useQuery queda deshabilitado en create.
   const { data: galleryImages = [] } = useProductImages(productId ?? null);
   const pricingMode = form.watch('pricing_mode') ?? 'manual';
+  const currentFiscalTaxRateId = form.watch('fiscal_tax_rate_id');
   const cost = Number(form.watch('last_purchase_cost'));
   const margin = Number(form.watch('profit_margin'));
   const calculatedSalePrice =
@@ -113,6 +117,19 @@ export function ProductForm({
     [rateTypes],
   );
 
+  const fiscalTaxRateOptions = useMemo(
+    () => [
+      { value: '', label: '— Sin tratamiento fiscal —' },
+      ...fiscalTaxRates
+        .filter((rate) => rate.is_active || rate.id === currentFiscalTaxRateId)
+        .map((rate) => ({
+          value: String(rate.id),
+          label: `${rate.code} · ${rate.name} (${rate.rate}%) · ${FISCAL_TAX_CATEGORY_LABELS[rate.category]}${rate.is_active ? '' : ' · inactiva'}`,
+        })),
+    ],
+    [fiscalTaxRates, currentFiscalTaxRateId],
+  );
+
   const [categorySearch, setCategorySearch] = useState('');
 
   const filteredCategoryTree = useMemo(
@@ -141,13 +158,23 @@ export function ProductForm({
           <Field name="name" label="Nombre" required error={form.formState.errors.name?.message}>
             <Input {...form.register('name')} placeholder="iPhone 15" />
           </Field>
-          <Field name="sku" label="SKU" hint="Opcional, único por empresa" error={form.formState.errors.sku?.message}>
+          <Field
+            name="sku"
+            label="SKU"
+            hint="Opcional, único por empresa"
+            error={form.formState.errors.sku?.message}
+          >
             <Input {...form.register('sku')} placeholder="IPH15-128" />
           </Field>
           <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
             <Input {...form.register('barcode')} placeholder="0194253714750" />
           </Field>
-          <Field name="image_url" label="URL externa (opcional)" hint="Imagen del fabricante o proveedor. Para tus propias fotos, usa la galeria de abajo." error={form.formState.errors.image_url?.message}>
+          <Field
+            name="image_url"
+            label="URL externa (opcional)"
+            hint="Imagen del fabricante o proveedor. Para tus propias fotos, usa la galeria de abajo."
+            error={form.formState.errors.image_url?.message}
+          >
             <Input {...form.register('image_url')} placeholder="https://..." />
           </Field>
         </div>
@@ -156,12 +183,10 @@ export function ProductForm({
             cuando hay productId (modo edit). En create, el usuario primero
             crea el producto y luego edita para subir fotos. */}
         {productId !== undefined && (
-          <div className="space-y-2 rounded border border-border bg-bg/30 p-3">
+          <div className="border-border bg-bg/30 space-y-2 rounded border p-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase text-text-muted">
-                Galería de imágenes
-              </p>
-              <p className="text-[10px] text-text-muted">
+              <p className="text-text-muted text-xs font-semibold uppercase">Galería de imágenes</p>
+              <p className="text-text-muted text-[10px]">
                 Sube hasta 10 fotos. WebP automatico, 3 variantes por imagen.
               </p>
             </div>
@@ -169,12 +194,24 @@ export function ProductForm({
           </div>
         )}
 
-        <Field name="description" label="Descripción corta" error={form.formState.errors.description?.message}>
+        <Field
+          name="description"
+          label="Descripción corta"
+          error={form.formState.errors.description?.message}
+        >
           <Textarea {...form.register('description')} rows={2} placeholder="Smartphone Apple" />
         </Field>
         {!compact && (
-          <Field name="long_description" label="Descripción larga" hint="Hasta 50000 caracteres (HTML permitido)">
-            <Textarea {...form.register('long_description')} rows={4} placeholder="<p>Flagship 2023</p>" />
+          <Field
+            name="long_description"
+            label="Descripción larga"
+            hint="Hasta 50000 caracteres (HTML permitido)"
+          >
+            <Textarea
+              {...form.register('long_description')}
+              rows={4}
+              placeholder="<p>Flagship 2023</p>"
+            />
           </Field>
         )}
       </fieldset>
@@ -209,12 +246,12 @@ export function ProductForm({
             ))}
           </Select>
           {form.formState.errors.brand_id?.message && (
-            <p className="text-xs text-danger">{form.formState.errors.brand_id.message}</p>
+            <p className="text-danger text-xs">{form.formState.errors.brand_id.message}</p>
           )}
         </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label>Categorías</Label>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label>Categorías</Label>
             <InlineCatalogCreate
               kind="category"
               onCreated={() => {
@@ -231,7 +268,7 @@ export function ProductForm({
               placeholder="Buscar categoría por nombre..."
             />
             {categorySearch.trim() && (
-              <p className="text-xs text-text-muted">
+              <p className="text-text-muted text-xs">
                 Mostrando coincidencias para “{categorySearch.trim()}”.
               </p>
             )}
@@ -245,12 +282,16 @@ export function ProductForm({
                   nodes={filteredCategoryTree.map(toNode)}
                   value={field.value ?? []}
                   onChange={(v) => field.onChange(v)}
-                  emptyMessage={categorySearch.trim() ? 'No hay categorías que coincidan' : 'Sin categorías'}
+                  emptyMessage={
+                    categorySearch.trim() ? 'No hay categorías que coincidan' : 'Sin categorías'
+                  }
                 />
               );
             }}
           />
-          <p className="text-xs text-text-muted">Jerárquicas: selecciona las hojas o ramas que apliquen</p>
+          <p className="text-text-muted text-xs">
+            Jerárquicas: selecciona las hojas o ramas que apliquen
+          </p>
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -275,7 +316,7 @@ export function ProductForm({
               />
             )}
           />
-          <p className="text-xs text-text-muted">Selecciona varios (typeahead arriba)</p>
+          <p className="text-text-muted text-xs">Selecciona varios (typeahead arriba)</p>
         </div>
       </fieldset>
 
@@ -306,14 +347,30 @@ export function ProductForm({
         </div>
         <SwitchField form={form} name="track_stock" label="Trackear stock de este producto" />
         <div className="grid grid-cols-3 gap-3">
-          <Field name="min_stock" label="Stock mínimo" error={form.formState.errors.min_stock?.message}>
+          <Field
+            name="min_stock"
+            label="Stock mínimo"
+            error={form.formState.errors.min_stock?.message}
+          >
             <Input type="number" min="0" {...form.register('min_stock', { valueAsNumber: true })} />
           </Field>
-          <Field name="max_stock" label="Stock máximo" error={form.formState.errors.max_stock?.message}>
+          <Field
+            name="max_stock"
+            label="Stock máximo"
+            error={form.formState.errors.max_stock?.message}
+          >
             <Input type="number" min="0" {...form.register('max_stock', { valueAsNumber: true })} />
           </Field>
-          <Field name="reorder_quantity" label="Cantidad a reordenar" error={form.formState.errors.reorder_quantity?.message}>
-            <Input type="number" min="0" {...form.register('reorder_quantity', { valueAsNumber: true })} />
+          <Field
+            name="reorder_quantity"
+            label="Cantidad a reordenar"
+            error={form.formState.errors.reorder_quantity?.message}
+          >
+            <Input
+              type="number"
+              min="0"
+              {...form.register('reorder_quantity', { valueAsNumber: true })}
+            />
           </Field>
         </div>
       </fieldset>
@@ -342,18 +399,42 @@ export function ProductForm({
               {...form.register('last_purchase_cost', { valueAsNumber: true })}
             />
           </Field>
-          <Field name="profit_margin" label="Recargo sobre costo (%)" error={form.formState.errors.profit_margin?.message}>
-            <Input type="number" min="0" max="999.99" step="0.01" {...form.register('profit_margin', { valueAsNumber: true })} />
+          <Field
+            name="profit_margin"
+            label="Recargo sobre costo (%)"
+            error={form.formState.errors.profit_margin?.message}
+          >
+            <Input
+              type="number"
+              min="0"
+              max="999.99"
+              step="0.01"
+              {...form.register('profit_margin', { valueAsNumber: true })}
+            />
           </Field>
           <Field
             name="base_price"
-            label={pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'}
+            label={
+              pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'
+            }
             error={form.formState.errors.base_price?.message}
           >
             {pricingMode === 'automatic' ? (
-              <Input value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''} readOnly />
+              <Input
+                value={
+                  calculatedSalePrice !== ''
+                    ? calculatedSalePrice
+                    : (form.getValues('base_price')?.toString() ?? '')
+                }
+                readOnly
+              />
             ) : (
-              <Input type="number" min="0" step="0.01" {...form.register('base_price', { valueAsNumber: true })} />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                {...form.register('base_price', { valueAsNumber: true })}
+              />
             )}
           </Field>
           <Field name="sale_currency" label="Moneda de venta">
@@ -372,9 +453,7 @@ export function ProductForm({
           >
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-text-muted">
-                  Asignar a este producto
-                </span>
+                <span className="text-text-muted text-xs">Asignar a este producto</span>
                 <InlineExchangeRateTypeCreate
                   onCreated={(id) =>
                     form.setValue('sale_exchange_rate_type_id', id, { shouldValidate: true })
@@ -382,7 +461,11 @@ export function ProductForm({
                 />
               </div>
               <Select
-                value={form.watch('sale_exchange_rate_type_id') ? String(form.watch('sale_exchange_rate_type_id')) : ''}
+                value={
+                  form.watch('sale_exchange_rate_type_id')
+                    ? String(form.watch('sale_exchange_rate_type_id'))
+                    : ''
+                }
                 onChange={(e) => {
                   const v = e.target.value;
                   form.setValue('sale_exchange_rate_type_id', v === '' ? undefined : Number(v), {
@@ -413,7 +496,9 @@ export function ProductForm({
         >
           <div className="flex items-start gap-2">
             <Select
-              value={form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''}
+              value={
+                form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''
+              }
               onChange={(e) => {
                 const v = e.target.value;
                 form.setValue('warranty_policy_id', v === '' ? undefined : Number(v), {
@@ -429,17 +514,43 @@ export function ProductForm({
               ))}
             </Select>
             <InlineWarrantyPolicyCreate
-              onCreated={(id) =>
-                form.setValue('warranty_policy_id', id, { shouldValidate: true })
-              }
+              onCreated={(id) => form.setValue('warranty_policy_id', id, { shouldValidate: true })}
             />
           </div>
+        </Field>
+        <Field
+          name="fiscal_tax_rate_id"
+          label="Tratamiento fiscal"
+          hint="La alícuota se guarda por producto y se validará dentro de la empresa."
+          error={form.formState.errors.fiscal_tax_rate_id?.message}
+        >
+          <Select
+            id="fiscal_tax_rate_id"
+            value={
+              form.watch('fiscal_tax_rate_id') == null
+                ? ''
+                : String(form.watch('fiscal_tax_rate_id'))
+            }
+            onChange={(e) => {
+              const value = e.target.value;
+              form.setValue('fiscal_tax_rate_id', value === '' ? null : Number(value), {
+                shouldValidate: true,
+                shouldDirty: true,
+              });
+            }}
+          >
+            {fiscalTaxRateOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
         </Field>
         <SwitchField form={form} name="is_active" label="Producto activo (visible en ventas)" />
       </fieldset>
 
       {/* Botones de accion */}
-      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+      <div className="border-border flex items-center justify-end gap-2 border-t pt-4">
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancelar
@@ -472,11 +583,7 @@ function SwitchField({
   const { field } = useController({ name, control: form.control });
   return (
     <div className="flex items-center gap-2">
-      <Switch
-        id={name}
-        checked={Boolean(field.value)}
-        onCheckedChange={field.onChange}
-      />
+      <Switch id={name} checked={Boolean(field.value)} onCheckedChange={field.onChange} />
       <Label htmlFor={name}>{label}</Label>
     </div>
   );
@@ -486,8 +593,16 @@ function SwitchField({
 // Helpers internos
 // ============================================================================
 
-interface TreeLike { id: number; name: string; children?: unknown[] }
-interface TreeNode { id: number; label: string; children?: TreeNode[] }
+interface TreeLike {
+  id: number;
+  name: string;
+  children?: unknown[];
+}
+interface TreeNode {
+  id: number;
+  label: string;
+  children?: TreeNode[];
+}
 
 function filterTreeByName(nodes: TreeLike[], query: string): TreeLike[] {
   const q = query.trim().toLowerCase();
@@ -495,9 +610,10 @@ function filterTreeByName(nodes: TreeLike[], query: string): TreeLike[] {
 
   const visit = (node: TreeLike): TreeLike | null => {
     const matches = node.name.toLowerCase().includes(q);
-    const children = (node.children as TreeLike[] | undefined)
-      ?.map((child) => visit(child))
-      .filter((child): child is TreeLike => child !== null) ?? [];
+    const children =
+      (node.children as TreeLike[] | undefined)
+        ?.map((child) => visit(child))
+        .filter((child): child is TreeLike => child !== null) ?? [];
 
     if (!matches && children.length === 0) return null;
 
@@ -507,9 +623,7 @@ function filterTreeByName(nodes: TreeLike[], query: string): TreeLike[] {
     };
   };
 
-  return nodes
-    .map((node) => visit(node))
-    .filter((node): node is TreeLike => node !== null);
+  return nodes.map((node) => visit(node)).filter((node): node is TreeLike => node !== null);
 }
 
 const toNode = (c: TreeLike): TreeNode => ({
@@ -520,7 +634,7 @@ const toNode = (c: TreeLike): TreeNode => ({
 
 function SectionLegend({ children }: { children: React.ReactNode }) {
   return (
-    <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+    <legend className="text-text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
       {children}
     </legend>
   );
@@ -543,8 +657,8 @@ function Field({ name, label, required, hint, error, children }: FieldProps) {
         {required && <span className="text-danger">*</span>}
       </Label>
       {children}
-      {hint && !error && <p className="text-xs text-text-muted">{hint}</p>}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {hint && !error && <p className="text-text-muted text-xs">{hint}</p>}
+      {error && <p className="text-danger text-xs">{error}</p>}
     </div>
   );
 }

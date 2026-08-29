@@ -22,6 +22,7 @@ export const CustomerSchema = z.object({
   id: z.number().int().positive(),
   tenant_id: z.number().int().positive().optional(),
   name: z.string(),
+  fiscal_name: z.string().nullable().optional(),
   document_type: z.string().nullable().optional(),
   document_number: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
@@ -44,6 +45,11 @@ export const StoreCustomerSchema = z
       .string()
       .min(1, 'El nombre es obligatorio.')
       .max(255),
+    fiscal_name: z
+      .string()
+      .max(255)
+      .optional()
+      .or(z.literal('').transform(() => null)),
     document_type: z.enum(CUSTOMER_DOCUMENT_TYPES, {
       errorMap: () => ({ message: 'Tipo de documento invalido.' }),
     }),
@@ -75,6 +81,7 @@ export const StoreCustomerSchema = z
   })
   .transform((data) => ({
     ...data,
+    fiscal_name: data.fiscal_name ?? data.name,
     is_active: data.is_active ?? true,
     is_generic: data.is_generic ?? false,
   }));
