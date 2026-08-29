@@ -20,7 +20,10 @@ use Spatie\Permission\PermissionRegistrar;
 
 class TenantRegistrationService
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly TenantCapabilityService $capabilities,
+    ) {}
 
     /**
      * Crea una empresa (spinoff) DENTRO de un grupo existente.
@@ -73,6 +76,7 @@ class TenantRegistrationService
                     'parent_id' => $parentGroup->id,
                     'is_group' => false,
                 ]);
+                $this->capabilities->initializeForNewTenant($tenant);
 
                 $tenantManager->set($tenant);
                 setPermissionsTeamId($tenant->id);
@@ -93,6 +97,7 @@ class TenantRegistrationService
                         'name' => $data['warehouse']['name'],
                         'code' => $data['warehouse']['code'],
                         'status' => Warehouse::STATUS_ACTIVE,
+                        'is_default' => true,
                     ]);
                 }
 
@@ -174,6 +179,7 @@ class TenantRegistrationService
                     'parent_id' => null,
                     'is_group' => true,
                 ]);
+                $this->capabilities->initializeForNewTenant($group);
 
                 // 2) Crear la empresa inicial como spinoff del grupo.
                 $tenantManager->set($group);
@@ -216,6 +222,7 @@ class TenantRegistrationService
                     'parent_id' => $group->id,
                     'is_group' => false,
                 ]);
+                $this->capabilities->initializeForNewTenant($tenant);
 
                 // Permisos base.
                 app(PermissionRegistrar::class)->forgetCachedPermissions();

@@ -248,7 +248,9 @@ class PrinterServer
         }
 
         // Fallback de texto (para estaciones que mandan solo ticket en JSON).
-        $text = $this->buildPlainTicket($ticket);
+        $text = ($ticket['doc'] ?? '') === 'report_z'
+            ? $this->buildPlainReportZ($ticket)
+            : $this->buildPlainTicket($ticket);
         $path = $fileBase.'.txt';
         file_put_contents($path, $text);
 
@@ -272,7 +274,9 @@ class PrinterServer
         }
 
         $profile = $ticket['profile'] ?? [];
-        $text = $this->buildPlainTicket($ticket);
+        $text = ($ticket['doc'] ?? '') === 'report_z'
+            ? $this->buildPlainReportZ($ticket)
+            : $this->buildPlainTicket($ticket);
 
         $result = app(ThermalPrinterService::class)->print($text, $printerName, [
             'printer_type' => $printerType,
@@ -448,6 +452,88 @@ class PrinterServer
         }
 
         // Ajustar cada linea al ancho del papel (32 chars en 58mm, 48 en 80mm).
+        $lines = array_map(static function (string $line) use ($max): string {
+            if (mb_strlen($line) <= $max) {
+                return $line;
+            }
+
+            return mb_substr($line, 0, max(1, $max - 3)).'...';
+        }, $lines);
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Renderiza el Reporte Z en texto plano para impresion termica.
+     * El payload llega con `doc = 'report_z'` y los datos del Z.
+     */
+    public function buildPlainReportZ(array $ticket): string
+    {
+        $profile = $ticket['profile'] ?? [];
+        $width = (int) ($profile['paper_width_mm'] ?? 58);
+        $max = $width === 58 ? 32 : 48;
+        $money = static fn (float $value): string => '$'.number_format($value, 2, '.', '');
+        $bs = static fn (float $value): string => 'Bs '.number_format($value, 2, ',', '.');
+        $dt = static function (?string $value): string {
+            if (! $value) {
+                return '-';
+            }
+
+            return date('d/m/Y H:i', strtotime($value));
+        };
+
+        $lines = [];
+
+        $header = (string) ($profile['logo_text'] ?? '');
+        if ($header === '') {
+            $header = (string) ($ticket['tenant']['name'] ?? '');
+        }
+        if ($header !== '') {
+            $lines[] = strtoupper($header);
+        }
+        $lines[] = 'REPORTE Z';
+        $lines[] = 'Z #'.($ticket['z_number'] ?? '?');
+        $lines[] = str_repeat('-', $max);
+        $lines[] = 'Caja: '.($ticket['cash_register'] ?? '-');
+        $lines[] = 'Sucursal: '.($ticket['branch'] ?? '-');
+        $lines[] = 'Cajero: '.($ticket['cashier'] ?? '-');
+        $lines[] = 'Apertura: '.$dt($ticket['opened_at'] ?? null);
+        $lines[] = 'Cierre: '.$dt($ticket['closed_at'] ?? null);
+
+        $totals = $ticket['totals'] ?? [];
+        $lines[] = str_repeat('-', $max);
+        $lines[] = 'Tickets: '.(int) ($totals['orders_count'] ?? 0);
+        $lines[] = 'Total USD: '.$money((float) ($totals['paid_base_amount'] ?? 0));
+        $lines[] = 'Total VES: '.$bs((float) ($totals['paid_local_amount'] ?? 0));
+
+        $lines[] = str_repeat('-', $max);
+        foreach ($ticket['payments'] ?? [] as $payment) {
+            $currency = (string) ($payment['currency'] ?? 'USD');
+            $amount = $currency === 'VES'
+                ? $bs((float) ($payment['amount_local'] ?? 0))
+                : $money((float) ($payment['amount_base'] ?? 0));
+            $lines[] = ($payment['name'] ?? $payment['method'] ?? 'Pago').': '.$amount;
+            if (! empty($payment['exchange_rate'])) {
+                $lines[] = '  tasa @ '.number_format((float) $payment['exchange_rate'], 2, '.', '');
+            }
+        }
+        if (empty($ticket['payments'])) {
+            $lines[] = 'Sin pagos registrados.';
+        }
+
+        $lines[] = str_repeat('-', $max);
+        $lines[] = 'Dif efectivo USD: '.$money((float) ($totals['difference_cash_usd'] ?? 0));
+        $lines[] = 'Dif efectivo VES: '.$bs((float) ($totals['difference_cash_ves'] ?? 0));
+
+        $footer = (string) ($profile['footer_text'] ?? '');
+        if ($footer !== '') {
+            $lines[] = str_repeat('-', $max);
+            $lines[] = $footer;
+        }
+        if ($profile['show_non_fiscal_text'] ?? true) {
+            $lines[] = (string) ($profile['legal_text'] ?? 'Documento no fiscal');
+        }
+
         $lines = array_map(static function (string $line) use ($max): string {
             if (mb_strlen($line) <= $max) {
                 return $line;

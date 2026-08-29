@@ -19,6 +19,7 @@ import {
   UserListResponseSchema,
   type CreateUserInput,
   type UpdateUserInput,
+  type ChangePasswordInput,
   UserSchema,
   type UpdateUserRolesInput,
   type UpdateUserStatusInput,
@@ -116,6 +117,22 @@ export function useUpdateUser() {
 }
 
 /**
+ * (Fase B) Cambia la contrasena de otro usuario (requiere users.update).
+ * POST /api/users/{id}/password
+ */
+export function useChangePassword() {
+  const qc = useQueryClient();
+  return useMutation<User, Error, { id: number; values: ChangePasswordInput }>({
+    mutationFn: ({ id, values }) =>
+      postOne<ChangePasswordInput, User>(`/users/${id}/password`, values),
+    onSuccess: async (_data, { id }) => {
+      await qc.invalidateQueries({ queryKey: userKeys.lists() });
+      await qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+    },
+  });
+}
+
+/**
  * (Fase B) Asigna los roles del usuario en el tenant actual.
  */
 export function useUpdateUserRoles() {
@@ -126,8 +143,7 @@ export function useUpdateUserRoles() {
     onSuccess: async (_data, { id }) => {
       await qc.invalidateQueries({ queryKey: userKeys.lists() });
       await qc.invalidateQueries({ queryKey: userKeys.detail(id) });
-    },
-  });
+    },  });
 }
 
 /**

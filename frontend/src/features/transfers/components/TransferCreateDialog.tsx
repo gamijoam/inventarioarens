@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { SingleSelectCombobox } from '@/components/ui/SingleSelectCombobox';
 import { useCreateTransfer, useProductsForTransfer, useWarehouses } from '@/features/transfers/api';
+import { VariantSelect } from './VariantSelect';
 import type {
   StoreTransferItem,
   StoreTransferValues,
@@ -43,6 +44,7 @@ interface ItemRow {
   product_sku: string;
   tracking_type: string;
   product_id: number | null;
+  product_variant_id: number | null;
   quantity: number;
   serial_units: { serial_type: 'imei' | 'serial'; serial_number: string }[];
 }
@@ -50,6 +52,7 @@ interface ItemRow {
 function emptyRow(): ItemRow {
   return {
     product_id: null,
+    product_variant_id: null,
     product_name: '',
     product_sku: '',
     tracking_type: 'quantity',
@@ -122,6 +125,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     if (productId == null || productId === 0) {
       setRow(idx, {
         product_id: null,
+        product_variant_id: null,
         product_name: '',
         product_sku: '',
         tracking_type: 'quantity',
@@ -133,6 +137,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     if (!p) {
       setRow(idx, {
         product_id: productId,
+        product_variant_id: null,
         product_name: '',
         product_sku: '',
         tracking_type: 'quantity',
@@ -144,6 +149,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     const existingSerialUnits = currentRow ? currentRow.serial_units : [];
     setRow(idx, {
       product_id: p.id,
+      product_variant_id: null,
       product_name: p.name,
       product_sku: p.sku ?? '',
       tracking_type: p.tracking_type ?? 'quantity',
@@ -186,6 +192,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     try {
       const apiItems: StoreTransferItem[] = items.map((r) => ({
         product_id: r.product_id ?? 0,
+        product_variant_id: r.product_variant_id ?? undefined,
         quantity: r.quantity,
         serial_units:
           r.tracking_type === 'serialized'
@@ -367,7 +374,11 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                   : null;
                 const isSerialized = product?.tracking_type === 'serialized';
                 return (
-                  <div key={idx} className="border-border bg-bg/30 rounded-md border p-3">
+                  <div
+                    key={idx}
+                    data-testid={`create-row-${idx}`}
+                    className="border-border bg-bg/30 rounded-md border p-3"
+                  >
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px_auto]">
                       <div className="space-y-1">
                         <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
@@ -385,6 +396,19 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                         {row.product_sku && (
                           <div className="text-text-muted text-[10px]">SKU: {row.product_sku}</div>
                         )}
+                        {!isSerialized && row.product_id && (
+                          <div className="pt-1">
+                            <VariantSelect
+                              productId={row.product_id}
+                              warehouseId={fromWarehouseId}
+                              value={row.product_variant_id}
+                              onChange={(variantId) =>
+                                setRow(idx, { product_variant_id: variantId })
+                              }
+                              testIdPrefix={`create-row-${idx}-variant`}
+                            />
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
@@ -398,6 +422,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                           onChange={(e) => setRow(idx, { quantity: Number(e.target.value) })}
                           disabled={isSerialized}
                           className="text-right"
+                          data-testid={`create-row-${idx}-quantity`}
                         />
                       </div>
                       <div className="flex items-end">

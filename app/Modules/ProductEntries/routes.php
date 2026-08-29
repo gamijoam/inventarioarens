@@ -5,4 +5,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::apiResource('product-entries', ProductEntryController::class)
     ->parameters(['product-entries' => 'productEntry'])
-    ->only(['index', 'store', 'show']);
+    ->only(['index', 'show']);
+
+Route::post('product-entries', [ProductEntryController::class, 'store'])
+    ->middleware('idempotency');

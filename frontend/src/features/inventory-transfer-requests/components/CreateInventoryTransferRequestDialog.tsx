@@ -32,6 +32,7 @@ import type { Product } from '@/features/inventory-center/schemas';
 import { useSessionStore } from '@/stores/session';
 import { StoreTransferRequestSchema } from '../schemas';
 import { TransferRequestProductSearch } from './TransferRequestProductSearch';
+import { VariantSelect } from '@/features/transfers/components/VariantSelect';
 
 interface CreateInventoryTransferRequestDialogProps {
   open: boolean;
@@ -43,10 +44,11 @@ interface CreateInventoryTransferRequestDialogProps {
 interface ItemRow {
   product_id: string;
   product: Product | null;
+  product_variant_id: string;
   quantity: string;
 }
 
-const EMPTY_ITEM: ItemRow = { product_id: '', product: null, quantity: '' };
+const EMPTY_ITEM: ItemRow = { product_id: '', product: null, product_variant_id: '', quantity: '' };
 
 export function CreateInventoryTransferRequestDialog({
   open,
@@ -133,6 +135,7 @@ export function CreateInventoryTransferRequestDialog({
         .filter((it) => it.product_id && it.quantity)
         .map((it) => ({
           product_id: Number(it.product_id),
+          product_variant_id: it.product_variant_id ? Number(it.product_variant_id) : undefined,
           quantity: Number(it.quantity),
         })),
     };
@@ -303,10 +306,25 @@ export function CreateInventoryTransferRequestDialog({
                         value={it.product_id}
                         selectedProduct={it.product}
                         onChange={(productId, product) =>
-                          updateItem(idx, { product_id: productId, product })
+                          updateItem(idx, { product_id: productId, product, product_variant_id: '' })
                         }
                         invalid={Boolean(formErrors[`items.${idx}.product_id`])}
                       />
+                      {it.product && it.product.tracking_type !== 'serialized' && (
+                        <div className="pt-1">
+                          <VariantSelect
+                            productId={it.product.id}
+                            warehouseId={fromWarehouseId ? Number(fromWarehouseId) : undefined}
+                            value={it.product_variant_id ? Number(it.product_variant_id) : null}
+                            onChange={(variantId) =>
+                              updateItem(idx, {
+                                product_variant_id: variantId ? String(variantId) : '',
+                              })
+                            }
+                            testIdPrefix={`req-row-${idx}-variant`}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="text-text-muted text-[10px] tracking-wide uppercase">

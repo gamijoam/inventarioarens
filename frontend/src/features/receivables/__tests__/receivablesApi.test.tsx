@@ -9,7 +9,8 @@ const mockPostOne = vi.fn();
 vi.mock('@/api/client', () => ({
   getOne: vi.fn(),
   getPaginated: (path: string) => mockGetPaginated(path),
-  postOne: (path: string, body: unknown) => mockPostOne(path, body),
+  postOne: (path: string, body: unknown, config: unknown) =>
+    config === undefined ? mockPostOne(path, body) : mockPostOne(path, body, config),
 }));
 
 import { buildReceivablesQuery, useCollectReceivable, useReceivables } from '../api';
@@ -71,6 +72,8 @@ describe('receivables api', () => {
       amount: 25,
       cash_register_session_id: 9,
       method: 'cash',
-    });
+    }, expect.objectContaining({
+      headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+    }));
   });
 });

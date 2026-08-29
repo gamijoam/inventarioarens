@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Building2, Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
-import { APP_DEFINITION, APP_MODE, APP_NAME } from '@/config/branding';
+import { APP_MODE, APP_VISUAL_PROFILE } from '@/config/branding';
 import { getLoginPresentation } from '@/auth/loginPresentation';
 import { lookupTenants } from '@/api/endpoints/auth';
 import { useAuth } from '@/auth/useAuth';
@@ -20,7 +20,7 @@ const DEBOUNCE_MS = 500;
 
 export function LoginPage() {
   const presentation = getLoginPresentation(APP_MODE);
-  const isPos = presentation.theme === 'pos';
+  const isPos = APP_VISUAL_PROFILE.accent === 'pos';
   const { signIn, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -30,6 +30,7 @@ export function LoginPage() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -112,7 +113,7 @@ export function LoginPage() {
     <main
       className={cn(
         'relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-10 sm:px-8',
-        'text-text bg-[#eef0f3]',
+        'bg-[#e8ecf1]',
       )}
       data-app-mode={APP_MODE}
       data-testid="login-page"
@@ -121,101 +122,36 @@ export function LoginPage() {
         className={cn('absolute inset-x-0 top-0 h-1', isPos ? 'bg-emerald-400' : 'bg-primary')}
         aria-hidden="true"
       />
-      <div
-        className={cn(
-          'absolute top-6 left-6 hidden items-center gap-3 sm:flex',
-          'text-text-primary',
-        )}
-      >
-        <div
-          className={cn(
-            'text-primary-foreground flex size-9 items-center justify-center rounded',
-            isPos ? 'bg-emerald-400' : 'bg-primary',
-          )}
-        >
-          <ShieldCheck className="size-4" aria-hidden="true" />
-        </div>
-        <div>
-          <p className="text-sm leading-none font-semibold">{APP_NAME}</p>
-          <p
-            className={cn(
-              'mt-1 text-[11px] tracking-[0.14em] uppercase',
-              'text-text-muted',
-            )}
-          >
-            {APP_DEFINITION.tagline}
-          </p>
-        </div>
-      </div>
-      <div
-        className={cn(
-          'absolute top-7 right-6 hidden items-center gap-2 text-xs sm:flex',
-          'text-text-muted',
-        )}
-      >
-        <span className={cn('size-1.5 rounded-full', isPos ? 'bg-emerald-400' : 'bg-success')} aria-hidden="true" />
-        {isPos ? 'Terminal local' : 'Acceso protegido'}
-      </div>
 
-      <div className="w-full max-w-[480px]">
-        <header className="mb-6 text-center">
-          <div className="bg-primary text-primary-foreground mx-auto mb-4 flex size-11 items-center justify-center rounded shadow-sm sm:hidden">
-            <ShieldCheck className="size-5" aria-hidden="true" />
-          </div>
-          <p
-            className={cn(
-              'text-[11px] font-semibold tracking-[0.18em] uppercase',
-              'text-primary',
-            )}
-          >
-            {presentation.eyebrow}
-          </p>
-          <h1
-            className={cn(
-              'mt-3 text-[2.15rem] leading-tight font-semibold tracking-[-0.03em]',
-              'text-text-primary',
-            )}
-          >
-            {presentation.title}
-          </h1>
-          <p
-            className={cn(
-              'mx-auto mt-3 max-w-[390px] text-sm leading-6',
-              'text-text-muted',
-            )}
-          >
-            {presentation.description}
-          </p>
-        </header>
-
+      <div className="w-full max-w-[440px]">
         <form
           onSubmit={handleSubmit}
           className={cn(
-            'bg-surface relative rounded-lg border p-6 shadow-[0_24px_70px_rgba(27,31,44,0.12)] sm:p-8',
-            isPos
-              ? 'border-emerald-300/40 shadow-[0_24px_80px_rgba(16,185,129,0.14)]'
-              : 'border-[#d9dce2]',
+            'relative rounded-2xl border bg-white p-8 shadow-[0_24px_60px_rgba(27,31,44,0.12)] sm:p-10',
+            isPos ? 'border-emerald-200' : 'border-[#e2e5ea]',
           )}
           aria-label="Formulario de inicio de sesión"
         >
-          <div className="border-border mb-6 flex items-center justify-between border-b pb-4">
-            <div>
-              <p className="text-text-muted text-[11px] font-semibold tracking-[0.16em] uppercase">
-                {presentation.formEyebrow}
-              </p>
-              <p className="text-text-primary mt-1 text-sm">{presentation.formTitle}</p>
-            </div>
-            <span
+          {/* Logo corporativo */}
+          <header className="mb-8 text-center">
+            <div
               className={cn(
-                'rounded border px-2 py-1 text-[10px] font-semibold tracking-[0.12em] uppercase',
-                isPos
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
-                  : 'border-primary/20 bg-primary/5 text-primary',
+                'mx-auto flex size-14 items-center justify-center rounded-xl text-white shadow-sm',
+                isPos ? 'bg-emerald-500' : 'bg-primary',
+              )}
+              aria-hidden="true"
+            >
+              <span className="text-xl font-bold tracking-wide">{APP_VISUAL_PROFILE.logoMark}</span>
+            </div>
+            <p
+              className={cn(
+                'mt-3 text-sm font-semibold tracking-[0.22em]',
+                isPos ? 'text-emerald-600' : 'text-primary',
               )}
             >
-              {isPos ? 'Seguro' : 'Seguro'}
-            </span>
-          </div>
+              {APP_VISUAL_PROFILE.productLabel}
+            </p>
+          </header>
 
           {error && (
             <div className="mb-5 space-y-3">
@@ -234,11 +170,14 @@ export function LoginPage() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email de acceso</Label>
+          {/* Email */}
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-text-primary text-sm font-medium">
+              Email
+            </Label>
             <div className="relative">
               <Mail
-                className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+                className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
                 aria-hidden="true"
               />
               <Input
@@ -251,21 +190,21 @@ export function LoginPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 disabled={loginLoading}
-                className="pl-8"
+                className="h-11 rounded-lg border bg-white px-4 pl-9 text-sm shadow-sm"
                 data-testid="login-email"
               />
               {lookupLoading && (
-                <Spinner size="sm" className="absolute top-1/2 right-2 -translate-y-1/2" />
+                <Spinner size="sm" className="absolute top-1/2 right-3 -translate-y-1/2" />
               )}
             </div>
-            <p className="text-text-muted text-xs">
-              Buscaremos las empresas donde tienes acceso activo.
-            </p>
           </div>
 
-          <div className="mt-5 space-y-2">
+          {/* Empresa (selector discreto, justo encima de la contrasena) */}
+          <div className="mt-5 space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="tenant">Empresa</Label>
+              <Label htmlFor="tenant" className="text-text-primary text-sm font-medium">
+                Empresa
+              </Label>
               {tenants.length > 1 && (
                 <span className="text-text-muted text-xs">{tenants.length} disponibles</span>
               )}
@@ -280,11 +219,14 @@ export function LoginPage() {
             />
           </div>
 
-          <div className="mt-5 space-y-2">
-            <Label htmlFor="password">Contraseña</Label>
+          {/* Contrasena */}
+          <div className="mt-5 space-y-1.5">
+            <Label htmlFor="password" className="text-text-primary text-sm font-medium">
+              Contraseña
+            </Label>
             <div className="relative">
               <Lock
-                className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+                className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
                 aria-hidden="true"
               />
               <Input
@@ -296,13 +238,13 @@ export function LoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={loginLoading}
-                className="pr-10 pl-8"
+                className="h-11 rounded-lg border bg-white px-4 pr-11 pl-9 text-sm shadow-sm"
                 data-testid="login-password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((visible) => !visible)}
-                className="text-text-muted hover:bg-bg hover:text-text-primary focus-visible:ring-primary absolute top-1/2 right-2.5 -translate-y-1/2 rounded p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                className="text-text-muted hover:bg-bg hover:text-text-primary focus-visible:ring-primary absolute top-1/2 right-3 -translate-y-1/2 rounded p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               >
                 {showPassword ? (
@@ -312,26 +254,41 @@ export function LoginPage() {
                 )}
               </button>
             </div>
+            <div className="flex justify-end pt-0.5">
+              <button
+                type="button"
+                onClick={() => setForgotOpen((open) => !open)}
+                className="text-primary text-xs font-medium hover:underline"
+                data-testid="login-forgot"
+              >
+                Forgot Password?
+              </button>
+            </div>
+            {forgotOpen && (
+              <p className="text-text-muted pt-0.5 text-xs" data-testid="login-forgot-help">
+                Contacta al administrador de tu empresa para restablecer tu contraseña.
+              </p>
+            )}
           </div>
 
           <Button
             type="submit"
             fullWidth
-            className="mt-6 h-11"
+            className="mt-6 h-12 rounded-lg text-sm font-semibold tracking-[0.14em]"
             loading={loginLoading}
             disabled={!selectedTenant || !email || !password}
             data-testid="login-submit"
           >
-            {presentation.submitLabel}
+            LOGIN
           </Button>
 
-          <div className="border-border mt-5 border-t pt-4 text-center">
+          <div className="mt-6 pt-4 text-center">
             <p className="text-text-muted text-xs leading-5">
-              Si no puedes entrar, solicita acceso al administrador de tu empresa.
+              Si no puedes entrar, solicita acceso a tu administrador.
             </p>
             <Link
               to="/master/login"
-              className="text-primary mt-2 inline-block text-xs font-medium hover:underline"
+              className="text-text-muted hover:text-primary mt-2 inline-block text-[11px] hover:underline"
             >
               Acceso de plataforma
             </Link>
@@ -396,28 +353,28 @@ function TenantPicker({
 }: TenantPickerProps) {
   if (!isValidEmail(email)) {
     return (
-      <div className="border-border bg-bg text-text-muted rounded border border-dashed px-3 py-3 text-sm">
+      <div className="bg-surface text-text-muted rounded-lg border border-dashed px-3 py-2.5 text-xs">
         Ingresa un email válido para buscar empresas.
       </div>
     );
   }
   if (lookupLoading) {
     return (
-      <div className="border-border bg-bg text-text-muted rounded border border-dashed px-3 py-3 text-sm">
+      <div className="bg-surface text-text-muted rounded-lg border border-dashed px-3 py-2.5 text-xs">
         Buscando empresas...
       </div>
     );
   }
   if (tenants.length === 0) {
     return (
-      <div className="border-warning bg-warning/5 text-warning rounded border px-3 py-3 text-sm">
+      <div className="border-warning bg-warning/5 text-warning rounded-lg border px-3 py-2.5 text-xs">
         No hay empresas activas para este email.
       </div>
     );
   }
   if (tenants.length === 1) {
     return (
-      <div className="border-primary/40 bg-primary/5 flex min-h-10 items-center gap-2 rounded border px-3 text-sm">
+      <div className="border-primary/40 bg-primary/5 flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm">
         <Building2 className="text-primary size-4" aria-hidden="true" />
         <span className="font-medium">{tenants[0]!.name}</span>
         <span className="text-text-muted text-xs">({tenants[0]!.slug})</span>
@@ -427,7 +384,7 @@ function TenantPicker({
   return (
     <select
       className={cn(
-        'border-border-strong bg-surface text-text-primary flex h-10 w-full rounded border px-3 text-sm shadow-sm',
+        'text-text-primary flex h-11 w-full rounded-lg border border-[#e2e5ea] bg-white px-3 text-sm shadow-sm',
         'focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
         'disabled:cursor-not-allowed disabled:opacity-50',
       )}

@@ -7,6 +7,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Tests\TestCase;
 
 class SyncTenantMappingTest extends TestCase
@@ -131,5 +132,25 @@ class SyncTenantMappingTest extends TestCase
             'local_id' => $localProductId,
             'remote_key' => 'REMOTE-7001',
         ]);
+    }
+
+    public function test_multi_tenant_installation_rejects_unmapped_remote_tenant_id_collision(): void
+    {
+        Tenant::create(['name' => 'Local A', 'slug' => 'local-a', 'status' => 'active']);
+        $current = Tenant::create(['name' => 'Local B', 'slug' => 'local-b', 'status' => 'active']);
+        app(TenantManager::class)->set($current);
+        DB::table('sync_tenant_mappings')->insert([
+            'local_tenant_id' => 1,
+            'remote_tenant_id' => 901,
+            'remote_slug' => 'remote-a',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $method = new \ReflectionMethod(SyncEventApplier::class, 'localTenantIdForRemote');
+        $method->setAccessible(true);
+
+        $this->expectException(RuntimeException::class);
+        $method->invoke(app(SyncEventApplier::class), $current->id);
     }
 }

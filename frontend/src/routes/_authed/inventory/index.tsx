@@ -412,6 +412,34 @@ function useColumns(
           />
         ),
       }),
+      columnHelper.display({
+        id: 'image',
+        header: () => null,
+        cell: (info) => {
+          const row = info.row.original;
+          const src = row.primary_image_url ?? row.images?.[0]?.thumb_url ?? row.image_url;
+          if (!src) {
+            return (
+              <div className="flex size-10 items-center justify-center rounded border border-border bg-bg text-[10px] text-text-muted">
+                —
+              </div>
+            );
+          }
+          return (
+            <div className="size-10 overflow-hidden rounded border border-border bg-bg">
+              <img
+                src={src}
+                alt={row.name}
+                className="size-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          );
+        },
+      }),
       columnHelper.accessor('sku', {
         header: 'SKU',
         cell: (info) => (
@@ -599,12 +627,41 @@ function PriceListCell({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const manualPrices = (product.prices ?? []).filter((price) => price.is_active !== false);
   const manualListIds = new Set(manualPrices.map((price) => price.price_list_id));
+  const manualById = new Map(manualPrices.map((price) => [price.price_list_id, price]));
+
+  // Precio efectivo de una lista respetando la cadena de lista base
+  // (ej. CASHEA = DETAL + 16%), con guard de ciclos.
+  const effectivePrice = (
+    list: PriceList,
+    seen = new Set<number>(),
+  ): number | null => {
+    if (seen.has(list.id)) return product.base_price != null ? Number(product.base_price) : null;
+    seen.add(list.id);
+
+    const manual = manualById.get(list.id);
+    if (manual) return Number(manual.price);
+
+    let base: number | null = product.base_price != null ? Number(product.base_price) : null;
+    if (list.base_price_list_id) {
+      const baseList = priceLists.find((l) => l.id === list.base_price_list_id);
+      if (baseList) base = effectivePrice(baseList, seen);
+    }
+
+    if (base == null) return null;
+    const markup = Number(list.markup_percentage ?? 0);
+    return Number((base * (1 + markup / 100)).toFixed(2));
+  };
+
   const automaticPrices = priceLists
     .filter(
-      (list) => list.is_active && !manualListIds.has(list.id) && list.markup_percentage != null,
+      (list) =>
+        list.is_active &&
+        !manualListIds.has(list.id) &&
+        (list.markup_percentage != null || list.base_price_list_id != null),
     )
     .flatMap((list) => {
-      if (product.base_price == null) return [];
+      const computed = effectivePrice(list);
+      if (computed == null) return [];
       return [
         {
           id: -list.id,
@@ -616,7 +673,7 @@ function PriceListCell({
             is_default: Boolean(list.is_default),
             is_active: list.is_active,
           },
-          price: Number(product.base_price) * (1 + Number(list.markup_percentage) / 100),
+          price: computed,
           currency: 'USD',
           is_active: true,
           automatic: true,
@@ -629,15 +686,6 @@ function PriceListCell({
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(
     null,
   );
-
-  if (!defaultPrice) return <span className="text-text-muted">Sin lista</span>;
-
-  const displayLocal = (price: number, currency: string) => {
-    if (currency === 'VES')
-      return `Bs ${price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (!activeRate) return null;
-    return `Bs ${(price * activeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
 
   useEffect(() => {
     if (!expanded) return;
@@ -666,6 +714,15 @@ function PriceListCell({
       window.removeEventListener('scroll', closeOnScroll, true);
     };
   }, [expanded]);
+
+  if (!defaultPrice) return <span className="text-text-muted">Sin lista</span>;
+
+  const displayLocal = (price: number, currency: string) => {
+    if (currency === 'VES')
+      return `Bs ${price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (!activeRate) return null;
+    return `Bs ${(price * activeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   function togglePopover(): void {
     if (expanded) {

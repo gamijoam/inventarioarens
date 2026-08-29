@@ -116,10 +116,16 @@ export function usePosInvoicePromotions(options: PosPromotionDiscoveryOptions) {
 }
 
 export function usePosCombos(options: PosPromotionDiscoveryOptions) {
+  const comboOptions = { ...options, productIds: [] };
+
   return usePosPromotionDiscovery(
     'combo',
-    promotionKeys.posCombos(options.warehouseId, options.productIds, options.selectable ?? false),
-    options,
+    promotionKeys.posCombos(
+      comboOptions.warehouseId,
+      comboOptions.productIds,
+      comboOptions.selectable ?? false,
+    ),
+    comboOptions,
   );
 }
 

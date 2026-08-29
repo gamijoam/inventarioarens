@@ -24,6 +24,7 @@ import {
   SALE_CURRENCIES,
   ProductPriceSchema,
   type ProductPrice,
+  type PriceList,
 } from '@/features/inventory-center/schemas';
 
 interface PriceRow {
@@ -71,15 +72,37 @@ export function PricesEditor({ productId }: PricesEditorProps) {
     if (priceLists.length === 0) return;
     const existingByList = new Map<number, ProductPrice>();
     (pricesQuery.data ?? []).forEach((p) => existingByList.set(p.price_list_id, p));
+
+    // Precio efectivo de una lista respetando la cadena de lista base
+    // (ej. CASHEA = DETAL + 16%), con guard de ciclos.
+    const effectivePrice = (
+      list: PriceList,
+      seen = new Set<number>(),
+    ): number | null => {
+      if (seen.has(list.id)) return product?.base_price ? Number(product.base_price) : null;
+      seen.add(list.id);
+
+      const manual = existingByList.get(list.id);
+      if (manual) return Number(manual.amount);
+
+      let base: number | null = product?.base_price != null ? Number(product.base_price) : null;
+      if (list.base_price_list_id) {
+        const baseList = priceLists.find((l) => l.id === list.base_price_list_id);
+        if (baseList) base = effectivePrice(baseList, seen);
+      }
+
+      if (base == null) return null;
+      const markup = Number(list.markup_percentage ?? 0);
+      return Number((base * (1 + markup / 100)).toFixed(2));
+    };
+
     const next: PriceRow[] = priceLists.map((pl) => {
       const existing = existingByList.get(pl.id);
-      const automatic = !existing && pl.markup_percentage != null && product?.base_price != null;
-      const automaticAmount = automatic
-        ? Number(product?.base_price ?? 0) * (1 + Number(pl.markup_percentage) / 100)
-        : null;
+      const computed = existing ? null : effectivePrice(pl);
+      const automatic = computed != null && !existing;
       return {
         price_list_id: pl.id,
-        amount: existing?.amount ?? (automaticAmount == null ? '' : automaticAmount.toFixed(2)),
+        amount: existing?.amount ?? (computed == null ? '' : computed.toFixed(2)),
         currency: existing?.currency ?? 'USD',
         isNew: !existing,
         automatic,
@@ -88,7 +111,7 @@ export function PricesEditor({ productId }: PricesEditorProps) {
       };
     });
     setRows(next);
-  }, [priceLists, pricesQuery.data]);
+  }, [priceLists, pricesQuery.data, product?.base_price]);
 
   const dirty = useMemo(() => rows.some((r) => r.dirty), [rows]);
 

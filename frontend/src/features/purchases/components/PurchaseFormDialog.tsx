@@ -42,8 +42,8 @@ function emptyItem(): PurchaseItemRowValue {
     product_id: null,
     product_variant_id: null,
     product_info: null,
-    quantity: 1,
-    unit_cost: 0,
+    quantity: '',
+    unit_cost: '',
     serial_units: [],
   };
 }
@@ -63,6 +63,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
 
   // Items state.
   const [items, setItems] = useState<PurchaseItemRowValue[]>([emptyItem()]);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -76,8 +77,10 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
   const totals = useMemo(() => {
     let base = 0;
     for (const item of items) {
-      if (Number.isFinite(item.quantity) && Number.isFinite(item.unit_cost)) {
-        base += item.quantity * item.unit_cost;
+      const quantity = Number(item.quantity);
+      const cost = Number(item.unit_cost);
+      if (Number.isFinite(quantity) && Number.isFinite(cost)) {
+        base += quantity * cost;
       }
     }
     return { base };
@@ -92,11 +95,14 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
     setCurrency('USD');
     setRateTypeId(null);
     setItems([emptyItem()]);
+    setCollapsed(new Set());
     setFieldErrors({});
   }
 
   function addItem() {
     setItems((prev) => [...prev, emptyItem()]);
+    // Colapsa las lineas existentes para que la nueva quede visible.
+    setCollapsed(new Set(Array.from({ length: items.length }, (_, i) => i)));
   }
 
   function updateItem(index: number, next: PurchaseItemRowValue) {
@@ -106,6 +112,20 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
   function removeItem(index: number) {
     if (items.length <= 1) return;
     setItems((prev) => prev.filter((_, i) => i !== index));
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.delete(index);
+      return next;
+    });
+  }
+
+  function toggleCollapse(index: number) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -154,8 +174,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
         warehouse_id: it.warehouse_id ?? 0,
         product_id: it.product_id ?? 0,
         product_variant_id: it.product_variant_id ?? undefined,
-        quantity: it.quantity,
-        unit_cost: it.unit_cost,
+        quantity: Number(it.quantity) || 0,
+        unit_cost: Number(it.unit_cost) || 0,
         serial_units: serialUnits,
       };
     });
@@ -210,7 +230,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(92vh,900px)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[min(96vh,1100px)] max-w-[1400px] flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="border-border shrink-0 border-b px-6 py-5">
           <div className="flex items-start gap-3">
             <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-md">
@@ -348,6 +368,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
                     onChange={(next) => updateItem(index, next)}
                     onRemove={() => removeItem(index)}
                     canRemove={items.length > 1}
+                    collapsed={collapsed.has(index)}
+                    onToggleCollapse={toggleCollapse}
                   />
                 ))}
               </div>

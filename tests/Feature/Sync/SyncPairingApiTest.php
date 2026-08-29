@@ -245,7 +245,12 @@ class SyncPairingApiTest extends TestCase
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         Permission::findOrCreate($permission, 'web');
         $role = Role::findOrCreate('Pairing Owner '.$tenant->slug, 'web');
-        $role->syncPermissions([$permission]);
+        $permissions = [$permission];
+        if ($permission === 'sync.issue_token') {
+            Permission::findOrCreate('sync.transport', 'web');
+            $permissions[] = 'sync.transport';
+        }
+        $role->syncPermissions($permissions);
         $user->assignRole($role);
     }
 }

@@ -306,7 +306,7 @@ describe('promotions frontend contract', () => {
     expect(mockGetMany).toHaveBeenCalledWith('/combos');
     expect(mockGetMany).toHaveBeenCalledWith('/product-offers');
     expect(mockGetMany).toHaveBeenCalledWith('/pos/invoice-promotions?warehouse_id=4');
-    expect(mockGetMany).toHaveBeenCalledWith('/pos/combos?warehouse_id=4&product_ids%5B%5D=10');
+    expect(mockGetMany).toHaveBeenCalledWith('/pos/combos?warehouse_id=4');
     expect(mockGetMany).toHaveBeenCalledWith(
       '/pos/product-offers?warehouse_id=4&selectable=1&product_ids%5B%5D=10',
     );

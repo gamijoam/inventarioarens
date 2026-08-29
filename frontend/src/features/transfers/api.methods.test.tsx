@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const apiCalls: { method: string; url: string }[] = [];
+const apiCalls: { method: string; url: string; headers?: Record<string, string> }[] = [];
 
 vi.mock('@/api/client', () => ({
   api: {
@@ -35,8 +35,8 @@ vi.mock('@/api/client', () => ({
   },
   getOne: () => Promise.resolve([] as unknown),
   getMany: () => Promise.resolve([]),
-  postOne: (url: string) => {
-    apiCalls.push({ method: 'POST', url });
+  postOne: (url: string, _body?: unknown, config?: { headers?: Record<string, string> }) => {
+    apiCalls.push({ method: 'POST', url, headers: config?.headers });
     return Promise.resolve({ id: 1 });
   },
   patchOne: (url: string) => {
@@ -59,6 +59,7 @@ import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import {
   usePrepareTransfer,
+  useCreateTransfer,
   useDispatchTransfer,
   useReceiveTransfer,
   useCancelTransfer,
@@ -68,7 +69,9 @@ import {
 } from './api';
 
 function withQueryClient() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
@@ -81,10 +84,49 @@ describe('HTTP methods de los hooks de traslados', () => {
 
   it('usePrepareTransfer usa POST /prepare', async () => {
     const { result } = renderHook(() => usePrepareTransfer(), { wrapper: withQueryClient() });
-    await result.current.mutateAsync({ id: 5, values: { prepared_at: null, notes: null, items: [{ inventory_transfer_item_id: 1, prepared_quantity: 1 }] } });
+    await result.current.mutateAsync({
+      id: 5,
+      values: {
+        prepared_at: null,
+        notes: null,
+        items: [{ inventory_transfer_item_id: 1, prepared_quantity: 1 }],
+      },
+    });
     const call = apiCalls.find((c) => c.url.includes('/prepare'));
     expect(call).toBeDefined();
     expect(call!.method).toBe('POST');
+  });
+
+  it('useCreateTransfer envia Idempotency-Key', async () => {
+    const { result } = renderHook(() => useCreateTransfer(), { wrapper: withQueryClient() });
+    await result.current.mutateAsync({
+      from_warehouse_id: 1,
+      to_warehouse_id: 2,
+      type: 'internal',
+      validation_mode: 'simple',
+      reason: null,
+      reference: null,
+      notes: null,
+      processed_at: null,
+      document_number: null,
+      items: [{ product_id: 10, quantity: 1 }],
+    });
+    const call = apiCalls.find((c) => c.url === '/inventory-transfers');
+    expect(call?.headers?.['Idempotency-Key']).toEqual(expect.any(String));
+  });
+
+  it('usePrepareTransfer envia Idempotency-Key', async () => {
+    const { result } = renderHook(() => usePrepareTransfer(), { wrapper: withQueryClient() });
+    await result.current.mutateAsync({
+      id: 5,
+      values: {
+        prepared_at: null,
+        notes: null,
+        items: [{ inventory_transfer_item_id: 1, prepared_quantity: 1 }],
+      },
+    });
+    const call = apiCalls.find((c) => c.url.includes('/prepare'));
+    expect(call?.headers?.['Idempotency-Key']).toEqual(expect.any(String));
   });
 
   it('useDispatchTransfer usa POST /dispatch', async () => {
@@ -97,7 +139,14 @@ describe('HTTP methods de los hooks de traslados', () => {
 
   it('useReceiveTransfer usa POST /receive', async () => {
     const { result } = renderHook(() => useReceiveTransfer(), { wrapper: withQueryClient() });
-    await result.current.mutateAsync({ id: 5, values: { received_at: null, notes: null, items: [{ inventory_transfer_item_id: 1, received_quantity: 1 }] } });
+    await result.current.mutateAsync({
+      id: 5,
+      values: {
+        received_at: null,
+        notes: null,
+        items: [{ inventory_transfer_item_id: 1, received_quantity: 1 }],
+      },
+    });
     const call = apiCalls.find((c) => c.url.includes('/receive'));
     expect(call).toBeDefined();
     expect(call!.method).toBe('POST');
@@ -105,14 +154,19 @@ describe('HTTP methods de los hooks de traslados', () => {
 
   it('useCancelTransfer usa POST /cancel', async () => {
     const { result } = renderHook(() => useCancelTransfer(), { wrapper: withQueryClient() });
-    await result.current.mutateAsync({ id: 5, values: { cancelled_at: null, cancellation_reason: 'Test reason' } });
+    await result.current.mutateAsync({
+      id: 5,
+      values: { cancelled_at: null, cancellation_reason: 'Test reason' },
+    });
     const call = apiCalls.find((c) => c.url.includes('/cancel'));
     expect(call).toBeDefined();
     expect(call!.method).toBe('POST');
   });
 
   it('useResolveTransferDifferences usa POST /resolve-differences', async () => {
-    const { result } = renderHook(() => useResolveTransferDifferences(), { wrapper: withQueryClient() });
+    const { result } = renderHook(() => useResolveTransferDifferences(), {
+      wrapper: withQueryClient(),
+    });
     await result.current.mutateAsync({ id: 5, values: { items: [], notes: null } });
     const call = apiCalls.find((c) => c.url.includes('/resolve-differences'));
     expect(call).toBeDefined();
@@ -121,7 +175,23 @@ describe('HTTP methods de los hooks de traslados', () => {
 
   it('useAssignDriver usa PUT /driver (backend define PUT)', async () => {
     const { result } = renderHook(() => useAssignDriver(), { wrapper: withQueryClient() });
-    await result.current.mutateAsync({ id: 5, values: { name: 'Test', document_number: null, phone: null, vehicle_plate: null, carrier_company: null, picked_up_at: null, delivered_at: null, signed_by_driver_at: null, signature_driver_url: null, signed_by_receiver_at: null, signature_receiver_url: null, notes: null } });
+    await result.current.mutateAsync({
+      id: 5,
+      values: {
+        name: 'Test',
+        document_number: null,
+        phone: null,
+        vehicle_plate: null,
+        carrier_company: null,
+        picked_up_at: null,
+        delivered_at: null,
+        signed_by_driver_at: null,
+        signature_driver_url: null,
+        signed_by_receiver_at: null,
+        signature_receiver_url: null,
+        notes: null,
+      },
+    });
     const call = apiCalls.find((c) => c.url.includes('/driver'));
     expect(call).toBeDefined();
     expect(call!.method).toBe('PUT');

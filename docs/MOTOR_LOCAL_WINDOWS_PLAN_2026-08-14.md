@@ -1,8 +1,9 @@
 # Motor Local de Windows — arquitectura y plan de estabilizacion
 
 Fecha: 2026-08-14  
-Estado: **plan aprobado; no implementado**  
-Fuente canonica para la proxima correccion de la infraestructura local.
+Estado: **arquitectura aprobada; implementacion piloto completada**
+La evidencia operativa y los resultados del piloto estan en
+`docs/MOTOR_LOCAL_WINDOWS_IMPLEMENTACION_2026-08-14.md`.
 
 ## 1. Decision
 

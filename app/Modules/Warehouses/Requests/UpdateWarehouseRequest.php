@@ -32,6 +32,7 @@ class UpdateWarehouseRequest extends FormRequest
                     ->ignore($warehouse?->id),
             ],
             'status' => ['sometimes', 'required', 'string', Rule::in([Warehouse::STATUS_ACTIVE, Warehouse::STATUS_INACTIVE])],
+            'is_default' => ['sometimes', 'boolean'],
         ];
     }
 

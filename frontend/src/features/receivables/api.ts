@@ -13,11 +13,17 @@ import {
 } from './schemas';
 import { receivableKeys } from './queries';
 
+function idempotencyConfig(): { headers: { 'Idempotency-Key': string } } {
+  const key = globalThis.crypto?.randomUUID?.()
+    ?? `ar-payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return { headers: { 'Idempotency-Key': key } };
+}
+
 export function buildReceivablesQuery(filters: ReceivableListFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.search) params.set('search', filters.search);
-  if (filters.status && filters.status !== 'all') params.set('status', filters.status);
-  if (filters.customer_id) params.set('customer_id', String(filters.customer_id));
+  if (filters.status && filters.status !== 'all') params.set('status', filters.status);  if (filters.customer_id) params.set('customer_id', String(filters.customer_id));
   if (filters.due_from) params.set('due_from', filters.due_from);
   if (filters.due_to) params.set('due_to', filters.due_to);
   if (filters.page) params.set('page', String(filters.page));
@@ -54,6 +60,7 @@ export function useCollectReceivable() {
       postOne<CollectReceivableValues, ReceivablePayment>(
         `/accounts-receivable/${id}/payments`,
         CollectReceivableSchema.parse(values),
+        idempotencyConfig(),
       ),
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: receivableKeys.lists() });
@@ -61,6 +68,26 @@ export function useCollectReceivable() {
       void qc.invalidateQueries({ queryKey: ['pos', 'cash-sessions'] });
     },
   });
+}
+
+export async function exportReceivables(filters: ReceivableListFilters, format: 'csv' | 'pdf'): Promise<void> {
+  const { api } = await import('@/api/client');
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  if (filters.customer_id) params.set('customer_id', String(filters.customer_id));
+  if (filters.due_from) params.set('due_from', filters.due_from);
+  if (filters.due_to) params.set('due_to', filters.due_to);
+  params.set('format', format);
+  const response = await api.get(`/accounts-receivable/export?${params.toString()}`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data as Blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `cxc-${new Date().toISOString().slice(0, 10)}.${format}`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export type { ReceivableListFilters };

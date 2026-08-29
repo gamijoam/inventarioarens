@@ -348,6 +348,14 @@ describe('StoreWarehouseSchema', () => {
     expect(result.code).toBe('MAIN');
     expect(result.status).toBe('active');
   });
+
+  it('is_default tiene default false y acepta true', () => {
+    const result = StoreWarehouseSchema.parse({ branch_id: 1, name: 'Almacen', code: 'MAIN' });
+    expect(result.is_default).toBe(false);
+
+    const withDefault = StoreWarehouseSchema.parse({ branch_id: 1, name: 'Almacen', code: 'MAIN', is_default: true });
+    expect(withDefault.is_default).toBe(true);
+  });
 });
 
 describe('StoreWarrantyPolicySchema', () => {

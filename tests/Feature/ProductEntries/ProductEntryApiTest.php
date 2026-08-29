@@ -8,6 +8,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -117,7 +118,7 @@ class ProductEntryApiTest extends TestCase
             'serial_number' => '860900000000030',
             'status' => ProductUnit::STATUS_AVAILABLE,
         ]);
-        $this->assertEquals(30.0, (float) StockBalance::query()
+        $this->assertSame(30.0, (float) StockBalance::query()
             ->where('warehouse_id', $warehouse->id)
             ->where('product_id', $product->id)
             ->value('quantity_available'));
@@ -349,6 +350,52 @@ class ProductEntryApiTest extends TestCase
         foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
+    }
+
+    public function test_user_can_create_quantity_product_entry_with_variant(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Variante Entrada', 'slug' => 'empresa-variante-entrada']);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, 'AUD-ENTRY-VAR', Product::TRACKING_QUANTITY);
+        $this->useTenant($tenant);
+        $blue = ProductVariant::create(['product_id' => $product->id, 'color' => 'Azul', 'position' => 0]);
+        $orange = ProductVariant::create(['product_id' => $product->id, 'color' => 'Naranja', 'position' => 1]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen Variante', ['product_entries.create', 'product_entries.view']);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/product-entries', [
+                'reason' => 'Carga variantes',
+                'items' => [
+                    ['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'product_variant_id' => $blue->id, 'quantity' => 4],
+                    ['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'product_variant_id' => $orange->id, 'quantity' => 5],
+                ],
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $blue->id,
+            'quantity_available' => '4.0000',
+        ]);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $orange->id,
+            'quantity_available' => '5.0000',
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $orange->id,
+            'type' => 'purchase',
+            'quantity' => '5.0000',
+        ]);
     }
 
     private function warehouseAndProduct(Tenant $tenant, string $sku, string $trackingType): array

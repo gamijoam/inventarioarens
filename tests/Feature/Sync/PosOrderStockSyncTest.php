@@ -10,6 +10,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -324,6 +325,83 @@ class PosOrderStockSyncTest extends TestCase
             ->value('quantity_available'));
     }
 
+    public function test_reversed_pos_order_sync_restores_stock_and_marks_remote_order_voided(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa POS Reversal Sync', 'slug' => 'empresa-pos-reversal-sync']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $branch = Branch::create(['name' => 'Sucursal Reversal', 'code' => 'BR-REV-SYNC']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen Reversal', 'code' => 'WH-REV-SYNC']);
+        $product = Product::create([
+            'name' => 'Producto Reversal Sync',
+            'sku' => 'SKU-REV-SYNC',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
+
+        $paidAt = now()->subMinute();
+        $paidPayload = $this->paidOrderPayload('LOCAL-REV', 90, 900, $product->sku, $warehouse->code, null, $paidAt->toISOString());
+        $this->insertInboxEvent($tenant, 'pos.order.paid', $paidPayload, 90, $paidAt);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $reversalPayload = array_merge($paidPayload, [
+            'status' => 'voided',
+            'sale_status' => 'voided',
+            'type' => 'void',
+            'reason' => 'Reversión sincronizada',
+            'reversal_id' => 901,
+            'reversed_base_amount' => '10.0000',
+            'reversed_local_amount' => '0.0000',
+            'effective_at' => now()->toISOString(),
+            'sale' => [
+                'id' => 900,
+                'status' => 'voided',
+                'total_base_amount' => '10.0000',
+                'total_local_amount' => '0.0000',
+                'confirmed_at' => $paidAt->toISOString(),
+            ],
+        ]);
+        $this->insertInboxEvent($tenant, 'pos.order.reversed', $reversalPayload, 90);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $order = DB::table('pos_orders')->where('tenant_id', $tenant->id)->where('sync_source_id', 90)->first();
+        $sale = DB::table('sales')->where('tenant_id', $tenant->id)->where('sync_source_id', 900)->first();
+
+        $this->assertSame('voided', $order->status);
+        $this->assertSame('voided', $sale->status);
+        $this->assertSame(1.0, (float) DB::table('stock_balances')->where('id', DB::table('stock_balances')->value('id'))->value('quantity_available'));
+        $reversal = DB::table('sale_reversals')->where('tenant_id', $tenant->id)->where('pos_order_id', $order->id)->first();
+        $this->assertNotNull($reversal);
+        $this->assertNotNull($reversal->created_at);
+        $this->assertNotNull($reversal->updated_at);
+        $this->assertSame('void', $reversal->type);
+        $this->assertDatabaseHas('sale_reversals', [
+            'tenant_id' => $tenant->id,
+            'pos_order_id' => $order->id,
+            'type' => 'void',
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'type' => 'sale_reversal',
+            'reference_type' => 'sale_reversal',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'pos.order.reversed',
+            'status' => 'applied',
+        ]);
+    }
+
     public function test_credit_sale_and_later_collection_sync_once_after_recovery(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa POS Credito', 'slug' => 'empresa-pos-credito-sync']);
@@ -509,6 +587,82 @@ class PosOrderStockSyncTest extends TestCase
             ->value('last_error'));
     }
 
+    public function test_older_pending_event_cannot_revert_a_paid_pos_order(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Orden Sync', 'slug' => 'empresa-orden-sync']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $branch = Branch::create(['name' => 'Sucursal Orden', 'code' => 'BR-ORDER']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen Orden', 'code' => 'WH-ORDER']);
+        $productId = Product::query()->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Producto Orden Sync',
+            'sku' => 'SKU-ORDER-SYNC',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 10,
+            'sale_currency' => Product::CURRENCY_USD,
+        ]);
+        DB::table('stock_balances')->insert([
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $productId,
+            'quantity_available' => 1,
+            'quantity_reserved' => 0,
+            'quantity_damaged' => 0,
+        ]);
+
+        $paidAt = now();
+        $paidUuid = $this->insertInboxEvent(
+            $tenant,
+            'pos.order.paid',
+            $this->paidOrderPayload(
+                sourceNodeCode: 'LOCAL-ORDER-01',
+                orderId: 701,
+                saleId: 701,
+                productSku: 'SKU-ORDER-SYNC',
+                warehouseCode: 'WH-ORDER',
+                occurredAt: $paidAt->toISOString(),
+            ),
+            701,
+            $paidAt,
+        );
+        $pendingUuid = $this->insertInboxEvent(
+            $tenant,
+            'pos.order.pending',
+            $this->paidOrderPayload(
+                sourceNodeCode: 'LOCAL-ORDER-01',
+                orderId: 701,
+                saleId: 701,
+                productSku: 'SKU-ORDER-SYNC',
+                warehouseCode: 'WH-ORDER',
+                occurredAt: $paidAt->copy()->subMinute()->toISOString(),
+                status: 'open',
+                saleStatus: 'draft',
+            ),
+            701,
+            $paidAt->copy()->subMinute(),
+        );
+
+        $summary = app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(['applied' => 1, 'failed' => 0, 'ignored' => 1], $summary);
+        $this->assertDatabaseHas('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => 'LOCAL-ORDER-01',
+            'sync_source_id' => 701,
+            'status' => 'paid',
+        ]);
+        $this->assertDatabaseHas('sales', [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => 'LOCAL-ORDER-01',
+            'sync_source_id' => 701,
+            'status' => 'confirmed',
+        ]);
+        $this->assertDatabaseHas('sync_inbox', ['event_uuid' => $paidUuid, 'status' => 'applied']);
+        $this->assertDatabaseHas('sync_inbox', ['event_uuid' => $pendingUuid, 'status' => 'ignored']);
+    }
+
     public function test_conflicting_remote_imei_sale_keeps_the_second_event_for_manual_resolution(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa IMEI Unico', 'slug' => 'empresa-imei-unico']);
@@ -588,13 +742,17 @@ class PosOrderStockSyncTest extends TestCase
         string $productSku,
         string $warehouseCode,
         ?string $serialNumber = null,
+        ?string $occurredAt = null,
+        string $status = 'paid',
+        string $saleStatus = 'confirmed',
     ): array {
         return [
             'source_node_code' => $sourceNodeCode,
             'order_id' => $orderId,
             'sale_id' => $saleId,
-            'sale_status' => 'confirmed',
-            'status' => 'paid',
+            'sale_status' => $saleStatus,
+            'status' => $status,
+            'occurred_at' => $occurredAt,
             'total_base_amount' => '10.0000',
             'total_local_amount' => '0.0000',
             'paid_base_amount' => '10.0000',
@@ -621,8 +779,13 @@ class PosOrderStockSyncTest extends TestCase
         ];
     }
 
-    private function insertInboxEvent(Tenant $tenant, string $eventType, array $payload, int $aggregateId): string
-    {
+    private function insertInboxEvent(
+        Tenant $tenant,
+        string $eventType,
+        array $payload,
+        int $aggregateId,
+        ?Carbon $occurredAt = null,
+    ): string {
         $encodedPayload = json_encode($payload);
         $eventUuid = (string) Str::uuid();
 
@@ -635,6 +798,7 @@ class PosOrderStockSyncTest extends TestCase
             'payload_hash' => hash('sha256', $encodedPayload),
             'payload' => $encodedPayload,
             'status' => 'received',
+            'occurred_at' => $occurredAt ?? now(),
             'received_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),

@@ -16,6 +16,10 @@ class ReceiveInventoryTransferRequest extends FormRequest
             'items.*.received_quantity' => ['nullable', 'numeric', 'min:0'],
             'items.*.received_product_unit_ids' => ['nullable', 'array'],
             'items.*.received_product_unit_ids.*' => ['integer'],
+            'items.*.serial_units' => ['nullable', 'array'],
+            'items.*.serial_units.*' => ['required', 'array'],
+            'items.*.serial_units.*.serial_type' => ['required', 'string', 'in:imei,serial'],
+            'items.*.serial_units.*.serial_number' => ['required', 'string', 'max:150'],
             'items.*.difference_reason' => ['nullable', 'string', 'max:255'],
             'items.*.difference_notes' => ['nullable', 'string', 'max:1000'],
         ];

@@ -82,7 +82,7 @@ describe('KardexTab', () => {
     });
     render(<KardexTab productId={100} />, { wrapper: makeWrapper() });
     await waitFor(() => {
-      expect(screen.getByText(/Transferencia inter-empresa \+/i)).toBeInTheDocument();
+      expect(screen.getByText(/Transferencia inter-empresa \(entrada\)/i)).toBeInTheDocument();
     });
   });
 
@@ -111,7 +111,7 @@ describe('KardexTab', () => {
     });
     render(<KardexTab productId={100} />, { wrapper: makeWrapper() });
     await waitFor(() => {
-      expect(screen.getByText(/Transferencia inter-empresa -/i)).toBeInTheDocument();
+      expect(screen.getByText(/Transferencia inter-empresa \(salida\)/i)).toBeInTheDocument();
     });
   });
 
@@ -182,9 +182,11 @@ describe('KardexTab', () => {
     });
     render(<KardexTab productId={100} />, { wrapper: makeWrapper() });
     await waitFor(() => {
-      expect(screen.queryByTestId('kardex-ref-5')).not.toBeInTheDocument();
-      // Texto plano con el ref_type crudo.
-      expect(screen.getByText(/sync_snapshot/)).toBeInTheDocument();
+      // El fallback es un span (no un link) con la referencia traducida.
+      const ref = screen.getByTestId('kardex-ref-5');
+      expect(ref.tagName).toBe('SPAN');
+      expect(ref).not.toHaveAttribute('href');
+      expect(screen.getByText(/Sincronización/)).toBeInTheDocument();
     });
   });
 });

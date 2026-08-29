@@ -85,6 +85,7 @@ class SyncTransportService
                 'aggregate_id' => $event['aggregate_id'] ?? null,
                 'payload_hash' => hash('sha256', json_encode($event['payload'] ?? [])),
                 'payload' => json_encode($event['payload'] ?? []),
+                'occurred_at' => isset($event['occurred_at']) ? Carbon::parse($event['occurred_at']) : $now,
                 'status' => 'received',
                 'received_at' => $now,
                 'created_at' => $now,

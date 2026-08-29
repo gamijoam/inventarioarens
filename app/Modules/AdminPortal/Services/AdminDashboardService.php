@@ -109,6 +109,22 @@ class AdminDashboardService
                 ->where('products.is_active', true);
         };
 
+        $lowStockProducts = DB::table('stock_balances as sb')
+            ->join('products as p', function ($join): void {
+                $join->on('p.id', '=', 'sb.product_id')
+                    ->on('p.tenant_id', '=', 'sb.tenant_id');
+            })
+            ->select('sb.product_id')
+            ->selectRaw('SUM(sb.quantity_available) as available')
+            ->where('sb.tenant_id', $tenantId)
+            ->where('p.is_active', true)
+            ->groupBy('sb.product_id')
+            ->havingRaw('SUM(sb.quantity_available) > 0')
+            ->havingRaw('SUM(sb.quantity_available) <= CAST(? AS NUMERIC)', [$threshold]);
+        $lowStockCount = DB::query()
+            ->fromSub($lowStockProducts, 'low_stock_products')
+            ->count();
+
         return [
             'active_products_count' => $productsWithStock()->count(),
             'available_quantity' => round((float) $productsWithStock()->sum(DB::raw('COALESCE(stock.available, 0)')), 4),

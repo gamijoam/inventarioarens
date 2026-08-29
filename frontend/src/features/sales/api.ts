@@ -1,9 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { getOne, getPaginated, patchOne } from '@/api/client';
+import { getOne, getPaginated, patchOne, postOne } from '@/api/client';
 import { type Paginated } from '@/types/api';
-import { SaleSchema, type Sale, type SaleListFilters } from './schemas';
+import {
+  SaleReversalSchema,
+  SaleSchema,
+  type Sale,
+  type SaleListFilters,
+  type SaleReversal,
+} from './schemas';
 import { saleKeys } from './queries';
 
 function toQueryString(filters: SaleListFilters): string {
@@ -61,6 +67,35 @@ export function useCancelSale() {
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: saleKeys.detail(id) });
+    },
+  });
+}
+
+export interface ReversePosSalePayload {
+  type: 'void' | 'reversal';
+  reason: string;
+  cash_register_session_id: number;
+}
+
+export async function reversePosSale(
+  posOrderId: number,
+  payload: ReversePosSalePayload,
+): Promise<SaleReversal> {
+  const response = await postOne<ReversePosSalePayload, unknown>(
+    `/pos/orders/${posOrderId}/reverse`,
+    payload,
+  );
+  return SaleReversalSchema.parse(response);
+}
+
+export function useReversePosSale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ posOrderId, payload }: { posOrderId: number; payload: ReversePosSalePayload }) =>
+      reversePosSale(posOrderId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+      void qc.invalidateQueries({ queryKey: saleKeys.details() });
     },
   });
 }

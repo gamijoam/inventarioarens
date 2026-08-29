@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Boxes, Package, Trash2 } from 'lucide-react';
+import { Boxes, ChevronDown, ChevronUp, Package, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -18,8 +18,8 @@ export interface PurchaseItemRowValue {
   product_id: number | null;
   product_variant_id: number | null;
   product_info: ProductAutocompleteOption | null;
-  quantity: number;
-  unit_cost: number;
+  quantity: number | string;
+  unit_cost: number | string;
   serial_units: ImeiInput[];
   error?: string;
 }
@@ -31,6 +31,8 @@ interface PurchaseItemRowProps {
   disabled?: boolean;
   canRemove: boolean;
   index: number;
+  collapsed: boolean;
+  onToggleCollapse: (index: number) => void;
 }
 
 export function PurchaseItemRow({
@@ -40,6 +42,8 @@ export function PurchaseItemRow({
   disabled,
   canRemove,
   index,
+  collapsed,
+  onToggleCollapse,
 }: PurchaseItemRowProps) {
   const { data: warehouses = [] } = useWarehouses();
   const { data: variants = [], isLoading: variantsLoading } = useProductVariants(
@@ -48,10 +52,26 @@ export function PurchaseItemRow({
   const activeVariants = useMemo(() => variants.filter((variant) => variant.is_active), [variants]);
   const hasVariantChoice = activeVariants.length > 1 || activeVariants.some((variant) => variant.color);
   const subtotal = useMemo(
-    () => (Number.isFinite(value.quantity) ? value.quantity * value.unit_cost : 0),
+    () =>
+      Number.isFinite(Number(value.quantity)) && Number.isFinite(Number(value.unit_cost))
+        ? Number(value.quantity) * Number(value.unit_cost)
+        : 0,
     [value.quantity, value.unit_cost],
   );
   const isSerialized = value.product_info?.tracking_type === 'serialized';
+
+  /**
+   * Acepta solo digitos y un separador decimal (punto o coma), sin forzar
+   * `Number('')` a 0 para no perder el '.' al escribir.
+   */
+  const onDecimalInput = (
+    raw: string,
+    set: (next: number | string) => void,
+  ) => {
+    const cleaned = raw.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+    if (cleaned.split('.').length > 2) return;
+    set(cleaned);
+  };
 
   useEffect(() => {
     if (!value.product_id || !value.product_variant_id) return;
@@ -62,10 +82,24 @@ export function PurchaseItemRow({
 
   return (
     <section
-      className="border-border bg-surface overflow-visible rounded-md border"
+      className={cn(
+        'border-border bg-surface overflow-visible rounded-md border',
+        collapsed && 'border-border-strong',
+      )}
       data-testid={`purchase-item-${index}`}
     >
       <header className="border-border bg-bg/50 flex min-h-14 items-center gap-3 border-b px-4 py-2.5">
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => onToggleCollapse(index)}
+          disabled={disabled}
+          aria-label={collapsed ? `Expandir linea ${index + 1}` : `Colapsar linea ${index + 1}`}
+          data-testid={`purchase-item-toggle-${index}`}
+        >
+          {collapsed ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </Button>
         <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-sm font-bold">
           {index + 1}
         </div>
@@ -74,6 +108,22 @@ export function PurchaseItemRow({
           <p className="truncate text-sm font-semibold">
             {value.product_info?.name ?? 'Pendiente por seleccionar'}
           </p>
+          {collapsed && (
+            <p className="text-text-muted text-xs tabular-nums">
+              {Number.isFinite(value.quantity) ? value.quantity : 0} x{' '}
+              {(Number.isFinite(value.unit_cost) ? value.unit_cost : 0).toLocaleString('es-VE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{' '}
+              ={' '}
+              <strong className="text-text-primary">
+                {subtotal.toLocaleString('es-VE', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </strong>
+            </p>
+          )}
         </div>
         {value.product_info?.tracking_type === 'serialized' && (
           <Badge variant="info" className="shrink-0">
@@ -94,7 +144,8 @@ export function PurchaseItemRow({
         )}
       </header>
 
-      <div className="space-y-4 p-4">
+      {!collapsed && (
+        <div className="space-y-4 p-4">
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
           <div className="min-w-0 space-y-1.5">
             <label className="text-text-secondary text-xs font-semibold uppercase">Producto</label>
@@ -193,11 +244,14 @@ export function PurchaseItemRow({
           <div className="space-y-1.5">
             <label className="text-text-secondary text-xs font-semibold uppercase">Cantidad</label>
             <Input
-              type="number"
-              min={isSerialized ? 1 : 0.0001}
-              step={isSerialized ? 1 : 0.0001}
-              value={value.quantity ?? ''}
-              onChange={(event) => onChange({ ...value, quantity: Number(event.target.value) })}
+              type="text"
+              inputMode="decimal"
+              value={value.quantity === '' || value.quantity == null ? '' : String(value.quantity)}
+              onChange={(event) =>
+                onDecimalInput(event.target.value, (next) =>
+                  onChange({ ...value, quantity: next }),
+                )
+              }
               disabled={disabled}
               placeholder="0"
               className="text-right tabular-nums"
@@ -213,11 +267,14 @@ export function PurchaseItemRow({
               Costo unitario
             </label>
             <Input
-              type="number"
-              min={0.0001}
-              step={0.0001}
-              value={value.unit_cost ?? ''}
-              onChange={(event) => onChange({ ...value, unit_cost: Number(event.target.value) })}
+              type="text"
+              inputMode="decimal"
+              value={value.unit_cost === '' || value.unit_cost == null ? '' : String(value.unit_cost)}
+              onChange={(event) =>
+                onDecimalInput(event.target.value, (next) =>
+                  onChange({ ...value, unit_cost: next }),
+                )
+              }
               disabled={disabled}
               placeholder="0.00"
               className="text-right tabular-nums"
@@ -240,14 +297,15 @@ export function PurchaseItemRow({
             <ImeiListInput
               value={value.serial_units}
               onChange={(serial_units) => onChange({ ...value, serial_units })}
-              expectedQuantity={value.quantity || 1}
+              expectedQuantity={Number(value.quantity) || 1}
               disabled={disabled}
             />
           </div>
         )}
 
         {value.error && <p className="text-danger text-xs font-medium">{value.error}</p>}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

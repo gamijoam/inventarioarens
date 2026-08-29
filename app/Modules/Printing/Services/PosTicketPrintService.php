@@ -8,6 +8,7 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\Printing\Models\PrinterStation;
 use App\Modules\Printing\Models\PrintJob;
 use App\Modules\Printing\Models\PrintProfile;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\View;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +29,7 @@ class PosTicketPrintService
         return collect($outputs)
             ->map(fn (string $target): PrintJob => PrintJob::create([
                 'printer_station_id' => $station?->id,
+                'print_connector_id' => $target === PrintJob::OUTPUT_THERMAL ? $station?->print_connector_id : null,
                 'print_profile_id' => $profile->id,
                 'source_type' => PosOrder::class,
                 'source_id' => $order->id,
@@ -185,6 +187,7 @@ class PosTicketPrintService
         $items = $sale?->items ?? collect();
         $payments = $order->payments;
         $promotionApplications = $sale?->promotionApplications ?? collect();
+        $company = CompanySettings::getForTenant($tenant);
         $promotionLabel = static fn (string $scope): string => match ($scope) {
             'combo' => 'COMBO',
             'invoice' => 'PROMOCION FACTURA',
@@ -196,6 +199,8 @@ class PosTicketPrintService
             'tenant' => [
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
+                'company' => $company,
+                'show_company' => (bool) ($company['show_on']['sale_ticket'] ?? false),
             ],
             'profile' => [
                 'paper_width_mm' => (int) $profile->paper_width_mm,

@@ -22,7 +22,7 @@ export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
 
 export interface PayableListFilters {
   search?: string;
-  status?: 'all' | 'open' | PayableStatus;
+  status?: string;
   supplier_id?: number;
   due_from?: string;
   due_to?: string;

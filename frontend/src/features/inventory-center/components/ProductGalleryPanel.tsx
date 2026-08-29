@@ -18,9 +18,10 @@ import { ProductImage as ProductImageView } from './ProductImage';
 
 interface ProductGalleryPanelProps {
   images: ProductImage[];
+  fallbackUrl?: string | null;
 }
 
-export function ProductGalleryPanel({ images }: ProductGalleryPanelProps) {
+export function ProductGalleryPanel({ images, fallbackUrl }: ProductGalleryPanelProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const primary = images.find((image) => image.is_primary) ?? images[0];
@@ -31,8 +32,35 @@ export function ProductGalleryPanel({ images }: ProductGalleryPanelProps) {
     ? images.find((image) => image.id === selectedId) ?? null
     : null;
 
+  // Sin galeria propia pero con URL externa: mostrarla como imagen de respaldo.
   if (images.length === 0) {
-    return null;
+    if (!fallbackUrl) {
+      return null;
+    }
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Imágenes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="block aspect-video w-full overflow-hidden rounded-lg border border-border bg-bg">
+            <img
+              src={fallbackUrl}
+              alt="Imagen del producto"
+              className="size-full object-contain"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </div>
+          <p className="mt-2 text-[11px] text-text-muted">
+            Imagen de referencia (URL externa).
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

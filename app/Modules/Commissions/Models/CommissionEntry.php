@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
+use App\Modules\Workshop\Models\ServiceOrder;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'sale_item_id',
     'accounts_receivable_payment_id',
     'sales_return_id',
+    'service_order_id',
     'beneficiary_user_id',
     'beneficiary_role',
     'entry_type',
@@ -95,6 +97,11 @@ class CommissionEntry extends Model
     public function saleItem(): BelongsTo
     {
         return $this->belongsTo(SaleItem::class);
+    }
+
+    public function serviceOrder(): BelongsTo
+    {
+        return $this->belongsTo(ServiceOrder::class, 'service_order_id');
     }
 
     public function originalEntry(): BelongsTo

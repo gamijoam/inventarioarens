@@ -121,6 +121,15 @@ export const PurchaseSchema = z.object({
   received_base_amount: z.union([z.number(), z.string()]).nullable().optional(),
   received_local_amount: z.union([z.number(), z.string()]).nullable().optional(),
   items_count: z.number().int().optional(),
+  warehouses: z
+    .array(
+      z.object({
+        id: z.number().int(),
+        code: z.string(),
+        name: z.string(),
+      }),
+    )
+    .optional(),
   created_by: z.number().int().nullable().optional(),
   received_at: z.string().nullable().optional(),
   cancelled_at: z.string().nullable().optional(),

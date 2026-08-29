@@ -14,6 +14,8 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /**
@@ -28,6 +30,13 @@ class ImageSyncFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('sync.transport', 'web');
+    }
+
     private function setupTenant(): array
     {
         $tenant = Tenant::create(['name' => 'T', 'slug' => 't']);
@@ -35,6 +44,7 @@ class ImageSyncFlowTest extends TestCase
         setPermissionsTeamId($tenant->id);
         $user = User::factory()->create();
         $user->tenants()->attach($tenant, ['status' => 'active']);
+        $user->givePermissionTo('sync.transport');
 
         return [$tenant, $user];
     }

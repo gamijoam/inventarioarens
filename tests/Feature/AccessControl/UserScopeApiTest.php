@@ -4,17 +4,15 @@ namespace Tests\Feature\AccessControl;
 
 use App\Models\User;
 use App\Modules\AccessControl\Models\UserBranchScope;
-use App\Modules\AccessControl\Models\UserCustomerGroupScope;
-use App\Modules\AccessControl\Models\UserVendorAssignment;
-use App\Modules\AccessControl\Models\UserWarehouseScope;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Customers\Models\CustomerGroup;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Permissions\BasePermissions;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -336,10 +334,10 @@ class UserScopeApiTest extends TestCase
 
     private function seedPermissions(Tenant $tenant): void
     {
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -357,6 +355,7 @@ class UserScopeApiTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
         return $plainToken;
     }
 }

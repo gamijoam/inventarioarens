@@ -682,12 +682,16 @@ describe('pos api', () => {
       items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
       payments: [],
     });
-    expect(mockPostOneConfig).toHaveBeenCalledWith('/pos/checkouts', expect.any(Object), expect.objectContaining({
-      headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
-    }));
+    expect(mockPostOneConfig).toHaveBeenCalledWith(
+      '/pos/checkouts',
+      expect.any(Object),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+      }),
+    );
   });
 
-  it('conserva la misma clave de idempotencia cuando se reintenta el mismo checkout', async () => {
+  it('genera una nueva clave para un checkout posterior exitoso', async () => {
     mockPostOne.mockResolvedValue({ id: 11, status: 'paid', sale_id: 22 });
 
     const payload = {
@@ -705,7 +709,9 @@ describe('pos api', () => {
 
     const firstConfig = mockPostOneConfig.mock.calls[0]![2] as { headers: Record<string, string> };
     const secondConfig = mockPostOneConfig.mock.calls[1]![2] as { headers: Record<string, string> };
-    expect(firstConfig.headers['Idempotency-Key']).toBe(secondConfig.headers['Idempotency-Key']);
+    expect(firstConfig.headers['Idempotency-Key']).not.toBe(
+      secondConfig.headers['Idempotency-Key'],
+    );
   });
 
   it('envia combos, ofertas por linea y promocion de factura en checkout', async () => {
@@ -734,6 +740,34 @@ describe('pos api', () => {
         product_offer_applications: [{ promotion_id: 30, item_index: 1 }],
       }),
     );
+    expect(mockPostOneConfig).toHaveBeenCalledWith(
+      '/pos/checkouts',
+      expect.any(Object),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+      }),
+    );
+  });
+
+  it('reutiliza la misma clave si se reintenta el mismo checkout tras un error', async () => {
+    const payload = {
+      cash_register_session_id: 3,
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 1 }],
+      payments: [],
+    };
+    mockPostOne
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ id: 13, status: 'paid', sale_id: 24 });
+
+    const { result } = renderHook(() => useCheckout(), { wrapper });
+    result.current.mutate(payload);
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    result.current.mutate(payload);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const calls = mockPostOne.mock.calls.filter(([path]) => path === '/pos/checkouts');
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.[2]).toEqual(calls[1]?.[2]);
   });
 
   it('arma una orden pendiente (hold) SIN sesion de caja ni pagos', async () => {
@@ -811,9 +845,13 @@ describe('pos api', () => {
       cash_register_session_id: 9,
       items: [{ sale_item_id: 41, product_unit_ids: [101, 102] }],
     });
-    expect(mockPostOneConfig).toHaveBeenCalledWith('/pos/orders/21/payments', expect.any(Object), expect.objectContaining({
-      headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
-    }));
+    expect(mockPostOneConfig).toHaveBeenCalledWith(
+      '/pos/orders/21/payments',
+      expect.any(Object),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Idempotency-Key': expect.any(String) }),
+      }),
+    );
   });
 
   it('completa el cobro de una orden pendiente SIN items cuando no hay IMEIs', async () => {

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'branch_id',
     'cash_register_id',
+    'print_connector_id',
     'print_profile_id',
     'name',
     'code',
@@ -50,6 +51,11 @@ class PrinterStation extends Model
     public function profile(): BelongsTo
     {
         return $this->belongsTo(PrintProfile::class, 'print_profile_id');
+    }
+
+    public function connector(): BelongsTo
+    {
+        return $this->belongsTo(PrintConnector::class, 'print_connector_id');
     }
 
     public function branch(): BelongsTo

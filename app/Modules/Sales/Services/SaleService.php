@@ -196,31 +196,36 @@ class SaleService
             foreach ($sale->items as $item) {
                 $productUnits = $this->validatedProductUnitsForSaleItem($item);
 
-                try {
-                    $movement = $this->inventory->sale(
-                        warehouse: $item->warehouse,
-                        product: $item->product,
-                        quantity: (float) $item->quantity,
-                        unitCost: $item->base_unit_cost === null ? $item->product->last_purchase_cost : (float) $item->base_unit_cost,
-                        createdBy: $user,
-                        reason: "Venta #{$sale->id}",
-                        referenceType: Sale::class,
-                        referenceId: $sale->id,
-                        productVariantId: $item->product_variant_id,
-                    );
-                } catch (InsufficientStockException) {
-                    throw ValidationException::withMessages([
-                        'stock' => "Stock insuficiente para el producto {$item->product_id}.",
-                    ]);
+                $movement = null;
+                if ($item->product->track_stock) {
+                    try {
+                        $movement = $this->inventory->sale(
+                            warehouse: $item->warehouse,
+                            product: $item->product,
+                            quantity: (float) $item->quantity,
+                            unitCost: $item->base_unit_cost === null ? $item->product->last_purchase_cost : (float) $item->base_unit_cost,
+                            createdBy: $user,
+                            reason: "Venta #{$sale->id}",
+                            referenceType: Sale::class,
+                            referenceId: $sale->id,
+                            productVariantId: $item->product_variant_id,
+                        );
+                    } catch (InsufficientStockException) {
+                        throw ValidationException::withMessages([
+                            'stock' => "Stock insuficiente para el producto {$item->product_id}.",
+                        ]);
+                    }
                 }
 
                 $item->update([
-                    'stock_movement_id' => $movement->id,
+                    'stock_movement_id' => $movement?->id,
                     'base_unit_cost' => $item->base_unit_cost === null
                         ? $item->product->last_purchase_cost
                         : $item->base_unit_cost,
                 ]);
-                $this->markProductUnitsAsSold($productUnits, $movement->id);
+                if ($movement !== null) {
+                    $this->markProductUnitsAsSold($productUnits, $movement->id);
+                }
             }
 
             $confirmedAt = now();

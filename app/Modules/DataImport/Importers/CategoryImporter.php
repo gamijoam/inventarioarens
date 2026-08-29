@@ -19,6 +19,11 @@ class CategoryImporter extends BaseImporter
         return ['slug', 'name', 'parent_slug', 'description', 'sort_order', 'is_active'];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        return (string) ($this->normalizeSlug($payload['slug'] ?? null) ?? '');
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $slug = $this->normalizeSlug($payload['slug'] ?? null);

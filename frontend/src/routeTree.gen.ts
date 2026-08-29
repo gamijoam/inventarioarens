@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MasterLoginRouteImport } from './routes/master.login'
+import { Route as AuthedWorkshopRouteImport } from './routes/_authed/workshop'
 import { Route as AuthedWarrantiesRouteImport } from './routes/_authed/warranties'
 import { Route as AuthedUsersRouteImport } from './routes/_authed/users'
 import { Route as AuthedTransfersRouteImport } from './routes/_authed/transfers'
@@ -24,6 +25,7 @@ import { Route as AuthedSalesReturnsRouteImport } from './routes/_authed/sales-r
 import { Route as AuthedSalesRouteImport } from './routes/_authed/sales'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReceivablesRouteImport } from './routes/_authed/receivables'
+import { Route as AuthedQuotationsRouteImport } from './routes/_authed/quotations'
 import { Route as AuthedPurchasesRouteImport } from './routes/_authed/purchases'
 import { Route as AuthedPromotionsRouteImport } from './routes/_authed/promotions'
 import { Route as AuthedPrintingRouteImport } from './routes/_authed/printing'
@@ -40,6 +42,9 @@ import { Route as AuthedImportIndexRouteImport } from './routes/_authed/import/i
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
 import { Route as AuthedSettingsTelegramRouteImport } from './routes/_authed/settings/telegram'
+import { Route as AuthedSettingsCompanyRouteImport } from './routes/_authed/settings/company'
+import { Route as AuthedSettingsCapabilitiesRouteImport } from './routes/_authed/settings/capabilities'
+import { Route as AuthedQuotationsQuotationIdRouteImport } from './routes/_authed/quotations.$quotationId'
 import { Route as AuthedPosArmarRouteImport } from './routes/_authed/pos_.armar'
 import { Route as AuthedInventoryManualMovementsRouteImport } from './routes/_authed/inventory/manual-movements'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
@@ -87,6 +92,11 @@ const MasterLoginRoute = MasterLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => MasterRoute,
 } as any)
+const AuthedWorkshopRoute = AuthedWorkshopRouteImport.update({
+  id: '/workshop',
+  path: '/workshop',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedWarrantiesRoute = AuthedWarrantiesRouteImport.update({
   id: '/warranties',
   path: '/warranties',
@@ -125,6 +135,11 @@ const AuthedReportsRoute = AuthedReportsRouteImport.update({
 const AuthedReceivablesRoute = AuthedReceivablesRouteImport.update({
   id: '/receivables',
   path: '/receivables',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedQuotationsRoute = AuthedQuotationsRouteImport.update({
+  id: '/quotations',
+  path: '/quotations',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPurchasesRoute = AuthedPurchasesRouteImport.update({
@@ -209,6 +224,23 @@ const AuthedSettingsTelegramRoute = AuthedSettingsTelegramRouteImport.update({
   path: '/settings/telegram',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedSettingsCompanyRoute = AuthedSettingsCompanyRouteImport.update({
+  id: '/settings/company',
+  path: '/settings/company',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedSettingsCapabilitiesRoute =
+  AuthedSettingsCapabilitiesRouteImport.update({
+    id: '/settings/capabilities',
+    path: '/settings/capabilities',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedQuotationsQuotationIdRoute =
+  AuthedQuotationsQuotationIdRouteImport.update({
+    id: '/$quotationId',
+    path: '/$quotationId',
+    getParentRoute: () => AuthedQuotationsRoute,
+  } as any)
 const AuthedPosArmarRoute = AuthedPosArmarRouteImport.update({
   id: '/pos_/armar',
   path: '/pos/armar',
@@ -291,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/printing': typeof AuthedPrintingRoute
   '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
+  '/quotations': typeof AuthedQuotationsRouteWithChildren
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
   '/sales': typeof AuthedSalesRoute
@@ -299,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
   '/warranties': typeof AuthedWarrantiesRoute
+  '/workshop': typeof AuthedWorkshopRoute
   '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -310,6 +344,9 @@ export interface FileRoutesByFullPath {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
+  '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
+  '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
+  '/settings/company': typeof AuthedSettingsCompanyRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -335,6 +372,7 @@ export interface FileRoutesByTo {
   '/printing': typeof AuthedPrintingRoute
   '/promotions': typeof AuthedPromotionsRoute
   '/purchases': typeof AuthedPurchasesRoute
+  '/quotations': typeof AuthedQuotationsRouteWithChildren
   '/receivables': typeof AuthedReceivablesRoute
   '/reports': typeof AuthedReportsRoute
   '/sales': typeof AuthedSalesRoute
@@ -343,6 +381,7 @@ export interface FileRoutesByTo {
   '/transfers': typeof AuthedTransfersRouteWithChildren
   '/users': typeof AuthedUsersRouteWithChildren
   '/warranties': typeof AuthedWarrantiesRoute
+  '/workshop': typeof AuthedWorkshopRoute
   '/master/login': typeof MasterLoginRoute
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -354,6 +393,9 @@ export interface FileRoutesByTo {
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
+  '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
+  '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
+  '/settings/company': typeof AuthedSettingsCompanyRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -381,6 +423,7 @@ export interface FileRoutesById {
   '/_authed/printing': typeof AuthedPrintingRoute
   '/_authed/promotions': typeof AuthedPromotionsRoute
   '/_authed/purchases': typeof AuthedPurchasesRoute
+  '/_authed/quotations': typeof AuthedQuotationsRouteWithChildren
   '/_authed/receivables': typeof AuthedReceivablesRoute
   '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/sales': typeof AuthedSalesRoute
@@ -389,6 +432,7 @@ export interface FileRoutesById {
   '/_authed/transfers': typeof AuthedTransfersRouteWithChildren
   '/_authed/users': typeof AuthedUsersRouteWithChildren
   '/_authed/warranties': typeof AuthedWarrantiesRoute
+  '/_authed/workshop': typeof AuthedWorkshopRoute
   '/master/login': typeof MasterLoginRoute
   '/_authed/access/groups': typeof AuthedAccessGroupsRoute
   '/_authed/access/permissions': typeof AuthedAccessPermissionsRoute
@@ -400,6 +444,9 @@ export interface FileRoutesById {
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/_authed/pos_/armar': typeof AuthedPosArmarRoute
+  '/_authed/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
+  '/_authed/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
+  '/_authed/settings/company': typeof AuthedSettingsCompanyRoute
   '/_authed/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
@@ -427,6 +474,7 @@ export interface FileRouteTypes {
     | '/printing'
     | '/promotions'
     | '/purchases'
+    | '/quotations'
     | '/receivables'
     | '/reports'
     | '/sales'
@@ -435,6 +483,7 @@ export interface FileRouteTypes {
     | '/transfers'
     | '/users'
     | '/warranties'
+    | '/workshop'
     | '/master/login'
     | '/access/groups'
     | '/access/permissions'
@@ -446,6 +495,9 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/inventory/manual-movements'
     | '/pos/armar'
+    | '/quotations/$quotationId'
+    | '/settings/capabilities'
+    | '/settings/company'
     | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
@@ -471,6 +523,7 @@ export interface FileRouteTypes {
     | '/printing'
     | '/promotions'
     | '/purchases'
+    | '/quotations'
     | '/receivables'
     | '/reports'
     | '/sales'
@@ -479,6 +532,7 @@ export interface FileRouteTypes {
     | '/transfers'
     | '/users'
     | '/warranties'
+    | '/workshop'
     | '/master/login'
     | '/access/groups'
     | '/access/permissions'
@@ -490,6 +544,9 @@ export interface FileRouteTypes {
     | '/inventory/currency'
     | '/inventory/manual-movements'
     | '/pos/armar'
+    | '/quotations/$quotationId'
+    | '/settings/capabilities'
+    | '/settings/company'
     | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
@@ -516,6 +573,7 @@ export interface FileRouteTypes {
     | '/_authed/printing'
     | '/_authed/promotions'
     | '/_authed/purchases'
+    | '/_authed/quotations'
     | '/_authed/receivables'
     | '/_authed/reports'
     | '/_authed/sales'
@@ -524,6 +582,7 @@ export interface FileRouteTypes {
     | '/_authed/transfers'
     | '/_authed/users'
     | '/_authed/warranties'
+    | '/_authed/workshop'
     | '/master/login'
     | '/_authed/access/groups'
     | '/_authed/access/permissions'
@@ -535,6 +594,9 @@ export interface FileRouteTypes {
     | '/_authed/inventory/currency'
     | '/_authed/inventory/manual-movements'
     | '/_authed/pos_/armar'
+    | '/_authed/quotations/$quotationId'
+    | '/_authed/settings/capabilities'
+    | '/_authed/settings/company'
     | '/_authed/settings/telegram'
     | '/_authed/transfers/$transferId'
     | '/_authed/users/$userId'
@@ -604,6 +666,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MasterLoginRouteImport
       parentRoute: typeof MasterRoute
     }
+    '/_authed/workshop': {
+      id: '/_authed/workshop'
+      path: '/workshop'
+      fullPath: '/workshop'
+      preLoaderRoute: typeof AuthedWorkshopRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/warranties': {
       id: '/_authed/warranties'
       path: '/warranties'
@@ -658,6 +727,13 @@ declare module '@tanstack/react-router' {
       path: '/receivables'
       fullPath: '/receivables'
       preLoaderRoute: typeof AuthedReceivablesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/quotations': {
+      id: '/_authed/quotations'
+      path: '/quotations'
+      fullPath: '/quotations'
+      preLoaderRoute: typeof AuthedQuotationsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/purchases': {
@@ -772,6 +848,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsTelegramRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/settings/company': {
+      id: '/_authed/settings/company'
+      path: '/settings/company'
+      fullPath: '/settings/company'
+      preLoaderRoute: typeof AuthedSettingsCompanyRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/settings/capabilities': {
+      id: '/_authed/settings/capabilities'
+      path: '/settings/capabilities'
+      fullPath: '/settings/capabilities'
+      preLoaderRoute: typeof AuthedSettingsCapabilitiesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/quotations/$quotationId': {
+      id: '/_authed/quotations/$quotationId'
+      path: '/$quotationId'
+      fullPath: '/quotations/$quotationId'
+      preLoaderRoute: typeof AuthedQuotationsQuotationIdRouteImport
+      parentRoute: typeof AuthedQuotationsRoute
+    }
     '/_authed/pos_/armar': {
       id: '/_authed/pos_/armar'
       path: '/pos/armar'
@@ -874,6 +971,17 @@ const AuthedInventoryTransferRequestsRouteWithChildren =
     AuthedInventoryTransferRequestsRouteChildren,
   )
 
+interface AuthedQuotationsRouteChildren {
+  AuthedQuotationsQuotationIdRoute: typeof AuthedQuotationsQuotationIdRoute
+}
+
+const AuthedQuotationsRouteChildren: AuthedQuotationsRouteChildren = {
+  AuthedQuotationsQuotationIdRoute: AuthedQuotationsQuotationIdRoute,
+}
+
+const AuthedQuotationsRouteWithChildren =
+  AuthedQuotationsRoute._addFileChildren(AuthedQuotationsRouteChildren)
+
 interface AuthedTransfersRouteChildren {
   AuthedTransfersTransferIdRoute: typeof AuthedTransfersTransferIdRoute
 }
@@ -921,6 +1029,7 @@ interface AuthedRouteChildren {
   AuthedPrintingRoute: typeof AuthedPrintingRoute
   AuthedPromotionsRoute: typeof AuthedPromotionsRoute
   AuthedPurchasesRoute: typeof AuthedPurchasesRoute
+  AuthedQuotationsRoute: typeof AuthedQuotationsRouteWithChildren
   AuthedReceivablesRoute: typeof AuthedReceivablesRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedSalesRoute: typeof AuthedSalesRoute
@@ -929,6 +1038,7 @@ interface AuthedRouteChildren {
   AuthedTransfersRoute: typeof AuthedTransfersRouteWithChildren
   AuthedUsersRoute: typeof AuthedUsersRouteWithChildren
   AuthedWarrantiesRoute: typeof AuthedWarrantiesRoute
+  AuthedWorkshopRoute: typeof AuthedWorkshopRoute
   AuthedAccessGroupsRoute: typeof AuthedAccessGroupsRoute
   AuthedAccessPermissionsRoute: typeof AuthedAccessPermissionsRoute
   AuthedAccessRolesRoute: typeof AuthedAccessRolesRouteWithChildren
@@ -938,6 +1048,8 @@ interface AuthedRouteChildren {
   AuthedInventoryCurrencyRoute: typeof AuthedInventoryCurrencyRoute
   AuthedInventoryManualMovementsRoute: typeof AuthedInventoryManualMovementsRoute
   AuthedPosArmarRoute: typeof AuthedPosArmarRoute
+  AuthedSettingsCapabilitiesRoute: typeof AuthedSettingsCapabilitiesRoute
+  AuthedSettingsCompanyRoute: typeof AuthedSettingsCompanyRoute
   AuthedSettingsTelegramRoute: typeof AuthedSettingsTelegramRoute
   AuthedImportIndexRoute: typeof AuthedImportIndexRoute
   AuthedInventoryIndexRoute: typeof AuthedInventoryIndexRoute
@@ -957,6 +1069,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPrintingRoute: AuthedPrintingRoute,
   AuthedPromotionsRoute: AuthedPromotionsRoute,
   AuthedPurchasesRoute: AuthedPurchasesRoute,
+  AuthedQuotationsRoute: AuthedQuotationsRouteWithChildren,
   AuthedReceivablesRoute: AuthedReceivablesRoute,
   AuthedReportsRoute: AuthedReportsRoute,
   AuthedSalesRoute: AuthedSalesRoute,
@@ -965,6 +1078,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTransfersRoute: AuthedTransfersRouteWithChildren,
   AuthedUsersRoute: AuthedUsersRouteWithChildren,
   AuthedWarrantiesRoute: AuthedWarrantiesRoute,
+  AuthedWorkshopRoute: AuthedWorkshopRoute,
   AuthedAccessGroupsRoute: AuthedAccessGroupsRoute,
   AuthedAccessPermissionsRoute: AuthedAccessPermissionsRoute,
   AuthedAccessRolesRoute: AuthedAccessRolesRouteWithChildren,
@@ -974,6 +1088,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedInventoryCurrencyRoute: AuthedInventoryCurrencyRoute,
   AuthedInventoryManualMovementsRoute: AuthedInventoryManualMovementsRoute,
   AuthedPosArmarRoute: AuthedPosArmarRoute,
+  AuthedSettingsCapabilitiesRoute: AuthedSettingsCapabilitiesRoute,
+  AuthedSettingsCompanyRoute: AuthedSettingsCompanyRoute,
   AuthedSettingsTelegramRoute: AuthedSettingsTelegramRoute,
   AuthedImportIndexRoute: AuthedImportIndexRoute,
   AuthedInventoryIndexRoute: AuthedInventoryIndexRoute,

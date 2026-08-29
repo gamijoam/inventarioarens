@@ -18,6 +18,8 @@ import { z } from 'zod';
 import { api, getMany, postOne } from '@/api/client';
 import { type DataImportEntitySchema, DataImportSchema } from './schemas';
 
+export type DataImport = z.infer<typeof DataImportSchema>;
+
 export const SUPPORTED_ENTITIES = [
   'branches',
   'warehouses',
@@ -68,7 +70,7 @@ export function useDataImportSessions() {
   });
 }
 
-export function useDataImportSession(id: number) {
+export function useDataImportSession(id: number, poll = false) {
   return useQuery({
     queryKey: dataImportKeys.session(id),
     queryFn: async () => {
@@ -77,6 +79,12 @@ export function useDataImportSession(id: number) {
       return DataImportSchema.parse(raw);
     },
     enabled: Number.isFinite(id) && id > 0,
+    refetchInterval: poll
+      ? (query) => {
+          const status = query.state.data?.status;
+          return status === 'pending' || status === 'running' ? 1500 : false;
+        }
+      : false,
   });
 }
 
@@ -138,14 +146,17 @@ export interface RunSummary {
 export function useRunImportEntity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { sessionId: number; entity: SupportedEntity }): Promise<{ summary: RunSummary; session: unknown }> => {
+    mutationFn: async (payload: { sessionId: number; entity: SupportedEntity }): Promise<{ entity: string; session: DataImport }> => {
       const response = await api.post<unknown>(
         `/import/sessions/${payload.sessionId}/entities/${payload.entity}/run`,
         {},
       );
       const raw = response as unknown;
       const data = (raw as { data?: { summary: RunSummary; session: unknown } }).data ?? raw;
-      return data as { summary: RunSummary; session: unknown };
+      return {
+        entity: String((data as { entity?: string }).entity ?? payload.entity),
+        session: DataImportSchema.parse((data as { session?: unknown }).session),
+      };
     },
     onSuccess: (_, variables) => {
       void qc.invalidateQueries({ queryKey: dataImportKeys.session(variables.sessionId) });

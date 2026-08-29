@@ -7,6 +7,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 
@@ -23,6 +24,13 @@ class UserAuditController extends Controller
     {
         abort_unless($request->user()?->can('users.view'), 403);
         abort_unless((int) $user->tenants()->whereKey($tenant->id)->wherePivot('status', 'active')->exists() === 1, 404, 'El usuario no pertenece a esta empresa.');
+
+        $currentTenant = app(TenantManager::class)->require();
+        abort_unless(
+            (int) $currentTenant->id === (int) $tenant->id,
+            Response::HTTP_FORBIDDEN,
+            'El tenant de la ruta no coincide con el tenant autenticado.',
+        );
 
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);

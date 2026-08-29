@@ -42,10 +42,25 @@ export const PrintProfileSchema = z.object({
 }).passthrough();
 export type PrintProfile = z.infer<typeof PrintProfileSchema>;
 
+export const PrintConnectorSchema = z.object({
+  id: z.number().int(),
+  uuid: z.string(),
+  tenant_id: z.number().int(),
+  name: z.string(),
+  installation_id: z.string(),
+  version: z.string().nullable().optional(),
+  status: z.enum(['active', 'revoked']),
+  last_seen_at: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  stations_count: z.number().int().optional(),
+}).passthrough();
+export type PrintConnector = z.infer<typeof PrintConnectorSchema>;
+
 export const PrinterStationSchema = z.object({
   id: z.number().int(),
   branch_id: z.number().int().nullable().optional(),
   cash_register_id: z.number().int().nullable().optional(),
+  print_connector_id: z.number().int().nullable().optional(),
   print_profile_id: z.number().int(),
   name: z.string(),
   code: z.string(),
@@ -118,6 +133,7 @@ export interface PrintProfilePayload {
 export interface PrinterStationPayload {
   branch_id?: number | null;
   cash_register_id?: number | null;
+  print_connector_id?: number | null;
   print_profile_id: number;
   name: string;
   code: string;
@@ -136,6 +152,7 @@ export const printingKeys = {
   profiles: () => [...printingKeys.all, 'profiles'] as const,
   stations: () => [...printingKeys.all, 'stations'] as const,
   jobs: (posOrderId?: number) => [...printingKeys.all, 'jobs', posOrderId ?? 'all'] as const,
+  connectors: () => [...printingKeys.all, 'connectors'] as const,
 };
 
 export function usePrintProfiles() {
@@ -151,6 +168,18 @@ export function usePrinterStations(options?: { enabled?: boolean }) {
     queryFn: async () => z.array(PrinterStationSchema).parse(await getMany<unknown>('/printing/stations')),
     enabled: options?.enabled ?? true,
   });
+}
+
+export function usePrintConnectors(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: printingKeys.connectors(),
+    queryFn: getPrintConnectors,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export async function getPrintConnectors(): Promise<PrintConnector[]> {
+  return z.array(PrintConnectorSchema).parse(await getMany<unknown>('/printing/connectors'));
 }
 
 export function usePrintJobs(posOrderId?: number) {
@@ -203,6 +232,20 @@ export function useDeletePrinterStation() {
   return useMutation({
     mutationFn: async (id: number) => deleteOne(`/printing/stations/${id}`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: printingKeys.stations() }),
+  });
+}
+
+export function useCreatePrintConnectorPairingCode() {
+  return useMutation({
+    mutationFn: async () => postOne<undefined, { code: string; expires_at: string; tenant_id: number }>('/printing/connectors/pairing-codes'),
+  });
+}
+
+export function useRevokePrintConnector() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => postOne<undefined, PrintConnector>(`/printing/connectors/${id}/revoke`),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: printingKeys.connectors() }),
   });
 }
 
@@ -292,6 +335,36 @@ export async function openTicketPdf(job: PrintJob): Promise<void> {
   });
   const url = URL.createObjectURL(response.data);
   window.open(url, '_blank');
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function downloadTicketPdf(job: PrintJob): Promise<void> {
+  const response = await api.get<Blob>(`/printing/jobs/${job.id}/ticket.pdf`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `Ticket-${job.pos_order_id ?? job.id}-${new Date().toISOString().slice(0, 10)}.pdf`;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function downloadVirtualTicket(profile: PrintProfilePayload | PrintProfile): Promise<void> {
+  const response = await api.post<Blob>('/printing/profiles/preview.pdf', profile, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ticket-virtual-${new Date().toISOString().slice(0, 10)}.pdf`;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 

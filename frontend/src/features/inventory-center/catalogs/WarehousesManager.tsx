@@ -83,7 +83,16 @@ export function WarehousesManager() {
                 const isActive = (w.is_active ?? w.status === 'active');
                 return (
                   <tr key={w.id} className="border-b border-border last:border-b-0">
-                    <td className="px-3 py-2 font-medium">{w.name}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {w.name}
+                        {w.is_default && (
+                          <Badge variant="warning" className="text-[10px] font-normal">
+                            Predeterminado
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-2 text-text-muted">
                       <code className="rounded bg-bg px-1.5 py-0.5 text-xs">{w.code}</code>
                     </td>
@@ -184,6 +193,7 @@ function WarehouseFormDialog({
       name: warehouse?.name ?? '',
       code: warehouse?.code ?? '',
       status: (warehouse?.status as 'active' | 'inactive') ?? 'active',
+      is_default: warehouse?.is_default ?? false,
     },
   });
 
@@ -272,6 +282,17 @@ function WarehouseFormDialog({
             />
             <Label htmlFor="warehouse-active">Almacen activo</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="warehouse-default"
+              checked={form.watch('is_default')}
+              onCheckedChange={(v) => form.setValue('is_default', v)}
+            />
+            <Label htmlFor="warehouse-default">Marcar como predeterminado</Label>
+          </div>
+          <p className="text-xs text-text-muted">
+            El almacen predeterminado es el que se selecciona por defecto al abrir el POS.
+          </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button type="submit" loading={loading}>{warehouse ? 'Guardar' : 'Crear'}</Button>

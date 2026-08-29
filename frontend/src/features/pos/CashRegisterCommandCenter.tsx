@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, FileText, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -11,6 +11,7 @@ import { formatDateTime } from '@/lib/format';
 import { formatMoney } from '@/lib/money';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
+import { ReportZDialog } from '@/features/cash-register/ReportZDialog';
 
 import {
   useCashSessions as useCashSessionsReport,
@@ -28,7 +29,9 @@ type CommandCenterProps = {
 const today = new Date().toISOString().slice(0, 10);
 
 export function CashRegisterCommandCenter({ branches, registers }: CommandCenterProps) {
-  const canView = useCan(PERMISSIONS.REPORTS_VIEW) || useCan(PERMISSIONS.REPORTS_CASH_VIEW);
+  const canViewReports = useCan(PERMISSIONS.REPORTS_VIEW);
+  const canViewCashReports = useCan(PERMISSIONS.REPORTS_CASH_VIEW);
+  const canView = canViewReports || canViewCashReports;
   const [filters, setFilters] = useState<ReportFilters>({ date: today, status: 'all', limit: 100 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const report = useCashSessionsReport(filters, canView);
@@ -337,6 +340,8 @@ function SessionBreakdown({
   onReviewNotes: (value: string) => void;
   onReview: (status: 'approved' | 'rejected') => void;
 }) {
+  const [showZ, setShowZ] = useState(false);
+
   return (
     <div className="border-border bg-bg/30 grid gap-4 border-t px-10 py-4 lg:grid-cols-[1fr_1fr]">
       <div>
@@ -473,6 +478,14 @@ function SessionBreakdown({
             </div>
           </div>
         )}
+        {row.status === 'closed' && (
+          <div className="border-border mt-4 border-t pt-3">
+            <Button size="sm" variant="outline" onClick={() => setShowZ(true)}>
+              <FileText className="size-4" /> Reporte Z
+            </Button>
+          </div>
+        )}
+        {showZ && <ReportZDialog sessionId={row.id} open onOpenChange={setShowZ} />}
       </div>
     </div>
   );

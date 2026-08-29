@@ -28,6 +28,7 @@ class AuthSessionResource extends JsonResource
             ] : null,
             'roles' => $this['roles'] ?? [],
             'permissions' => $this['permissions'] ?? [],
+            'capabilities' => $this['capabilities'] ?? [],
         ];
     }
 }

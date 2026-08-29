@@ -22,6 +22,8 @@ class StockCountController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
+        $this->authorizePermission($request, 'inventory.view');
+
         $query = StockCount::query()
             ->with(['warehouse'])
             ->withCount('items')
@@ -35,6 +37,8 @@ class StockCountController extends Controller
 
     public function store(StoreStockCountRequest $request): JsonResponse
     {
+        $this->authorizePermission($request, 'inventory.adjust');
+
         $data = $request->validated();
         $warehouse = Warehouse::findOrFail($data['warehouse_id']);
         $tenant = app(TenantManager::class)->require();
@@ -46,8 +50,10 @@ class StockCountController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    public function show(StockCount $stockCount): StockCountResource
+    public function show(Request $request, StockCount $stockCount): StockCountResource
     {
+        $this->authorizePermission($request, 'inventory.view');
+
         return StockCountResource::make(
             $stockCount->load(['warehouse', 'items.product', 'items.location'])
         );
@@ -55,6 +61,8 @@ class StockCountController extends Controller
 
     public function update(UpdateStockCountRequest $request, StockCount $stockCount): StockCountResource
     {
+        $this->authorizePermission($request, 'inventory.adjust');
+
         if ($stockCount->status !== StockCount::STATUS_DRAFT) {
             abort(422, 'Solo se puede editar un conteo en estado draft.');
         }
@@ -64,15 +72,19 @@ class StockCountController extends Controller
         return StockCountResource::make($stockCount->refresh());
     }
 
-    public function destroy(StockCount $stockCount): Response
+    public function destroy(Request $request, StockCount $stockCount): Response
     {
+        $this->authorizePermission($request, 'inventory.adjust');
+
         $this->service->cancel($stockCount, null);
 
         return response()->noContent();
     }
 
-    public function snapshot(StockCount $stockCount): JsonResponse
+    public function snapshot(Request $request, StockCount $stockCount): JsonResponse
     {
+        $this->authorizePermission($request, 'inventory.adjust');
+
         if ($stockCount->status !== StockCount::STATUS_DRAFT) {
             abort(422, 'Solo se puede hacer snapshot en estado draft.');
         }
@@ -82,8 +94,10 @@ class StockCountController extends Controller
         return response()->json(['data' => ['items_created' => $count]]);
     }
 
-    public function start(StockCount $stockCount): StockCountResource
+    public function start(Request $request, StockCount $stockCount): StockCountResource
     {
+        $this->authorizePermission($request, 'inventory.adjust');
+
         $this->service->start($stockCount);
 
         return StockCountResource::make(
@@ -93,6 +107,8 @@ class StockCountController extends Controller
 
     public function capture(CaptureStockCountRequest $request, StockCount $stockCount): JsonResponse
     {
+        $this->authorizePermission($request, 'inventory.adjust');
+
         $payload = $request->validated('captures');
         $items = [];
         foreach ($payload as $c) {
@@ -105,6 +121,8 @@ class StockCountController extends Controller
 
     public function complete(Request $request, StockCount $stockCount): JsonResponse
     {
+        $this->authorizePermission($request, 'inventory.adjust');
+
         $result = $this->service->complete($stockCount, $request->user()?->id);
 
         return response()->json([
@@ -113,5 +131,10 @@ class StockCountController extends Controller
                 'completed_at' => $stockCount->refresh()->completed_at?->toIso8601String(),
             ],
         ]);
+    }
+
+    private function authorizePermission(Request $request, string $permission): void
+    {
+        abort_unless($request->user()?->can($permission), Response::HTTP_FORBIDDEN);
     }
 }

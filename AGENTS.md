@@ -187,6 +187,16 @@ En `InventoryTransferRequests`, `origin_tenant_id` identifica a la empresa solic
 - Un endpoint nuevo DEBE chequearse con un test cross-tenant (ver §9).
 - FKs entre tablas de negocio DEBEN ser compuestas `['tenant_id', 'id']` si la tabla padre es tenant-scoped.
 
+**Capacidades por tenant (2026-08-25)**:
+- `tenant_capabilities` define los modulos contratados por empresa; no reemplaza roles, permisos ni scopes.
+- Tenants existentes conservan todas las capacidades durante la migracion.
+- Tenants nuevos creados por los servicios oficiales reciben `dashboard`, `catalog`, `inventory`, `customers` y `suppliers`.
+- El backend valida capacidades con `capability:<key>` antes de ejecutar rutas opcionales.
+- Login, `/api/auth/me` y `switch-tenant` exponen `capabilities[]` para React/Electron; el frontend nunca puede agregar capacidades.
+- La administracion usa `GET/PATCH /api/tenant-capabilities` y requiere `settings.manage` para modificar.
+- Fuente de catalogo: `App\Support\Capabilities\BaseCapabilities`; resolver: `TenantCapabilityService`.
+- Contrato completo: `docs/MATRIZ_CAPACIDADES_CLIENTES_ELECTRON.md`.
+
 ---
 
 ## 5. Sync Local ↔ Nube
@@ -711,6 +721,17 @@ existente, confirmar primero con el usuario (afecta a otros productos).
   Agente local `php artisan printer:serve` en `127.0.0.1:17777` → driver Windows (`Out-Printer`)
   / Linux (`lpr`) o impresora de red TCP 9100 con ESC/POS (corte GS V, gaveta ESC p). Panel en
   `/printing` del frontend. Detalle en `docs/MODULES.md` y `docs/GRAPHIFY_CONTEXT_MAP.md`.
+- Conector Cloud independiente (2026-08-25): `tools/print-connector/connector.cjs` hace polling
+  HTTPS saliente con token propio, pairing de un solo uso, claim/ACK y reintentos por lease. No
+  abre puertos ni depende del Motor Local. Las estaciones termicas vinculadas a un conector no se
+  envian desde React al agente `:17777`; los tickets digitales se descargan desde el navegador.
+  Contrato en `docs/PRINT_CONNECTOR.md`. Desde 2026-08-28 el instalable es un cliente Electron
+  independiente (`tools/print-connector/main.cjs` + `renderer/`) con pairing, estado, bandeja y
+  arranque automatico; el usuario no necesita ejecutar PowerShell. Su release usa
+  `.github/workflows/release-print-connector.yml` y publica instalador NSIS + portable en
+  `v<version>-connector`. El packager Node SEA y las tareas PowerShell anteriores quedan solo como
+  artefactos de migracion y no se incluyen en la GUI.
+- Guia de uso para usuarios finales: `docs/GUIA_USUARIO_CONECTOR_IMPRESION.md`.
 - Prueba fisica con impresora real: `docs/GUIA_PRUEBA_IMPRESORA_REAL.md`.
 - Consola `/support` controla el agente: `POST /api/local-support/printer/{action,test}`
   (instalar/iniciar/probar) + auto-arranque en Electron (`backend-runtime.cjs` → `printer:serve`).
@@ -1036,6 +1057,8 @@ la infraestructura local, se publica primero y se valida el Motor correspondient
 **Regla de build**: siempre regenerar el bundle antes de empaquetar
 (`pnpm run build:<client>` y luego `electron-builder`). Empaquetar sin regenerar `dist` publica un
 bundle viejo y la UI nueva no llega.
+Cada `electron-builder.<client>.yml` debe incluir solamente `dist/<client>`; no empaquetar los
+bundles renderer de los otros clientes.
 
 ### Auto-update y workers
 
@@ -1051,6 +1074,20 @@ bundle viejo y la UI nueva no llega.
   diagnosticar. LAN server mode queda loopback por defecto; SQLite nunca se comparte por red.
 
 Detalle completo en `docs/ELECTRON_UPDATES_AND_TECHNICIAN.md`.
+
+## Instalacion aislada Tiendas Arens (2026-08-17)
+
+Tiendas Arens es un segundo cliente desplegado en el mismo VPS, pero con aislamiento de aplicacion
+y base de datos respecto a MiInventarioFacil. Su dominio es `app.tiendasarens.com`, su Laravel vive
+en `/opt/tiendasarens-cloud`, usa la base PostgreSQL `inventory_tiendasarens`, el usuario
+`tiendasarens_app`, PHP-FPM pool/socket propios y Nginx en el puerto interno `8082`. La instalacion
+existente conserva `/opt/inventarioarens-cloud`, `inventory_arens` y el puerto `8080`.
+
+Los workers `tiendasarens-queue.service`, `tiendasarens-sync.service` y
+`tiendasarens-sync.timer` son independientes. La ruta Traefik se agrega como archivo nuevo en
+`/root/deploy/core/traefik-config/`; no tocar routers de otros productos ni reiniciar Traefik para
+cambios ordinarios. La landing `tiendasarens.com` y sus registros de correo se mantienen fuera de
+este stack. El procedimiento operativo completo esta en `docs/DEPLOY_TIENDAS_ARENS_VPS.md`.
 
 ## Traslados v2 � Fase 0 (2026-07-19)
 
@@ -1144,3 +1181,20 @@ pnpm run electron:build:pos
 & "frontend\release\admin\Sistema-de-Inventario-Administrativo-0.1.0.exe"
 & "frontend\release\pos\Sistema-de-Inventario-POS-0.1.0.exe"
 ```
+
+## Hardening de inventario e idempotencia (2026-08-24)
+
+- Las reservas de inventario guardan `stock_movements.reservation_expires_at` (TTL por defecto de
+  30 minutos). `php artisan inventory:expire-reservations` libera saldo y ProductUnits reservadas
+  cuyo movimiento vencio; la tarea corre cada 5 minutos y es idempotente por movimiento original.
+- `php artisan inventory:reconcile` ahora detecta tambien drift entre `stock_balances` y
+  ProductUnits serializadas/IMEI. `--fix-serials` corrige esos saldos explicitamente; no usarlo sin
+  revisar el reporte cuando el ledger y las unidades difieren.
+- Sync replica `reservation_expires_at` y aplica `reserved`/`released` a las cantidades disponible y
+  reservada. Los eventos de ProductUnit conservan la identidad natural serializada.
+- Se agrego middleware `idempotency` a las mutaciones criticas de ventas, compras, entradas/salidas,
+  devoluciones, solicitudes interempresa, caja, CxP, recibos y ajustes financieros. El header sigue
+  siendo opcional; sin `Idempotency-Key` el flujo conserva el comportamiento anterior.
+- La base de PHPUnit esta separada de produccion: `phpunit.xml` usa `inventory_arens_testing_local`;
+  el perfil SQLite reproducible es `phpunit.sqlite.xml`. No usar `inventory_arens` para tests.
+- Estos cambios no publican ni construyen Electron.

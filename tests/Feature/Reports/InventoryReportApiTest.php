@@ -4,8 +4,10 @@ namespace Tests\Feature\Reports;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
@@ -54,6 +56,101 @@ class InventoryReportApiTest extends TestCase
             ->assertJsonPath('data.0.quantity_available', 5);
     }
 
+    public function test_stock_report_is_paginated(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $productA] = $this->warehouseAndProduct($tenant, 'A');
+        [, $productB] = $this->warehouseAndProduct($tenant, 'B');
+        [, $productC] = $this->warehouseAndProduct($tenant, 'C');
+        $this->service()->purchase($warehouse, $productA, 1);
+        $this->service()->purchase($warehouse, $productB, 2);
+        $this->service()->purchase($warehouse, $productC, 3);
+        $user = $this->reportUser($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/stock?per_page=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.last_page', 2);
+    }
+
+    public function test_stock_by_variant_report_is_paginated(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouseA, $productA] = $this->warehouseAndProduct($tenant, 'A');
+        [$warehouseB, $productB] = $this->warehouseAndProduct($tenant, 'B');
+        [$warehouseC, $productC] = $this->warehouseAndProduct($tenant, 'C');
+        $this->useTenant($tenant);
+
+        foreach ([[$warehouseA, $productA, 'Rojo'], [$warehouseB, $productB, 'Azul'], [$warehouseC, $productC, 'Verde']] as [$warehouse, $product, $color]) {
+            $variant = ProductVariant::create(['product_id' => $product->id, 'color' => $color, 'position' => 0]);
+            StockBalance::create([
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
+                'quantity_available' => 2,
+            ]);
+        }
+        $user = $this->reportUser($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/stock-by-variant?per_page=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.last_page', 2);
+    }
+
+    public function test_stock_by_variant_rejects_invalid_page_size(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->reportUser($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/stock-by-variant?per_page=101')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['per_page']);
+    }
+
+    public function test_stock_by_variant_report_does_not_mix_multiple_companies(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        [$warehouseA, $productA] = $this->warehouseAndProduct($tenantA, 'A');
+        [$warehouseB, $productB] = $this->warehouseAndProduct($tenantB, 'B');
+
+        foreach ([[$tenantA, $warehouseA, $productA, 'Rojo'], [$tenantB, $warehouseB, $productB, 'Azul']] as [$tenant, $warehouse, $product, $color]) {
+            $this->useTenant($tenant);
+            $variant = ProductVariant::create(['product_id' => $product->id, 'color' => $color, 'position' => 0]);
+            StockBalance::create([
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
+                'quantity_available' => 2,
+            ]);
+        }
+        $userA = $this->reportUser($tenantA);
+
+        $this
+            ->actingAs($userA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson('/api/reports/stock-by-variant')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.product_name', 'Producto A');
+    }
+
     public function test_low_stock_report_uses_threshold_inside_current_tenant(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
@@ -98,6 +195,30 @@ class InventoryReportApiTest extends TestCase
             ->assertJsonPath('data.0.product_name', 'Producto A')
             ->assertJsonPath('data.0.type', 'sale')
             ->assertJsonPath('data.0.quantity', 3);
+    }
+
+    public function test_movements_report_is_paginated(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouseA, $productA] = $this->warehouseAndProduct($tenant, 'A');
+        [, $productB] = $this->warehouseAndProduct($tenant, 'B');
+        [, $productC] = $this->warehouseAndProduct($tenant, 'C');
+        $service = $this->service();
+        $service->purchase($warehouseA, $productA, 1);
+        $service->purchase($warehouseA, $productB, 2);
+        $service->purchase($warehouseA, $productC, 3);
+        $user = $this->reportUser($tenant);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/movements?per_page=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.last_page', 2);
     }
 
     public function test_reports_require_reports_view_permission(): void

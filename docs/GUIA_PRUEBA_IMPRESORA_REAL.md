@@ -116,7 +116,31 @@ version igual).
 
 Nota: si los tres clientes comparten la instalacion local, publicar los tres con la misma version.
 
-## 8. Tests automatizados relacionados
+## 8. Prueba del conector Cloud online
+
+Este flujo es independiente del agente local `printer:serve` y del Motor Local.
+
+1. Descarga `InventarioArens-Print-Connector-Setup-<version>.exe` desde el release
+   `v<version>-connector` y abre la aplicacion instalada.
+2. En `/printing`, genera un codigo de vinculacion con un usuario que tenga `printing.manage`.
+3. En la ventana **Print Connector**, introduce la URL, el codigo y el nombre de la caja; luego
+   selecciona **Vincular con la nube**.
+4. En `/printing`, configura la estacion termica con el conector vinculado y la impresora de red o
+   el nombre exacto del driver de Windows.
+5. Realiza una venta POS online y confirma que el conector muestre estado activo, reclame el job y
+   que la impresora produzca el ticket.
+
+Resultado esperado:
+
+- La GUI muestra **Conectado** y permanece disponible en la bandeja de Windows.
+- El job aparece como `printed` en la cola cloud.
+- No se necesita abrir PowerShell, ejecutar `php artisan` ni habilitar `127.0.0.1:17777`.
+
+Si el job permanece pendiente, usa **Comprobar conexion** en la GUI y revisa que la estacion este
+asociada al conector correcto. Si la estacion usa TCP 9100, verifica la IP y el puerto de la impresora;
+si usa driver, verifica el nombre configurado en `/printing`.
+
+## 9. Tests automatizados relacionados
 
 - `tests/Unit/Printing/ThermalPrinterServiceTest.php` (sanitize + buildCommand).
 - `tests/Unit/Printing/ThermalPrinterNetworkTest.php` (buildEscPos: corte GS V, gaveta ESC p;

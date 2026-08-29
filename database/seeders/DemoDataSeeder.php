@@ -481,7 +481,7 @@ class DemoDataSeeder extends Seeder
         $saleItem = $posOrder->sale->items->first();
         $productUnitIds = $saleItem->product_unit_ids ?? [];
 
-        $salesReturn = app(SalesReturnService::class)->create($user, [
+        app(SalesReturnService::class)->create($user, [
             'sale_id' => $posOrder->sale->id,
             'reason' => 'Devolucion demo de venta POS pagada.',
             'items' => [[
@@ -490,10 +490,6 @@ class DemoDataSeeder extends Seeder
                 'product_unit_ids' => $productUnitIds,
             ]],
         ]);
-
-        $service = app(SalesReturnService::class);
-        $service->approve($salesReturn, $user);
-        $service->process($salesReturn->fresh(), $user, ['refund_mode' => 'none']);
     }
 
     private function backfillExistingPosSaleItemUnit(PosOrder $order, Warehouse $warehouse, Product $product): void

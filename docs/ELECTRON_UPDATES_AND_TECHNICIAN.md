@@ -1,6 +1,6 @@
-# Electron Updates and Technician Client
+# Electron Updates and Technician Client — 2026-08-25
 
-> Actualizacion 2026-08-14: la infraestructura local canónica es el instalador independiente
+> Actualizacion 2026-08-25: la infraestructura local canonica es el instalador independiente
 > **Motor Local - Sistema de Inventario** descrito en
 > `docs/MOTOR_LOCAL_WINDOWS_PLAN_2026-08-14.md`. Administrativo, POS y Soporte Técnico son clientes
 > UI-only: no contienen PHP/Laravel y no crean, reparan ni eliminan servicios o tareas. Las secciones
@@ -17,14 +17,18 @@ The repository builds three Windows/Linux Electron clients:
 | POS | `pos` | `pos` | Point of sale |
 | Technical Support | `technician` | `technician` | Local installation and sync support |
 
-All clients include the React bundle, Laravel, PHP portable and the local SQLite runtime. Persistent
-data is stored outside the installation directory (the shared `InventarioArens` data root under
-`%APPDATA%`), so replacing the installed application does not replace the local database, sync tokens,
-logs or storage.
+Each client includes only its Electron shell and React UI. Laravel, PHP, SQLite, printing and sync are
+owned by the independent Motor Local installer. Persistent data is stored outside the client
+installation directories, so replacing an application does not replace the local database, sync
+tokens, logs or storage.
 
 Each client installs into its own per-user folder (`oneClick: false` + `executableName`). This stops
 the Administrative/POS/Technician installers from landing in the same `inventarioarens-frontend`
 folder and overwriting each other's `app.asar`.
+
+The three `electron-builder.<client>.yml` files also include only the matching `dist/<client>` renderer
+bundle. The Electron shell remains shared, but an installer does not carry the UI bundle or routes of
+another client. `frontend/electron/client-bundles.test.js` protects this packaging contract.
 
 ## Automatic Updates
 
@@ -49,7 +53,8 @@ Updater diagnostics are persisted in the per-client Electron data directory:
 `%APPDATA%\InventarioArens-Soporte\updater.log`.
 
 The update does not stop the VPS and does not modify the VPS backend. It replaces only the desktop
-application and its bundled local runtime. The local runtime runs migrations when it starts.
+application; it does not update, stop or remove the independently installed Motor Local. Motor Local
+releases and migrations are managed by `release-motor.yml` and the Motor installer.
 
 ## Release Workflow (GitHub Actions)
 
@@ -61,10 +66,10 @@ gh workflow run release.yml -f client=pos        # or admin / technician
 
 The workflow:
 
-1. checks out, installs composer deps and frontend deps on `windows-latest`;
-2. runs `pnpm run build:<client>` (tsc + vite build), `electron:stage-backend`, then
-   `electron-builder` **without** `--publish` (electron-builder + GITHUB_TOKEN leaves drafts and can
-   drop the large installer);
+1. checks out and installs frontend deps on `windows-latest`;
+2. runs `pnpm run build:<client>` (tsc + vite build), then `electron-builder --publish never` and
+   verifies `release/<client>/win-unpacked/resources/app.asar` contains only the matching renderer
+   and no Motor Local payload;
 3. publishes explicitly with `gh release create v<version>-<client>` (non-draft) and uploads the
    `.exe`, `.blockmap` and `<channel>.yml`.
 
@@ -82,6 +87,26 @@ The three clients can have the same
 - If the GitHub release already exists, the workflow deletes it (`gh release delete --cleanup-tag`)
   and recreates it, so a re-publish replaces the old installer.
 
+### Cross-platform artifact validation
+
+The normal CI workflow validates the three client bundles on Linux with `electron-builder --linux dir`
+and on Windows with `electron-builder --win dir`, using the same `app.asar` verifier. Linux does not
+emulate NSIS: the actual Windows installer is built and inspected on `windows-latest` before
+publication by the release workflow.
+
+For a local Linux check after packaging one client:
+
+```bash
+cd frontend
+pnpm run build:admin
+pnpm exec electron-builder --config electron-builder.admin.yml --linux dir --publish never
+node ../scripts/verify-electron-artifact.cjs admin release/admin/linux-unpacked
+```
+
+Replace `admin` with `pos` or `technician` as needed. The verifier checks `electron/main.cjs`, the
+expected `dist/<client>` renderer, absence of other client renderers, and absence of `backend/`, PHP,
+SQLite or other Motor Local payloads.
+
 ### Manual publish fallback
 
 If you need to publish from a local machine (faster, avoids CI empaquetado bugs):
@@ -89,7 +114,8 @@ If you need to publish from a local machine (faster, avoids CI empaquetado bugs)
 ```bash
 cd frontend
 pnpm run build:pos
-pnpm exec electron-builder --config electron-builder.pos.yml
+pnpm exec electron-builder --config electron-builder.pos.yml --publish never
+node ../scripts/verify-electron-artifact.cjs pos release/pos/win-unpacked
 cd release/pos
 gh release create v<version>-pos --repo gamijoam/inventarioarens --title "<version>" \
   Sistema-de-Inventario-POS-<version>.exe Sistema-de-Inventario-POS-<version>.exe.blockmap pos.yml
@@ -152,16 +178,18 @@ sync is active while the app is open. Reinstalling the client does not remove th
 
 ## CI
 
-`.github/workflows/ci.yml` runs only the frontend job (tsc + vitest). The PHPUnit Feature suite is
+`.github/workflows/ci.yml` runs the frontend job (tsc + vitest) plus Linux and Windows matrices that
+build each Electron client with `--dir` and validate its `app.asar`. The PHPUnit Feature suite is
 validated locally with `phpunit.sqlite.xml`; running it in CI with PostgreSQL took 15+ minutes and
-had pre-existing failures (180s `set_time_limit`, heavy demo seeders), so it was removed from CI.
-The demo seeder tests are tagged `@group heavy`.
+had pre-existing failures (180s `set_time_limit`, heavy demo seeders), so it was removed from CI. The
+demo seeder tests are tagged `@group heavy`.
 
-## Runbook: publicar un fix (PASO A PASO)
+## Runbook: publicar un fix de cliente (PASO A PASO)
 
 Este es el flujo completo para lanzar un cambio (bugfix o feature) a los clientes de escritorio.
-El backend Laravel viaja DENTRO de cada cliente (`resources/backend`), asi que **no hay
-actualizacion de backend separada**: cada fix de la app = un release nuevo del cliente.
+Estos pasos aplican a cambios de interfaz. Los cambios de Laravel, PHP o sync se publican por separado
+mediante el release del Motor Local. El Conector Cloud de impresion tiene su propio cliente Electron y
+release `v<version>-connector` mediante `.github/workflows/release-print-connector.yml`.
 
 ### Antes de empezar (checklist)
 
@@ -189,6 +217,7 @@ Un release por cliente, tag `v<version>-<client>`:
 gh workflow run release.yml -f client=pos          --repo gamijoam/inventarioarens
 gh workflow run release.yml -f client=admin        --repo gamijoam/inventarioarens
 gh workflow run release.yml -f client=technician   --repo gamijoam/inventarioarens
+gh workflow run release-print-connector.yml -f version=0.2.0 -f prerelease=true --repo gamijoam/inventarioarens
 ```
 
 Seguir el estado hasta que termine (3-4 min):
@@ -204,8 +233,10 @@ contra una DB ya migrada por otro cliente nuevo.
 ### Paso 3 - Verificar la publicacion
 
 ```bash
-# Debe salir no-draft y con 3 assets (.exe, .blockmap, <channel>.yml)
+# Debe salir no-draft y con los assets del cliente seleccionado
 gh release view v0.2.4-pos --repo gamijoam/inventarioarens --json tagName,isDraft,assets
+# Para el conector: instalador NSIS, portable y sus hashes
+gh release view v0.2.0-connector --repo gamijoam/inventarioarens --json tagName,isDraft,assets
 ```
 
 ### Paso 4 - En la PC del usuario

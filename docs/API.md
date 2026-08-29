@@ -877,6 +877,7 @@ Respuesta:
 - empresa actual;
 - roles en la empresa actual;
 - permisos efectivos en la empresa actual.
+- capacidades contratadas activas en la empresa actual (`capabilities[]`).
 
 ### Cerrar sesion actual
 
@@ -5083,6 +5084,43 @@ Reglas:
 - hace merge por seccion: actualizar `telegram` preserva las demas secciones;
 - `whitelist` sincroniza `telegram_bot_users` (delete + insert): la lista enviada es la completa;
 - si se omite un `telegram_id` que estaba en la lista, ese chat pierde acceso.
+
+## Capacidades por empresa (tenant-capabilities)
+
+Las capacidades indican que modulos tiene habilitados una empresa. No reemplazan permisos ni scopes:
+el backend exige la capacidad y despues valida el permiso efectivo del usuario.
+
+### Ver capacidades
+
+```txt
+GET /api/tenant-capabilities
+```
+
+Requiere usuario autenticado y tenant activo.
+
+### Actualizar capacidades
+
+```txt
+PATCH /api/tenant-capabilities
+```
+
+Requiere `settings.manage`. Las capacidades base (`dashboard`, `catalog`, `inventory`, `customers` y
+`suppliers`) siempre permanecen habilitadas.
+
+Body:
+
+```json
+{
+  "capabilities": ["pos", "printing", "reports"]
+}
+```
+
+`capabilities` es la lista completa deseada de modulos opcionales activos; las capacidades base se
+agregan siempre aunque no aparezcan en el body.
+
+Los tenants existentes se inicializan con todas las capacidades. Los tenants nuevos creados por los
+servicios oficiales se inicializan con nucleo + inventario. El contrato completo y la matriz por
+cliente Electron estan en `docs/MATRIZ_CAPACIDADES_CLIENTES_ELECTRON.md`.
 
 ## Respuestas y errores comunes
 

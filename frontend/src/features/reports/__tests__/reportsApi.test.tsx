@@ -61,14 +61,23 @@ describe('reports api', () => {
     expect(buildDailyOperationsQuery({ date: '2026-07-18', branch_id: 4 })).toBe(
       '/reports/daily-operations?date=2026-07-18&branch_id=4',
     );
-    expect(buildSalesDetailQuery({ date_from: '2026-07-01', date_to: '2026-07-18', customer_id: 9 })).toBe(
-      '/reports/sales-detail?customer_id=9&date_from=2026-07-01&date_to=2026-07-18',
-    );
+    expect(
+      buildSalesDetailQuery({ date_from: '2026-07-01', date_to: '2026-07-18', customer_id: 9 }),
+    ).toBe('/reports/sales-detail?customer_id=9&date_from=2026-07-01&date_to=2026-07-18');
     expect(buildCashSessionsQuery({ status: 'open', cash_register_id: 2 })).toBe(
       '/reports/cash-sessions?cash_register_id=2&status=open',
     );
     expect(buildPaymentMethodsReportQuery({ cashier_id: 7 })).toBe(
       '/reports/payment-methods?cashier_id=7',
+    );
+  });
+
+  it('builds paginated operational report queries', () => {
+    expect(buildSalesDetailQuery({ page: 2, per_page: 10 })).toBe(
+      '/reports/sales-detail?page=2&per_page=10',
+    );
+    expect(buildCashSessionsQuery({ page: 3, per_page: 25 })).toBe(
+      '/reports/cash-sessions?page=3&per_page=25',
     );
   });
 
@@ -169,6 +178,8 @@ describe('reports api', () => {
           from_datetime: '2026-07-18T00:00:00.000000Z',
           to_datetime: '2026-07-18T23:59:59.000000Z',
         },
+        meta: { current_page: 1, last_page: 2, per_page: 25, total: 26 },
+        links: { first: '/reports/sales-detail?page=1', next: '/reports/sales-detail?page=2' },
         rows: [
           {
             id: 1,
@@ -202,6 +213,8 @@ describe('reports api', () => {
           expected_local_amount: 0,
           difference_base_amount: 0,
         },
+        meta: { current_page: 1, last_page: 1, per_page: 25, total: 1 },
+        links: { first: '/reports/cash-sessions?page=1', last: '/reports/cash-sessions?page=1' },
         rows: [],
         movement_breakdown: [],
       }),

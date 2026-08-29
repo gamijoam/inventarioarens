@@ -39,6 +39,7 @@ export const PERMISSIONS = {
   SALES_CREATE: 'sales.create',
   SALES_CONFIRM: 'sales.confirm',
   SALES_CANCEL: 'sales.cancel',
+  SALES_REVERSE: 'sales.reverse',
 
   // POS
   POS_VIEW: 'pos.view',
@@ -157,6 +158,7 @@ export const PERMISSIONS = {
 
   // Reports
   REPORTS_VIEW: 'reports.view',
+  REPORTS_ORGANIZATION_VIEW: 'reports.organization.view',
   REPORTS_SALES_VIEW: 'reports.sales.view',
   REPORTS_CASH_VIEW: 'reports.cash.view',
   REPORTS_INVENTORY_VIEW: 'reports.inventory.view',
@@ -180,6 +182,11 @@ export const PERMISSIONS = {
   WARRANTIES_REVIEW: 'warranties.review',
   WARRANTIES_RESOLVE: 'warranties.resolve',
   WARRANTIES_DELIVER: 'warranties.deliver',
+  SERVICE_ORDERS_VIEW: 'service_orders.view',
+  SERVICE_ORDERS_CREATE: 'service_orders.create',
+  SERVICE_ORDERS_UPDATE: 'service_orders.update',
+  SERVICE_ORDERS_ASSIGN_TECHNICIAN: 'service_orders.assign_technician',
+  SERVICE_ORDERS_CLOSE: 'service_orders.close',
 
   // Branches
   BRANCHES_VIEW: 'branches.view',
@@ -245,6 +252,11 @@ export const PERMISSIONS = {
   DATA_IMPORT_CREATE: 'data_import.create',
   DATA_IMPORT_EXECUTE: 'data_import.execute',
   DATA_IMPORT_DELETE: 'data_import.delete',
+  QUOTATIONS_VIEW: 'quotations.view',
+  QUOTATIONS_CREATE: 'quotations.create',
+  QUOTATIONS_UPDATE: 'quotations.update',
+  QUOTATIONS_DELETE: 'quotations.delete',
+  QUOTATIONS_CONVERT: 'quotations.convert',
 } as const;
 
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

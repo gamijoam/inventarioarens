@@ -27,6 +27,7 @@ class UpdatePriceListRequest extends FormRequest
             ],
             'description' => ['nullable', 'string', 'max:1000'],
             'markup_percentage' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'base_price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId), Rule::notIn([$priceList?->id])],
             'is_default' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],

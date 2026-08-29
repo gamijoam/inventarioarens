@@ -4,10 +4,14 @@ namespace Tests\Feature\InventoryTransfers;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Models\TenantTransferSetting;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
+use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -48,12 +52,12 @@ class ReserveOnRequestTest extends TestCase
         $from = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Origen', 'code' => 'WH-RSV-ORIG']);
         $to = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Destino', 'code' => 'WH-RSV-DEST']);
 
-        $product = \App\Modules\Products\Models\Product::create([
+        $product = Product::create([
             'name' => 'Test Product',
             'sku' => 'TEST-RSV-'.uniqid(),
-            'tracking_type' => \App\Modules\Products\Models\Product::TRACKING_QUANTITY,
+            'tracking_type' => Product::TRACKING_QUANTITY,
             'base_price' => 10,
-            'sale_currency' => \App\Modules\Products\Models\Product::CURRENCY_USD,
+            'sale_currency' => Product::CURRENCY_USD,
         ]);
 
         app(InventoryMovementService::class)->purchase($from, $product, 10, 5, $user, 'Stock inicial');
@@ -78,7 +82,7 @@ class ReserveOnRequestTest extends TestCase
         $this->assertEquals(5, (float) $transfer->items[0]->prepared_quantity);
 
         // El stock del warehouse origen debe tener quantity_reserved = 5.
-        $balance = \App\Modules\Inventory\Models\StockBalance::query()
+        $balance = StockBalance::query()
             ->where('warehouse_id', $from->id)
             ->where('product_id', $product->id)
             ->first();
@@ -103,10 +107,80 @@ class ReserveOnRequestTest extends TestCase
         $this->assertEquals(0, (float) $transfer->items[0]->prepared_quantity);
 
         // El stock NO esta reservado.
-        $balance = \App\Modules\Inventory\Models\StockBalance::query()
+        $balance = StockBalance::query()
             ->where('warehouse_id', $from->id)
             ->where('product_id', $product->id)
             ->first();
         $this->assertEquals(0, (float) $balance->quantity_reserved);
+    }
+
+    public function test_prepare_does_not_reserve_again_after_reserve_on_request(): void
+    {
+        [$user, $from, $to, $product] = $this->setupTenant(reserveOnRequest: true);
+
+        $service = app(InventoryTransferService::class);
+        $transfer = $service->create($user, [
+            'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+            'from_warehouse_id' => $from->id,
+            'to_warehouse_id' => $to->id,
+            'reason' => 'Test',
+            'items' => [['product_id' => $product->id, 'quantity' => 5]],
+        ]);
+
+        $service->prepare($user, $transfer, [
+            'items' => [[
+                'inventory_transfer_item_id' => $transfer->items[0]->id,
+                'prepared_quantity' => 5,
+            ]],
+        ]);
+
+        $balance = StockBalance::query()
+            ->where('warehouse_id', $from->id)
+            ->where('product_id', $product->id)
+            ->firstOrFail();
+
+        $this->assertEquals(5, (float) $balance->quantity_reserved);
+        $this->assertSame(1, StockMovement::query()
+            ->where('reference_type', InventoryTransfer::class)
+            ->where('reference_id', $transfer->id)
+            ->where('type', 'reserved')
+            ->count());
+    }
+
+    public function test_reserve_on_request_marks_serialized_units_reserved(): void
+    {
+        [$user, $from, $to, $product] = $this->setupTenant(reserveOnRequest: true);
+        $product->update(['tracking_type' => Product::TRACKING_SERIALIZED]);
+        $unit = ProductUnit::create([
+            'product_id' => $product->id,
+            'warehouse_id' => $from->id,
+            'serial_type' => ProductUnit::SERIAL_TYPE_IMEI,
+            'serial_number' => 'IMEI-RESERVE-001',
+            'status' => ProductUnit::STATUS_AVAILABLE,
+        ]);
+        StockBalance::query()
+            ->where('warehouse_id', $from->id)
+            ->where('product_id', $product->id)
+            ->update(['quantity_available' => 1]);
+
+        $transfer = app(InventoryTransferService::class)->create($user, [
+            'validation_mode' => InventoryTransfer::VALIDATION_LOGISTICS,
+            'from_warehouse_id' => $from->id,
+            'to_warehouse_id' => $to->id,
+            'reason' => 'Test serializado',
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'product_unit_ids' => [$unit->id],
+            ]],
+        ]);
+
+        $this->assertSame(ProductUnit::STATUS_RESERVED, $unit->refresh()->status);
+        $this->assertEquals(1, (float) StockBalance::query()
+            ->where('warehouse_id', $from->id)
+            ->where('product_id', $product->id)
+            ->firstOrFail()
+            ->quantity_reserved);
+        $this->assertEquals(1, (float) $transfer->items[0]->prepared_quantity);
     }
 }

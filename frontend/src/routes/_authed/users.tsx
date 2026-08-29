@@ -17,6 +17,7 @@ import { UsersManager } from '@/features/users/UsersManager';
 import { CreateUserDialog } from '@/features/users/dialogs/CreateUserDialog';
 import { EditUserDialog } from '@/features/users/dialogs/EditUserDialog';
 import { ChangeRolesDialog } from '@/features/users/dialogs/ChangeRolesDialog';
+import { ChangePasswordDialog } from '@/features/users/dialogs/ChangePasswordDialog';
 import type { User } from '@/features/users/schemas';
 
 export const Route = createFileRoute('/_authed/users')({
@@ -31,6 +32,7 @@ function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [changingRoles, setChangingRoles] = useState<User | null>(null);
+  const [changingPassword, setChangingPassword] = useState<User | null>(null);
   // Para Fase B: cualquier user logueado con users.update puede editar
   // (los botones especificos ya validan permisos via <Can>).
   const canUpdate = useSessionStore((s) => s.permissions.has(PERMISSIONS.USERS_UPDATE));
@@ -56,6 +58,7 @@ function UsersPage() {
           onCreate={() => setCreating(true)}
           onEdit={(u) => setEditing(u)}
           onChangeRoles={(u) => setChangingRoles(u)}
+          onChangePassword={(u) => setChangingPassword(u)}
           canEdit={canEdit}
         />
       </Can>
@@ -81,6 +84,14 @@ function UsersPage() {
           open={changingRoles !== null}
           onOpenChange={(open) => !open && setChangingRoles(null)}
           user={changingRoles}
+        />
+      )}
+
+      {changingPassword && (
+        <ChangePasswordDialog
+          open={changingPassword !== null}
+          onOpenChange={(open) => !open && setChangingPassword(null)}
+          user={changingPassword}
         />
       )}
     </PageLayout>

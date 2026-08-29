@@ -7,6 +7,8 @@ use App\Modules\Auth\Middleware\AuthenticateApiToken;
 use App\Modules\Auth\Services\CookieIssuer;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
+use App\Modules\Printing\Middleware\AuthenticatePrintConnector;
+use App\Modules\Tenancy\Middleware\EnsureTenantCapability;
 use App\Modules\Tenancy\Middleware\ResolveTenant;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -70,6 +72,16 @@ $app = Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(30)
             ->appendOutputTo(storage_path('logs/imports-cleanup.log'));
 
+        $schedule->command('inventory:reconcile')
+            ->dailyAt('02:30')
+            ->withoutOverlapping(30)
+            ->appendOutputTo(storage_path('logs/inventory-reconcile.log'));
+
+        $schedule->command('inventory:expire-reservations --limit=500')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(10)
+            ->appendOutputTo(storage_path('logs/inventory-reservations.log'));
+
         // Bot de Telegram: alertas de stock bajo y resumen diario. Correr cada
         // hora; el comando evalua la hora configurada por cada empresa.
         $schedule->command('telegram:alerts --type=stock')
@@ -84,11 +96,6 @@ $app = Application::configure(basePath: dirname(__DIR__))
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/telegram-resumen.log'));
 
-        $schedule->command('inventory:expire-reservations --limit=100')
-            ->everyFiveMinutes()
-            ->withoutOverlapping(5)
-            ->runInBackground()
-            ->appendOutputTo(storage_path('logs/inventory-reservations.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
@@ -97,7 +104,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
             'tenant' => ResolveTenant::class,
+            'capability' => EnsureTenantCapability::class,
             'idempotency' => IdempotencyKey::class,
+            'print.connector' => AuthenticatePrintConnector::class,
         ]);
 
         // Excluir la cookie de auth del cifrado automatico de Laravel.

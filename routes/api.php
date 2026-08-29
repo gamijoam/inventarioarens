@@ -14,6 +14,8 @@ Route::post('sync/pairing-codes/preview', [SyncController::class, 'previewPairin
 
 require base_path('app/Modules/LocalSupport/routes.php');
 
+require base_path('app/Modules/Printing/connector_routes.php');
+
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Inventory/routes_phase3.php'));
 
@@ -41,13 +43,13 @@ Route::middleware(['api.auth', 'tenant'])
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Products/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:promotions'])
     ->group(base_path('app/Modules/Promotions/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:commissions'])
     ->group(base_path('app/Modules/Commissions/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:pos'])
     ->group(base_path('app/Modules/PaymentMethods/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
@@ -62,52 +64,55 @@ Route::middleware(['api.auth', 'tenant'])
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/ProductExits/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:inventory_transfers'])
     ->group(base_path('app/Modules/InventoryTransfers/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:intercompany'])
     ->group(base_path('app/Modules/InventoryTransferRequests/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:reports'])
     ->group(base_path('app/Modules/Reports/routes.php'));
+
+Route::middleware(['api.auth', 'tenant', 'capability:reports'])
+    ->group(base_path('app/Modules/ReportsV2/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Kardex/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:sales'])
     ->group(base_path('app/Modules/Sales/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:sales'])
     ->group(base_path('app/Modules/SalesReturns/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:purchases'])
     ->group(base_path('app/Modules/Purchases/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:purchases'])
     ->group(base_path('app/Modules/PurchaseReturns/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:finance'])
     ->group(base_path('app/Modules/AccountsPayable/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:finance'])
     ->group(base_path('app/Modules/AccountsReceivable/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:finance'])
     ->group(base_path('app/Modules/PaymentReceipts/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:finance'])
     ->group(base_path('app/Modules/FinancialAdjustments/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:finance'])
     ->group(base_path('app/Modules/FinanceReports/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:pos'])
     ->group(base_path('app/Modules/POS/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:printing'])
     ->group(base_path('app/Modules/Printing/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:cash_register'])
     ->group(base_path('app/Modules/CashRegister/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])
@@ -119,10 +124,16 @@ Route::middleware(['api.auth', 'tenant'])
 Route::middleware('api.auth')
     ->group(base_path('app/Modules/Tenancy/routes.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:warranties'])
     ->group(base_path('app/Modules/Warranties/routes.php'));
 
 Route::middleware(['api.auth', 'tenant'])->group(base_path('app/Modules/Inventory/routes_phase1.php'));
 
-Route::middleware(['api.auth', 'tenant'])
+Route::middleware(['api.auth', 'tenant', 'capability:data_import'])
     ->group(base_path('app/Modules/DataImport/routes.php'));
+
+Route::middleware(['api.auth', 'tenant', 'capability:quotations'])
+    ->group(base_path('app/Modules/Quotations/routes.php'));
+
+Route::middleware(['api.auth', 'tenant', 'capability:workshop'])
+    ->group(base_path('app/Modules/Workshop/routes.php'));

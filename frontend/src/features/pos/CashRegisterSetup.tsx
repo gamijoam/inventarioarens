@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Banknote, Building2, Eye, EyeOff, Loader2, Plus, Store } from 'lucide-react';
+import { Banknote, Building2, Eye, EyeOff, FileText, Loader2, Plus, Store } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -28,11 +28,12 @@ import {
   useOpenCashSession,
 } from './api';
 import { useUsers } from '@/features/users/api';
+import { openReportZPdf } from '@/features/cash-register/reportZApi';
 import { CashRegisterCommandCenter } from './CashRegisterCommandCenter';
 
-type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
-type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string; counts: CashCount[]; blind: boolean };
-const CASH_DENOMINATIONS: Record<CashCount['currency'], number[]> = {
+export type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
+export type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string; counts: CashCount[]; blind: boolean };
+export const CASH_DENOMINATIONS: Record<CashCount['currency'], number[]> = {
   USD: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100],
   VES: [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000],
 };
@@ -55,7 +56,9 @@ export function CashRegisterSetup() {
     search: '',
   });
   const cashierOptions = usersResponse?.data ?? [];
-  const canMove = useCan(PERMISSIONS.CASH_REGISTER_MOVE) || useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMovePermission = useCan(PERMISSIONS.CASH_REGISTER_MOVE);
+  const canViewMovements = useCan(PERMISSIONS.CASH_REGISTER_MOVEMENTS);
+  const canMove = canMovePermission || canViewMovements;
   const canClose = useCan(PERMISSIONS.CASH_REGISTER_CLOSE);
   const createBranch = useCreatePosBranch();
   const createRegister = useCreateCashRegister();
@@ -164,7 +167,7 @@ export function CashRegisterSetup() {
       toast.error('Configura una tasa activa USD/VES antes de cerrar con efectivo VES.');
       return;
     }
-    if (hasDifference(diff.cashUsd, diff.cashVes) && !closeForm.notes.trim()) {
+    if (hasDifference(diff.cashUsd, diff.cashVes) && !closeForm.blind && !closeForm.notes.trim()) {
       toast.error('Indica una nota para justificar la diferencia de caja.');
       return;
     }
@@ -455,7 +458,7 @@ function CashSessionCard({
                     <option value="outflow">Salida</option>
                     <option value="adjustment">Ajuste</option>
                   </Select>
-                  <Input type="number" min="0" value={movementForm.amount} onChange={(event) => onMovementForm({ ...movementForm, amount: event.target.value })} placeholder="Monto USD" />
+                  <Input type="text" inputMode="decimal" value={movementForm.amount} onChange={(event) => onMovementForm({ ...movementForm, amount: event.target.value })} placeholder="Monto USD" />
                   <Button className="whitespace-nowrap" disabled={moving} onClick={onMovement}>{moving && <Loader2 className="size-4 animate-spin" />} Registrar</Button>
                   <Input className="sm:col-span-3" value={movementForm.notes} onChange={(event) => onMovementForm({ ...movementForm, notes: event.target.value })} placeholder="Notas del movimiento" />
                 </div>
@@ -474,22 +477,32 @@ function CashSessionCard({
             ) : (
               <>
                 <div className="grid gap-2 lg:grid-cols-[1fr_1fr_1.2fr_140px_140px_auto]">
-                  <Select value={openForm.branch_id} onChange={(event) => onOpenForm({ ...openForm, branch_id: event.target.value, cash_register_id: '' })}>
+                  <Select value={openForm.branch_id} onChange={(event) => onOpenForm({ ...openForm, branch_id: event.target.value, cash_register_id: '' })} data-testid="pos-open-branch">
                     <option value="">Sucursal...</option>
                     {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
                   </Select>
-                  <Select value={openForm.cash_register_id} onChange={(event) => onOpenForm({ ...openForm, cash_register_id: event.target.value })}>
+                  <Select value={openForm.cash_register_id} onChange={(event) => onOpenForm({ ...openForm, cash_register_id: event.target.value })} data-testid="pos-open-register">
                     <option value="">Caja física...</option>
                     {availableRegisters.map((register) => <option key={register.id} value={register.id}>{register.code ?? register.id} - {register.name}</option>)}
                   </Select>
                   {canAssignCashier ? (
-                    <Select value={openForm.cashier_id} onChange={(event) => onOpenForm({ ...openForm, cashier_id: event.target.value })}>
+                    <Select value={openForm.cashier_id} onChange={(event) => onOpenForm({ ...openForm, cashier_id: event.target.value })} data-testid="pos-open-cashier">
                       <option value="">{loadingUsers ? 'Cargando cajeros...' : 'Cajero responsable...'}</option>
                       {cashierOptions.map((user) => <option key={user.id} value={user.id}>{user.name} - {user.email}</option>)}
                     </Select>
                   ) : null}
-                  <Input type="number" min="0" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="Fondo USD" />
-                  <Input type="number" min="0" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="Fondo VES" />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+                      Fondo $ (USD)
+                    </label>
+                    <Input type="text" inputMode="decimal" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="0.00" data-testid="pos-open-base" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+                      Fondo Bs (VES)
+                    </label>
+                    <Input type="text" inputMode="decimal" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="0.00" data-testid="pos-open-local" />
+                  </div>
                   <Button disabled={opening || !openForm.branch_id || !openForm.cash_register_id || (canAssignCashier && !openForm.cashier_id)} onClick={onOpen}>
                     {opening && <Loader2 className="size-4 animate-spin" />} Abrir turno
                   </Button>
@@ -553,6 +566,11 @@ function SessionsBoard({
                 {canClose && session.status === 'open' && (
                   <Button size="sm" variant="outline" onClick={() => onCloseForm({ sessionId: session.id, usd: '', ves: '', notes: '', counts: [], blind: false })}>
                     Cerrar turno
+                  </Button>
+                )}
+                {session.status === 'closed' && (
+                  <Button size="sm" variant="outline" onClick={() => void openReportZPdf(session.id)}>
+                    <FileText className="size-4" /> Reporte Z
                   </Button>
                 )}
               </div>
@@ -642,8 +660,8 @@ function ClosePanel({ session, form, rate, closing, onForm, onClose }: {
         </Button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Input type="number" min="0" value={calculatedForm.usd} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
-        <Input type="number" min="0" value={calculatedForm.ves} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado VES" />
+        <Input type="text" inputMode="decimal" value={calculatedForm.usd} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
+        <Input type="text" inputMode="decimal" value={calculatedForm.ves} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado Bs (VES)" />
       </div>
       <div className="space-y-3 rounded border border-border/70 p-3">
         <div className="flex items-center justify-between gap-2">
@@ -655,16 +673,20 @@ function ClosePanel({ session, form, rate, closing, onForm, onClose }: {
         <DenominationGrid currency="VES" form={activeForm} onForm={onForm} />
       </div>
       <div className="grid gap-2 rounded border border-border/70 p-2 text-sm sm:grid-cols-2">
-        <Metric label="Declarado USD equivalente" value={money(diff.declaredBase)} />
+        <Metric label="Declarado USD" value={money(Number(calculatedForm.usd || 0))} />
+        <Metric label="Declarado Bs (VES)" value={localMoney(Number(calculatedForm.ves || 0))} />
+        <Metric label="Total equiv. USD" value={money(diff.declaredBase)} />
+        <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-[10px] leading-tight">
+          El total equiv. USD = USD + (Bs ÷ tasa). Cada moneda se declara por separado.
+        </span>
         {!activeForm.blind && <Metric label="Esperado USD" value={money(diff.expectedUsd)} />}
         {!activeForm.blind && <Metric label="Diferencia física USD" value={money(diff.cashUsd)} />}
-        <Metric label="Contado VES" value={localMoney(Number(calculatedForm.ves || 0))} />
         {!activeForm.blind && <Metric label="Esperado VES" value={localMoney(diff.expectedVes)} />}
         {!activeForm.blind && <Metric label="Diferencia física VES" value={localMoney(diff.cashVes)} />}
         {activeForm.blind && <p className="rounded bg-primary/5 p-2 text-xs text-text-muted sm:col-span-2">La diferencia se calculará al confirmar el cierre y quedará visible para el responsable.</p>}
       </div>
-      <Input value={activeForm.notes} onChange={(event) => onForm({ ...activeForm, notes: event.target.value })} placeholder={needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre'} />
-      <Button variant="danger" disabled={closing || (needsNote && !activeForm.notes.trim())} onClick={() => onClose(session)}>
+      <Input value={activeForm.notes} onChange={(event) => onForm({ ...activeForm, notes: event.target.value })} placeholder={activeForm.blind ? 'Notas de cierre (opcional)' : (needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre')} />
+      <Button variant="danger" disabled={closing || (!activeForm.blind && needsNote && !activeForm.notes.trim())} onClick={() => onClose(session)}>
         {closing && <Loader2 className="size-4 animate-spin" />} Cerrar turno
       </Button>
     </div>
@@ -762,7 +784,7 @@ function RegistersCard({ registers, branchOptions, loading, form, creating, onFo
   );
 }
 
-function closeDifference(session: CashRegisterSession, form: CloseForm, rate: number | null) {
+export function closeDifference(session: CashRegisterSession, form: CloseForm, rate: number | null) {
   const usd = Number(form.usd || 0);
   const ves = Number(form.ves || 0);
   const vesBase = rate && rate > 0 ? ves / rate : 0;
@@ -775,25 +797,49 @@ function closeDifference(session: CashRegisterSession, form: CloseForm, rate: nu
   return { declaredBase, expectedUsd, expectedVes, cashUsd, cashVes };
 }
 
-function hasDifference(base: number, local: number): boolean {
+export function hasDifference(base: number, local: number): boolean {
   return Math.abs(base) >= 0.01 || Math.abs(local) >= 0.01;
 }
 
-function cashCountTotals(counts: CashCount[]): Record<CashCount['currency'], number> {
+export function cashCountTotals(counts: CashCount[]): Record<CashCount['currency'], number> {
   return counts.reduce((totals, count) => {
     totals[count.currency] += count.denomination * count.quantity;
     return totals;
   }, { USD: 0, VES: 0 });
 }
 
-function DenominationGrid({ currency, form, onForm }: { currency: CashCount['currency']; form: CloseForm; onForm: (value: CloseForm) => void }) {
+export function DenominationGrid({ currency, form, onForm }: { currency: CashCount['currency']; form: CloseForm; onForm: (value: CloseForm) => void }) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{currency}</p>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {CASH_DENOMINATIONS[currency].map((denomination) => {
           const count = form.counts.find((item) => item.currency === currency && item.denomination === denomination)?.quantity ?? 0;
-          return <label key={denomination} className="space-y-1 text-xs text-text-muted"><span>{denomination}</span><Input type="number" min="0" step="1" value={count} onChange={(event) => onForm({ ...form, counts: [...form.counts.filter((item) => !(item.currency === currency && item.denomination === denomination)), { currency, denomination, quantity: Math.max(0, Number(event.target.value) || 0) }] })} /></label>;
+          return (
+            <label key={denomination} className="space-y-1 text-xs text-text-muted">
+              <span>{denomination}</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={count === 0 ? '' : String(count)}
+                onChange={(event) => {
+                  const raw = event.target.value.replace(/[^\d]/g, '');
+                  const quantity = Math.max(0, raw === '' ? 0 : Number(raw));
+                  onForm({
+                    ...form,
+                    counts: [
+                      ...form.counts.filter(
+                        (item) => !(item.currency === currency && item.denomination === denomination),
+                      ),
+                      { currency, denomination, quantity },
+                    ],
+                  });
+                }}
+                aria-label={`Cantidad de ${denomination} ${currency}`}
+              />
+            </label>
+          );
         })}
       </div>
     </div>
@@ -813,7 +859,7 @@ function money(value: number | string | null | undefined): string {
   return `$${Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function localMoney(value: number | string | null | undefined): string {
+export function localMoney(value: number | string | null | undefined): string {
   return `Bs ${Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

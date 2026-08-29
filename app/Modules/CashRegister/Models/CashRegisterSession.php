@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'opened_by',
     'closed_by',
     'status',
+    'z_number',
+    'z_emitted_at',
     'opening_base_amount',
     'opening_local_amount',
     'expected_base_amount',
@@ -65,6 +67,8 @@ class CashRegisterSession extends Model
     protected function casts(): array
     {
         return [
+            'z_number' => 'integer',
+            'z_emitted_at' => 'datetime',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
             'opening_base_amount' => 'decimal:4',

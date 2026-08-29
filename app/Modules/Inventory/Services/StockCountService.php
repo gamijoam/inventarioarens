@@ -2,9 +2,10 @@
 
 namespace App\Modules\Inventory\Services;
 
+use App\Models\User;
 use App\Modules\Inventory\Models\StockCount;
 use App\Modules\Inventory\Models\StockCountItem;
-use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -22,7 +23,10 @@ use Illuminate\Support\Facades\DB;
  */
 class StockCountService
 {
-    public function __construct(private readonly TenantManager $tenantManager) {}
+    public function __construct(
+        private readonly TenantManager $tenantManager,
+        private readonly InventoryMovementService $inventory,
+    ) {}
 
     public function create(Tenant $tenant, Warehouse $warehouse, array $data, ?int $userId): StockCount
     {
@@ -44,12 +48,15 @@ class StockCountService
      */
     public function snapshot(StockCount $count): int
     {
+        if ($count->items()->exists()) {
+            return 0;
+        }
+
         $warehouseId = $count->warehouse_id;
 
         $balances = DB::table('stock_balances')
             ->where('tenant_id', $count->tenant_id)
             ->where('warehouse_id', $warehouseId)
-            ->where('quantity_available', '!=', 0)
             ->select(['product_id', 'location_id', 'quantity_available'])
             ->get();
 
@@ -125,14 +132,19 @@ class StockCountService
      */
     public function complete(StockCount $count, ?int $approverId): array
     {
-        if ($count->status !== StockCount::STATUS_CAPTURING) {
-            throw new \RuntimeException("Solo se puede completar un conteo en status 'capturing'.");
-        }
-
-        $items = $count->items()->where('status', StockCountItem::STATUS_COUNTED)->get();
         $adjustments = ['in' => 0, 'out' => 0, 'skipped' => 0];
 
-        DB::transaction(function () use ($count, $items, $approverId, &$adjustments) {
+        DB::transaction(function () use ($count, $approverId, &$adjustments) {
+            $count = StockCount::query()->lockForUpdate()->findOrFail($count->id);
+            if ($count->status !== StockCount::STATUS_CAPTURING) {
+                throw new \RuntimeException("Solo se puede completar un conteo en status 'capturing'.");
+            }
+
+            $items = $count->items()->lockForUpdate()->get();
+            if ($items->contains(fn (StockCountItem $item) => $item->status !== StockCountItem::STATUS_COUNTED)) {
+                throw new \RuntimeException('Todos los items deben estar contados antes de completar el conteo.');
+            }
+
             foreach ($items as $item) {
                 $variance = (float) $item->variance;
                 if (abs($variance) < 0.0001) {
@@ -145,18 +157,30 @@ class StockCountService
                 $type = $variance > 0 ? 'adjustment_in' : 'adjustment_out';
                 $quantity = abs($variance);
 
-                StockMovement::create([
-                    'tenant_id' => $count->tenant_id,
-                    'warehouse_id' => $count->warehouse_id,
-                    'product_id' => $item->product_id,
-                    'type' => $type,
-                    'quantity' => $quantity,
-                    'unit_cost' => null,
-                    'reason' => "Cycle count {$count->code}",
-                    'reference_type' => 'stock_count',
-                    'reference_id' => $count->id,
-                    'created_by' => $approverId,
-                ]);
+                $warehouse = Warehouse::query()->findOrFail($count->warehouse_id);
+                $product = Product::query()->findOrFail($item->product_id);
+
+                if ($type === 'adjustment_in') {
+                    $this->inventory->adjustmentIn(
+                        warehouse: $warehouse,
+                        product: $product,
+                        quantity: $quantity,
+                        createdBy: $approverId === null ? null : User::find($approverId),
+                        reason: "Cycle count {$count->code}",
+                        referenceType: 'stock_count',
+                        referenceId: $count->id,
+                    );
+                } else {
+                    $this->inventory->adjustmentOut(
+                        warehouse: $warehouse,
+                        product: $product,
+                        quantity: $quantity,
+                        createdBy: $approverId === null ? null : User::find($approverId),
+                        reason: "Cycle count {$count->code}",
+                        referenceType: 'stock_count',
+                        referenceId: $count->id,
+                    );
+                }
 
                 $variance > 0 ? $adjustments['in']++ : $adjustments['out']++;
                 $item->update(['status' => StockCountItem::STATUS_ADJUSTED]);

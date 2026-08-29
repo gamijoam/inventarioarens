@@ -22,6 +22,7 @@ class StorePriceListRequest extends FormRequest
             'code' => ['required', 'string', 'max:50', Rule::unique('price_lists', 'code')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))],
             'description' => ['nullable', 'string', 'max:1000'],
             'markup_percentage' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'base_price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId)],
             'is_default' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0'],

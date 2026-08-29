@@ -85,7 +85,10 @@ class PosOrderController extends Controller
     {
         Gate::authorize('checkout', PosOrder::class);
 
-        if ($request->filled('promotion_id') || $request->filled('combo_applications') || $request->filled('product_offer_applications')) {
+        $hasPromotionApplications = collect(['combo_applications', 'product_offer_applications'])
+            ->contains(fn (string $field): bool => count($request->input($field, [])) > 0);
+
+        if ($request->filled('promotion_id') || $hasPromotionApplications) {
             abort_unless($request->user()?->can('pos.promotions.apply'), Response::HTTP_FORBIDDEN);
         }
         if ($request->filled('invoice_promotion_id') || $request->filled('invoice_promotion_code')) {

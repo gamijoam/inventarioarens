@@ -12,6 +12,20 @@ use Illuminate\Support\Facades\DB;
 
 class ProductPriceImporter extends BaseImporter
 {
+    /**
+     * Mapas de referencias cargados una sola vez por ejecucion para no
+     * repetir consultas por fila (productos, listas, tipos de tasa y
+     * precios existentes). Reconstruido por importer instanciado.
+     *
+     * @var array{
+     *   products: array<string, int>,
+     *   lists: array<string, int>,
+     *   rate_types: array<string, int>,
+     *   existing_prices: array<string, ProductPrice>
+     * }|null
+     */
+    private ?array $references = null;
+
     public function entity(): string
     {
         return 'product_prices';
@@ -20,6 +34,14 @@ class ProductPriceImporter extends BaseImporter
     public function headers(): array
     {
         return ['sku', 'list_code', 'price', 'currency', 'is_active', 'exchange_rate_type_code'];
+    }
+
+    public function naturalKey(array $payload): string
+    {
+        $sku = trim((string) ($payload['sku'] ?? ''));
+        $listCode = strtoupper(trim((string) ($payload['list_code'] ?? '')));
+
+        return $sku.':'.$listCode;
     }
 
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
@@ -55,16 +77,18 @@ class ProductPriceImporter extends BaseImporter
             return ImportRowResult::failed($errors, $sku.':'.$listCode);
         }
 
-        $product = Product::query()->where('sku', $sku)->first();
-        if (! $product) {
+        $refs = $this->references();
+
+        $productId = $refs['products'][$sku] ?? null;
+        if ($productId === null) {
             return ImportRowResult::failed(
                 ['sku' => "Producto SKU '{$sku}' no existe. Importalo primero."],
                 $sku.':'.$listCode,
             );
         }
 
-        $list = PriceList::query()->where('code', $listCode)->first();
-        if (! $list) {
+        $listId = $refs['lists'][$listCode] ?? null;
+        if ($listId === null) {
             return ImportRowResult::failed(
                 ['list_code' => "Lista de precios '{$listCode}' no existe. Crea la lista primero."],
                 $sku.':'.$listCode,
@@ -73,41 +97,41 @@ class ProductPriceImporter extends BaseImporter
 
         $rateTypeId = null;
         if ($rateTypeCode !== null) {
-            $rateType = ExchangeRateType::query()->where('code', $rateTypeCode)->first();
-            if (! $rateType) {
+            $rateTypeId = $refs['rate_types'][$rateTypeCode] ?? null;
+            if ($rateTypeId === null) {
                 return ImportRowResult::failed(
                     ['exchange_rate_type_code' => "Tipo de tasa '{$rateTypeCode}' no existe."],
                     $sku.':'.$listCode,
                 );
             }
-            $rateTypeId = $rateType->id;
         }
 
-        return DB::transaction(function () use ($product, $list, $price, $currency, $isActive, $rateTypeId, $sku, $listCode) {
-            $existing = ProductPrice::query()
-                ->where('product_id', $product->id)
-                ->where('price_list_id', $list->id)
-                ->first();
+        $priceKey = $productId.':'.$listId;
+        $existing = $refs['existing_prices'][$priceKey] ?? null;
 
-            $attributes = [
-                'price' => $price,
-                'currency' => $currency,
-                'exchange_rate_type_id' => $rateTypeId,
-                'is_active' => $isActive,
-            ];
+        $attributes = [
+            'price' => $price,
+            'currency' => $currency,
+            'exchange_rate_type_id' => $rateTypeId,
+            'is_active' => $isActive,
+        ];
+
+        return DB::transaction(function () use ($existing, $attributes, $productId, $listId, $sku, $listCode) {
+            $outbox = app(SyncCatalogOutboxService::class);
 
             if ($existing) {
-                $existing->update($attributes);
+                DB::table('product_prices')->where('id', $existing->id)->update($attributes);
+                $existing->forceFill($attributes);
+                $outbox->productPriceUpdated($existing);
                 $resultingId = $existing->id;
-                app(SyncCatalogOutboxService::class)->productPriceUpdated($existing->refresh());
             } else {
                 $created = ProductPrice::create([
-                    'product_id' => $product->id,
-                    'price_list_id' => $list->id,
+                    'product_id' => $productId,
+                    'price_list_id' => $listId,
                     ...$attributes,
                 ]);
                 $resultingId = $created->id;
-                app(SyncCatalogOutboxService::class)->productPriceCreated($created->refresh());
+                $outbox->productPriceCreated($created->refresh());
             }
 
             return ImportRowResult::ok($resultingId, $sku.':'.$listCode);
@@ -128,5 +152,32 @@ class ProductPriceImporter extends BaseImporter
         }
 
         return $default;
+    }
+
+    /**
+     * @return array{
+     *   products: array<string, int>,
+     *   lists: array<string, int>,
+     *   rate_types: array<string, int>,
+     *   existing_prices: array<string, ProductPrice>
+     * }
+     */
+    private function references(): array
+    {
+        if ($this->references !== null) {
+            return $this->references;
+        }
+
+        $existingPrices = ProductPrice::query()
+            ->get(['id', 'product_id', 'price_list_id'])
+            ->keyBy(fn (ProductPrice $price): string => (int) $price->product_id.':'.(int) $price->price_list_id)
+            ->all();
+
+        return $this->references = [
+            'products' => Product::query()->pluck('id', 'sku')->all(),
+            'lists' => PriceList::query()->pluck('id', 'code')->all(),
+            'rate_types' => ExchangeRateType::query()->pluck('id', 'code')->all(),
+            'existing_prices' => $existingPrices,
+        ];
     }
 }

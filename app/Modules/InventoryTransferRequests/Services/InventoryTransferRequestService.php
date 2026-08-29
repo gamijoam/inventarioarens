@@ -13,6 +13,7 @@ use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestGuide;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestGuideItem;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestItem;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -72,6 +73,7 @@ class InventoryTransferRequestService
                 InventoryTransferRequestItem::create([
                     'inventory_transfer_request_id' => $request->id,
                     'origin_product_id' => $item['product_id'],
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
                     'quantity' => (float) $item['quantity'],
                     'product_unit_ids' => $unitIds ?: null,
                     'serial_units' => $serialUnits,
@@ -480,9 +482,11 @@ class InventoryTransferRequestService
                 throw ValidationException::withMessages(['items' => 'Un producto controlado por cantidad no admite IMEIs o seriales.']);
             }
 
+            $variantId = $this->localVariantId($senderProduct, $item->product_variant_id);
             $available = (float) (StockBalance::query()
                 ->where('warehouse_id', $senderWarehouse->id)
                 ->where('product_id', $senderProduct->id)
+                ->where('product_variant_id', $variantId)
                 ->value('quantity_available') ?? 0);
             if ($available < $quantity) {
                 throw ValidationException::withMessages(['items' => 'El almacén de salida no tiene stock suficiente para preparar esta guía.']);
@@ -531,6 +535,7 @@ class InventoryTransferRequestService
                 reason: "Despacho interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
+                productVariantId: $this->localVariantId($senderProduct, $item->product_variant_id),
             );
             $this->removeRespondingUnits($unitIds, $outMovement->id);
         } catch (InsufficientStockException) {
@@ -613,6 +618,7 @@ class InventoryTransferRequestService
                 reason: "Recepción interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
+                productVariantId: $this->localVariantId($receiverProduct, $item->product_variant_id),
             );
             $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits);
         } finally {
@@ -676,6 +682,7 @@ class InventoryTransferRequestService
                 reason: "Salida interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
+                productVariantId: $this->localVariantId($senderProduct, $item->product_variant_id),
             );
             $this->removeRespondingUnits($unitIds, $outMovement->id);
 
@@ -688,6 +695,7 @@ class InventoryTransferRequestService
                 reason: "Entrada interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
+                productVariantId: $this->localVariantId($receiverProduct, $item->product_variant_id),
             );
             $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits);
         } catch (InsufficientStockException $exception) {
@@ -798,6 +806,19 @@ class InventoryTransferRequestService
             );
             $serialNumbers = array_values(array_filter($serialNumbers, fn ($s) => $s !== ''));
             $quantity = (float) $item['quantity'];
+
+            $variantId = $item['product_variant_id'] ?? null;
+            if ($variantId !== null) {
+                $belongsToProduct = ProductVariant::query()
+                    ->where('id', (int) $variantId)
+                    ->where('product_id', $product->id)
+                    ->exists();
+                if (! $belongsToProduct) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.product_variant_id" => 'La variante seleccionada no pertenece al producto indicado.',
+                    ]);
+                }
+            }
 
             if ($product->requiresSerializedTracking()) {
                 if ($quantity !== floor($quantity)) {
@@ -955,6 +976,38 @@ class InventoryTransferRequestService
                 'acquired_stock_movement_id' => $movementId,
             ]);
         }
+    }
+
+    /**
+     * Resuelve la variante local equivalente a la variante de la empresa
+     * solicitante usando la identidad natural (sku_variant | color). Si la
+     * solicitud no declara variante, retorna null (comportamiento legacy a
+     * nivel de producto).
+     */
+    private function localVariantId(Product $product, ?int $sourceVariantId): ?int
+    {
+        if ($sourceVariantId === null) {
+            return null;
+        }
+
+        $sourceVariant = DB::table('product_variants')->where('id', (int) $sourceVariantId)->first();
+        if (! $sourceVariant) {
+            return null;
+        }
+
+        $query = DB::table('product_variants')
+            ->where('tenant_id', $product->tenant_id)
+            ->where('product_id', $product->id);
+
+        if ($sourceVariant->sku_variant !== null && $sourceVariant->sku_variant !== '') {
+            $query->where('sku_variant', $sourceVariant->sku_variant);
+        } elseif ($sourceVariant->color !== null) {
+            $query->where('color', $sourceVariant->color);
+        } else {
+            return null;
+        }
+
+        return $query->value('id');
     }
 
     private function loadTransferRelations(InventoryTransferRequest $request): InventoryTransferRequest

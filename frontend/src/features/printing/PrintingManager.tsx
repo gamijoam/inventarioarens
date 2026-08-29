@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, FolderDown, Loader2, Plus, Printer, RotateCcw, Save, Star } from 'lucide-react';
+import { Copy, Download, Eye, FolderDown, Loader2, Plus, Printer, Save, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Can } from '@/components/permissions/Can';
@@ -15,6 +15,9 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { useBranchesForPos, useCashRegisters } from '@/features/pos/api';
 import {
   exampleTicketPayload,
+  downloadVirtualTicket as downloadVirtualTicketPdf,
+  useCreatePrintConnectorPairingCode,
+  usePrintConnectors,
   sendTestTicketToLocalAgent,
   type PrinterStation,
   type PrinterStationPayload,
@@ -22,8 +25,10 @@ import {
   type PrintProfilePayload,
   useCreatePrinterStation,
   useCreatePrintProfile,
+  type PrintConnector,
   usePrinterStations,
   usePrintProfiles,
+  useRevokePrintConnector,
   useUpdatePrinterStation,
   useUpdatePrintProfile,
 } from './api';
@@ -84,19 +89,25 @@ const PROFILE_TOGGLES: Array<{ section: string; key: keyof PrintProfilePayload; 
 export function PrintingManager() {
   const { data: profiles = [], isLoading: loadingProfiles } = usePrintProfiles();
   const { data: stations = [], isLoading: loadingStations } = usePrinterStations();
+  const { data: connectors = [], isLoading: loadingConnectors } = usePrintConnectors();
   const { data: branches = [] } = useBranchesForPos();
   const { data: cashRegisters = [] } = useCashRegisters();
   const createProfile = useCreatePrintProfile();
   const updateProfile = useUpdatePrintProfile();
   const createStation = useCreatePrinterStation();
   const updateStation = useUpdatePrinterStation();
+  const createPairingCode = useCreatePrintConnectorPairingCode();
+  const revokeConnector = useRevokePrintConnector();
   const [selectedProfileId, setSelectedProfileId] = useState<number | 'new'>('new');
   const [profile, setProfile] = useState<PrintProfilePayload>(DEFAULT_PROFILE);
   const [showPreview, setShowPreview] = useState(true);
+  const [isDownloadingVirtualTicket, setIsDownloadingVirtualTicket] = useState(false);
+  const [pairingCode, setPairingCode] = useState<{ code: string; expires_at: string } | null>(null);
   const [editingStationId, setEditingStationId] = useState<number | null>(null);
   const [station, setStation] = useState<PrinterStationPayload>({
     branch_id: null,
     cash_register_id: null,
+    print_connector_id: null,
     print_profile_id: 0,
     name: '',
     code: '',
@@ -192,6 +203,7 @@ export function PrintingManager() {
     setStation({
       branch_id: item.branch_id ?? null,
       cash_register_id: item.cash_register_id ?? null,
+      print_connector_id: item.print_connector_id ?? null,
       print_profile_id: item.print_profile_id,
       name: item.name,
       code: item.code,
@@ -211,6 +223,7 @@ export function PrintingManager() {
     setStation({
       branch_id: null,
       cash_register_id: null,
+      print_connector_id: null,
       print_profile_id: selectedProfile?.id || sortedProfiles[0]?.id || 0,
       name: '',
       code: '',
@@ -225,18 +238,44 @@ export function PrintingManager() {
     });
   }
 
-  async function testAgent(): Promise<void> {
+  async function downloadVirtualTicket(): Promise<void> {
+    setIsDownloadingVirtualTicket(true);
     try {
-      const response = await fetch('http://127.0.0.1:17777/health');
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      toast.success('Agente local disponible.');
+      await downloadVirtualTicketPdf(profile);
+      toast.success('Ticket virtual descargado. Puedes guardarlo o imprimirlo desde el navegador.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error desconocido';
-      toast.error(`No se detecto el agente local. Reinicia el agente actualizado y revisa el puerto 17777. ${message}`);
+      toast.error(extractPrintingError(error, 'No se pudo descargar el ticket virtual.'));
+    } finally {
+      setIsDownloadingVirtualTicket(false);
+    }
+  }
+
+  async function generatePairingCode(): Promise<void> {
+    try {
+      const result = await createPairingCode.mutateAsync();
+      setPairingCode(result);
+      toast.success('Codigo de vinculacion generado. Expira en 10 minutos.');
+    } catch (error) {
+      toast.error(extractPrintingError(error, 'No se pudo generar el codigo de vinculacion.'));
+    }
+  }
+
+  async function revokePrintConnector(id: number): Promise<void> {
+    if (!window.confirm('Revocar este conector? La instalacion tendra que vincularse de nuevo.')) return;
+    try {
+      await revokeConnector.mutateAsync(id);
+      toast.success('Conector revocado.');
+    } catch (error) {
+      toast.error(extractPrintingError(error, 'No se pudo revocar el conector.'));
     }
   }
 
   async function testStation(stationToTest: PrinterStation, output: 'thermal' | 'digital'): Promise<void> {
+    if (stationToTest.print_connector_id) {
+      toast.info('Esta estacion usa el Conector Cloud. Pruebala imprimiendo un ticket desde el POS.');
+      return;
+    }
+
     try {
       const selected = stationToTest.profile ?? selectedProfile ?? sortedProfiles[0] ?? profile;
       const result = await sendTestTicketToLocalAgent(output, stationToTest, selected);
@@ -255,9 +294,12 @@ export function PrintingManager() {
           <Button variant="outline" onClick={() => setShowPreview((value) => !value)}>
             <Eye className="size-4" /> Vista previa
           </Button>
-          <Button variant="outline" onClick={() => void testAgent()}>
-            <RotateCcw className="size-4" /> Probar agente
-          </Button>
+          <Can I={PERMISSIONS.PRINTING_DIGITAL}>
+            <Button variant="outline" disabled={isDownloadingVirtualTicket} onClick={() => void downloadVirtualTicket()}>
+              {isDownloadingVirtualTicket ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Ticket virtual
+            </Button>
+          </Can>
         </div>
       }
     >
@@ -363,6 +405,10 @@ export function PrintingManager() {
                   <option value="windows_printer">Impresora Windows (driver)</option>
                   <option value="network">Impresora de red (TCP 9100)</option>
                 </Select>
+                <Select value={String(station.print_connector_id ?? '')} onChange={(event) => setStation((current) => ({ ...current, print_connector_id: event.target.value ? Number(event.target.value) : null }))}>
+                  <option value="">Sin conector local</option>
+                  {connectors.filter((item) => item.status === 'active').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </Select>
                 {station.printer_type === 'network' ? (
                   <>
                     <Input value={station.network_host ?? ''} onChange={(event) => setStation((current) => ({ ...current, network_host: event.target.value }))} placeholder="IP de la impresora, ej. 192.168.1.50" />
@@ -397,7 +443,7 @@ export function PrintingManager() {
               <CardDescription>El POS usa la estacion de su caja. Prueba digital o termica antes de vender.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {(loadingProfiles || loadingStations) && <p className="text-sm text-text-muted">Cargando configuracion...</p>}
+              {(loadingProfiles || loadingStations || loadingConnectors) && <p className="text-sm text-text-muted">Cargando configuracion...</p>}
               {sortedStations.length === 0 && !loadingStations && <p className="text-sm text-text-muted">Aun no hay estaciones configuradas.</p>}
               {sortedStations.map((item) => (
                 <div key={item.id} className="rounded border border-border p-3">
@@ -416,16 +462,87 @@ export function PrintingManager() {
                     <Can I={PERMISSIONS.PRINTING_MANAGE}>
                       <Button size="sm" variant="outline" onClick={() => editStation(item)}>Editar</Button>
                     </Can>
-                    {item.output_mode !== 'thermal' && <Button size="sm" variant="outline" onClick={() => void testStation(item, 'digital')}>Probar digital</Button>}
-                    {item.output_mode !== 'digital' && <Button size="sm" variant="outline" onClick={() => void testStation(item, 'thermal')}>Probar termica</Button>}
+                    {item.print_connector_id ? (
+                      <Badge variant="default">Conector Cloud</Badge>
+                    ) : (
+                      <>
+                        {item.output_mode !== 'thermal' && <Button size="sm" variant="outline" onClick={() => void testStation(item, 'digital')}>Probar digital</Button>}
+                        {item.output_mode !== 'digital' && <Button size="sm" variant="outline" onClick={() => void testStation(item, 'thermal')}>Probar termica</Button>}
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
             </CardContent>
           </Card>
+
+          <ConnectorCard
+            connectors={connectors}
+            pairingCode={pairingCode}
+            isGenerating={createPairingCode.isPending}
+            onGenerate={() => void generatePairingCode()}
+            onRevoke={(id) => void revokePrintConnector(id)}
+          />
         </div>
       </div>
     </PageLayout>
+  );
+}
+
+function ConnectorCard({
+  connectors,
+  pairingCode,
+  isGenerating,
+  onGenerate,
+  onRevoke,
+}: {
+  connectors: PrintConnector[];
+  pairingCode: { code: string; expires_at: string } | null;
+  isGenerating: boolean;
+  onGenerate: () => void;
+  onRevoke: (id: number) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Conectores locales</CardTitle>
+        <CardDescription>Vincula una instalacion Windows para imprimir sin exponer puertos de tu red.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Can I={PERMISSIONS.PRINTING_MANAGE}>
+          <Button variant="outline" disabled={isGenerating} onClick={onGenerate}>
+            {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
+            Generar codigo de vinculacion
+          </Button>
+          {pairingCode && (
+            <div className="rounded border border-primary/40 bg-primary/5 p-3">
+              <p className="text-xs text-text-muted">Introduce este codigo en el Conector Local. Expira a las {new Date(pairingCode.expires_at).toLocaleTimeString()}.</p>
+              <code className="mt-1 block text-lg font-bold tracking-[0.2em]">{pairingCode.code}</code>
+            </div>
+          )}
+        </Can>
+        {connectors.length === 0 ? (
+          <p className="text-sm text-text-muted">No hay conectores vinculados.</p>
+        ) : (
+          connectors.map((connector) => (
+            <div key={connector.id} className="flex items-center justify-between rounded border border-border p-3">
+              <div>
+                <p className="font-semibold">{connector.name}</p>
+                <p className="text-xs text-text-muted">{connector.version ?? 'Version no reportada'} - {connector.stations_count ?? 0} estacion(es)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={connector.status === 'active' ? 'success' : 'default'}>{connector.status === 'active' ? 'Activo' : 'Revocado'}</Badge>
+                {connector.status === 'active' && (
+                  <Can I={PERMISSIONS.PRINTING_MANAGE}>
+                    <Button size="sm" variant="outline" onClick={() => onRevoke(connector.id)}>Revocar</Button>
+                  </Can>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

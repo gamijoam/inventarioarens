@@ -3,6 +3,7 @@
 namespace App\Modules\POS\Services;
 
 use App\Models\User;
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\CashRegister\Models\CashRegister;
@@ -29,6 +30,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Cache\TenantReferenceCache;
 use App\Support\Performance\PerformanceProbe;
 use App\Support\Tenancy\TenantManager;
@@ -40,6 +42,7 @@ class PosCheckoutService
 {
     public function __construct(
         private readonly SaleService $sales,
+        private readonly ScopeResolver $scopes,
         private readonly CashRegisterService $cashRegister,
         private readonly AccountsReceivableService $accountsReceivable,
         private readonly InventoryMovementService $inventory,
@@ -82,6 +85,7 @@ class PosCheckoutService
 
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($cashRegisterSession->id);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
+                $this->assertWarehousesWithinScope($items, $cashier);
                 if ($invoicePromotionId !== null || $invoicePromotionCode !== null || $comboApplications !== [] || $productOfferApplications !== []) {
                     if ($promotionId !== null || $promotionCode !== null) {
                         throw ValidationException::withMessages([
@@ -255,6 +259,8 @@ class PosCheckoutService
     ): PosOrder {
         return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
             return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
+                $this->assertWarehousesWithinScope($items, $seller);
+
                 if ($invoicePromotionId !== null || $invoicePromotionCode !== null || $comboApplications !== [] || $productOfferApplications !== []) {
                     if ($promotionId !== null || $promotionCode !== null) {
                         throw ValidationException::withMessages([
@@ -603,6 +609,18 @@ class PosCheckoutService
 
     private function assertCashRegisterCanSell(CashRegisterSession $session, User $cashier): void
     {
+        $sessionInScope = $this->scopes->applyBranchScope(
+            CashRegisterSession::query()->whereKey($session->id),
+            $cashier,
+            'branch_id'
+        )->exists();
+
+        if (! $sessionInScope) {
+            throw ValidationException::withMessages([
+                'cash_register_session_id' => 'La caja seleccionada esta fuera del alcance de sucursales del cajero.',
+            ]);
+        }
+
         if ($session->status !== CashRegisterSession::STATUS_OPEN) {
             throw ValidationException::withMessages([
                 'cash_register_session_id' => 'La caja seleccionada no esta abierta.',
@@ -626,6 +644,21 @@ class PosCheckoutService
             throw ValidationException::withMessages([
                 'cash_register_session_id' => 'La caja fisica de este turno no esta activa.',
             ]);
+        }
+    }
+
+    private function assertWarehousesWithinScope(array $items, User $user): void
+    {
+        foreach ($items as $index => $item) {
+            $warehouseQuery = Warehouse::query()->whereKey((int) ($item['warehouse_id'] ?? 0));
+            $warehouseQuery = $this->scopes->applyBranchScope($warehouseQuery, $user, 'branch_id');
+            $warehouseQuery = $this->scopes->applyWarehouseScope($warehouseQuery, $user, 'id');
+
+            if (! $warehouseQuery->exists()) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.warehouse_id" => 'El almacen esta fuera del alcance del usuario.',
+                ]);
+            }
         }
     }
 
@@ -1010,6 +1043,10 @@ class PosCheckoutService
         $order->loadMissing(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse']);
 
         foreach ($order->sale->items as $item) {
+            if (! $item->product->track_stock) {
+                continue;
+            }
+
             $movement = $this->inventory->reserve(
                 warehouse: $item->warehouse,
                 product: $item->product,
@@ -1040,6 +1077,10 @@ class PosCheckoutService
         $order->loadMissing(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse']);
 
         foreach ($order->sale->items as $item) {
+            if (! $item->product->track_stock) {
+                continue;
+            }
+
             $this->inventory->release(
                 warehouse: $item->warehouse,
                 product: $item->product,

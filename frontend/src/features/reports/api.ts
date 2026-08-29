@@ -42,6 +42,8 @@ function toQueryString(filters: ReportFilters = {}): string {
   if (filters.payment_method) params.set('payment_method', filters.payment_method);
   if (filters.date_from) params.set('date_from', filters.date_from);
   if (filters.date_to) params.set('date_to', filters.date_to);
+  if (filters.page) params.set('page', String(filters.page));
+  if (filters.per_page) params.set('per_page', String(filters.per_page));
   if (filters.limit) params.set('limit', String(filters.limit));
   if (filters.threshold !== undefined) params.set('threshold', String(filters.threshold));
   const q = params.toString();
@@ -144,7 +146,8 @@ export function useDailyOperations(filters: ReportFilters, enabled: boolean) {
 export function useSalesDetail(filters: ReportFilters, enabled: boolean) {
   return useQuery({
     queryKey: reportKeys.salesDetail(filters),
-    queryFn: async () => SalesDetailSchema.parse(await getOne<unknown>(buildSalesDetailQuery(filters))),
+    queryFn: async () =>
+      SalesDetailSchema.parse(await getOne<unknown>(buildSalesDetailQuery(filters))),
     enabled,
   });
 }
@@ -152,7 +155,8 @@ export function useSalesDetail(filters: ReportFilters, enabled: boolean) {
 export function useCashSessions(filters: ReportFilters, enabled: boolean) {
   return useQuery({
     queryKey: reportKeys.cashSessions(filters),
-    queryFn: async () => CashSessionsSchema.parse(await getOne<unknown>(buildCashSessionsQuery(filters))),
+    queryFn: async () =>
+      CashSessionsSchema.parse(await getOne<unknown>(buildCashSessionsQuery(filters))),
     enabled,
   });
 }
@@ -161,7 +165,9 @@ export function usePaymentMethodsReport(filters: ReportFilters, enabled: boolean
   return useQuery({
     queryKey: reportKeys.paymentMethods(filters),
     queryFn: async () =>
-      PaymentMethodsReportSchema.parse(await getMany<unknown>(buildPaymentMethodsReportQuery(filters))),
+      PaymentMethodsReportSchema.parse(
+        await getMany<unknown>(buildPaymentMethodsReportQuery(filters)),
+      ),
     enabled,
   });
 }

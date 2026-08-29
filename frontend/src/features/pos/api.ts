@@ -684,14 +684,29 @@ export function useSessionOrders(
 
 export function useCheckout() {
   const qc = useQueryClient();
+  const checkoutAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
+
   return useMutation({
-    mutationFn: async (input: IdempotentInput<CheckoutPayload>) =>
-      postOne<CheckoutPayload, PosOrder>(
+    mutationFn: async (input: IdempotentInput<CheckoutPayload>) => {
+      const payload = withoutIdempotencyKey(input);
+      const fingerprint = JSON.stringify(payload);
+      const currentAttempt = checkoutAttemptRef.current;
+      const idempotencyKey = input.idempotencyKey
+        ?? (currentAttempt?.fingerprint === fingerprint
+        ? currentAttempt.key
+        : globalThis.crypto?.randomUUID?.()
+          ?? `pos-checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+      checkoutAttemptRef.current = { fingerprint, key: idempotencyKey };
+
+      return postOne<CheckoutPayload, PosOrder>(
         '/pos/checkouts',
-        withoutIdempotencyKey(input),
-        withIdempotencyKey(idempotencyKeyFor(input)),
-      ),
+        payload,
+        withIdempotencyKey(idempotencyKey),
+      );
+    },
     onSuccess: () => {
+      checkoutAttemptRef.current = null;
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
@@ -800,6 +815,7 @@ export const BootstrapWarehouseSchema = z
     status: z.string().nullish(),
     branch_name: z.string().nullish(),
     branch_code: z.string().nullish(),
+    is_default: z.boolean().optional(),
   })
   .transform((value) => ({
     id: value.id,
@@ -809,6 +825,7 @@ export const BootstrapWarehouseSchema = z
     status: value.status ?? 'active',
     branch_name: value.branch_name ?? null,
     branch_code: value.branch_code ?? null,
+    is_default: value.is_default ?? false,
   }));
 export type BootstrapWarehouse = z.infer<typeof BootstrapWarehouseSchema>;
 

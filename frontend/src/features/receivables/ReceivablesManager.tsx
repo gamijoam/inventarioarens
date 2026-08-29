@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, CreditCard, Loader2, Search, Wallet, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, CreditCard, Download, Loader2, Search, Wallet, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -11,21 +11,26 @@ import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Textarea } from '@/components/ui/Textarea';
+import { StatusMultiSelect, type StatusMultiOption } from '@/components/ui/StatusMultiSelect';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import { useCashSessions, useCurrentExchangeRatesForPos, usePaymentMethods, type CurrentExchangeRate } from '@/features/pos/api';
-import { useCollectReceivable, useReceivable, useReceivables, type ReceivableListFilters } from './api';
+import { exportReceivables, useCollectReceivable, useReceivable, useReceivables, type ReceivableListFilters } from './api';
 import { activeUsdVesRate, currentLocalBalance, numberLabel, rateLabel } from './currentBalance';
 import { RECEIVABLE_STATUS_LABELS, type CollectReceivableValues, type Receivable, type ReceivableStatus } from './schemas';
 
-const STATUS_OPTIONS: { value: ReceivableListFilters['status']; label: string }[] = [
-  { value: 'open', label: 'Abiertas' },
-  { value: 'all', label: 'Todas' },
+const STATUS_OPTIONS: StatusMultiOption[] = [
   { value: 'pending', label: 'Pendientes' },
   { value: 'partial', label: 'Parciales' },
   { value: 'overdue', label: 'Vencidas' },
   { value: 'paid', label: 'Pagadas' },
+  { value: 'open', label: 'Abiertas' },
 ];
+
+function statusValues(status?: string): string[] {
+  if (!status || status === 'all') return [];
+  return status.split(',');
+}
 
 function statusVariant(status: ReceivableStatus): 'warning' | 'success' | 'danger' | 'info' {
   if (status === 'paid') return 'success';
@@ -53,8 +58,7 @@ function customerLabel(receivable: Receivable): string {
 }
 
 export function ReceivablesManager() {
-  const [filters, setFilters] = useState<ReceivableListFilters>({ status: 'open', page: 1, limit: 25 });
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [filters, setFilters] = useState<ReceivableListFilters>({ status: 'open', page: 1, limit: 25 });  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [collecting, setCollecting] = useState<Receivable | null>(null);
   const { data, isLoading, isError, refetch } = useReceivables(filters);
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
@@ -87,16 +91,15 @@ export function ReceivablesManager() {
               />
             </div>
           </div>
-          <div className="w-44">
+          <div className="w-56">
             <Label htmlFor="receivables-status" className="text-xs text-text-muted">Estado</Label>
-            <Select
+            <StatusMultiSelect
               id="receivables-status"
-              value={filters.status ?? 'all'}
-              onChange={(event) => updateFilters({ status: event.target.value as ReceivableListFilters['status'] })}
-              className="mt-1"
-            >
-              {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </Select>
+              options={STATUS_OPTIONS}
+              selected={statusValues(filters.status)}
+              onChange={(values) => updateFilters({ status: values.length ? values.join(',') : undefined })}
+              placeholder="Todos los estados"
+            />
           </div>
           <div className="w-40">
             <Label htmlFor="due-from" className="text-xs text-text-muted">Vence desde</Label>
@@ -106,7 +109,11 @@ export function ReceivablesManager() {
             <Label htmlFor="due-to" className="text-xs text-text-muted">Vence hasta</Label>
             <Input id="due-to" type="date" value={filters.due_to ?? ''} onChange={(event) => updateFilters({ due_to: event.target.value || undefined })} className="mt-1" />
           </div>
-          <Button variant="secondary" onClick={() => void refetch()}>Actualizar</Button>
+          <div className="flex items-end gap-2">
+            <Button variant="secondary" onClick={() => void refetch()}>Actualizar</Button>
+            <Button variant="outline" onClick={() => void exportReceivables(filters, 'csv').catch(() => toast.error('No se pudo exportar a Excel.'))} leftIcon={<Download className="size-4" />}>Excel</Button>
+            <Button variant="outline" onClick={() => void exportReceivables(filters, 'pdf').catch(() => toast.error('No se pudo exportar a PDF.'))} leftIcon={<Download className="size-4" />}>PDF</Button>
+          </div>
         </CardContent>
       </Card>
 

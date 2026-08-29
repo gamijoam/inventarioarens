@@ -40,6 +40,7 @@ class PosOrder extends Model
     public const STATUS_CANCELLED = 'cancelled';
 
     public const RESERVATION_TTL_MINUTES = 30;
+    public const STATUS_VOIDED = 'voided';
 
     protected function casts(): array
     {

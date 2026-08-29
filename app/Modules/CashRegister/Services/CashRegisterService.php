@@ -13,6 +13,7 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
+use App\Modules\SalesReversals\Models\SaleReversal;
 use App\Modules\Sync\Services\SyncOutboxService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
@@ -173,7 +174,8 @@ class CashRegisterService
             $differenceCashUsd = round($countedPhysical['USD'] - (float) ($session->expected_cash_usd ?? $session->opening_base_amount), 4);
             $differenceCashVes = round($countedPhysical['VES'] - (float) ($session->expected_cash_ves ?? $session->opening_local_amount), 4);
 
-            if ((abs($differenceCashUsd) >= 0.01 || abs($differenceCashVes) >= 0.01)
+            if (($data['counting_mode'] ?? CashRegisterSession::COUNTING_STANDARD) !== CashRegisterSession::COUNTING_BLIND
+                && (abs($differenceCashUsd) >= 0.01 || abs($differenceCashVes) >= 0.01)
                 && mb_strlen(trim((string) ($data['closing_notes'] ?? ''))) < 3) {
                 throw ValidationException::withMessages([
                     'closing_notes' => 'Debes justificar la diferencia de efectivo USD/VES antes de cerrar.',
@@ -202,6 +204,8 @@ class CashRegisterService
                     $session->counts()->create($count);
                 }
             }
+
+            app(ReportZService::class)->assignZNumber($session);
 
             $this->recordSessionSyncEvent($session->refresh(), 'cash.session.closed');
 
@@ -356,6 +360,40 @@ class CashRegisterService
         });
     }
 
+    public function recordSaleReversal(
+        CashRegisterSession $session,
+        PosPayment $payment,
+        SaleReversal $reversal,
+        User $operator,
+    ): CashRegisterMovement {
+        return DB::transaction(function () use ($session, $payment, $reversal, $operator): CashRegisterMovement {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+            $this->assertOpen($session);
+            $this->assertOperatorCanOperate($session, $operator);
+
+            $movement = CashRegisterMovement::create([
+                'cash_register_session_id' => $session->id,
+                'type' => CashRegisterMovement::TYPE_OUTFLOW,
+                'method' => $payment->method,
+                'currency' => $payment->currency,
+                'amount' => $payment->amount,
+                'amount_base' => $payment->amount_base,
+                'amount_local' => $payment->amount_local,
+                'exchange_rate_type_id' => $payment->exchange_rate_type_id,
+                'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                'exchange_rate' => $payment->exchange_rate,
+                'source_type' => 'sale_reversal',
+                'source_id' => $reversal->id,
+                'reference' => "REV-{$reversal->id}",
+                'notes' => "Reembolso por reversión de venta POS #{$payment->pos_order_id}",
+                'created_by' => $operator->id,
+            ]);
+            $this->recalculateExpectedTotals($session);
+
+            return $movement->refresh();
+        });
+    }
+
     public function previewAmount(array $data): array
     {
         return $this->resolveAmount($data);
@@ -412,7 +450,13 @@ class CashRegisterService
 
     private function closingAmount(array $data): array
     {
-        if (! empty($data['counts'])) {
+        // Si vienen counts PERO el cliente ya mando montos explicitos
+        // (counted_base_amount / counted_local_amount), respetar esos montos
+        // (caso POS: denominaciones USD + bolivar manual). Solo derivar de
+        // counts cuando no se enviaron montos explicitos.
+        if (! empty($data['counts'])
+            && ! array_key_exists('counted_base_amount', $data)
+            && ! array_key_exists('counted_local_amount', $data)) {
             $amounts = $this->cashCountTotals($data['counts']);
             $data['counted_base_amount'] = $amounts['USD'];
             $data['counted_local_amount'] = $amounts['VES'];
@@ -506,18 +550,21 @@ class CashRegisterService
 
     private function closingPhysicalAmounts(array $data): array
     {
-        if (! empty($data['counts'])) {
-            return $this->cashCountTotals($data['counts']);
-        }
+        $counts = $this->cashCountTotals($data['counts'] ?? []);
 
         $legacyCurrency = strtoupper($data['counted_currency'] ?? Product::CURRENCY_USD);
         $legacyAmount = array_key_exists('counted_amount', $data)
             ? (float) $data['counted_amount']
             : 0.0;
 
+        // Preferir los montos fisicos explicitos (counted_cash_usd / counted_cash_ves).
+        // Solo derivar de counts o del modo legacy cuando no se enviaron.
+        $usd = $data['counted_cash_usd'] ?? $data['counted_base_amount'] ?? null;
+        $ves = $data['counted_cash_ves'] ?? $data['counted_local_amount'] ?? null;
+
         return [
-            'USD' => round((float) ($data['counted_cash_usd'] ?? $data['counted_base_amount'] ?? ($legacyCurrency === Product::CURRENCY_USD ? $legacyAmount : 0)), 4),
-            'VES' => round((float) ($data['counted_cash_ves'] ?? $data['counted_local_amount'] ?? ($legacyCurrency === Product::CURRENCY_VES ? $legacyAmount : 0)), 4),
+            'USD' => round((float) ($usd ?? (! empty($data['counts']) ? $counts['USD'] : ($legacyCurrency === Product::CURRENCY_USD ? $legacyAmount : 0))), 4),
+            'VES' => round((float) ($ves ?? (! empty($data['counts']) ? $counts['VES'] : ($legacyCurrency === Product::CURRENCY_VES ? $legacyAmount : 0))), 4),
         ];
     }
 

@@ -86,6 +86,35 @@ class ProductShowAndPricingTest extends TestCase
             ->assertJsonPath('data.tags.0.id', $tag->id);
     }
 
+    public function test_product_costs_are_hidden_without_finance_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Costos', 'slug' => 'empresa-costos']);
+        $this->useTenant($tenant);
+
+        $product = Product::create([
+            'name' => 'Producto sensible',
+            'sku' => 'COST-001',
+            'base_price' => 100,
+            'average_cost' => 60,
+            'last_purchase_cost' => 55,
+        ]);
+
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+        setPermissionsTeamId($tenant->id);
+        $role = Role::create(['name' => 'Vendedor Costos', 'guard_name' => 'web', 'tenant_id' => $tenant->id]);
+        $role->syncPermissions(['products.view']);
+        $user->assignRole($role);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.average_cost', null)
+            ->assertJsonPath('data.last_purchase_cost', null)
+            ->assertJsonPath('data.average_cost_visible', false);
+    }
+
     public function test_product_rate_type_overrides_product_price_rate_type(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa', 'slug' => 'empresa-rate-test']);

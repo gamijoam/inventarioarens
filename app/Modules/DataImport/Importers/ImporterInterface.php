@@ -24,4 +24,13 @@ interface ImporterInterface
      * @return Generator<int, ImportRowResult>
      */
     public function import(string $filePath): Generator;
+
+    /**
+     * Clave natural que identifica de forma unica una fila importada
+     * (sku, code, slug, documento, etc.). Se usa para reanudar un import
+     * omitiendo filas que ya se procesaron con exito.
+     *
+     * @param  array<string, string|null>  $payload
+     */
+    public function naturalKey(array $payload): string;
 }

@@ -861,6 +861,30 @@ export function useUploadProductImage(productId: number) {
 }
 
 /**
+ * Descarga una imagen desde una URL externa a la galeria del producto
+ * (el backend la procesa a WebP y crea un ProductImage). Invalida la galeria
+ * y el producto como cualquier upload.
+ */
+export function useUploadProductImageFromUrl(productId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { url: string; alt?: string }) => {
+      const response = await api.post<{ data: ProductImage }>(
+        `/products/${productId}/images/from-url`,
+        payload,
+      );
+      return ProductImageSchema.parse(response.data.data);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: productImageKeys.list(productId) });
+      void qc.invalidateQueries({ queryKey: productImageKeys.all() });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+    },
+  });
+}
+
+/**
  * Actualiza alt/sort/is_primary de una imagen. `is_primary=true` swaps
  * atomicamente en el backend.
  */

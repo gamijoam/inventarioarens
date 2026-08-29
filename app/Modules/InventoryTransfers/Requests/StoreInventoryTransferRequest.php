@@ -29,6 +29,7 @@ class StoreInventoryTransferRequest extends FormRequest
             'processed_at' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds)],
+            'items.*.product_variant_id' => ['nullable', 'integer', Rule::exists('product_variants', 'id')->where('tenant_id', $tenantId)],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.product_unit_ids' => ['nullable', 'array'],
             'items.*.product_unit_ids.*' => ['integer'],

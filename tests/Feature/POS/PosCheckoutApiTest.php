@@ -3,6 +3,7 @@
 namespace Tests\Feature\POS;
 
 use App\Models\User;
+use App\Modules\AccessControl\Models\UserBranchScope;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
@@ -112,6 +113,80 @@ class PosCheckoutApiTest extends TestCase
             'aggregate_type' => 'pos_order',
             'aggregate_id' => $response->json('data.id'),
             'status' => 'pending',
+        ]);
+    }
+
+    public function test_pos_checkout_rejects_a_warehouse_outside_the_cashiers_branch_scope(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa POS Scope', 'slug' => 'empresa-pos-checkout-scope']);
+        [$allowedWarehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-SCOPE', 500);
+        $blockedBranch = Branch::create(['name' => 'Sucursal Bloqueada', 'code' => 'BR-CHECKOUT-NO']);
+        $blockedWarehouse = Warehouse::create(['branch_id' => $blockedBranch->id, 'name' => 'Almacen Bloqueado', 'code' => 'WH-CHECKOUT-NO']);
+        StockBalance::create(['warehouse_id' => $allowedWarehouse->id, 'product_id' => $product->id, 'quantity_available' => 5]);
+        StockBalance::create(['warehouse_id' => $blockedWarehouse->id, 'product_id' => $product->id, 'quantity_available' => 5]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Scope', ['pos.checkout', 'pos.view']);
+        $this->useTenant($tenant);
+        UserBranchScope::create(['user_id' => $user->id, 'branch_id' => $allowedWarehouse->branch_id]);
+        $session = $this->cashRegisterSession($tenant, $user, $allowedWarehouse->branch_id);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [['warehouse_id' => $blockedWarehouse->id, 'product_id' => $product->id, 'quantity' => 1]],
+                'payments' => [['method' => PosPayment::METHOD_CASH, 'currency' => Product::CURRENCY_USD, 'amount' => 100]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.warehouse_id');
+
+        $this->assertDatabaseHas('stock_balances', ['warehouse_id' => $blockedWarehouse->id, 'product_id' => $product->id, 'quantity_available' => '5.0000']);
+    }
+
+    public function test_pos_checkout_does_not_move_inventory_when_product_does_not_track_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Sin Stock', 'slug' => 'empresa-sin-stock']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-NO-STOCK', 500);
+        $product->update(['track_stock' => false]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Sin Stock', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 200,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '5.0000',
+        ]);
+        $this->assertDatabaseMissing('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'type' => 'sale',
         ]);
     }
 

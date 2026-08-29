@@ -21,7 +21,7 @@ class PrinterStationController extends Controller
 
         return PrinterStationResource::collection(
             PrinterStation::query()
-                ->with(['profile', 'branch', 'cashRegister'])
+                ->with(['profile', 'branch', 'cashRegister', 'connector'])
                 ->orderBy('name')
                 ->get()
         );
@@ -31,7 +31,7 @@ class PrinterStationController extends Controller
     {
         $station = PrinterStation::create($this->normalize($request->validated()))
             ->refresh()
-            ->load(['profile', 'branch', 'cashRegister']);
+            ->load(['profile', 'branch', 'cashRegister', 'connector']);
 
         return PrinterStationResource::make($station)
             ->response()
@@ -44,7 +44,7 @@ class PrinterStationController extends Controller
 
         $printerStation->update($this->normalize($request->validated()));
 
-        return PrinterStationResource::make($printerStation->refresh()->load(['profile', 'branch', 'cashRegister']));
+        return PrinterStationResource::make($printerStation->refresh()->load(['profile', 'branch', 'cashRegister', 'connector']));
     }
 
     public function destroy(Request $request, PrinterStation $printerStation): Response

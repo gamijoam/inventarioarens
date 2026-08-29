@@ -22,6 +22,7 @@
 /.zed
 /auth.json
 /node_modules
+/tools/print-connector/node_modules/
 /public/storage
 **/__pycache__/
 /storage/*.key

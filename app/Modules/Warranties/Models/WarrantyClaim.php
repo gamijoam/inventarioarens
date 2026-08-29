@@ -78,6 +78,8 @@ class WarrantyClaim extends Model
 
     public const RESOLUTION_REJECTED = 'rejected';
 
+    public const RESOLUTION_RETURN_SUPPLIER = 'return_supplier';
+
     public const RESOLUTION_PENDING_REVIEW = 'pending_review';
 
     protected function casts(): array

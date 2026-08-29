@@ -10,9 +10,12 @@ use App\Support\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 #[Fillable([
     'printer_station_id',
+    'uuid',
+    'print_connector_id',
     'print_profile_id',
     'source_type',
     'source_id',
@@ -31,6 +34,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'sent_at',
     'printed_at',
     'generated_at',
+    'claim_token_hash',
+    'claim_expires_at',
+    'claimed_at',
 ])]
 class PrintJob extends Model
 {
@@ -43,6 +49,8 @@ class PrintJob extends Model
     public const STATUS_CREATED = 'created';
 
     public const STATUS_SENT = 'sent';
+
+    public const STATUS_CLAIMED = 'claimed';
 
     public const STATUS_PRINTED = 'printed';
 
@@ -59,12 +67,26 @@ class PrintJob extends Model
             'sent_at' => 'datetime',
             'printed_at' => 'datetime',
             'generated_at' => 'datetime',
+            'claim_expires_at' => 'datetime',
+            'claimed_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $job): void {
+            $job->uuid ??= (string) Str::uuid();
+        });
     }
 
     public function station(): BelongsTo
     {
         return $this->belongsTo(PrinterStation::class, 'printer_station_id');
+    }
+
+    public function connector(): BelongsTo
+    {
+        return $this->belongsTo(PrintConnector::class, 'print_connector_id');
     }
 
     public function profile(): BelongsTo

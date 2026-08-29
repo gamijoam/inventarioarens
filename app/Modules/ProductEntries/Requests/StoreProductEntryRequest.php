@@ -23,6 +23,7 @@ class StoreProductEntryRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.warehouse_id' => ['required', Rule::exists('warehouses', 'id')->where('tenant_id', $tenantId)],
             'items.*.product_id' => ['required', Rule::exists('products', 'id')->whereIn('tenant_id', $tenantIds)],
+            'items.*.product_variant_id' => ['nullable', 'integer', Rule::exists('product_variants', 'id')->where('tenant_id', $tenantId)],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_cost' => ['nullable', 'numeric', 'gte:0'],
             'items.*.serial_units' => ['nullable', 'array'],

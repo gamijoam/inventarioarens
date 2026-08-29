@@ -97,6 +97,37 @@ class AccountsPayableApiTest extends TestCase
         ]);
     }
 
+    public function test_same_idempotency_key_does_not_register_an_ap_payment_twice(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa AP Idempotencia', 'slug' => 'empresa-ap-idempotencia']);
+        [$warehouse, $product] = $this->product($tenant, 'AP-IDEMP');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.approve', 'accounts_payable.view', 'accounts_payable.pay']);
+        $purchase = $this->receivedPurchase($tenant, $user, $warehouse, $product, 5, 10);
+        $account = AccountsPayable::query()->where('purchase_order_id', $purchase->id)->firstOrFail();
+        $payload = [
+            'payment_currency' => PurchaseOrder::CURRENCY_USD,
+            'amount' => 20,
+            'method' => 'transferencia',
+        ];
+
+        foreach (range(1, 2) as $attempt) {
+            $this
+                ->actingAs($user)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->withHeader('Idempotency-Key', 'ap-payment-idempotency-1')
+                ->postJson("/api/accounts-payable/{$account->id}/payments", $payload)
+                ->assertCreated();
+        }
+
+        $this->assertSame(1, AccountsPayablePayment::query()->where('accounts_payable_id', $account->id)->count());
+        $this->assertDatabaseHas('accounts_payables', [
+            'id' => $account->id,
+            'paid_base_amount' => '20.0000',
+            'balance_base_amount' => '30.0000',
+        ]);
+    }
+
     public function test_accounts_payable_index_can_filter_by_search_status_supplier_and_due_date(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

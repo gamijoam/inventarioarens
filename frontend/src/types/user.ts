@@ -35,6 +35,7 @@ export interface UserSession {
   tenant: Tenant | null;
   roles: Role[];
   permissions: string[];
+  capabilities: string[];
   expires_at: string;
   scope_status: 'none' | 'allow' | 'restrict';
   scopes: UserScopes;
@@ -72,6 +73,7 @@ export interface LoginResponse {
     tenant: Tenant | null;
     roles: Role[];
     permissions: string[];
+    capabilities?: string[];
     scope_status?: UserSession['scope_status'];
     scopes?: UserScopes;
   };

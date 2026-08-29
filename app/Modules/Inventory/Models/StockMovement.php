@@ -21,17 +21,26 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'reason',
     'reference_type',
     'reference_id',
+    'reservation_expires_at',
     'created_by',
 ])]
 class StockMovement extends Model
 {
     use BelongsToTenant;
 
+    protected function casts(): array
+    {
+        return [
+            'reservation_expires_at' => 'datetime',
+        ];
+    }
+
     public const TYPES = [
         'purchase',
         'purchase_return',
         'sale',
         'sale_return',
+        'sale_reversal',
         'adjustment_in',
         'adjustment_out',
         'transfer_in',

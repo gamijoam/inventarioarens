@@ -110,7 +110,16 @@ export function PriceListsManager() {
                     <code className="bg-bg rounded px-1.5 py-0.5 text-xs">{l.code}</code>
                   </td>
                   <td className="px-3 py-2 tabular-nums">
-                    {l.markup_percentage == null ? 'Manual' : `+${l.markup_percentage}%`}
+                    {l.base_price_list ? (
+                      <span>
+                        Base: <span className="font-medium">{l.base_price_list.name}</span>
+                        {l.markup_percentage != null && ` · +${l.markup_percentage}%`}
+                      </span>
+                    ) : l.markup_percentage == null ? (
+                      'Manual'
+                    ) : (
+                      `+${l.markup_percentage}%`
+                    )}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{l.sort_order ?? 0}</td>
                   <td className="px-3 py-2">
@@ -171,6 +180,7 @@ export function PriceListsManager() {
       {(creating || editing) && (
         <FormDialog
           priceList={editing}
+          priceLists={priceLists}
           paymentMethods={paymentMethods}
           exchangeRateTypes={exchangeRateTypes}
           onClose={() => {
@@ -224,6 +234,7 @@ export function PriceListsManager() {
 
 function FormDialog({
   priceList,
+  priceLists,
   paymentMethods,
   exchangeRateTypes,
   onClose,
@@ -231,6 +242,7 @@ function FormDialog({
   loading,
 }: {
   priceList: PriceList | null;
+  priceLists: PriceList[];
   paymentMethods: PaymentMethod[];
   exchangeRateTypes: ExchangeRateType[];
   onClose: () => void;
@@ -244,6 +256,7 @@ function FormDialog({
       code: priceList?.code ?? '',
       description: priceList?.description ?? '',
       markup_percentage: priceList?.markup_percentage ?? null,
+      base_price_list_id: priceList?.base_price_list_id ?? null,
       payment_exchange_rate_type_id: priceList?.payment_exchange_rate_type_id ?? null,
       is_default: priceList?.is_default ?? false,
       is_active: priceList?.is_active ?? true,
@@ -251,6 +264,8 @@ function FormDialog({
       payment_method_ids: priceList?.payment_method_ids ?? [],
     },
   });
+
+  const baseOptions = priceLists.filter((l) => l.id !== priceList?.id && l.is_active);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -287,8 +302,33 @@ function FormDialog({
                 <Textarea {...form.register('description')} rows={2} placeholder="Opcional." />
               </Field>
               <Field
-                label="Incremento sobre precio base (%)"
-                hint="Ejemplo: 45% convierte $100 en $145. Vacio permite precios manuales."
+                label="Precio base"
+                hint="Toma como base el precio de otra lista (ej. 'Detal') y aplica el incremento."
+                error={form.formState.errors.base_price_list_id?.message}
+              >
+                <select
+                  className="border-border bg-surface h-10 w-full rounded border px-3 text-sm"
+                  data-testid="price-list-base"
+                  value={form.watch('base_price_list_id') ?? ''}
+                  onChange={(e) =>
+                    form.setValue(
+                      'base_price_list_id',
+                      e.target.value ? Number(e.target.value) : null,
+                      { shouldDirty: true },
+                    )
+                  }
+                >
+                  <option value="">Precio base del producto</option>
+                  {baseOptions.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.code})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label="Incremento sobre el precio base (%)"
+                hint="Ejemplo: base Detal + 16% = precio Cashea (IVA). Vacio permite precios manuales."
                 error={form.formState.errors.markup_percentage?.message}
               >
                 <Input
@@ -299,7 +339,7 @@ function FormDialog({
                   {...form.register('markup_percentage', {
                     setValueAs: (value) => (value === '' ? null : Number(value)),
                   })}
-                  placeholder="Ej. 45"
+                  placeholder="Ej. 16"
                 />
               </Field>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1">

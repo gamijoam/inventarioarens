@@ -10,7 +10,7 @@ class UpdateCategoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return (bool) $this->user()?->can('products.update');
     }
 
     public function rules(): array

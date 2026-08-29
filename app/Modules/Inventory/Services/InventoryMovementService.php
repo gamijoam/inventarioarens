@@ -13,6 +13,7 @@ use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
+use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -91,8 +92,16 @@ class InventoryMovementService
         );
     }
 
-    public function adjustmentIn(Warehouse $warehouse, Product $product, float $quantity, ?User $createdBy = null, ?string $reason = null, ?int $productVariantId = null, ?string $referenceType = null, ?int $referenceId = null): StockMovement
-    {
+    public function adjustmentIn(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?int $productVariantId = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+    ): StockMovement {
         return $this->increaseAvailable('adjustment_in', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
     }
 
@@ -116,6 +125,30 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+        );
+    }
+
+    public function saleReversal(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?int $referenceId = null,
+        ?float $unitCost = null,
+        ?int $productVariantId = null,
+    ): StockMovement {
+        return $this->increaseAvailable(
+            type: 'sale_reversal',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            unitCost: $unitCost,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: 'sale_reversal',
+            referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -166,6 +199,36 @@ class InventoryMovementService
     }
 
     /**
+     * Salida de stock por consumo de piezas en una orden de servicio (Taller).
+     * Igual que adjustmentOut pero registra el unit_cost de la pieza y permite
+     * referenciar la ServiceOrder para trazabilidad.
+     */
+    public function serviceExit(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?float $unitCost = null,
+        ?int $productVariantId = null,
+    ): StockMovement {
+        return $this->decreaseAvailable(
+            type: 'adjustment_out',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            unitCost: $unitCost,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+            productVariantId: $productVariantId,
+        );
+    }
+
+    /**
      * Salida de stock por aceptar una solicitud de transferencia inter-empresa
      * (la empresa origen pierde stock que envia a su empresa hermana).
      * Tipo dedicado 'transfer_request_out' para que el kardex distinga este
@@ -179,6 +242,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->decreaseAvailable(
             type: 'transfer_request_out',
@@ -189,6 +253,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -206,6 +271,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->increaseAvailable(
             'transfer_request_in',
@@ -217,6 +283,7 @@ class InventoryMovementService
             $reason,
             $referenceType,
             $referenceId,
+            $productVariantId,
         );
     }
 
@@ -229,8 +296,11 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?int $productVariantId = null,
+        ?DateTimeInterface $expiresAt = null,
     ): StockMovement {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): StockMovement {
+        $expiresAt ??= now()->addMinutes(30);
+
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId, $expiresAt): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product, $productVariantId);
@@ -240,7 +310,7 @@ class InventoryMovementService
             $balance->quantity_reserved = (float) $balance->quantity_reserved + $quantity;
             $balance->save();
 
-            return $this->recordMovement('reserved', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
+            return $this->recordMovement('reserved', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId, $expiresAt);
         });
     }
 
@@ -276,17 +346,18 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
-        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): StockMovement {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
 
-            $balance = $this->balanceFor($warehouse, $product);
+            $balance = $this->balanceFor($warehouse, $product, $productVariantId);
             $this->ensureEnough((float) $balance->quantity_reserved, $quantity, 'reserved');
 
             $balance->quantity_reserved = (float) $balance->quantity_reserved - $quantity;
             $balance->save();
 
-            return $this->recordMovement('transfer_out', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId);
+            return $this->recordMovement('transfer_out', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
         });
     }
 
@@ -298,6 +369,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->increaseAvailable(
             type: 'transfer_in',
@@ -309,6 +381,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -345,15 +418,16 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): array {
-        return DB::transaction(function () use ($fromWarehouse, $toWarehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId): array {
+        return DB::transaction(function () use ($fromWarehouse, $toWarehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): array {
             $this->validateOperation($fromWarehouse, $product, $quantity);
             $this->assertSameTenant($toWarehouse);
 
-            $fromBalance = $this->balanceFor($fromWarehouse, $product);
+            $fromBalance = $this->balanceFor($fromWarehouse, $product, $productVariantId);
             $this->ensureEnough((float) $fromBalance->quantity_available, $quantity, 'available');
 
-            $toBalance = $this->balanceFor($toWarehouse, $product);
+            $toBalance = $this->balanceFor($toWarehouse, $product, $productVariantId);
 
             $fromBalance->quantity_available = (float) $fromBalance->quantity_available - $quantity;
             $fromBalance->save();
@@ -362,8 +436,8 @@ class InventoryMovementService
             $toBalance->save();
 
             return [
-                $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId),
-                $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId),
+                $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId),
+                $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId),
             ];
         });
     }
@@ -454,6 +528,30 @@ class InventoryMovementService
         float $quantity,
         array $serialUnits,
     ): array {
+        return $this->resolveSerializedUnitsByStatus(
+            product: $product,
+            warehouse: $warehouse,
+            quantity: $quantity,
+            serialUnits: $serialUnits,
+            allowedStatuses: [ProductUnit::STATUS_AVAILABLE],
+        );
+    }
+
+    /**
+     * Resuelve seriales existentes que pueden estar en un estado operativo
+     * distinto de AVAILABLE, por ejemplo RESERVED durante una recepcion.
+     *
+     * @param  array<int, string>  $allowedStatuses
+     * @param  array<int, array{serial_type: string, serial_number: string}>  $serialUnits
+     * @return array<int, int>
+     */
+    public function resolveSerializedUnitsByStatus(
+        Product $product,
+        Warehouse $warehouse,
+        float $quantity,
+        array $serialUnits,
+        array $allowedStatuses,
+    ): array {
         if (! $product->requiresSerializedTracking()) {
             if ($serialUnits !== []) {
                 throw ValidationException::withMessages([
@@ -494,7 +592,7 @@ class InventoryMovementService
         $units = ProductUnit::query()
             ->where('product_id', $product->id)
             ->where('warehouse_id', $warehouse->id)
-            ->where('status', ProductUnit::STATUS_AVAILABLE)
+            ->whereIn('status', $allowedStatuses)
             ->whereIn('serial_number', array_column($normalized, 'serial_number'))
             ->lockForUpdate()
             ->get()
@@ -511,7 +609,7 @@ class InventoryMovementService
             $ids[] = $unit->id;
         }
 
-        $this->validateSerializedUnits($product, $warehouse, $quantity, $ids);
+        $this->validateSerializedUnits($product, $warehouse, $quantity, $ids, $allowedStatuses);
 
         return $ids;
     }
@@ -598,6 +696,7 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?int $productVariantId = null,
+        ?DateTimeInterface $reservationExpiresAt = null,
     ): StockMovement {
         $movement = StockMovement::create([
             'warehouse_id' => $warehouse->id,
@@ -609,6 +708,7 @@ class InventoryMovementService
             'reason' => $reason,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
+            'reservation_expires_at' => $reservationExpiresAt,
             'created_by' => $createdBy?->id,
         ]);
 

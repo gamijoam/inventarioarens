@@ -98,12 +98,49 @@ describe('CreateUserDialog', () => {
     expect(screen.getByText('Email invalido.')).toBeTruthy();
   });
 
+  it('muestra la leyenda de requisitos de contrasena', () => {
+    render(<CreateUserDialog open onOpenChange={vi.fn()} />, { wrapper: makeWrapper() });
+    expect(
+      screen.getByText(/Minimo 8 caracteres, con al menos una mayuscula, una minuscula y un numero/),
+    ).toBeInTheDocument();
+  });
+
+  it('bloquea si la contrasena no cumple los requisitos (sin mayuscula)', async () => {
+    render(<CreateUserDialog open onOpenChange={vi.fn()} />, { wrapper: makeWrapper() });
+    await userEvent.type(screen.getByTestId('create-user-name'), 'Test User');
+    await userEvent.type(screen.getByTestId('create-user-email'), 'test@test.com');
+    await userEvent.type(screen.getByTestId('create-user-password'), 'password123');
+    await userEvent.type(screen.getByTestId('create-user-confirm-password'), 'password123');
+    await userEvent.click(screen.getByTestId('create-user-submit'));
+
+    await waitFor(() => {
+      // La leyenda (muted) y el error de validacion (danger) usan el mismo texto.
+      expect(screen.getAllByText(/una mayuscula, una minuscula y un numero/).length).toBeGreaterThanOrEqual(2);
+    });
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('bloquea si la confirmacion no coincide', async () => {
+    render(<CreateUserDialog open onOpenChange={vi.fn()} />, { wrapper: makeWrapper() });
+    await userEvent.type(screen.getByTestId('create-user-name'), 'Test User');
+    await userEvent.type(screen.getByTestId('create-user-email'), 'test@test.com');
+    await userEvent.type(screen.getByTestId('create-user-password'), 'Passw0rd123');
+    await userEvent.type(screen.getByTestId('create-user-confirm-password'), 'Passw0rd999');
+    await userEvent.click(screen.getByTestId('create-user-submit'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Las contrasenas no coinciden.')).toBeInTheDocument();
+    });
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+
   it('llama a useCreateUser con los valores correctos', async () => {
     const onCreated = vi.fn();
     render(<CreateUserDialog open onOpenChange={vi.fn()} onCreated={onCreated} />, { wrapper: makeWrapper() });
     await userEvent.type(screen.getByTestId('create-user-name'), 'Test User');
     await userEvent.type(screen.getByTestId('create-user-email'), 'test@test.com');
-    await userEvent.type(screen.getByTestId('create-user-password'), 'password123');
+    await userEvent.type(screen.getByTestId('create-user-password'), 'Passw0rd123');
+    await userEvent.type(screen.getByTestId('create-user-confirm-password'), 'Passw0rd123');
     // Marcar el primer rol.
     await userEvent.click(screen.getByTestId('create-user-role-1'));
     await userEvent.click(screen.getByTestId('create-user-submit'));
@@ -114,7 +151,8 @@ describe('CreateUserDialog', () => {
     const payload = mockMutateAsync.mock.calls[0]?.[0];
     expect(payload.name).toBe('Test User');
     expect(payload.email).toBe('test@test.com');
-    expect(payload.password).toBe('password123');
+    expect(payload.password).toBe('Passw0rd123');
+    expect(payload.confirm_password).toBe('Passw0rd123');
     expect(payload.roles).toEqual(['Owner']);
     expect(onCreated).toHaveBeenCalledWith(fakeUser.id);
   });

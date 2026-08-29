@@ -38,6 +38,15 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@/features/inventory-center/variantApi', () => ({
+  useProductVariants: () => ({
+    data: [
+      { id: 11, product_id: 100, color: 'Azul', sku_variant: 'AZ', stock_available: 4 },
+      { id: 12, product_id: 100, color: 'Naranja', sku_variant: 'NA', stock_available: 5 },
+    ],
+  }),
+}));
+
 import { TransferCreateDialog } from './TransferCreateDialog';
 
 function getWarehouseSelect(which: 'from' | 'to'): HTMLSelectElement {
@@ -128,6 +137,31 @@ describe('TransferCreateDialog', () => {
     expect(payload.items[0]?.product_id).toBe(100);
     expect(onCreated).toHaveBeenCalledWith(999);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('happy path con variante: selecciona Azul y envia product_variant_id al backend', async () => {
+    const onCreated = vi.fn();
+    render(<TransferCreateDialog open onOpenChange={vi.fn()} onCreated={onCreated} />);
+
+    await userEvent.selectOptions(getWarehouseSelect('from'), '1');
+    await userEvent.selectOptions(getWarehouseSelect('to'), '2');
+    await userEvent.type(getProductInput(), 'PRODUCTO A');
+    await userEvent.click(await screen.findByRole('option', { name: /PRODUCTO A/i }));
+
+    const variantSelect = (await screen.findByTestId('create-row-0-variant-select')) as HTMLSelectElement;
+    await userEvent.selectOptions(variantSelect, '11');
+
+    fireEvent.click(screen.getByRole('button', { name: /Crear borrador/ }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    const payload = mutateAsync.mock.calls[0]?.[0] as {
+      items: { product_id: number; product_variant_id?: number }[];
+    };
+    expect(payload.items[0]?.product_id).toBe(100);
+    expect(payload.items[0]?.product_variant_id).toBe(11);
+    expect(onCreated).toHaveBeenCalledWith(999);
   });
 
   it('happy path serializado: exige N IMEIs = quantity', async () => {

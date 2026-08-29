@@ -163,4 +163,21 @@ class BrandApiTest extends TestCase
         $slugs = collect($response->json('data'))->pluck('slug')->all();
         $this->assertNotContains('hidden', $slugs);
     }
+
+    public function test_brand_catalog_requires_product_permissions(): void
+    {
+        $tenant = $this->tenant();
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant->id, ['status' => 'active']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/brands')
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/brands', ['name' => 'No autorizado', 'slug' => 'no-autorizado'])
+            ->assertForbidden();
+    }
 }

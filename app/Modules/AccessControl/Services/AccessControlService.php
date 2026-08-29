@@ -4,6 +4,7 @@ namespace App\Modules\AccessControl\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
+use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Services\TenantSpinoffService;
@@ -195,6 +196,10 @@ class AccessControlService
                 $user->syncRoles($roles);
             }
 
+            if ($tenant->isGroup() && in_array('Owner', $roles, true)) {
+                $this->propagateGroupOwnership($user, $tenant, true);
+            }
+
             $user = $this->tenantUser($user->id);
 
             $this->audit->record('access.user.attached', $user, $actor, $oldValues, [
@@ -223,6 +228,29 @@ class AccessControlService
         ]);
 
         return $user;
+    }
+
+    public function updatePassword(User $user, string $newPassword, User $actor): User
+    {
+        if ($user->is($actor)) {
+            throw ValidationException::withMessages([
+                'new_password' => 'No puedes cambiar tu propia contrasena desde la administracion de usuarios. Usa el perfil.',
+            ]);
+        }
+
+        $user->fill(['password' => $newPassword]);
+        $user->save();
+
+        // Revoca tokens activos del usuario para forzar re-login con la nueva clave.
+        AuthToken::query()
+            ->where('user_id', $user->id)
+            ->update(['revoked_at' => now()]);
+
+        $this->audit->record('access.user.password_changed', $user, $actor, [], [
+            'email' => $user->email,
+        ]);
+
+        return $this->tenantUser($user->id);
     }
 
     public function updateStatus(User $user, string $status, User $actor): User
@@ -289,6 +317,10 @@ class AccessControlService
             }
 
             $user->syncRoles($roles);
+
+            if ($targetTenant->isGroup() && in_array('Owner', $roles, true)) {
+                $this->propagateGroupOwnership($user, $targetTenant, true);
+            }
 
             $user = $this->tenantUser($user->id);
 
@@ -571,6 +603,43 @@ class AccessControlService
             ->sort()
             ->values()
             ->all();
+    }
+
+    /**
+     * Cuando un usuario es Owner de un grupo, se le asocia como miembro activo
+     * (con rol Administrador) a TODAS las empresas hijas del grupo para que
+     * pueda verlas en el login y en /users?scope=organization y operarlas.
+     * Mismo comportamiento que el creador original del spinoff.
+     */
+    private function propagateGroupOwnership(User $user, Tenant $group, bool $isOwner): void
+    {
+        if (! $group->isGroup()) {
+            return;
+        }
+
+        $previousTeamId = function_exists('getPermissionsTeamId') ? getPermissionsTeamId() : null;
+
+        try {
+            foreach ($group->spinoffs()->get() as $spinoff) {
+                $user->tenants()->syncWithoutDetaching([$spinoff->id => ['status' => 'active']]);
+
+                if ($isOwner) {
+                    setPermissionsTeamId($spinoff->id);
+                    $adminRole = Role::query()
+                        ->where('name', 'Administrador')
+                        ->where($this->teamColumn(), $spinoff->id)
+                        ->first();
+
+                    if ($adminRole) {
+                        $user->assignRole($adminRole);
+                    }
+                }
+            }
+        } finally {
+            if ($previousTeamId !== null && function_exists('setPermissionsTeamId')) {
+                setPermissionsTeamId($previousTeamId);
+            }
+        }
     }
 
     private function userHasCriticalAdminRole(User $user): bool

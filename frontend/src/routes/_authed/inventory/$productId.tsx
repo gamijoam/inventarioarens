@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate, createFileRoute } from '@tanstack/react-router';
-import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, ExternalLink } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -29,6 +29,7 @@ import { KardexTab } from '@/features/inventory-center/components/KardexTab';
 import { AuditsTab } from '@/features/inventory-center/components/AuditsTab';
 import { ProductGalleryPanel } from '@/features/inventory-center/components/ProductGalleryPanel';
 import { ImageGallery } from '@/features/inventory-center/components/ImageGallery';
+import { movementTypeLabel, MOVEMENT_IN_TYPES, referenceTypeLabel, referenceLink } from '@/features/inventory-center/movementLabels';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
 import type { ProductStock, ProductSerial, ProductMovement } from '@/features/inventory-center/schemas';
@@ -173,7 +174,10 @@ function ProductDetailPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {/* Galeria de imagenes a la izquierda (col 1) */}
             <div className="lg:col-span-1">
-              <ProductGalleryPanel images={product.images ?? galleryImages} />
+              <ProductGalleryPanel
+                images={product.images ?? galleryImages}
+                fallbackUrl={product.image_url}
+              />
             </div>
 
             {/* Datos y relaciones a la derecha (cols 2-3) */}
@@ -487,8 +491,11 @@ function MovementsTab({ movements }: { movements: ProductMovement[] }) {
               <tr key={m.id} className="border-b border-border last:border-b-0">
                 <td className="px-3 py-2 text-text-muted">{formatRelative(m.created_at)}</td>
                 <td className="px-3 py-2">
-                  <Badge variant={m.type.startsWith('in') ? 'success' : m.type.startsWith('out') ? 'warning' : 'default'}>
-                    {m.type}
+                  <Badge
+                    variant={MOVEMENT_IN_TYPES.has(m.type) ? 'success' : 'warning'}
+                    data-testid={`movement-type-${m.id}`}
+                  >
+                    {movementTypeLabel(m.type)}
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-text-muted">{m.warehouse_name ?? '—'}</td>
@@ -496,7 +503,29 @@ function MovementsTab({ movements }: { movements: ProductMovement[] }) {
                 <td className={cn('px-3 py-2 text-right tabular-nums', m.unit_cost == null && 'text-text-muted')}>
                   {formatCost(m.unit_cost)}
                 </td>
-                <td className="px-3 py-2 text-xs text-text-muted">{m.reference ?? '—'}</td>
+                <td className="px-3 py-2 text-xs text-text-muted">
+                  {(() => {
+                    const link = referenceLink(m.reference_type, m.reference_id);
+                    if (link) {
+                      return (
+                        <Link
+                          to={link.to}
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                          data-testid={`movement-ref-${m.id}`}
+                        >
+                          {link.label} #{m.reference_id}
+                          <ExternalLink className="size-3" />
+                        </Link>
+                      );
+                    }
+                    return (
+                      <span>
+                        {referenceTypeLabel(m.reference_type)}
+                        {m.reference_id != null ? ` #${m.reference_id}` : ''}
+                      </span>
+                    );
+                  })()}
+                </td>
                 <td className="px-3 py-2 text-text-muted">{m.user_name ?? '—'}</td>
               </tr>
             ))}

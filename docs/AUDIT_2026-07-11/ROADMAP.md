@@ -16,8 +16,8 @@
 | **P0-4** | Envolver en `DB::transaction` los writers de catálogo sin transacción: Customer/Product/ExchangeRate/ExchangeRateType | M | ✅ **2026-07-11** |
 | **P0-5** | Fix USD `amount_local` en `PosCheckoutService::resolvePayment:506-525` (resolver rate default para USD también) | M | ✅ **2026-07-11** |
 | **P0-6** | Verificar `payload_hash` en `SyncEventApplier::applyOne` + test | S | ✅ **2026-07-11** |
-| **P0-7** | Fix `validateReceivedProductUnits` (IMEI count vs qty en serializados) en `InventoryTransferService:1179-1226` | XS | ☐ |
-| **P0-8** | Suite completa verde con los 7 fixes | S | ☐ |
+| **P0-7** | Fix `validateReceivedProductUnits` (IMEI count vs qty en serializados) en `InventoryTransferService:1179-1226` | XS | ✅ **2026-07-11** |
+| **P0-8** | Suite completa verde con los 7 fixes | S | [~] **2026-08-23** — `1439/1452` tests; bloqueada por fallos preexistentes fuera de P0-7 |
 | | **TOTAL P0** | **~10h** | |
 
 ---
@@ -56,6 +56,7 @@
 | P2-8 | Structured JSON logging channel en `config/logging.php` | M | ✅ **2026-07-12** |
 | P2-9 | `ALTER DATABASE inventory_arens SET log_min_duration_statement = 500` (VPS) | XS | ✅ **2026-07-12** |
 | P2-10 | Partial unique indexes (`exchange_rate_types(tenant_id) WHERE is_default`) | S | ☐ |
+| P2-11 | Reports V2 y reportes operativos: compatibilidad SQLite, paginación, fix N+1 y benchmark PostgreSQL | M | [~] **2026-08-22** — tests y benchmark completados; commit/deploy pendientes |
 | | **TOTAL P2** | **~21h** | |
 
 ---
@@ -96,7 +97,7 @@
 | P4-5 | 6 controllers sin service (`Branches`, `Warehouses`, `Customers`, `Suppliers`, `PaymentMethods`, `Reports`) → crear service | XL | ☐ |
 | P4-6 | Tests Unit reales: InventoryMovementService, SaleService::resolveLineDiscount, ProductUnit state machine, CurrencyConverter | L | ☐ |
 | P4-7 | Bearer-token coverage en POS, Transfers, Sales, AR/AP | L | ☐ |
-| P4-8 | Reconciliation command `inventory:reconcile {tenant?}` + cron | M | ☐ |
+| P4-8 | Reconciliation command `inventory:reconcile {tenant?}` + cron | M | ✅ **2026-08-24** |
 | P4-9 | Surface custom exceptions (InsufficientStock → 422, CrossTenant → 403, etc.) | M | ☐ |
 | P4-10 | E2E specs adicionales (productos, cajas, ACL) | L | ☐ |
 
@@ -290,6 +291,19 @@
 
 ---
 
+### 2026-08-23 — Validación actual de P0-8
+
+**P0-7 confirmado:** el test dedicado `InventoryTransferReceiveImeiCountTest` pasa **5/5** y la carpeta
+`InventoryTransfers` pasa **84/86**; los dos casos restantes corresponden a pruebas de advisory locks
+específicas de PostgreSQL ejecutadas sobre SQLite local.
+
+**Suite SQLite completa:** **1452 tests**, **1439 pasaron**, **8 fallaron**, **3 errores**, **2 skipped**.
+Los fallos restantes están fuera del cambio P0-7 e incluyen contratos antiguos de confirmación de
+contraseña, un estado de traslado eliminado, expectativas numéricas dependientes del driver y pruebas
+PostgreSQL no condicionadas para SQLite. P0-8 permanece abierto hasta corregir y validar esos contratos.
+
+---
+
 ### 2020-07-11 — P0-6
 
 **Fixes:**
@@ -444,6 +458,20 @@ Frontend del modulo de Access Control. Backend operativo desde 2026-07-12 con 61
 - `php artisan route:list /api/permission-catalog, /api/customer-groups`: registrados.
 
 ---
+
+## 2026-08-24 - Hardening de inventario en progreso
+
+- [x] Contrato de IMEI/seriales en preparacion y recepcion, incluyendo unidades `reserved` en recepcion. Tests backend y frontend verdes.
+- [x] Permisos `products.view/create/update/delete` aplicados al CRUD de marcas, categorias y tags. 16 tests verdes.
+- [x] Snapshot de conteo fisico idempotente, bloqueo al completar y rechazo de items sin contar. 10 tests verdes.
+- [x] `reserve_on_request` evita doble reserva al preparar y marca correctamente unidades serializadas como `reserved`. 4 tests verdes.
+- [x] Idempotencia aplicada a movimientos de inventario y todas las mutaciones de traslados; claves aisladas por tenant. Tests backend y frontend verdes.
+- [x] `inventory:reconcile {tenant?}` compara available/reserved/damaged y tambien ProductUnits IMEI/serializadas; soporta `--fix`, `--fix-serials` y `--dry-run`, y queda programado cada noche. 9 tests verdes.
+- [x] E2E Chromium cubre login, selección real de IMEI, creación de traslado, header `Idempotency-Key` y replay de la misma operación. 1 test UI verde.
+- [x] Expiración TTL de reservas: `reservation_expires_at`, comando idempotente, liberación de saldo/IMEI y scheduled cada 5 minutos. 3 tests propios + 24 sync/inventario relacionados verdes.
+- [x] Idempotencia HTTP agregada a mutaciones críticas restantes de ventas, compras, entradas/salidas, devoluciones, solicitudes interempresa, caja, CxP, recibos y ajustes. 1 test de contrato de rutas + 146 tests de módulos verdes.
+- [ ] Suite completa: el perfil SQLite terminó con 1489/1490 tests ejecutados correctamente, 1 fallo preexistente en `ProductApiTest::test_automatic_pricing_calculates_sale_price_from_initial_cost` y 4 skipped; el perfil con process isolation excede el timeout operativo.
+- [x] Reconciliación producción 2026-08-24: se corrigieron 46 drifts de saldos en `inventory_arens`; los 2 negativos históricos se trataron con piso operativo cero. Dry-run posterior: 0 drift en `inventory_arens` y `inventory_tiendasarens`. Backup: `/var/backups/inventory_arens_pre_reconcile_fix_20260824230007.dump`.
 
 ## Anti-patrones prohibidos (AGENTS.md §9.5 + §14)
 

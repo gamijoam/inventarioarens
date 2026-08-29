@@ -23,6 +23,7 @@ class UpdatePrinterStationRequest extends FormRequest
         return [
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->where('tenant_id', $tenantId)],
             'cash_register_id' => ['nullable', Rule::exists('cash_registers', 'id')->where('tenant_id', $tenantId)],
+            'print_connector_id' => ['nullable', Rule::exists('print_connectors', 'id')->where('tenant_id', $tenantId)->where('status', 'active')],
             'print_profile_id' => ['sometimes', 'required', Rule::exists('print_profiles', 'id')->where('tenant_id', $tenantId)],
             'name' => ['sometimes', 'required', 'string', 'max:120'],
             'code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('printer_stations', 'code')->where('tenant_id', $tenantId)->ignore($stationId)],

@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'product_entry_id',
     'warehouse_id',
     'product_id',
+    'product_variant_id',
     'quantity',
     'unit_cost',
     'stock_movement_id',

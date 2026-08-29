@@ -31,8 +31,11 @@ use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Models\TenantSetting;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyPolicy;
+use App\Modules\Workshop\Models\ServiceOrder;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -449,6 +452,7 @@ class SyncCatalogOutboxService
                 'code' => $warehouse->code,
                 'name' => $warehouse->name,
                 'status' => $warehouse->status,
+                'is_default' => (bool) $warehouse->is_default,
                 'branch_code' => $warehouse->branch?->code,
             ],
             idempotencyKey: $this->eventKey($eventType, 'warehouse', $warehouse->id, $warehouse->updated_at),
@@ -534,6 +538,69 @@ class SyncCatalogOutboxService
                 ])->values()->all(),
             ],
             idempotencyKey: $this->eventKey('product_exit.created', 'product_exit', $exit->id, $exit->updated_at),
+        );
+    }
+
+    public function serviceOrderCreated(ServiceOrder $order): void
+    {
+        $this->recordServiceOrder('service_order.created', $order);
+    }
+
+    public function serviceOrderUpdated(ServiceOrder $order): void
+    {
+        $this->recordServiceOrder('service_order.updated', $order);
+    }
+
+    private function recordServiceOrder(string $eventType, ServiceOrder $order): void
+    {
+        $order->loadMissing(['warehouse', 'technician', 'parts.product', 'parts.warehouse']);
+
+        $this->outbox->record(
+            eventType: $eventType,
+            aggregateType: 'service_order',
+            aggregateId: $order->id,
+            payload: [
+                '_sync_aggregate_id' => $order->id,
+                'order_number' => $order->order_number,
+                'type' => $order->type,
+                'status' => $order->status,
+                'priority' => $order->priority,
+                'resolution' => $order->resolution,
+                'warranty_claim_id' => $order->warranty_claim_id,
+                'customer_id' => $order->customer_id,
+                'customer_name' => $order->customer_name,
+                'customer_phone' => $order->customer_phone,
+                'device_description' => $order->device_description,
+                'issue_description' => $order->issue_description,
+                'diagnosis' => $order->diagnosis,
+                'technician_email' => $order->technician?->email,
+                'technician_name' => $order->technician?->name,
+                'warehouse_code' => $order->warehouse?->code,
+                'labor_base_amount' => (string) $order->labor_base_amount,
+                'labor_local_amount' => (string) $order->labor_local_amount,
+                'parts_base_amount' => (string) $order->parts_base_amount,
+                'parts_local_amount' => (string) $order->parts_local_amount,
+                'total_base_amount' => (string) $order->total_base_amount,
+                'total_local_amount' => (string) $order->total_local_amount,
+                'notes' => $order->notes,
+                'received_at' => $order->received_at?->toISOString(),
+                'technician_assigned_at' => $order->technician_assigned_at?->toISOString(),
+                'diagnosed_at' => $order->diagnosed_at?->toISOString(),
+                'delivered_at' => $order->delivered_at?->toISOString(),
+                'cancelled_at' => $order->cancelled_at?->toISOString(),
+                'created_at' => $order->created_at?->toISOString(),
+                'updated_at' => $order->updated_at?->toISOString(),
+                'parts' => $order->parts->map(fn ($part): array => [
+                    'sku' => $part->product?->sku,
+                    'warehouse_code' => $part->warehouse?->code,
+                    'quantity' => (string) $part->quantity,
+                    'unit_cost' => $part->unit_cost === null ? null : (string) $part->unit_cost,
+                    'unit_price' => $part->unit_price === null ? null : (string) $part->unit_price,
+                    'status' => $part->status,
+                    'stock_movement_id' => $part->stock_movement_id,
+                ])->values()->all(),
+            ],
+            idempotencyKey: $this->eventKey($eventType, 'service_order', $order->id, $order->updated_at),
         );
     }
 
@@ -758,6 +825,29 @@ class SyncCatalogOutboxService
         );
     }
 
+    /**
+     * Emite la seccion `company` de tenant_settings para que el nodo local
+     * refleje la identidad fiscal de la empresa (razon social, RIF, etc.)
+     * en sus tickets/guias. Solo se propaga la seccion company; el resto de
+     * settings (telegram, etc.) es local a cada nodo.
+     */
+    public function tenantSettingsUpdated(Tenant $tenant, ?TenantSetting $setting = null): void
+    {
+        $setting ??= $tenant->setting;
+        $company = CompanySettings::getForTenant($tenant);
+
+        $this->outbox->record(
+            eventType: 'tenant_settings.updated',
+            aggregateType: 'tenant_settings',
+            aggregateId: $tenant->id,
+            payload: [
+                'tenant_id' => $tenant->id,
+                'company' => $company,
+            ],
+            idempotencyKey: $this->eventKey('tenant_settings.updated', 'tenant_settings', $tenant->id, $setting?->updated_at),
+        );
+    }
+
     private function serializeTransferRequest(InventoryTransferRequest $request): array
     {
         return [
@@ -789,6 +879,9 @@ class SyncCatalogOutboxService
                 'id' => $item->id,
                 'origin_product_id' => $item->origin_product_id,
                 'destination_product_id' => $item->destination_product_id,
+                'product_variant_id' => $item->product_variant_id,
+                'product_variant_sku' => $item->productVariant?->sku_variant,
+                'product_variant_color' => $item->productVariant?->color,
                 'quantity' => (string) $item->quantity,
                 'product_unit_ids' => $item->product_unit_ids ?? [],
                 'serial_units' => $item->serial_units ?? [],
@@ -928,7 +1021,7 @@ class SyncCatalogOutboxService
 
     private function recordPriceList(string $eventType, PriceList $priceList): void
     {
-        $priceList->loadMissing(['paymentMethods', 'paymentExchangeRateType']);
+        $priceList->loadMissing(['paymentMethods', 'paymentExchangeRateType', 'basePriceList']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -939,6 +1032,7 @@ class SyncCatalogOutboxService
                 'name' => $priceList->name,
                 'description' => $priceList->description,
                 'markup_percentage' => $priceList->markup_percentage === null ? null : (string) $priceList->markup_percentage,
+                'base_price_list_code' => $priceList->basePriceList?->code,
                 'is_default' => (bool) $priceList->is_default,
                 'is_active' => (bool) $priceList->is_active,
                 'sort_order' => (int) $priceList->sort_order,
@@ -1177,7 +1271,7 @@ class SyncCatalogOutboxService
 
     private function recordStockMovement(string $eventType, StockMovement $movement): void
     {
-        $movement->loadMissing(['product', 'warehouse']);
+        $movement->loadMissing(['product', 'warehouse', 'variant']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -1193,6 +1287,9 @@ class SyncCatalogOutboxService
                 'reason' => $movement->reason,
                 'reference_type' => $movement->reference_type,
                 'reference_id' => $movement->reference_id,
+                'reservation_expires_at' => $movement->reservation_expires_at?->toISOString(),
+                'product_variant_sku' => $movement->variant?->sku_variant,
+                'product_variant_color' => $movement->variant?->color,
                 'created_at' => $movement->created_at?->toISOString(),
             ],
             idempotencyKey: $this->eventKey($eventType, 'stock_movement', $movement->id, $movement->updated_at),
@@ -1205,6 +1302,7 @@ class SyncCatalogOutboxService
             'fromWarehouse:id,code,name',
             'toWarehouse:id,code,name',
             'items.product:id,sku',
+            'items.productVariant:id,sku_variant,color',
         ]);
 
         $this->outbox->record(
@@ -1233,6 +1331,9 @@ class SyncCatalogOutboxService
                 'items' => $transfer->items->map(fn ($item): array => [
                     'id' => $item->id,
                     'sku' => $item->product?->sku,
+                    'product_variant_id' => $item->product_variant_id,
+                    'product_variant_sku' => $item->productVariant?->sku_variant,
+                    'product_variant_color' => $item->productVariant?->color,
                     'quantity' => (string) $item->quantity,
                     'requested_quantity' => $item->requested_quantity === null ? null : (string) $item->requested_quantity,
                     'prepared_quantity' => $item->prepared_quantity === null ? null : (string) $item->prepared_quantity,

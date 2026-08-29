@@ -7,6 +7,7 @@ use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Models\InventoryTransferChecklist;
@@ -16,6 +17,7 @@ use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
 use App\Modules\InventoryTransfers\Models\TenantTransferSetting;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -102,6 +104,7 @@ class InventoryTransferService
                         reason: "Transferencia {$transfer->document_number}: {$transfer->reason}",
                         referenceType: InventoryTransfer::class,
                         referenceId: $transfer->id,
+                        productVariantId: $item['product_variant_id'] ?? null,
                     );
                 } catch (InsufficientStockException|InvalidStockQuantityException $exception) {
                     throw ValidationException::withMessages([
@@ -115,6 +118,7 @@ class InventoryTransferService
                 InventoryTransferItem::create([
                     'inventory_transfer_id' => $transfer->id,
                     'product_id' => $product->id,
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
                     'quantity' => $quantity,
                     'requested_quantity' => $quantity,
                     'prepared_quantity' => $quantity,
@@ -230,7 +234,7 @@ class InventoryTransferService
                 $preparedUnitIds = $payloadItem['prepared_product_unit_ids'] ?? [];
 
                 if ($product && $product->requiresSerializedTracking()) {
-                    return count($preparedUnitIds) > 0;
+                    return count($preparedUnitIds) > 0 || ! empty($payloadItem['serial_units']);
                 }
 
                 return (float) ($payloadItem['prepared_quantity'] ?? 0) > 0;
@@ -252,6 +256,7 @@ class InventoryTransferService
                     $payloadItem,
                     $product,
                     $transfer->fromWarehouse,
+                    [ProductUnit::STATUS_AVAILABLE, ProductUnit::STATUS_RESERVED],
                 );
 
                 if ($product->requiresSerializedTracking()) {
@@ -284,18 +289,28 @@ class InventoryTransferService
                 }
 
                 if ($preparedQuantity > 0) {
-                    $movement = $this->inventory->reserve(
-                        warehouse: $transfer->fromWarehouse,
-                        product: $product,
-                        quantity: $preparedQuantity,
-                        createdBy: $user,
-                        reason: "Preparacion {$transfer->guide_number}: {$transfer->reason}",
-                        referenceType: InventoryTransfer::class,
-                        referenceId: $transfer->id,
-                    );
+                    $alreadyReserved = $this->reservedQuantityForTransferItem($transfer, $item);
+                    if ($alreadyReserved > 0.0001) {
+                        if (abs($alreadyReserved - $preparedQuantity) > 0.0001) {
+                            throw ValidationException::withMessages([
+                                "items.{$index}.prepared_quantity" => 'La reserva creada al solicitar el traslado no puede modificarse durante la preparacion.',
+                            ]);
+                        }
+                    } else {
+                        $movement = $this->inventory->reserve(
+                            warehouse: $transfer->fromWarehouse,
+                            product: $product,
+                            quantity: $preparedQuantity,
+                            createdBy: $user,
+                            reason: "Preparacion {$transfer->guide_number}: {$transfer->reason}",
+                            referenceType: InventoryTransfer::class,
+                            referenceId: $transfer->id,
+                            productVariantId: $item->product_variant_id,
+                        );
 
-                    $this->syncCatalog->stockMovementCreated($movement);
-                    $this->markPreparedProductUnitsAsReserved($preparedUnitIds, $movement->id);
+                        $this->syncCatalog->stockMovementCreated($movement);
+                        $this->markPreparedProductUnitsAsReserved($preparedUnitIds, $movement->id);
+                    }
                 }
 
                 $item->update([
@@ -420,6 +435,7 @@ class InventoryTransferService
                     reason: "Despacho {$transfer->guide_number}: {$transfer->reason}",
                     referenceType: InventoryTransfer::class,
                     referenceId: $transfer->id,
+                    productVariantId: $item->product_variant_id,
                 );
 
                 $this->syncCatalog->stockMovementCreated($movement);
@@ -519,7 +535,8 @@ class InventoryTransferService
                 $receivedUnitIds = $this->resolvePayloadSerialUnits(
                     $payloadItem,
                     $product,
-                    $transfer->toWarehouse,
+                    $transfer->fromWarehouse,
+                    [ProductUnit::STATUS_RESERVED],
                 );
                 $receivedQuantity = (float) ($payloadItem['received_quantity'] ?? $expectedQuantity);
 
@@ -569,6 +586,7 @@ class InventoryTransferService
                         reason: "Recepcion {$transfer->guide_number}: {$transfer->reason}",
                         referenceType: InventoryTransfer::class,
                         referenceId: $transfer->id,
+                        productVariantId: $item->product_variant_id,
                     );
 
                     $movementId = $movement->id;
@@ -705,6 +723,7 @@ class InventoryTransferService
                         reason: "Cancelacion {$transfer->guide_number}: {$reason}",
                         referenceType: InventoryTransfer::class,
                         referenceId: $transfer->id,
+                        productVariantId: $item->product_variant_id,
                     );
 
                     $this->syncCatalog->stockMovementCreated($movement);
@@ -1194,6 +1213,7 @@ class InventoryTransferService
             InventoryTransferItem::create([
                 'inventory_transfer_id' => $transfer->id,
                 'product_id' => $product->id,
+                'product_variant_id' => $item['product_variant_id'] ?? null,
                 'quantity' => $quantity,
                 'requested_quantity' => $quantity,
                 'prepared_quantity' => 0,
@@ -1248,7 +1268,7 @@ class InventoryTransferService
 
         if ($reserveOnRequest) {
             $transfer->loadMissing(['items.product']);
-            foreach ($transfer->items as $item) {
+            foreach ($transfer->items as $itemIndex => $item) {
                 $product = $item->product;
                 if (! $product) {
                     continue;
@@ -1258,7 +1278,7 @@ class InventoryTransferService
 
                 if ($product->requiresSerializedTracking() && count($unitIds) > 0) {
                     try {
-                        $this->validatePreparedProductUnits($transfer, $item, $unitIds, 0);
+                        $this->validatePreparedProductUnits($transfer, $item, $unitIds, $quantity, $itemIndex);
                     } catch (ValidationException $e) {
                         // Si falla la validacion de IMEIs, no reservar.
                         continue;
@@ -1273,6 +1293,7 @@ class InventoryTransferService
                     reason: "Reserva automatica {$transfer->guide_number}: {$transfer->reason}",
                     referenceType: InventoryTransfer::class,
                     referenceId: $transfer->id,
+                    productVariantId: $item->product_variant_id,
                 );
                 $this->syncCatalog->stockMovementCreated($movement);
 
@@ -1314,6 +1335,19 @@ class InventoryTransferService
             $product = Product::query()->findOrFail($item['product_id']);
             $unitIds = $item['product_unit_ids'] ?? [];
             $quantity = (float) $item['quantity'];
+
+            $variantId = $item['product_variant_id'] ?? null;
+            if ($variantId !== null) {
+                $belongsToProduct = ProductVariant::query()
+                    ->where('id', (int) $variantId)
+                    ->where('product_id', $product->id)
+                    ->exists();
+                if (! $belongsToProduct) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.product_variant_id" => 'La variante seleccionada no pertenece al producto indicado.',
+                    ]);
+                }
+            }
 
             foreach ($unitIds as $unitIndex => $unitId) {
                 if (isset($selectedUnitIds[$unitId])) {
@@ -1409,6 +1443,22 @@ class InventoryTransferService
 
                 $this->syncCatalog->productUnitUpdated($unit->refresh());
             });
+    }
+
+    private function reservedQuantityForTransferItem(InventoryTransfer $transfer, InventoryTransferItem $item): float
+    {
+        return (float) StockMovement::query()
+            ->where('type', 'reserved')
+            ->where('reference_type', InventoryTransfer::class)
+            ->where('reference_id', $transfer->id)
+            ->where('warehouse_id', $transfer->from_warehouse_id)
+            ->where('product_id', $item->product_id)
+            ->when(
+                $item->product_variant_id === null,
+                fn ($query) => $query->whereNull('product_variant_id'),
+                fn ($query) => $query->where('product_variant_id', $item->product_variant_id),
+            )
+            ->sum('quantity');
     }
 
     private function markDispatchedProductUnits(array $unitIds, int $movementId): void
@@ -1555,12 +1605,16 @@ class InventoryTransferService
      *
      * @return array<int, int>
      */
-    private function resolvePayloadSerialUnits(array $payloadItem, Product $product, Warehouse $warehouse): array
-    {
+    private function resolvePayloadSerialUnits(
+        array $payloadItem,
+        Product $product,
+        Warehouse $warehouse,
+        array $allowedStatuses = [ProductUnit::STATUS_AVAILABLE],
+    ): array {
         $serialUnits = $payloadItem['serial_units'] ?? null;
 
         if (is_array($serialUnits) && $serialUnits !== []) {
-            return $this->resolveSerialUnits($serialUnits, $product, $warehouse);
+            return $this->resolveSerialUnits($serialUnits, $product, $warehouse, $allowedStatuses);
         }
 
         $unitIds = $payloadItem['product_unit_ids']
@@ -1579,13 +1633,18 @@ class InventoryTransferService
      * @param  array<int, array{serial_type: string, serial_number: string}>  $serialUnits
      * @return array<int, int>
      */
-    private function resolveSerialUnits(array $serialUnits, Product $product, Warehouse $warehouse): array
-    {
-        return $this->inventory->resolveAvailableSerializedUnits(
+    private function resolveSerialUnits(
+        array $serialUnits,
+        Product $product,
+        Warehouse $warehouse,
+        array $allowedStatuses = [ProductUnit::STATUS_AVAILABLE],
+    ): array {
+        return $this->inventory->resolveSerializedUnitsByStatus(
             product: $product,
             warehouse: $warehouse,
             quantity: count($serialUnits),
             serialUnits: $serialUnits,
+            allowedStatuses: $allowedStatuses,
         );
     }
 }

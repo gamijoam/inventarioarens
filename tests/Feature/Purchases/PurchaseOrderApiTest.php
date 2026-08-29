@@ -197,6 +197,66 @@ class PurchaseOrderApiTest extends TestCase
         $this->assertDatabaseCount('stock_balances', 0);
     }
 
+    public function test_purchase_index_and_show_expose_destination_warehouses(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Almacenes', 'slug' => 'empresa-almacenes']);
+        [$warehouseA, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'WHR-001');
+        $warehouseB = Warehouse::create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $warehouseA->branch_id,
+            'name' => 'Almacen B',
+            'code' => 'WB',
+            'status' => Warehouse::STATUS_ACTIVE,
+        ]);
+        $supplier = $this->supplier($tenant, 'Proveedor Wh', '200');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras', ['purchases.create', 'purchases.view']);
+
+        $purchaseId = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier->id,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouseA->id,
+                        'product_id' => $product->id,
+                        'quantity' => 2,
+                        'unit_cost' => 10,
+                    ],
+                    [
+                        'warehouse_id' => $warehouseB->id,
+                        'product_id' => $product->id,
+                        'quantity' => 3,
+                        'unit_cost' => 15,
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        // El index expone los almacenes de destino de la mercancia.
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/purchases')
+            ->assertOk()
+            ->assertJsonPath('data.0.warehouses', [
+                ['id' => $warehouseA->id, 'code' => $warehouseA->code, 'name' => $warehouseA->name],
+                ['id' => $warehouseB->id, 'code' => 'WB', 'name' => 'Almacen B'],
+            ]);
+
+        // El detalle tambien lo expone.
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/purchases/{$purchaseId}")
+            ->assertOk()
+            ->assertJsonPath('data.warehouses.0.code', $warehouseA->code)
+            ->assertJsonPath('data.warehouses.1.code', 'WB');
+    }
+
     public function test_purchase_without_document_number_gets_sync_safe_number(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

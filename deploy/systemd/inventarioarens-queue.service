@@ -1,0 +1,18 @@
+[Unit]
+Description=INVENTARIOARENS Laravel queue worker
+After=network.target postgresql.service php8.4-fpm.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/inventarioarens-cloud
+Environment=DB_QUEUE_RETRY_AFTER=3900
+ExecStart=/usr/bin/php artisan queue:work database --queue=imports,default --sleep=3 --tries=1 --timeout=3600
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/inventarioarens-cloud/storage/logs/queue-worker.log
+StandardError=append:/opt/inventarioarens-cloud/storage/logs/queue-worker.log
+
+[Install]
+WantedBy=multi-user.target

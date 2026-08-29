@@ -16,6 +16,8 @@ class TagController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        abort_unless($request->user()?->can('products.view'), 403);
+
         $query = Tag::query()
             ->withCount('products')
             ->when($request->filled('search'), function ($q) use ($request) {
@@ -35,8 +37,10 @@ class TagController extends Controller
         return TagResource::make($tag);
     }
 
-    public function show(Tag $tag): TagResource
+    public function show(Request $request, Tag $tag): TagResource
     {
+        abort_unless($request->user()?->can('products.view'), 403);
+
         $tag->loadCount('products');
 
         return TagResource::make($tag);
@@ -50,8 +54,10 @@ class TagController extends Controller
         return TagResource::make($tag);
     }
 
-    public function destroy(Tag $tag, SyncCatalogOutboxService $syncCatalog): Response
+    public function destroy(Request $request, Tag $tag, SyncCatalogOutboxService $syncCatalog): Response
     {
+        abort_unless($request->user()?->can('products.delete'), 403);
+
         $deleted = clone $tag;
         $tag->delete();
         $syncCatalog->tagDeleted($deleted);

@@ -1,0 +1,34 @@
+appId: com.inventarioarens.printconnector
+productName: Inventario Arens Print Connector
+electronVersion: 43.3.0
+directories:
+  output: ../../build/print-connector-gui
+files:
+  - main.cjs
+  - preload.cjs
+  - connector.cjs
+  - package.json
+  - renderer/**/*
+  - '!**/*.test.cjs'
+  - '!package-connector.cjs'
+  - '!PrintConnector.iss'
+  - '!install-task.ps1'
+  - '!uninstall-task.ps1'
+win:
+  target:
+    - nsis
+    - portable
+  executableName: InventarioArens-Print-Connector
+  artifactName: InventarioArens-Print-Connector-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Print Connector
+  uninstallDisplayName: Inventario Arens Print Connector
+  artifactName: InventarioArens-Print-Connector-Setup-${version}.${ext}
+  runAfterFinish: true
+portable:
+  artifactName: InventarioArens-Print-Connector-Portable-${version}.${ext}

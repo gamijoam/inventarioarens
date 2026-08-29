@@ -13,6 +13,8 @@ import {
   shouldApplyInvoicePromotion,
   resolvePendingPromotionTotal,
   invoicePromotionPaymentIssue,
+  requiresPosVariantSelection,
+  resolveInitialPosPriceListId,
   type PosCartLine,
 } from '../posLogic';
 
@@ -31,6 +33,35 @@ describe('POS cart logic', () => {
   it('calcula descuentos por porcentaje y monto fijo', () => {
     expect(lineTotal({ ...baseLine, discount_type: 'percent', discount_value: 10 })).toBe(36);
     expect(lineTotal({ ...baseLine, discount_type: 'fixed', discount_value: 5 })).toBe(35);
+  });
+
+  it('no exige seleccionar una variante fantasma unica sin color', () => {
+    expect(requiresPosVariantSelection([{ color: null }])).toBe(false);
+    expect(requiresPosVariantSelection([{ color: 'Negra' }])).toBe(true);
+    expect(requiresPosVariantSelection([{ color: null }, { color: null }])).toBe(true);
+  });
+
+  it('usa la preferencia persistida de lista y luego la lista marcada como default', () => {
+    const lists = [
+      { id: 10, is_default: true, is_active: true },
+      { id: 20, is_default: false, is_active: true },
+    ];
+
+    expect(resolveInitialPosPriceListId(lists, undefined)).toBe(10);
+    expect(resolveInitialPosPriceListId(lists, 20)).toBe(20);
+    expect(resolveInitialPosPriceListId(lists, null)).toBeNull();
+  });
+
+  it('descarta una preferencia persistida que ya no esta activa', () => {
+    expect(
+      resolveInitialPosPriceListId(
+        [
+          { id: 10, is_default: true, is_active: true },
+          { id: 20, is_default: false, is_active: false },
+        ],
+        20,
+      ),
+    ).toBe(10);
   });
 
   it('calcula totales del carrito', () => {

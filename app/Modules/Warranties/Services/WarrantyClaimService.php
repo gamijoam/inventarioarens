@@ -16,6 +16,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Modules\Warranties\Models\WarrantyClaim;
+use App\Modules\Workshop\Models\ServiceOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -80,6 +81,105 @@ class WarrantyClaimService
 
             return $claim;
         });
+    }
+
+    /**
+     * Envia una garantia al Taller: marca la reclamacion como en revision y
+     * evita duplicar ordenes abiertas para la misma garantia.
+     */
+    public function sendToWorkshop(WarrantyClaim $claim, User $user): WarrantyClaim
+    {
+        if (! in_array($claim->status, [WarrantyClaim::STATUS_RECEIVED, WarrantyClaim::STATUS_UNDER_REVIEW], true)
+            || $claim->resolved_at !== null) {
+            throw ValidationException::withMessages([
+                'status' => 'La garantia no puede enviarse al taller en su estado actual.',
+            ]);
+        }
+
+        $already = ServiceOrder::query()
+            ->where('warranty_claim_id', $claim->id)
+            ->whereNotIn('status', [ServiceOrder::STATUS_CLOSED, ServiceOrder::STATUS_CANCELLED])
+            ->exists();
+
+        if ($already) {
+            throw ValidationException::withMessages([
+                'warranty_claim_id' => 'La garantia ya fue enviada al taller.',
+            ]);
+        }
+
+        $claim->update(['status' => WarrantyClaim::STATUS_UNDER_REVIEW]);
+
+        $this->audit->record('warranty.claim.sent_to_workshop', $claim, $user, null, [
+            'status' => WarrantyClaim::STATUS_UNDER_REVIEW,
+        ]);
+
+        return $claim;
+    }
+
+    /**
+     * Resuelve la garantia desde el Taller al entregar la orden de servicio.
+     * Mapea el tratamiento de la orden a la resolucion de la garantia:
+     * workshop -> repair, exchange -> replacement, return_supplier -> return_supplier.
+     */
+    public function resolveFromWorkshop(WarrantyClaim $claim, ServiceOrder $order, User $user): WarrantyClaim
+    {
+        if ((int) $claim->id !== (int) $order->warranty_claim_id) {
+            throw ValidationException::withMessages([
+                'warranty_claim_id' => 'La orden no esta vinculada a esta garantia.',
+            ]);
+        }
+
+        if ($claim->status !== WarrantyClaim::STATUS_UNDER_REVIEW) {
+            throw ValidationException::withMessages([
+                'status' => 'La garantia no esta en el taller.',
+            ]);
+        }
+
+        $resolution = match ($order->resolution) {
+            ServiceOrder::RESOLUTION_EXCHANGE => WarrantyClaim::RESOLUTION_REPLACEMENT,
+            ServiceOrder::RESOLUTION_RETURN_SUPPLIER => WarrantyClaim::RESOLUTION_RETURN_SUPPLIER,
+            default => WarrantyClaim::RESOLUTION_REPAIR,
+        };
+
+        $claim->update([
+            'status' => WarrantyClaim::STATUS_CLOSED,
+            'resolution_type' => $resolution,
+            'resolution_notes' => "Atendido desde el Taller (orden {$order->order_number}).",
+            'resolved_by' => $user->id,
+            'resolved_at' => now(),
+            'delivered_by' => $user->id,
+            'delivered_at' => now(),
+        ]);
+
+        if ($claim->productUnit) {
+            $claim->productUnit->update([
+                'status' => $order->resolution === ServiceOrder::RESOLUTION_RETURN_SUPPLIER
+                    ? ProductUnit::STATUS_REMOVED
+                    : ProductUnit::STATUS_SOLD,
+            ]);
+        }
+
+        $this->audit->record('warranty.claim.workshop_resolved', $claim, $user, null, [
+            'resolution_type' => $resolution,
+            'service_order_id' => $order->id,
+        ]);
+
+        return $this->loadClaim($claim);
+    }
+
+    /**
+     * Devuelve la garantia a received cuando la orden de taller se cancela.
+     */
+    public function returnFromWorkshop(WarrantyClaim $claim, User $user): WarrantyClaim
+    {
+        if ($claim->status === WarrantyClaim::STATUS_UNDER_REVIEW) {
+            $claim->update(['status' => WarrantyClaim::STATUS_RECEIVED]);
+            $this->audit->record('warranty.claim.returned_from_workshop', $claim, $user, null, [
+                'status' => WarrantyClaim::STATUS_RECEIVED,
+            ]);
+        }
+
+        return $claim;
     }
 
     public function review(WarrantyClaim $claim, User $user, array $data): WarrantyClaim

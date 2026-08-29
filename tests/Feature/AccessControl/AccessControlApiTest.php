@@ -4,6 +4,7 @@ namespace Tests\Feature\AccessControl;
 
 use App\Models\User;
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Branches\Models\Branch;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -36,6 +37,7 @@ class AccessControlApiTest extends TestCase
                 'name' => 'Cajero Principal',
                 'email' => 'cajero@example.test',
                 'password' => 'Password123!',
+                'confirm_password' => 'Password123!',
                 'roles' => ['Vendedor'],
             ])
             ->assertCreated()
@@ -141,6 +143,62 @@ class AccessControlApiTest extends TestCase
                     "El rol {$roleName} debe recibir {$permission} por defecto.",
                 );
             }
+        }
+    }
+
+    public function test_existing_owner_and_administrator_roles_receive_sales_reversal_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Reversion', 'slug' => 'empresa-reversion']);
+        setPermissionsTeamId($tenant->id);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            Role::create(['name' => $roleName, 'guard_name' => 'web', 'tenant_id' => $tenant->id]);
+        }
+
+        $migration = require base_path(
+            'database/migrations/2026_08_24_090000_add_sales_reverse_permission_to_admin_roles.php',
+        );
+        $migration->up();
+
+        setPermissionsTeamId($tenant->id);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            $role = Role::query()
+                ->where('name', $roleName)
+                ->where('tenant_id', $tenant->id)
+                ->firstOrFail();
+
+            $this->assertTrue($role->hasPermissionTo('sales.reverse'));
+        }
+    }
+
+    public function test_new_owner_and_administrator_users_receive_sales_reversal_permission_from_role(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Usuarios', 'slug' => 'empresa-usuarios']);
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $admin = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $admin, 'Access Admin', ['users.create']);
+
+        foreach (['Owner', 'Administrador'] as $roleName) {
+            $email = "{$roleName}.nuevo@example.test";
+
+            $this
+                ->actingAs($admin)
+                ->withHeader('X-Tenant', $tenant->slug)
+                ->postJson('/api/users', [
+                    'name' => "Usuario {$roleName}",
+                    'email' => $email,
+                    'roles' => [$roleName],
+                ])
+                ->assertCreated();
+
+            $created = User::query()->where('email', strtolower($email))->firstOrFail();
+            setPermissionsTeamId($tenant->id);
+            $this->assertTrue(
+                $created->fresh()->can('sales.reverse'),
+                "El usuario nuevo con rol {$roleName} debe recibir sales.reverse.",
+            );
         }
     }
 
@@ -298,6 +356,80 @@ class AccessControlApiTest extends TestCase
             ->withHeader('X-Tenant', $tenant->slug)
             ->getJson('/api/users')
             ->assertForbidden();
+    }
+
+    public function test_access_control_scopes_cannot_use_a_route_tenant_different_from_header_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $adminA = $this->userInTenant($tenantA);
+        $targetB = $this->userInTenant($tenantB);
+
+        $this->grantRole($tenantA, $adminA, 'Access Admin A', ['users.view']);
+
+        $this
+            ->actingAs($adminA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->getJson("/api/tenants/{$tenantB->slug}/users/{$targetB->id}/scopes")
+            ->assertForbidden();
+    }
+
+    public function test_access_control_overrides_cannot_write_to_a_route_tenant_different_from_header_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $adminA = $this->userInTenant($tenantA);
+        $targetB = $this->userInTenant($tenantB);
+
+        $this->grantRole($tenantA, $adminA, 'Access Admin A', ['users.update']);
+
+        $this
+            ->actingAs($adminA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->putJson("/api/tenants/{$tenantB->slug}/users/{$targetB->id}/overrides", [
+                'items' => [
+                    ['permission' => 'products.view', 'effect' => 'allow'],
+                ],
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('user_permission_overrides', [
+            'tenant_id' => $tenantB->id,
+            'user_id' => $targetB->id,
+            'permission' => 'products.view',
+        ]);
+    }
+
+    public function test_user_scopes_reject_resource_ids_from_another_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $tenantB = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        $adminA = $this->userInTenant($tenantA);
+        $targetA = $this->userInTenant($tenantA);
+
+        $this->useTenant($tenantB);
+        $branchB = Branch::create([
+            'name' => 'Sucursal B',
+            'code' => 'SUC-B',
+        ]);
+        $this->useTenant($tenantA);
+
+        $this->grantRole($tenantA, $adminA, 'Access Admin A', ['users.update']);
+
+        $this
+            ->actingAs($adminA)
+            ->withHeader('X-Tenant', $tenantA->slug)
+            ->putJson("/api/tenants/{$tenantA->slug}/users/{$targetA->id}/scopes/branches", [
+                'branch_ids' => [$branchB->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['branch_ids.0']);
+
+        $this->assertDatabaseMissing('user_branch_scopes', [
+            'tenant_id' => $tenantA->id,
+            'user_id' => $targetA->id,
+            'branch_id' => $branchB->id,
+        ]);
     }
 
     public function test_can_create_role_and_update_permissions(): void

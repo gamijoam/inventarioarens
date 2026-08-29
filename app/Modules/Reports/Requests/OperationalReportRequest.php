@@ -62,6 +62,7 @@ class OperationalReportRequest extends FormRequest
             'payment_method' => ['nullable', 'string', 'max:80'],
             'product_id' => ['nullable', 'integer'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
 
@@ -81,6 +82,7 @@ class OperationalReportRequest extends FormRequest
             'review_status' => $this->input('review_status'),
             'payment_method' => $this->input('payment_method'),
             'limit' => min((int) $this->input('limit', 25), 100),
+            'per_page' => min((int) $this->input('per_page', $this->input('limit', 25)), 100),
         ];
     }
 }

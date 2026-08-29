@@ -20,7 +20,10 @@ use Spatie\Permission\PermissionRegistrar;
 
 class TenantGroupService
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly TenantCapabilityService $capabilities,
+    ) {}
 
     /**
      * Crea un grupo (tenant raiz con parent_id=NULL).
@@ -51,6 +54,7 @@ class TenantGroupService
                     'parent_id' => null,
                     'is_group' => true,
                 ]);
+                $this->capabilities->initializeForNewTenant($tenant);
 
                 $tenantManager->set($tenant);
                 setPermissionsTeamId($tenant->id);

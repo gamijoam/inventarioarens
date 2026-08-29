@@ -1,9 +1,24 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { usePosCartStore, usePosCartPersistence, type Panel } from './cartStore';
+import {
+  loadPersistedPriceListPreference,
+  savePersistedPriceListPreference,
+  usePosCartStore,
+  usePosCartPersistence,
+  type Panel,
+} from './cartStore';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  CircleCheck,
+  ClipboardList,
+  Coins,
   CreditCard,
+  Eye,
+  EyeOff,
+  FileText,
   Gift,
+  Info,
   Loader2,
   Minus,
   PauseCircle,
@@ -12,6 +27,7 @@ import {
   Receipt,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Tag,
   Trash2,
   UserRound,
@@ -50,6 +66,17 @@ import { isInvoiceDiscountType, type Promotion } from '@/features/promotions/sch
 import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
+import { ProductDetailDialog } from './ProductDetailDialog';
+import {
+  DenominationGrid,
+  cashCountTotals,
+  closeDifference,
+  hasDifference,
+  localMoney,
+  type CloseForm,
+} from './CashRegisterSetup';
+import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
+import { QuotationPickerDialog } from '@/features/quotations/QuotationPickerDialog';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import {
@@ -108,6 +135,8 @@ import {
   missingSerialIssue,
   paymentBaseAmount,
   findMatchingVariantLine,
+  requiresPosVariantSelection,
+  resolveInitialPosPriceListId,
   promotionLineUnitPrice,
   invoicePromotionPaymentIssue,
   type CurrencyCode,
@@ -123,6 +152,7 @@ import { TapButton } from './TapButton';
 import { isTouchPrimaryDevice, shouldAutoFocusSearch } from './touchSupport';
 import {
   type PrintJob,
+  downloadTicketPdf,
   openTicketPdf,
   sendJobToLocalAgent,
   useCreatePosPrintJob,
@@ -260,7 +290,6 @@ export interface PosShellActionCallbacks {
   onOpenCash: () => void;
   onOpenPending: () => void;
   onOpenReceipt: () => void;
-  onOpenClose: () => void;
 }
 
 export function buildPosShellActions(
@@ -277,27 +306,27 @@ export function buildPosShellActions(
       onClick: callbacks.onOpenPending,
       badge: pendingCount,
       alert: pendingAlert,
+      icon: <ClipboardList className="size-4" aria-hidden="true" />,
     },
     {
       id: 'receipt',
       label: 'Recibo',
       permission: PERMISSIONS.POS_VIEW,
       onClick: callbacks.onOpenReceipt,
+      icon: <Receipt className="size-4" aria-hidden="true" />,
     },
   ];
 
   if (!sellerOnlyMode) {
+    // Caja agrupa todo lo del cash register: abrir sesion, movimientos extra
+    // y cerrar turno (el CashPanel ya ofrece esas secciones). Antes existia
+    // un boton separado 'Cerrar turno' que abria exactamente el mismo panel.
     actions.unshift({
       id: 'cash',
       label: 'Caja',
       permission: PERMISSIONS.CASH_REGISTER_VIEW,
       onClick: callbacks.onOpenCash,
-    });
-    actions.push({
-      id: 'close',
-      label: 'Cerrar turno',
-      permission: PERMISSIONS.CASH_REGISTER_CLOSE,
-      onClick: callbacks.onOpenClose,
+      icon: <Wallet className="size-4" aria-hidden="true" />,
     });
   }
 
@@ -334,10 +363,26 @@ export function openSearchFromSuggestion(query: string, action: SearchPanelActio
 
 export const POS_LAYOUT_CLASS_NAME = 'flex min-h-0 flex-1 flex-col overflow-hidden';
 
+interface PromotionLoadEntry {
+  item: { product_id: number; quantity: number };
+  product: Product;
+  unitPrice: number;
+}
+
+interface PendingPromotionLoad {
+  promotion: Promotion;
+  sets: number;
+  instanceUuid: string;
+  entries: PromotionLoadEntry[];
+  nextIndex: number;
+}
+
 export function PosTerminal() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [exitingPos, setExitingPos] = useState(false);
+  const [quotationOpen, setQuotationOpen] = useState(false);
+  const [quotationsOpen, setQuotationsOpen] = useState(false);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
@@ -403,8 +448,8 @@ export function PosTerminal() {
   const setWarehouseId = usePosCartStore((s) => s.setWarehouseId);
   const setSelectedPriceListId = usePosCartStore((s) => s.setSelectedPriceListId);
   const setSelectedCustomer = usePosCartStore((s) => s.setSelectedCustomer);
+  const clearAll = usePosCartStore((s) => s.clearAll);
   const setSelectedPromotion = usePosCartStore((s) => s.setSelectedPromotion);
-  const clearSelectedPromotion = usePosCartStore((s) => s.clearSelectedPromotion);
   const setSelectedInvoicePromotion = usePosCartStore((s) => s.setSelectedInvoicePromotion);
   const clearSelectedInvoicePromotion = usePosCartStore((s) => s.clearSelectedInvoicePromotion);
   const addComboApplication = usePosCartStore((s) => s.addComboApplication);
@@ -459,7 +504,14 @@ export function PosTerminal() {
   const [openingBranchId, setOpeningBranchId] = useState<number | ''>('');
   const [openingRegisterId, setOpeningRegisterId] = useState<number | ''>('');
   const [cashMovement, setCashMovement] = useState({ type: 'outflow', amount: '', notes: '' });
-  const [closingAmount, setClosingAmount] = useState('');
+  const [cashCloseForm, setCashCloseForm] = useState<CloseForm>({
+    sessionId: null,
+    usd: '',
+    ves: '',
+    notes: '',
+    counts: [],
+    blind: true,
+  });
   const [creditDueDate, setCreditDueDate] = useState('');
   const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
   const [variantPickerQuantity, setVariantPickerQuantity] = useState(1);
@@ -469,7 +521,10 @@ export function PosTerminal() {
   const [variantPickerPromotion, setVariantPickerPromotion] = useState<{
     price: number;
     ref: { id: number; code?: string | null; benefitType?: string } | null;
+    comboInstanceUuid?: string | null;
   } | null>(null);
+  const [pendingPromotionLoad, setPendingPromotionLoad] =
+    useState<PendingPromotionLoad | null>(null);
   const [serialSearch, setSerialSearch] = useState('');
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -515,18 +570,24 @@ export function PosTerminal() {
     [standaloneWarehouses],
   );
 
-  const warehouses: { id: number; code: string; name: string; branch_id: number | null }[] =
-    useMemo(() => {
-      if (bootstrapHasWarehouses) {
-        return bootstrapRefs.refs?.warehouses ?? [];
-      }
-      return standaloneWarehousesList as {
-        id: number;
-        code: string;
-        name: string;
-        branch_id: number | null;
-      }[];
-    }, [bootstrapHasWarehouses, bootstrapRefs.refs?.warehouses, standaloneWarehousesList]);
+  const warehouses: {
+    id: number;
+    code: string;
+    name: string;
+    branch_id: number | null;
+    is_default?: boolean;
+  }[] = useMemo(() => {
+    if (bootstrapHasWarehouses) {
+      return bootstrapRefs.refs?.warehouses ?? [];
+    }
+    return standaloneWarehousesList as {
+      id: number;
+      code: string;
+      name: string;
+      branch_id: number | null;
+      is_default?: boolean;
+    }[];
+  }, [bootstrapHasWarehouses, bootstrapRefs.refs?.warehouses, standaloneWarehousesList]);
   const branches = useMemo(
     () => (bootstrapRefs.refs?.branches?.length ? bootstrapRefs.refs.branches : standaloneBranches),
     [bootstrapRefs.refs, standaloneBranches],
@@ -675,6 +736,27 @@ export function PosTerminal() {
     activeSession ? Number(activeSession.tenant_id) : null,
     activeSession ? Number(activeSession.cashier_id) : null,
   );
+
+  useEffect(() => {
+    if (!activeSession || priceLists.length === 0 || cart.length > 0 || payments.length > 0) return;
+
+    const persistedPreference = loadPersistedPriceListPreference(
+      Number(activeSession.tenant_id),
+      Number(activeSession.cashier_id),
+    );
+    const initialPriceListId = resolveInitialPosPriceListId(priceLists, persistedPreference);
+
+    if (initialPriceListId !== selectedPriceListId) {
+      setSelectedPriceListId(initialPriceListId);
+    }
+  }, [
+    activeSession,
+    cart.length,
+    payments.length,
+    priceLists,
+    selectedPriceListId,
+    setSelectedPriceListId,
+  ]);
   const { data: recentPaidOrders = [] } = useSessionOrders(activeSession?.id ?? null, 'paid', 10);
   const activePrinterStation = useMemo(
     () =>
@@ -740,7 +822,6 @@ export function PosTerminal() {
         setPanel('hold');
       },
       onOpenReceipt: () => setPanel('receipt'),
-      onOpenClose: () => setPanel('cash'),
     },
     sellerOnlyMode,
     pendingCount,
@@ -875,16 +956,22 @@ export function PosTerminal() {
   confirmPaidSaleRef.current = confirmPaidSale;
 
   useEffect(() => {
-    // Sprint POS 5 fix: validar que warehouses[0]?.id sea un numero positivo
-    // antes de setearlo. Antes el codigo era:
-    //   if (!warehouseId && warehouses[0]) setWarehouseId(warehouses[0].id);
-    // que lanzaba NaN si warehouses[0] era undefined (caso bootstrap fallo).
-    const firstId = warehouses[0]?.id;
+    // Solo auto-setea el almacen cuando NO hay uno valido seleccionado.
+    // Antes este efecto forzaba SIEMPRE el primer almacen (o el predeterminado)
+    // cuando warehouseId difería, lo que revertia inmediatamente cualquier
+    // cambio manual del cajero ("no me deja cambiar de almacen").
+    const defaultWh = warehouses.find((w) => w.is_default === true);
+    const firstId = defaultWh?.id ?? warehouses[0]?.id;
+    const hasValidCurrent =
+      typeof warehouseId === 'number' &&
+      Number.isFinite(warehouseId) &&
+      warehouseId > 0 &&
+      warehouses.some((w) => w.id === warehouseId);
     if (
       typeof firstId === 'number' &&
       Number.isFinite(firstId) &&
       firstId > 0 &&
-      firstId !== warehouseId
+      !hasValidCurrent
     ) {
       setWarehouseId(firstId);
     }
@@ -1388,6 +1475,23 @@ export function PosTerminal() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setQuotationOpen(true)}
+              disabled={cart.length === 0}
+              data-testid="pos-create-quotation"
+            >
+              <FileText className="size-4" /> Cotizacion
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setQuotationsOpen(true)}
+              data-testid="pos-view-quotations"
+            >
+              <FileText className="size-4" /> Ver cotizaciones
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setProductSearch(query);
                 setPanel('product-search');
@@ -1458,6 +1562,15 @@ export function PosTerminal() {
                 <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearPos}
+              disabled={cart.length === 0 && payments.length === 0}
+              title="Vaciar el ticket actual y sus promociones"
+            >
+              <Trash2 className="size-4" /> Limpiar POS
+            </Button>
           </div>
         </header>
 
@@ -1482,8 +1595,8 @@ export function PosTerminal() {
                 <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
                   <UserRound className="size-4" /> Cliente
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => clearTicket()}>
-                  <RotateCcw className="size-4" /> Nuevo
+                <Button variant="outline" size="sm" onClick={clearPos}>
+                  <Trash2 className="size-4" /> Limpiar POS
                 </Button>
               </div>
             </div>
@@ -1721,7 +1834,12 @@ export function PosTerminal() {
           <PanelShell
             title={panelTitle(panel)}
             onClose={() => setPanel(null)}
-            wide={panel === 'pay' || panel === 'customer' || panel === 'promotions'}
+            wide={
+              panel === 'pay' ||
+              panel === 'customer' ||
+              panel === 'promotions' ||
+              panel === 'cash'
+            }
             actions={
               <>
                 <Button
@@ -1843,9 +1961,11 @@ export function PosTerminal() {
                 canMove={canMoveCash}
                 canClose={canCloseCash}
                 movement={cashMovement}
-                closingAmount={closingAmount}
+                closeForm={cashCloseForm}
+                rate={activeRate?.rate ?? null}
+                closing={closeCash.isPending}
                 onMovementChange={setCashMovement}
-                onClosingAmount={setClosingAmount}
+                onCloseForm={setCashCloseForm}
                 onAddMovement={() => {
                   if (!Number(cashMovement.amount)) return toast.error('Ingresa un monto.');
                   addCashMovement.mutate({
@@ -1861,18 +1981,57 @@ export function PosTerminal() {
                   setCashMovement({ type: 'outflow', amount: '', notes: '' });
                 }}
                 onCloseSession={() => {
-                  if (!Number(closingAmount)) return toast.error('Ingresa el efectivo contado.');
+                  const totals = cashCountTotals(cashCloseForm.counts);
+                  const usd = cashCloseForm.counts.length
+                    ? totals.USD
+                    : Number(cashCloseForm.usd || 0);
+                  const ves = Number(cashCloseForm.ves || 0);
+                  const diff = closeDifference(activeSession, cashCloseForm, activeRate?.rate ?? null);
+
+                  if (usd < 0 || ves < 0) {
+                    return toast.error('El efectivo contado no puede ser negativo.');
+                  }
+                  if (ves > 0 && !activeRate) {
+                    return toast.error(
+                      'Configura una tasa activa USD/VES antes de cerrar con efectivo VES.',
+                    );
+                  }
+                  // En modo ciego NO se exige nota por diferencia: eso revelaria al
+                  // cajero que hay descuadre. La nota solo es obligatoria en standard.
+                  if (
+                    !cashCloseForm.blind &&
+                    hasDifference(diff.cashUsd, diff.cashVes) &&
+                    !cashCloseForm.notes.trim()
+                  ) {
+                    return toast.error('Indica una nota para justificar la diferencia de caja.');
+                  }
+
                   setCashSessionClosed(true);
                   closeCash.mutate(
                     {
                       sessionId: activeSession.id,
                       payload: {
-                        counted_currency: 'USD',
-                        counted_amount: Number(closingAmount),
-                        closing_notes: 'Cierre desde POS',
+                        counted_base_amount: usd,
+                        counted_local_amount: ves,
+                        counted_cash_usd: usd,
+                        counted_cash_ves: ves,
+                        exchange_rate_type_id:
+                          ves > 0 ? (activeRate?.exchange_rate_type_id ?? null) : null,
+                        counts: cashCloseForm.counts.length ? cashCloseForm.counts : undefined,
+                        counting_mode: cashCloseForm.blind ? 'blind' : 'standard',
+                        closing_notes: cashCloseForm.notes.trim() || null,
                       },
                     },
                     {
+                      onSuccess: () =>
+                        setCashCloseForm({
+                          sessionId: null,
+                          usd: '',
+                          ves: '',
+                          notes: '',
+                          counts: [],
+                          blind: true,
+                        }),
                       onError: (error) => {
                         setCashSessionClosed(false);
                         toast.error(errorMessage(error));
@@ -1960,27 +2119,64 @@ export function PosTerminal() {
               onClose={() => {
                 setVariantPickerProduct(null);
                 setVariantPickerPromotion(null);
+                setPendingPromotionLoad(null);
               }}
-              onSelect={({ variant, quantity }) => {
+              onSelect={async ({ variant, quantity }) => {
                 const product = variantPickerProduct;
                 const promotion = variantPickerPromotion;
+                const pending = pendingPromotionLoad;
                 setVariantPickerProduct(null);
                 setVariantPickerPromotion(null);
                 if (product) {
-                  void addProduct(
+                  const added = await addProduct(
                     product,
                     undefined,
                     quantity,
                     variant,
                     promotion?.price,
                     promotion?.ref ?? null,
+                    promotion?.comboInstanceUuid ?? null,
                   );
+                  if (!added) {
+                    setPendingPromotionLoad(null);
+                    return;
+                  }
+                  if (pending) {
+                    await continuePromotionLoad({
+                      ...pending,
+                      nextIndex: pending.nextIndex + 1,
+                    });
+                  }
                 }
               }}
             />
           </PanelShell>
         )}
       </div>
+
+      <QuotationCreateDialog
+        open={quotationOpen}
+        onOpenChange={setQuotationOpen}
+        defaultWarehouseId={cart[0]?.warehouse_id ?? null}
+        defaultCustomerName={customerName && customerName !== 'Consumidor Final' ? customerName : undefined}
+        initialItems={cart.map((line) => ({
+          product_id: line.product_id,
+          product_variant_id: line.product_variant_id ?? null,
+          product_variant_name: line.product_variant_name ?? null,
+          quantity: line.quantity,
+          price_list_id: line.price_list_id ?? null,
+          price_list_name: line.price_list_name ?? null,
+          name: line.name,
+          unit_price: line.unit_price,
+        }))}
+        onCreated={() => toast.success('Cotizacion creada. El ticket se mantiene para cobrar.')}
+      />
+
+      <QuotationPickerDialog
+        open={quotationsOpen}
+        onOpenChange={setQuotationsOpen}
+        onConverted={() => toast.success('Orden pendiente lista para cobrar.')}
+      />
     </PosShell>
   );
 
@@ -2007,6 +2203,7 @@ export function PosTerminal() {
     setPriceListNotice(null);
     if (cart.length === 0) {
       setSelectedPriceListId(nextId);
+      persistPriceListPreference(nextId);
       setPayments([]);
       return;
     }
@@ -2050,6 +2247,7 @@ export function PosTerminal() {
         );
       }
       setSelectedPriceListId(nextId);
+      persistPriceListPreference(nextId);
       setPayments([]);
       toast.success(
         `Ticket actualizado a ${nextList?.name ?? BASE_PRICE_LIST_LABEL}. Pagos limpiados.`,
@@ -2061,6 +2259,16 @@ export function PosTerminal() {
     } finally {
       setRepricing(false);
     }
+  }
+
+  function persistPriceListPreference(priceListId: number | null): void {
+    if (!activeSession) return;
+
+    savePersistedPriceListPreference(
+      Number(activeSession.tenant_id),
+      Number(activeSession.cashier_id),
+      priceListId,
+    );
   }
 
   async function addProduct(
@@ -2081,8 +2289,7 @@ export function PosTerminal() {
     if (!selectedVariant && !scannedSerial) {
       try {
         const variants = await getProductVariants(product.id, warehouse.id);
-        const namedVariants = variants.filter((variant) => Boolean(variant.color));
-        if (namedVariants.length > 0) {
+        if (requiresPosVariantSelection(variants)) {
           setVariantPickerProduct(product);
           setVariantPickerQuantity(Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
           // Conserva el contexto de promocion si esta linea viene de una
@@ -2094,7 +2301,7 @@ export function PosTerminal() {
           }
           return false;
         }
-        selectedVariant = variants[0] ?? null;
+        selectedVariant = null;
       } catch {
         toast.error('No se pudieron consultar las variantes de este producto. Intenta de nuevo.');
         return false;
@@ -2226,6 +2433,65 @@ export function PosTerminal() {
     return true;
   }
 
+  async function continuePromotionLoad(load: PendingPromotionLoad): Promise<void> {
+    if (!selectedWarehouse) {
+      setPendingPromotionLoad(null);
+      toast.error('Selecciona un almacen antes de cargar una promoción.');
+      return;
+    }
+
+    try {
+      for (let index = load.nextIndex; index < load.entries.length; index += 1) {
+        const entry = load.entries[index];
+        if (!entry) continue;
+        const variants = await getProductVariants(entry.product.id, selectedWarehouse.id);
+
+        if (requiresPosVariantSelection(variants)) {
+          setPendingPromotionLoad({ ...load, nextIndex: index });
+          setVariantPickerProduct(entry.product);
+          setVariantPickerQuantity(Math.max(1, Math.floor(entry.item.quantity)));
+          setVariantPickerPromotion({
+            price: entry.unitPrice,
+            ref: {
+              id: load.promotion.id,
+              code: load.promotion.code,
+              benefitType: load.promotion.benefit_type,
+            },
+            comboInstanceUuid: load.instanceUuid,
+          });
+          return;
+        }
+
+        const added = await addProduct(
+          entry.product,
+          undefined,
+          entry.item.quantity,
+          undefined,
+          entry.unitPrice,
+          {
+            id: load.promotion.id,
+            code: load.promotion.code,
+            benefitType: load.promotion.benefit_type,
+          },
+          load.instanceUuid,
+        );
+        if (!added) {
+          setPendingPromotionLoad(null);
+          return;
+        }
+      }
+
+      addComboApplication(load.promotion, load.instanceUuid, load.sets);
+      setSelectedPromotion(load.promotion);
+      setPendingPromotionLoad(null);
+      setPanel(null);
+      toast.success(`${load.sets} conjunto(s) de ${load.promotion.name} cargado(s) al ticket.`);
+    } catch {
+      setPendingPromotionLoad(null);
+      toast.error('No se pudieron cargar todos los productos de la promoción.');
+    }
+  }
+
   async function loadPromotion(promotion: Promotion, sets: number): Promise<void> {
     if (!selectedWarehouse) {
       toast.error('Selecciona un almacen antes de cargar una promoción.');
@@ -2256,42 +2522,27 @@ export function PosTerminal() {
         return;
       }
 
-      const promotionRef = {
-        id: promotion.id,
-        code: promotion.code,
-        benefitType: promotion.benefit_type,
-      };
-      // Precio unitario que se muestra en el carrito para el valor de la
-      // promocion (el backend re-valida y ajusta en el checkout).
-      const unitPriceByProduct = new Map<number, number>();
-      for (const { item, product } of loadedItems) {
-        const base = Number(product.base_price ?? 0);
-        unitPriceByProduct.set(
-          item.product_id,
-          promotionLineUnitPrice(promotion, base, totalPromotionQuantity),
-        );
-      }
-
-      // Si el producto tiene variantes, addProduct abrira el VariantPicker y
-      // retornara false (se continua con los demas items y se setea la
-      // promocion al final).
-      for (const { item, product } of loadedItems) {
-        await addProduct(
+      // La selección de variantes se procesa una por una. No se debe marcar
+      // el combo como cargado hasta que todas sus líneas estén en el carrito.
+      const pending: PendingPromotionLoad = {
+        promotion,
+        sets,
+        instanceUuid,
+        entries: loadedItems.map(({ item, product }) => ({
+          item,
           product,
-          undefined,
-          item.quantity,
-          undefined,
-          unitPriceByProduct.get(item.product_id),
-          promotionRef,
-          instanceUuid,
-        );
-      }
-
-      addComboApplication(promotion, instanceUuid, sets);
-      setSelectedPromotion(promotion);
-      setPanel(null);
-      toast.success(`${sets} conjunto(s) de ${promotion.name} cargado(s) al ticket.`);
+          unitPrice: promotionLineUnitPrice(
+            promotion,
+            Number(product.base_price ?? 0),
+            totalPromotionQuantity,
+          ),
+        })),
+        nextIndex: 0,
+      };
+      setPendingPromotionLoad(pending);
+      await continuePromotionLoad(pending);
     } catch {
+      setPendingPromotionLoad(null);
       toast.error('No se pudieron cargar todos los productos de la promoción.');
     }
   }
@@ -2923,16 +3174,19 @@ export function PosTerminal() {
     };
   }
 
+  function clearPos(): void {
+    if ((cart.length > 0 || payments.length > 0) && !window.confirm('¿Limpiar el ticket actual?')) {
+      return;
+    }
+
+    clearTicket();
+    setPanel(null);
+    toast.success('POS limpiado.');
+  }
+
   function clearTicket(): void {
-    setCart([]);
-    setPayments([]);
+    clearAll();
     setPriceListNotice(null);
-    setSelectedCustomer(null);
-    setCustomerName('Consumidor Final');
-    clearSelectedInvoicePromotion();
-    clearComboApplications();
-    clearProductOfferApplications();
-    clearSelectedPromotion();
     setSelectedPending(null);
     setExchangeDraft(null);
     setExchangeReturnId(null);
@@ -2969,18 +3223,27 @@ export function PosTerminal() {
       await Promise.all(
         jobs.map(async (job) => {
           try {
+            if (job.output === 'digital') {
+              await downloadTicketPdf(job);
+              await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'generated' });
+              toast.success('Ticket virtual descargado. Puedes guardarlo o imprimirlo desde el navegador.');
+              return;
+            }
+
+            if (job.print_connector_id) {
+              toast.success('Ticket enviado a la cola del conector local.');
+              return;
+            }
+
             await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'sent' });
             const result = await sendJobToLocalAgent(job);
-            const finalStatus = job.output === 'digital' ? 'generated' : 'printed';
             await updatePrintJobStatus.mutateAsync({
               jobId: job.id,
-              status: finalStatus,
+              status: 'printed',
               message: result.message ?? null,
               digitalPdfPath: result.pdf_path ?? null,
               digitalHtmlPath: result.html_path ?? null,
             });
-            if (job.output === 'digital' && result.pdf_path)
-              toast.success(`Ticket virtual generado: ${result.pdf_path}`);
             if (job.output === 'thermal') toast.success('Ticket enviado a impresora.');
           } catch (error) {
             await updatePrintJobStatus.mutateAsync({
@@ -3358,8 +3621,8 @@ function OpenCashScreen(props: {
               <div className="grid gap-3 sm:grid-cols-2">
                 <LabeledControl label="Fondo USD">
                   <Input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={props.baseAmount}
                     onChange={(event) => props.onBaseAmountChange(event.target.value)}
                     placeholder="0.00"
@@ -3368,8 +3631,8 @@ function OpenCashScreen(props: {
                 </LabeledControl>
                 <LabeledControl label="Fondo VES">
                   <Input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={props.localAmount}
                     onChange={(event) => props.onLocalAmountChange(event.target.value)}
                     placeholder="0.00"
@@ -3647,6 +3910,7 @@ function ProductSearchPanel({
 }) {
   const canSearch = search.trim().length >= 2;
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -3656,6 +3920,18 @@ function ProductSearchPanel({
 
   return (
     <div className="space-y-4">
+      {detailProduct && (
+        <ProductDetailDialog
+          product={detailProduct}
+          warehouseId={warehouseId}
+          priceListName={priceListName ?? BASE_PRICE_LIST_LABEL}
+          onClose={() => setDetailProduct(null)}
+          onAdd={async (p) => {
+            setDetailProduct(null);
+            await onSelect(p);
+          }}
+        />
+      )}
       <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_220px]">
         <div className="relative">
           <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
@@ -3718,68 +3994,63 @@ function ProductSearchPanel({
           No hay productos con esa busqueda.
         </div>
       ) : (
-        <div className="grid max-h-[68vh] gap-3 overflow-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
-          {products.map((product, index) => (
-            <TapButton
-              key={product.id}
-              onPress={() => void onSelect(product)}
-              onMouseEnter={() => setSelectedIndex(index)}
-              className={cn(
-                'group border-border bg-surface hover:border-primary/60 focus-visible:ring-primary overflow-hidden rounded-2xl border text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2',
-                index === safeIndex && 'border-primary bg-primary/5 ring-primary/20 ring-1',
-              )}
-            >
-              <ProductImageView
-                image={primaryProductImage(product)}
-                src={productImageSrc(product) ?? undefined}
-                alt={product.name}
-                variant="thumb"
-                className="border-border bg-bg aspect-[4/3] w-full border-b"
-              />
-              <div className="p-3">
-                <div className="flex gap-3">
+        <div className="flex max-h-[68vh] flex-col gap-2 overflow-auto pr-1">
+          {products.map((product, index) => {
+            const stock = Number(product.available_stock ?? 0);
+            return (
+              <div
+                key={product.id}
+                className={cn(
+                  'group border-border bg-surface hover:border-primary/60 flex items-center gap-3 rounded-xl border p-3 shadow-sm transition-colors',
+                  index === safeIndex && 'border-primary bg-primary/5 ring-primary/20 ring-1',
+                )}
+                onMouseEnter={() => setSelectedIndex(index)}
+              >
+                <TapButton
+                  onPress={() => void onSelect(product)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  data-testid={`search-product-${product.id}`}
+                >
+                  <ProductImageView
+                    image={primaryProductImage(product)}
+                    src={productImageSrc(product) ?? undefined}
+                    alt={product.name}
+                    variant="thumb"
+                    className="border-border bg-bg size-14 shrink-0 rounded-lg border"
+                  />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">{product.name}</p>
-                        <p className="text-text-muted font-mono text-xs">
-                          {product.sku ?? product.barcode ?? 'Sin codigo'}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'}
-                        className="text-[10px]"
-                      >
-                        {Number(product.available_stock ?? 0) > 0
-                          ? `Stock ${Number(product.available_stock)}`
-                          : 'Sin stock'}
-                      </Badge>
-                    </div>
-                    {Number(product.available_stock ?? 0) <= Number(product.min_stock ?? 0) &&
-                      Number(product.min_stock ?? 0) > 0 && (
-                        <p className="text-warning mt-1 text-[10px]">
-                          Stock bajo (min {product.min_stock})
-                        </p>
-                      )}
-                  </div>
-                </div>
-                <div className="mt-3 flex items-end justify-between gap-2">
-                  <div>
-                    <p className="text-text-muted text-[10px] font-semibold uppercase">
-                      Precio base
+                    <p className="whitespace-normal break-words font-semibold leading-tight">
+                      {product.name}
                     </p>
-                    <p className="text-xl font-bold">{money(Number(product.base_price ?? 0))}</p>
+                    <p className="text-text-muted font-mono text-xs">
+                      {product.sku ?? product.barcode ?? 'Sin codigo'}
+                    </p>
+                    {stock <= Number(product.min_stock ?? 0) && Number(product.min_stock ?? 0) > 0 && (
+                      <p className="text-warning text-[10px]">Stock bajo (min {product.min_stock})</p>
+                    )}
                   </div>
-                  <span className="bg-primary/10 text-primary rounded-full px-2 py-1 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100">
-                    Agregar
-                  </span>
-                </div>
-                <p className="text-text-muted mt-1 text-xs">
-                  Se valida precio de lista al seleccionar
-                </p>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant={stock > 0 ? 'success' : 'warning'} className="text-[10px]">
+                      {stock > 0 ? `Stock ${stock}` : 'Sin stock'}
+                    </Badge>
+                    <p className="text-lg font-bold">{money(Number(product.base_price ?? 0))}</p>
+                  </div>
+                </TapButton>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailProduct(product);
+                  }}
+                  className="border-border bg-bg text-text-muted hover:border-primary hover:text-primary size-9 shrink-0 rounded-full border p-2 transition-colors"
+                  aria-label={`Ver información de ${product.name}`}
+                  data-testid={`product-info-${product.id}`}
+                >
+                  <Info className="size-4" />
+                </button>
               </div>
-            </TapButton>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -4081,120 +4352,335 @@ function HoldPanel(props: {
   );
 }
 
-function CashPanel(props: {
+export function CashPanel(props: {
   session: CashRegisterSession;
   canMove: boolean;
   canClose: boolean;
   movement: { type: string; amount: string; notes: string };
-  closingAmount: string;
+  closeForm: CloseForm;
+  rate: number | null;
+  closing: boolean;
   onMovementChange: (value: { type: string; amount: string; notes: string }) => void;
-  onClosingAmount: (value: string) => void;
+  onCloseForm: (value: CloseForm) => void;
   onAddMovement: () => void;
   onCloseSession: () => void;
 }) {
+  const session = props.session;
+  const isOpen = session.status === 'open';
+  const blind = props.closeForm.blind;
+  const difference = Number(session.difference_base_amount ?? 0);
+  const hasCounted =
+    session.counted_base_amount !== null && session.counted_base_amount !== undefined;
+
+  // Arqueo de cierre (misma logica que el modulo Cajas).
+  const totals = cashCountTotals(props.closeForm.counts);
+  const calculatedForm = props.closeForm.counts.length
+    ? { ...props.closeForm, usd: String(totals.USD), ves: String(totals.VES) }
+    : props.closeForm;
+  const diff = closeDifference(session, calculatedForm, props.rate);
+  const needsNote = hasDifference(diff.cashUsd, diff.cashVes);
+  // En modo ciego la nota NO es obligatoria por diferencia (no se le revela al
+  // cajero que hay descuadre). Solo en standard se exige para justificar.
+  const canSubmitClose = !props.closing && (blind || !needsNote || props.closeForm.notes.trim().length > 0);
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <MetricCard label="Fondo inicial" value={money(props.session.opening_base_amount ?? 0)} />
+    <div className="space-y-4">
+      {/* Hero: turno activo */}
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#17112f] via-[#241761] to-[#4338ca] p-5 text-white shadow-lg">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.22),transparent_45%)]" />
+        <div className="relative flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-lg backdrop-blur">
+              <Wallet className="size-6" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">
+                Turno activo
+              </p>
+              <h3 className="text-lg leading-tight font-bold">
+                {session.cash_register?.name ?? 'Caja POS'}
+              </h3>
+              <p className="text-sm text-white/70">Sesión #{session.id}</p>
+            </div>
+          </div>
+          <Badge
+            variant={isOpen ? 'success' : 'info'}
+            className="bg-white/15 text-white shadow-sm backdrop-blur"
+          >
+            {isOpen ? 'Turno abierto' : session.status}
+          </Badge>
+        </div>
+        <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <HeroStat label="Sucursal" value={session.branch?.name ?? '—'} />
+          <HeroStat label="Apertura" value={formatPosTime(session.opened_at)} />
+          <HeroStat label="Cajero" value={session.cashier?.name ?? '—'} />
+        </div>
+      </section>
+
+      {/* Métricas clave (el esperado se oculta en modo ciego) */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <MetricCard
+          icon={<Coins className="size-4 text-text-muted" aria-hidden="true" />}
+          label="Fondo inicial"
+          value={money(session.opening_base_amount ?? 0)}
+        />
+        {!blind && (
           <MetricCard
+            icon={<CircleCheck className="size-4 text-success" aria-hidden="true" />}
             label="Esperado"
-            value={money(props.session.expected_base_amount ?? 0)}
+            value={money(session.expected_base_amount ?? 0)}
             tone="success"
           />
-        </div>
-        <PanelCard
-          eyebrow="Turno activo"
-          title={props.session.cash_register?.name ?? 'Caja POS'}
-          description={`Sesion #${props.session.id} abierta para venta directa.`}
-        >
-          <div className="grid gap-2 text-sm sm:grid-cols-2">
-            <InfoLine label="Sucursal" value={props.session.branch?.name ?? 'Sin sucursal'} />
-            <InfoLine label="Estado" value={props.session.status} />
-          </div>
-        </PanelCard>
+        )}
       </div>
-      {props.canMove && (
-        <PanelCard
-          eyebrow="Caja"
-          title="Movimiento extra"
-          description="Registra entradas, salidas o ajustes de efectivo fuera de una venta."
+
+      {!blind && hasCounted && (
+        <div
+          className={cn(
+            'flex items-center justify-between rounded-2xl border p-4 text-sm font-semibold',
+            difference >= 0
+              ? 'border-success/40 bg-success/10 text-success'
+              : 'border-danger/40 bg-danger/10 text-danger',
+          )}
+          data-testid="pos-cash-difference"
         >
-          <div className="space-y-3">
-            <LabeledControl label="Tipo">
-              <Select
-                value={props.movement.type}
-                onChange={(event) =>
-                  props.onMovementChange({ ...props.movement, type: event.target.value })
-                }
+          <span>Diferencia de cierre</span>
+          <span>{money(difference)}</span>
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {props.canMove && (
+          <PanelCard
+            eyebrow="Caja"
+            title="Movimiento extra"
+            description="Entradas, salidas o ajustes de efectivo fuera de una venta."
+            icon={<SlidersHorizontal className="size-4 text-text-muted" aria-hidden="true" />}
+          >
+            <div className="space-y-3">
+              <LabeledControl label="Tipo">
+                <Select
+                  value={props.movement.type}
+                  onChange={(event) =>
+                    props.onMovementChange({ ...props.movement, type: event.target.value })
+                  }
+                >
+                  <option value="inflow">Entrada</option>
+                  <option value="outflow">Salida</option>
+                  <option value="adjustment">Ajuste</option>
+                </Select>
+              </LabeledControl>
+              <LabeledControl label="Monto USD">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={props.movement.amount}
+                  onChange={(event) =>
+                    props.onMovementChange({ ...props.movement, amount: event.target.value })
+                  }
+                  placeholder="0.00"
+                  data-testid="pos-cash-movement-amount"
+                />
+              </LabeledControl>
+              <LabeledControl label="Motivo">
+                <Input
+                  value={props.movement.notes}
+                  onChange={(event) =>
+                    props.onMovementChange({ ...props.movement, notes: event.target.value })
+                  }
+                  placeholder="Motivo del movimiento"
+                  data-testid="pos-cash-movement-notes"
+                />
+              </LabeledControl>
+              <Button
+                className="h-11 w-full"
+                onClick={props.onAddMovement}
+                data-testid="pos-cash-movement-submit"
               >
-                <option value="inflow">Entrada</option>
-                <option value="outflow">Salida</option>
-                <option value="adjustment">Ajuste</option>
-              </Select>
-            </LabeledControl>
-            <LabeledControl label="Monto USD">
+                Registrar movimiento
+              </Button>
+            </div>
+          </PanelCard>
+        )}
+
+        {props.canClose && (
+          <PanelCard
+            eyebrow="Cierre"
+            title="Cerrar caja"
+            description={
+              blind
+                ? 'El monto esperado está oculto. Cuenta el efectivo sin referencia.'
+                : 'Ingresa el efectivo contado para comparar contra el esperado.'
+            }
+            tone="danger"
+            icon={<ArrowDownToLine className="size-4 text-danger" aria-hidden="true" />}
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-text-muted">
+                  {blind ? 'Cierre ciego activo.' : 'Puedes contar con referencia o usar cierre ciego.'}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={blind ? 'primary' : 'outline'}
+                  onClick={() =>
+                    props.onCloseForm({
+                      ...props.closeForm,
+                      blind: !blind,
+                      usd: blind ? props.closeForm.usd : '',
+                      ves: blind ? props.closeForm.ves : '',
+                      counts: blind ? props.closeForm.counts : [],
+                    })
+                  }
+                  data-testid="pos-cash-blind-toggle"
+                >
+                  {blind ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                  {blind ? 'Cierre ciego activo' : 'Usar cierre ciego'}
+                </Button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={calculatedForm.usd}
+                  readOnly={props.closeForm.counts.length > 0}
+                  onChange={(event) =>
+                    props.onCloseForm({ ...props.closeForm, usd: event.target.value })
+                  }
+                  placeholder="Efectivo contado USD"
+                  data-testid="pos-cash-closing-amount"
+                />
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={props.closeForm.ves}
+                  onChange={(event) =>
+                    props.onCloseForm({ ...props.closeForm, ves: event.target.value })
+                  }
+                  placeholder="Efectivo contado Bs (VES)"
+                  data-testid="pos-cash-closing-ves"
+                />
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">Conteo por denominaciones (USD)</p>
+                  {props.closeForm.counts.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => props.onCloseForm({ ...props.closeForm, counts: [] })}
+                    >
+                      Limpiar conteo
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-text-muted">
+                  Si registras denominaciones, el total en USD se calcula automáticamente. El
+                  efectivo en bolívares se ingresa manualmente.
+                </p>
+                <DenominationGrid currency="USD" form={props.closeForm} onForm={props.onCloseForm} />
+              </div>
+
+              <div className="grid gap-2 rounded-lg border border-border/70 p-2 text-sm sm:grid-cols-2">
+                <div>
+                  <p className="text-text-muted text-xs uppercase">Declarado USD</p>
+                  <p className="font-semibold">{money(Number(calculatedForm.usd || 0))}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted text-xs uppercase">Declarado Bs (VES)</p>
+                  <p className="font-semibold">{localMoney(Number(calculatedForm.ves || 0))}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted text-xs uppercase">Total equiv. USD</p>
+                  <p className="font-semibold">{money(diff.declaredBase)}</p>
+                </div>
+                <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-[10px] leading-tight">
+                  El total equiv. USD = USD + (Bs ÷ tasa). Cada moneda se declara por separado.
+                </span>
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Esperado USD</p>
+                    <p className="font-semibold">{money(diff.expectedUsd)}</p>
+                  </div>
+                )}
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Diferencia física USD</p>
+                    <p className="font-semibold">{money(diff.cashUsd)}</p>
+                  </div>
+                )}
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Esperado VES</p>
+                    <p className="font-semibold">{localMoney(diff.expectedVes)}</p>
+                  </div>
+                )}
+                {!blind && (
+                  <div>
+                    <p className="text-text-muted text-xs uppercase">Diferencia física VES</p>
+                    <p className="font-semibold">{localMoney(diff.cashVes)}</p>
+                  </div>
+                )}
+                {blind && (
+                  <p className="bg-primary/5 rounded p-2 text-xs text-text-muted sm:col-span-2">
+                    La diferencia se calculará al confirmar el cierre y quedará visible para el
+                    responsable.
+                  </p>
+                )}
+              </div>
+
               <Input
-                type="number"
-                min="0"
-                value={props.movement.amount}
+                value={props.closeForm.notes}
                 onChange={(event) =>
-                  props.onMovementChange({ ...props.movement, amount: event.target.value })
+                  props.onCloseForm({ ...props.closeForm, notes: event.target.value })
                 }
-                placeholder="Monto USD"
-                data-testid="pos-cash-movement-amount"
-              />
-            </LabeledControl>
-            <LabeledControl label="Motivo">
-              <Input
-                value={props.movement.notes}
-                onChange={(event) =>
-                  props.onMovementChange({ ...props.movement, notes: event.target.value })
+                placeholder={
+                  blind ? 'Notas de cierre (opcional)' : needsNote ? 'Nota obligatoria por diferencia' : 'Notas de cierre'
                 }
-                placeholder="Motivo"
-                data-testid="pos-cash-movement-notes"
+                data-testid="pos-cash-closing-notes"
               />
-            </LabeledControl>
-            <Button
-              className="h-11 w-full"
-              onClick={props.onAddMovement}
-              data-testid="pos-cash-movement-submit"
-            >
-              Registrar movimiento
-            </Button>
-          </div>
-        </PanelCard>
-      )}
-      {props.canClose && (
-        <PanelCard
-          eyebrow="Cierre"
-          title="Cerrar caja"
-          description="Ingresa el efectivo contado para comparar contra el esperado."
-        >
-          <div className="space-y-3">
-            <LabeledControl label="Efectivo contado USD">
-              <Input
-                type="number"
-                min="0"
-                value={props.closingAmount}
-                onChange={(event) => props.onClosingAmount(event.target.value)}
-                placeholder="Efectivo contado USD"
-                data-testid="pos-cash-closing-amount"
-              />
-            </LabeledControl>
-            <Button
-              className="h-11 w-full"
-              variant="outline"
-              onClick={props.onCloseSession}
-              data-testid="pos-cash-close-submit"
-            >
-              Cerrar turno
-            </Button>
-          </div>
-        </PanelCard>
-      )}
+
+              <Button
+                className="h-11 w-full"
+                variant="danger"
+                disabled={!canSubmitClose}
+                onClick={props.onCloseSession}
+                data-testid="pos-cash-close-submit"
+              >
+                {props.closing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                <ArrowUpFromLine className="size-4" aria-hidden="true" />
+                Cerrar turno
+              </Button>
+            </div>
+          </PanelCard>
+        )}
+      </div>
     </div>
   );
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur">
+      <p className="text-[10px] font-semibold tracking-wide text-white/55 uppercase">{label}</p>
+      <p className="mt-0.5 truncate text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function formatPosTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function ReceiptPanel({
@@ -4415,6 +4901,8 @@ function PanelCard({
   title,
   description,
   action,
+  icon,
+  tone = 'default',
   children,
   className,
 }: {
@@ -4422,22 +4910,31 @@ function PanelCard({
   title: string;
   description?: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: 'default' | 'danger';
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <section
-      className={cn('border-border bg-surface rounded-[1.5rem] border p-4 shadow-sm', className)}
+      className={cn(
+        'border-border bg-surface rounded-2xl border p-4 shadow-sm',
+        tone === 'danger' && 'border-danger/30',
+        className,
+      )}
     >
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          {eyebrow ? (
-            <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">
-              {eyebrow}
-            </p>
-          ) : null}
-          <h3 className="mt-1 text-lg font-semibold tracking-tight">{title}</h3>
-          {description ? <p className="text-text-muted mt-1 text-sm">{description}</p> : null}
+        <div className="flex items-start gap-2.5">
+          {icon ? <span className="mt-0.5 shrink-0">{icon}</span> : null}
+          <div>
+            {eyebrow ? (
+              <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">
+                {eyebrow}
+              </p>
+            ) : null}
+            <h3 className="mt-1 text-lg font-semibold tracking-tight">{title}</h3>
+            {description ? <p className="text-text-muted mt-1 text-sm">{description}</p> : null}
+          </div>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
@@ -4472,24 +4969,20 @@ function MetricCard({
   label,
   value,
   tone = 'default',
+  icon,
 }: {
   label: string;
   value: string;
   tone?: 'default' | 'success';
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="border-border bg-surface rounded-[1.5rem] border p-4 shadow-sm">
-      <p className="text-text-muted text-xs font-semibold tracking-wide uppercase">{label}</p>
+    <div className="border-border bg-surface rounded-2xl border p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-text-muted text-xs font-semibold tracking-wide uppercase">{label}</p>
+        {icon ? <span className="shrink-0">{icon}</span> : null}
+      </div>
       <p className={cn('mt-2 text-2xl font-bold', tone === 'success' && 'text-success')}>{value}</p>
-    </div>
-  );
-}
-
-function InfoLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-border bg-bg/50 rounded-2xl border px-3 py-2">
-      <p className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold">{value}</p>
     </div>
   );
 }

@@ -1,11 +1,16 @@
 <?php
 
+use App\Modules\Printing\Controllers\PrintConnectorController;
 use App\Modules\Printing\Controllers\PrinterStationController;
 use App\Modules\Printing\Controllers\PrintJobController;
 use App\Modules\Printing\Controllers\PrintProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('printing')->group(function (): void {
+    Route::get('connectors', [PrintConnectorController::class, 'index']);
+    Route::post('connectors/pairing-codes', [PrintConnectorController::class, 'createPairingCode']);
+    Route::post('connectors/{printConnector}/revoke', [PrintConnectorController::class, 'revoke']);
+
     Route::post('profiles/preview.pdf', [PrintProfileController::class, 'previewPdf']);
 
     Route::apiResource('profiles', PrintProfileController::class)

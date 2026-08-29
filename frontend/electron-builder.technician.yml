@@ -12,8 +12,6 @@ publish:
   channel: technician
 files:
   - electron/**/*
-  - dist/admin/**/*
-  - dist/pos/**/*
   - dist/technician/**/*
   - package.json
 win:

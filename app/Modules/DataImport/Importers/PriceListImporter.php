@@ -22,6 +22,11 @@ class PriceListImporter extends BaseImporter
         return ['code', 'name', 'description', 'is_default', 'is_active', 'sort_order', 'payment_method_codes', 'prices'];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        return strtoupper(trim((string) ($payload['code'] ?? '')));
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $code = strtoupper($payload['code'] ?? '');

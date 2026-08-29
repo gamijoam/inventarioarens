@@ -68,7 +68,14 @@ export type UserListResponse = z.infer<typeof UserListResponseSchema>;
 export const CreateUserInputSchema = z.object({
   name: z.string().min(1, 'Requerido.').max(150),
   email: z.string().email('Email invalido.').max(255),
-  password: z.string().min(8, 'Minimo 8 caracteres.').optional().or(z.literal('')),
+  password: z
+    .string()
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/, {
+      message: 'Minimo 8 caracteres, con al menos una mayuscula, una minuscula y un numero.',
+    })
+    .optional()
+    .or(z.literal('')),
+  confirm_password: z.string().optional().or(z.literal('')),
   roles: z.array(z.string()).default([]),
 });
 export type CreateUserInput = z.input<typeof CreateUserInputSchema>;
@@ -88,3 +95,14 @@ export const UpdateUserInputSchema = z.object({
   name: z.string().min(1, 'Requerido.').max(150),
 });
 export type UpdateUserInput = z.input<typeof UpdateUserInputSchema>;
+
+export const ChangePasswordInputSchema = z
+  .object({
+    new_password: z.string().min(8, 'Minimo 8 caracteres.').regex(/[a-zA-Z]/, 'Debe contener letras.').regex(/[0-9]/, 'Debe contener numeros.'),
+    confirm_password: z.string().min(1, 'Repite la contrasena.'),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: 'Las contrasenas no coinciden.',
+    path: ['confirm_password'],
+  });
+export type ChangePasswordInput = z.input<typeof ChangePasswordInputSchema>;

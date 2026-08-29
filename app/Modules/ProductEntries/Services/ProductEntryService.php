@@ -9,6 +9,7 @@ use App\Modules\Inventory\Services\InventoryValuationService;
 use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Models\ProductEntryItem;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +45,7 @@ class ProductEntryService
                 $product = Product::query()->findOrFail($item['product_id']);
                 $quantity = (float) $item['quantity'];
                 $unitCost = isset($item['unit_cost']) ? (float) $item['unit_cost'] : null;
+                $productVariantId = $item['product_variant_id'] ?? null;
 
                 $movement = $this->inventory->purchase(
                     warehouse: $warehouse,
@@ -54,12 +56,14 @@ class ProductEntryService
                     reason: "Entrada {$entry->document_number}: {$entry->reason}",
                     referenceType: ProductEntry::class,
                     referenceId: $entry->id,
+                    productVariantId: $productVariantId,
                 );
 
                 ProductEntryItem::create([
                     'product_entry_id' => $entry->id,
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
+                    'product_variant_id' => $productVariantId,
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
                     'stock_movement_id' => $movement->id,
@@ -88,6 +92,19 @@ class ProductEntryService
             $product = Product::query()->findOrFail($item['product_id']);
             $serialUnits = $item['serial_units'] ?? [];
             $quantity = (float) $item['quantity'];
+
+            $variantId = $item['product_variant_id'] ?? null;
+            if ($variantId !== null) {
+                $belongsToProduct = ProductVariant::query()
+                    ->where('id', (int) $variantId)
+                    ->where('product_id', $product->id)
+                    ->exists();
+                if (! $belongsToProduct) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.product_variant_id" => 'La variante seleccionada no pertenece al producto indicado.',
+                    ]);
+                }
+            }
 
             if ($product->requiresSerializedTracking()) {
                 if ($quantity !== floor($quantity)) {

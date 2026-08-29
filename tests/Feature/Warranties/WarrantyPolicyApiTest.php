@@ -122,6 +122,7 @@ class WarrantyPolicyApiTest extends TestCase
                 'name' => 'Samsung A06',
                 'sku' => 'SAMSUNG-A06',
                 'base_price' => 100,
+                'sale_currency' => Product::CURRENCY_USD,
                 'warranty_policy_id' => $policyA->id,
             ])
             ->assertCreated()

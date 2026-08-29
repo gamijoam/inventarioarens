@@ -3,10 +3,16 @@
 namespace Tests\Feature\AccessControl;
 
 use App\Models\User;
+use App\Modules\AccessControl\Models\UserBranchScope;
 use App\Modules\AccessControl\Services\ScopeResolver;
+use App\Modules\Branches\Models\Branch;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Permissions\BasePermissions;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -18,7 +24,7 @@ class ScopeFilteringIntegrationTest extends TestCase
     {
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
     }
@@ -26,16 +32,16 @@ class ScopeFilteringIntegrationTest extends TestCase
     public function test_effective_permissions_includes_scopes_object(): void
     {
         $tenant = $this->createTenant();
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        app(TenantManager::class)->set($tenant);
         $user = $this->createUserWithPermissions($tenant, ['users.view']);
 
-        $b1 = \App\Modules\Branches\Models\Branch::create(['name' => 'B1', 'code' => 'B1', 'tenant_id' => $tenant->id]);
-        $b2 = \App\Modules\Branches\Models\Branch::create(['name' => 'B2', 'code' => 'B2', 'tenant_id' => $tenant->id]);
+        $b1 = Branch::create(['name' => 'B1', 'code' => 'B1', 'tenant_id' => $tenant->id]);
+        $b2 = Branch::create(['name' => 'B2', 'code' => 'B2', 'tenant_id' => $tenant->id]);
 
-        \App\Modules\AccessControl\Models\UserBranchScope::create([
+        UserBranchScope::create([
             'tenant_id' => $tenant->id, 'user_id' => $user->id, 'branch_id' => $b1->id,
         ]);
-        \App\Modules\AccessControl\Models\UserBranchScope::create([
+        UserBranchScope::create([
             'tenant_id' => $tenant->id, 'user_id' => $user->id, 'branch_id' => $b2->id,
         ]);
 
@@ -56,7 +62,7 @@ class ScopeFilteringIntegrationTest extends TestCase
     public function test_effective_permissions_with_no_scope(): void
     {
         $tenant = $this->createTenant();
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        app(TenantManager::class)->set($tenant);
         $user = $this->createUserWithPermissions($tenant, ['users.view']);
 
         $response = $this->actingAs($user)
@@ -76,13 +82,13 @@ class ScopeFilteringIntegrationTest extends TestCase
     public function test_scope_status_via_capability_resolver(): void
     {
         $tenant = $this->createTenant();
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        app(TenantManager::class)->set($tenant);
 
         $user1 = $this->createUserWithPermissions($tenant, ['users.view']);
         $user2 = $this->createUserWithPermissions($tenant, ['users.view']);
-        $b1 = \App\Modules\Branches\Models\Branch::create(['name' => 'B1', 'code' => 'B1', 'tenant_id' => $tenant->id]);
+        $b1 = Branch::create(['name' => 'B1', 'code' => 'B1', 'tenant_id' => $tenant->id]);
 
-        \App\Modules\AccessControl\Models\UserBranchScope::create([
+        UserBranchScope::create([
             'tenant_id' => $tenant->id, 'user_id' => $user2->id, 'branch_id' => $b1->id,
         ]);
 
@@ -93,7 +99,7 @@ class ScopeFilteringIntegrationTest extends TestCase
 
     private function createTenant(): Tenant
     {
-        return Tenant::create(['name' => 'T', 'slug' => 't-' . \Illuminate\Support\Str::random(6), 'status' => 'active']);
+        return Tenant::create(['name' => 'T', 'slug' => 't-'.Str::random(6), 'status' => 'active']);
     }
 
     private function createUserWithPermissions(Tenant $tenant, array $permissions): User
@@ -105,8 +111,8 @@ class ScopeFilteringIntegrationTest extends TestCase
         setPermissionsTeamId($tenant->id);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $role = \Spatie\Permission\Models\Role::create([
-            'name' => 'Test-' . \Illuminate\Support\Str::random(4),
+        $role = Role::create([
+            'name' => 'Test-'.Str::random(4),
             'guard_name' => 'web',
             $teamColumn => $tenant->id,
         ]);
@@ -117,6 +123,7 @@ class ScopeFilteringIntegrationTest extends TestCase
         $role->syncPermissions($perms);
         $user->assignRole($role);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         return $user;
     }
 }

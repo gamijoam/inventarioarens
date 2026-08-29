@@ -11,6 +11,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -24,6 +25,7 @@ class TenantSpinoffService
     public function __construct(
         private readonly AuditLogger $audit,
         private readonly SharedCatalogPropagationService $catalog,
+        private readonly TenantCapabilityService $capabilities,
     ) {}
 
     /**
@@ -61,6 +63,7 @@ class TenantSpinoffService
                     'parent_id' => $group->id,
                     'is_group' => false,
                 ]);
+                $this->capabilities->initializeForNewTenant($tenant);
 
                 $tenantManager->set($tenant);
                 setPermissionsTeamId($tenant->id);
@@ -108,11 +111,15 @@ class TenantSpinoffService
 
                 $admin = $this->upsertAdmin($tenant, $data['admin']);
 
-                $actor->tenants()->syncWithoutDetaching([
-                    $tenant->id => ['status' => 'active'],
-                ]);
+                // Asocia al spinoff a todos los Owners actuales del grupo
+                // (no solo al actor) para que puedan verla en el login.
+                foreach ($this->groupOwners($group)->merge([$actor])->unique('id') as $owner) {
+                    $owner->tenants()->syncWithoutDetaching([
+                        $tenant->id => ['status' => 'active'],
+                    ]);
 
-                $this->assignAdminRole($tenant, $actor);
+                    $this->assignAdminRole($tenant, $owner);
+                }
 
                 $this->bootstrapSharedCatalog($tenant, $group);
 
@@ -254,6 +261,21 @@ class TenantSpinoffService
         setPermissionsTeamId($tenant->id);
         $user->assignRole($role);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * Owners actuales del grupo (usuarios con rol Owner en el team del grupo).
+     */
+    private function groupOwners(Tenant $group): Collection
+    {
+        $teamColumn = config('permission.column_names.team_foreign_key', 'team_id');
+
+        $ownerRole = Role::query()
+            ->where('name', 'Owner')
+            ->where($teamColumn, $group->id)
+            ->first();
+
+        return $ownerRole ? $ownerRole->users()->get() : collect();
     }
 
     private function bootstrapSharedCatalog(Tenant $spinoff, Tenant $group): void

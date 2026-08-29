@@ -91,6 +91,10 @@ La configuracion opcional `payment_currency` acepta `ANY` o `VES`. Cuando vale
 `VES`, todos los pagos capturados o pendientes de la orden deben estar en
 bolivares; los pagos USD o mixtos se rechazan.
 
+La configuracion opcional `payment_currency` acepta `ANY` o `VES`. Cuando vale
+`VES`, todos los pagos capturados o pendientes de la orden deben estar en
+bolivares; los pagos USD o mixtos se rechazan.
+
 ## Beneficios previstos
 
 ```text

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\TenantCapabilityService;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\Request;
@@ -22,7 +23,10 @@ class BootstrapService
 {
     public const ENV_BOOTSTRAP_TOKEN = 'APP_BOOTSTRAP_TOKEN';
 
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly TenantCapabilityService $capabilities,
+    ) {}
 
     public function isEnabled(): bool
     {
@@ -166,6 +170,7 @@ class BootstrapService
             'plan' => ! empty($tenantData['plan']) ? trim((string) $tenantData['plan']) : 'standard',
             'status' => 'active',
         ]);
+        $this->capabilities->initializeForNewTenant($tenant);
 
         $tenant->users()->attach($adminUser->id, [
             'status' => 'active',

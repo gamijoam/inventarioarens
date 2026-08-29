@@ -4,6 +4,7 @@ namespace Tests\Feature\DataImport;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\DataImport\Jobs\RunDataImportEntity;
 use App\Modules\DataImport\Models\DataImport;
 use App\Modules\DataImport\Models\DataImportEntity;
 use App\Modules\DataImport\Services\DataImportService;
@@ -12,6 +13,7 @@ use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -130,11 +132,7 @@ class DataImportWizardTest extends TestCase
             ->withHeader('X-Tenant', $this->tenant->slug)
             ->postJson("/api/import/sessions/{$session->id}/entities/branches/run");
 
-        $response->assertOk()
-            ->assertJsonPath('entity', 'branches')
-            ->assertJsonPath('summary.total', 2)
-            ->assertJsonPath('summary.ok', 2)
-            ->assertJsonPath('summary.failed', 0);
+        $response->assertAccepted()->assertJsonPath('entity', 'branches');
 
         $this->assertDatabaseHas('branches', ['code' => 'MAIN']);
         $this->assertDatabaseHas('branches', ['code' => 'NORTE']);
@@ -159,11 +157,7 @@ class DataImportWizardTest extends TestCase
             ->withHeader('X-Tenant', $this->tenant->slug)
             ->postJson("/api/import/sessions/{$session->id}/entities/branches/run");
 
-        $response->assertOk()
-            ->assertJsonPath('summary.total', 3)
-            ->assertJsonPath('summary.ok', 1)
-            ->assertJsonPath('summary.skipped', 1)
-            ->assertJsonPath('summary.failed', 1);
+        $response->assertAccepted()->assertJsonPath('entity', 'branches');
 
         $this->assertDatabaseCount('branches', 2);
     }
@@ -215,8 +209,7 @@ class DataImportWizardTest extends TestCase
         $this->actingAs($this->admin)
             ->withHeader('X-Tenant', $this->tenant->slug)
             ->postJson("/api/import/sessions/{$sessionId}/entities/warehouses/run")
-            ->assertOk()
-            ->assertJsonPath('summary.failed', 1);
+            ->assertAccepted();
 
         $this->actingAs($this->admin)
             ->withHeader('X-Tenant', $this->tenant->slug)
@@ -243,6 +236,28 @@ class DataImportWizardTest extends TestCase
             ->postJson("/api/import/sessions/{$session->id}/entities/branches/run");
 
         $response->assertForbidden();
+    }
+
+    public function test_run_queues_the_import_job_without_processing_in_the_request(): void
+    {
+        Queue::fake();
+        $session = $this->makeSession();
+        $csv = $this->tempCsv("code,name\nASYNC,Sucursal Asincrona\n");
+        $this->service()->uploadFile($session, 'branches', $csv);
+
+        $response = $this
+            ->actingAs($this->admin)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->postJson("/api/import/sessions/{$session->id}/entities/branches/run");
+
+        $response->assertAccepted()->assertJsonPath('entity', 'branches');
+        Queue::assertPushed(RunDataImportEntity::class, function (RunDataImportEntity $job) use ($session) {
+            return $job->dataImportId === $session->id
+                && $job->entity === 'branches'
+                && $job->userId === $this->admin->id
+                && $job->tenantId === $this->tenant->id;
+        });
+        $this->assertDatabaseMissing('branches', ['code' => 'ASYNC']);
     }
 
     private function service(): DataImportService

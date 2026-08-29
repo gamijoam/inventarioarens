@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Modules\AccessControl\Models\UserPermissionOverride;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Permissions\BasePermissions;
+use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -295,10 +297,10 @@ class UserPermissionOverrideTest extends TestCase
 
     private function seedPermissions(Tenant $tenant): void
     {
-        app(\App\Support\Tenancy\TenantManager::class)->set($tenant);
+        app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach (\App\Support\Permissions\BasePermissions::PERMISSIONS as $permission) {
+        foreach (BasePermissions::PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -316,6 +318,7 @@ class UserPermissionOverrideTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
         return $plainToken;
     }
 }

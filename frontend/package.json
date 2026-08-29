@@ -1,7 +1,7 @@
 {
   "name": "inventarioarens-frontend",
   "private": true,
-  "version": "0.2.57",
+  "version": "0.2.58",
   "description": "Desktop clients for INVENTARIOARENS inventory and point-of-sale operations",
   "author": "INVENTARIOARENS",
   "type": "module",
@@ -74,12 +74,14 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.2",
+    "recharts": "^3.10.1",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.5.4",
     "zod": "^3.23.8",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@electron/asar": "^4.3.0",
     "@playwright/test": "^1.48.2",
     "@tailwindcss/vite": "^4.0.0",
     "@tanstack/router-devtools": "^1.81.5",

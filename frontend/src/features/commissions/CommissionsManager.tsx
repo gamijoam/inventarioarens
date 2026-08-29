@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BadgeDollarSign, Calculator, Plus, Power, UsersRound } from 'lucide-react';
+import { BadgeDollarSign, Calculator, Pencil, Plus, Power, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -18,8 +18,9 @@ import {
   useCommissionSimulation,
   useCreateCommissionPlan,
   useDeactivateCommissionPlan,
+  useUpdateCommissionPlan,
 } from './api';
-import { CommissionPlanInputSchema, type CommissionPlanInput } from './schemas';
+import { CommissionPlanInputSchema, type CommissionPlanInput, type CommissionPlan } from './schemas';
 
 const initialForm: CommissionPlanInput = {
   name: '',
@@ -30,6 +31,8 @@ const initialForm: CommissionPlanInput = {
   credit_policy: 'proportional_collections',
   maturation_days: 7,
   allow_self_stacking: false,
+  include_combos: true,
+  include_discounts: true,
   is_active: true,
   starts_at: null,
   ends_at: null,
@@ -41,9 +44,11 @@ export function CommissionsManager() {
   const { data: usersPage } = useUsers({ search: '', status: 'active', scope: 'tenant', page: 1, per_page: 100 });
   const { data: rateTypes = [] } = useExchangeRateTypes();
   const createPlan = useCreateCommissionPlan();
+  const updatePlan = useUpdateCommissionPlan();
   const deactivate = useDeactivateCommissionPlan();
   const simulation = useCommissionSimulation();
   const [formOpen, setFormOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<CommissionPlan | null>(null);
   const [form, setForm] = useState<CommissionPlanInput>(initialForm);
   const [simulationAmount, setSimulationAmount] = useState('6000');
   const [simulationCurrency, setSimulationCurrency] = useState<'USD' | 'VES'>('VES');
@@ -69,6 +74,39 @@ export function CommissionsManager() {
   );
 
   if (isLoading) return <Skeleton className="h-72 w-full" />;
+
+  function openNewPlan(): void {
+    setEditingPlan(null);
+    setForm(initialForm);
+    setFormOpen(true);
+  }
+
+  function openEditPlan(plan: CommissionPlan): void {
+    setEditingPlan(plan);
+    setForm({
+      name: plan.name,
+      beneficiary_role: plan.beneficiary_role,
+      percentage: Number(plan.percentage),
+      conversion_policy: plan.conversion_policy,
+      exchange_rate_type_id: plan.exchange_rate_type_id,
+      credit_policy: plan.credit_policy,
+      maturation_days: plan.maturation_days,
+      allow_self_stacking: plan.allow_self_stacking,
+      include_combos: plan.include_combos,
+      include_discounts: plan.include_discounts,
+      is_active: plan.is_active,
+      starts_at: plan.starts_at ?? null,
+      ends_at: plan.ends_at ?? null,
+      user_ids: plan.assignments.map((assignment) => assignment.user_id),
+    });
+    setFormOpen(true);
+  }
+
+  function closePlanForm(): void {
+    setFormOpen(false);
+    setEditingPlan(null);
+    setForm(initialForm);
+  }
 
   const runSimulation = async () => {
     try {
@@ -102,7 +140,7 @@ export function CommissionsManager() {
               <p className="text-text-muted text-xs font-semibold uppercase tracking-[0.16em]">Estructura vigente</p>
               <h2 className="mt-1 text-lg font-semibold">Planes por responsabilidad</h2>
             </div>
-            <Button size="sm" leftIcon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
+            <Button size="sm" leftIcon={<Plus className="size-4" />} onClick={openNewPlan}>
               Nuevo plan
             </Button>
           </div>
@@ -134,17 +172,27 @@ export function CommissionsManager() {
                         <p className="text-text-muted text-xs">sobre venta neta</p>
                       </div>
                       {plan.is_active && (
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`Desactivar ${plan.name}`}
-                          onClick={async () => {
-                            await deactivate.mutateAsync(plan.id);
-                            toast.success('Plan desactivado. El historial se conserva.');
-                          }}
-                        >
-                          <Power className="size-4" />
-                        </Button>
+                        <>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={`Editar ${plan.name}`}
+                            onClick={() => openEditPlan(plan)}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={`Desactivar ${plan.name}`}
+                            onClick={async () => {
+                              await deactivate.mutateAsync(plan.id);
+                              toast.success('Plan desactivado. El historial se conserva.');
+                            }}
+                          >
+                            <Power className="size-4" />
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -152,6 +200,8 @@ export function CommissionsManager() {
                     <span>Tasa: {plan.conversion_policy === 'sale_snapshot' ? 'la registrada en la venta' : plan.exchange_rate_type?.code}</span>
                     <span>Crédito: {plan.credit_policy === 'proportional_collections' ? 'al recibir cada cobro' : 'al confirmar venta'}</span>
                     <span>Acumulación: {plan.allow_self_stacking ? 'permitida' : 'sin doble comisión'}</span>
+                    <span>Combos: {plan.include_combos ? 'incluye comisión' : 'excluidos'}</span>
+                    <span>Descuentos: {plan.include_discounts ? 'incluye comisión' : 'excluidos'}</span>
                   </div>
                 </article>
               ))}
@@ -214,9 +264,11 @@ export function CommissionsManager() {
       </section>
 
       {formOpen && (
-        <Dialog open onOpenChange={(open) => !open && setFormOpen(false)}>
+        <Dialog open onOpenChange={(open) => !open && closePlanForm()}>
           <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
-            <DialogHeader><DialogTitle>Nuevo plan de comisiones</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>{editingPlan ? 'Editar plan de comisiones' : 'Nuevo plan de comisiones'}</DialogTitle>
+            </DialogHeader>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Nombre"><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Ej. Vendedores 3%" /></Field>
               <Field label="Beneficiario"><Select value={form.beneficiary_role} onChange={(event) => setForm({ ...form, beneficiary_role: event.target.value as 'seller' | 'cashier' })}><option value="seller">Vendedor</option><option value="cashier">Cajero</option></Select></Field>
@@ -226,6 +278,8 @@ export function CommissionsManager() {
               <Field label="Tipo de tasa"><Select disabled={form.conversion_policy === 'sale_snapshot'} value={form.exchange_rate_type_id ?? ''} onChange={(event) => setForm({ ...form, exchange_rate_type_id: event.target.value ? Number(event.target.value) : null })}><option value="">Seleccionar</option>{rateTypes.filter((item) => item.is_active !== false).map((item) => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}</Select></Field>
               <Field label="Ventas a crédito"><Select value={form.credit_policy} onChange={(event) => setForm({ ...form, credit_policy: event.target.value as CommissionPlanInput['credit_policy'] })}><option value="proportional_collections">Generar proporcionalmente al cobrar</option><option value="sale_confirmation">Generar al confirmar la venta</option></Select></Field>
               <label className="border-border flex items-center gap-3 rounded-lg border p-3 text-sm"><Checkbox checked={form.allow_self_stacking} onCheckedChange={(checked) => setForm({ ...form, allow_self_stacking: checked === true })} /><span>Permitir vendedor + cajero si es la misma persona</span></label>
+              <label className="border-border flex items-center gap-3 rounded-lg border p-3 text-sm"><Checkbox checked={form.include_combos} onCheckedChange={(checked) => setForm({ ...form, include_combos: checked === true })} /><span>Incluir comisión en ventas de combos</span></label>
+              <label className="border-border flex items-center gap-3 rounded-lg border p-3 text-sm"><Checkbox checked={form.include_discounts} onCheckedChange={(checked) => setForm({ ...form, include_discounts: checked === true })} /><span>Incluir comisión en ventas con descuento</span></label>
             </div>
             <div>
               <Label>Personas asignadas</Label>
@@ -235,17 +289,21 @@ export function CommissionsManager() {
             </div>
             <p className="text-text-muted text-xs">Vista previa: {form.percentage}% · {selectedRate?.code ?? 'tasa de la venta'} · disponible en {form.maturation_days} día(s).</p>
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
-              <Button loading={createPlan.isPending} onClick={async () => {
+              <Button variant="ghost" onClick={closePlanForm}>Cancelar</Button>
+              <Button loading={createPlan.isPending || updatePlan.isPending} onClick={async () => {
                 const parsed = CommissionPlanInputSchema.safeParse(form);
                 if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? 'Revisa los datos.'); return; }
                 try {
-                  await createPlan.mutateAsync(parsed.data);
-                  toast.success('Plan de comisiones creado.');
-                  setForm(initialForm);
-                  setFormOpen(false);
+                  if (editingPlan) {
+                    await updatePlan.mutateAsync({ id: editingPlan.id, ...parsed.data });
+                    toast.success('Plan de comisiones actualizado.');
+                  } else {
+                    await createPlan.mutateAsync(parsed.data);
+                    toast.success('Plan de comisiones creado.');
+                  }
+                  closePlanForm();
                 } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo guardar el plan.'); }
-              }}>Crear plan</Button>
+              }}>{editingPlan ? 'Guardar cambios' : 'Crear plan'}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

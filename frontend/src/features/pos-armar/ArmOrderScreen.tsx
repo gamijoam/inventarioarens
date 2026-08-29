@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Loader2, Minus, Plus, Search, Tag, Trash2, UserRound, Warehouse } from 'lucide-react';
+import { FileText, Loader2, Minus, Plus, Search, Tag, Trash2, UserRound, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/useAuth';
@@ -41,6 +41,8 @@ import {
 import { PromotionsPanel } from '@/features/pos/PromotionsPanel';
 import { TapButton } from '@/features/pos/TapButton';
 import { VariantPicker, type VariantPickerValue } from '@/features/pos/VariantPicker';
+import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDialog';
+import { QuotationPickerDialog } from '@/features/quotations/QuotationPickerDialog';
 import { expandPromotionItems, promotionLineUnitPrice } from '@/features/pos/posLogic';
 import { createClientId } from '@/lib/clientId';
 import { PERMISSIONS } from '@/permissions/constants';
@@ -111,6 +113,8 @@ export function ArmOrderScreen() {
   const [customerForm, setCustomerForm] = useState<CreateCustomerPayload>(EMPTY_CUSTOMER);
   const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
   const holdOrder = useHoldOrder();
+  const [quotationOpen, setQuotationOpen] = useState(false);
+  const [quotationsOpen, setQuotationsOpen] = useState(false);
   const createCustomer = useCreateCustomerForPos();
   const canCreateCustomer = useCan(PERMISSIONS.CUSTOMERS_CREATE);
   const canViewPromotions = useCan(PERMISSIONS.POS_PROMOTIONS_VIEW);
@@ -925,9 +929,51 @@ export function ArmOrderScreen() {
                 )}
                 Enviar a la cajera
               </Button>
+              <Button
+                variant="outline"
+                className="h-11 w-full text-base"
+                disabled={cart.length === 0}
+                onClick={() => setQuotationOpen(true)}
+                data-testid="create-quotation"
+              >
+                <FileText className="size-5" />
+                Crear cotizacion
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-11 w-full text-base"
+                onClick={() => setQuotationsOpen(true)}
+                data-testid="view-quotations"
+              >
+                <FileText className="size-5" />
+                Ver cotizaciones
+              </Button>
             </div>
           </aside>
         </div>
+
+        <QuotationCreateDialog
+          open={quotationOpen}
+          onOpenChange={setQuotationOpen}
+          defaultWarehouseId={warehouseId}
+          initialItems={cart.map((line) => ({
+            product_id: line.product.id,
+            product_variant_id: line.product_variant_id,
+            product_variant_name: line.product_variant_name,
+            quantity: line.quantity,
+            price_list_id: line.price_list_id,
+            price_list_name: line.price_list_name,
+            name: line.product.name,
+            unit_price: line.unit_price,
+          }))}
+          onCreated={() => toast.success('Cotizacion creada. El carrito se mantiene para enviar a caja.')}
+        />
+
+        <QuotationPickerDialog
+          open={quotationsOpen}
+          onOpenChange={setQuotationsOpen}
+          onConverted={() => toast.success('Orden pendiente lista para cobrar.')}
+        />
 
         <Dialog open={promotionDialogOpen} onOpenChange={setPromotionDialogOpen}>
           <DialogContent className="max-h-[88dvh] max-w-3xl overflow-y-auto p-4 sm:p-6">

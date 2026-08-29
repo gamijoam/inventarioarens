@@ -20,6 +20,7 @@ Route::apiResource('products', ProductController::class);
 // Imagenes propias de producto (galeria multi-imagen, Nivel 2).
 Route::get('products/{product}/images', [ProductImageController::class, 'index']);
 Route::post('products/{product}/images', [ProductImageController::class, 'store']);
+Route::post('products/{product}/images/from-url', [ProductImageController::class, 'storeFromUrl']);
 Route::patch('products/{product}/images/reorder', [ProductImageController::class, 'reorder']);
 Route::patch('products/{product}/images/{image}', [ProductImageController::class, 'update'])
     ->where('image', '[0-9]+');

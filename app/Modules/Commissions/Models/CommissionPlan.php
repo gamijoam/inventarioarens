@@ -20,6 +20,8 @@ use Illuminate\Support\Carbon;
     'credit_policy',
     'maturation_days',
     'allow_self_stacking',
+    'include_combos',
+    'include_discounts',
     'is_active',
     'starts_at',
     'ends_at',
@@ -28,9 +30,16 @@ class CommissionPlan extends Model
 {
     use BelongsToTenant;
 
+    protected $attributes = [
+        'include_combos' => true,
+        'include_discounts' => true,
+    ];
+
     public const ROLE_SELLER = 'seller';
 
     public const ROLE_CASHIER = 'cashier';
+
+    public const ROLE_TECHNICIAN = 'technician';
 
     public const CONVERSION_SALE_SNAPSHOT = 'sale_snapshot';
 
@@ -46,6 +55,8 @@ class CommissionPlan extends Model
             'percentage' => 'decimal:4',
             'maturation_days' => 'integer',
             'allow_self_stacking' => 'boolean',
+            'include_combos' => 'boolean',
+            'include_discounts' => 'boolean',
             'is_active' => 'boolean',
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',

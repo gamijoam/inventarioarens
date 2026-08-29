@@ -10,14 +10,23 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Products\Models\Product;
+use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Modules\Workshop\Models\ServiceOrder;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CommissionLedgerService
 {
+    /**
+     * Cache del scope de cada promocion por pedido/request para evitar N+1.
+     *
+     * @var array<int, string|null>
+     */
+    private array $promotionScopeCache = [];
+
     public function __construct(private readonly SyncOutboxService $syncOutbox) {}
 
     public function recordPaidOrder(PosOrder $order): void
@@ -95,6 +104,66 @@ class CommissionLedgerService
         }
     }
 
+    /**
+     * Registra la comision del tecnico al entregar una orden de servicio del
+     * Taller. La base es la mano de obra (labor_base_amount); las piezas no
+     * suman a la base. Se calcula con los planes activos de rol 'technician'
+     * asignados al tecnico, al momento de la entrega.
+     */
+    public function recordServiceOrder(ServiceOrder $order): void
+    {
+        if (! $order->technician_id) {
+            return;
+        }
+
+        $earnedAt = $order->delivered_at ?? $order->completed_at ?? now();
+        $base = round((float) $order->labor_base_amount, 4);
+
+        if ($base <= 0) {
+            return;
+        }
+
+        $plans = CommissionPlan::query()
+            ->activeAt($earnedAt)
+            ->where('beneficiary_role', CommissionPlan::ROLE_TECHNICIAN)
+            ->whereHas('assignments', fn ($query) => $query
+                ->where('user_id', $order->technician_id)
+                ->where('is_active', true)
+                ->where(fn ($query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $earnedAt))
+                ->where(fn ($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', $earnedAt)))
+            ->get();
+
+        foreach ($plans as $plan) {
+            if (CommissionEntry::query()
+                ->where('commission_plan_id', $plan->id)
+                ->where('service_order_id', $order->id)
+                ->where('beneficiary_user_id', $order->technician_id)
+                ->where('entry_type', CommissionEntry::TYPE_EARNING)
+                ->exists()) {
+                continue;
+            }
+
+            $entry = CommissionEntry::create([
+                'entry_uuid' => (string) Str::uuid(),
+                'commission_plan_id' => $plan->id,
+                'service_order_id' => $order->id,
+                'beneficiary_user_id' => $order->technician_id,
+                'beneficiary_role' => CommissionPlan::ROLE_TECHNICIAN,
+                'entry_type' => CommissionEntry::TYPE_EARNING,
+                'plan_name_snapshot' => $plan->name,
+                'percentage_snapshot' => $plan->percentage,
+                'source_amount' => $base,
+                'eligible_base_amount' => $base,
+                'sale_currency' => Product::CURRENCY_USD,
+                'commission_base_amount' => round($base * (float) $plan->percentage / 100, 4),
+                'status' => CommissionEntry::STATUS_PENDING,
+                'earned_at' => $earnedAt,
+                'available_at' => $earnedAt->copy()->addDays($plan->maturation_days),
+            ]);
+            $this->recordSyncEvent($entry);
+        }
+    }
+
     public function reverseSalesReturn(SalesReturn $salesReturn): void
     {
         $salesReturn->loadMissing('items.saleItem');
@@ -145,6 +214,46 @@ class CommissionLedgerService
         }
     }
 
+    public function reversePosOrder(PosOrder $order, int $reversalId): void
+    {
+        $earnings = CommissionEntry::query()
+            ->where('pos_order_id', $order->id)
+            ->where('entry_type', CommissionEntry::TYPE_EARNING)
+            ->get();
+
+        foreach ($earnings as $earning) {
+            if (CommissionEntry::query()->where('original_entry_id', $earning->id)->where('adjustment_reason', "sale_reversal:{$reversalId}")->exists()) {
+                continue;
+            }
+
+            $entry = CommissionEntry::create([
+                'entry_uuid' => (string) Str::uuid(),
+                'commission_plan_id' => $earning->commission_plan_id,
+                'sale_id' => $earning->sale_id,
+                'pos_order_id' => $earning->pos_order_id,
+                'sale_item_id' => $earning->sale_item_id,
+                'beneficiary_user_id' => $earning->beneficiary_user_id,
+                'beneficiary_role' => $earning->beneficiary_role,
+                'entry_type' => CommissionEntry::TYPE_REVERSAL,
+                'original_entry_id' => $earning->id,
+                'plan_name_snapshot' => $earning->plan_name_snapshot,
+                'percentage_snapshot' => $earning->percentage_snapshot,
+                'sale_currency' => $earning->sale_currency,
+                'source_amount' => -round((float) $earning->source_amount, 4),
+                'eligible_base_amount' => -round((float) $earning->eligible_base_amount, 4),
+                'exchange_rate_type_id' => $earning->exchange_rate_type_id,
+                'exchange_rate_type_code' => $earning->exchange_rate_type_code,
+                'exchange_rate' => $earning->exchange_rate,
+                'commission_base_amount' => -round((float) $earning->commission_base_amount, 4),
+                'status' => CommissionEntry::STATUS_AVAILABLE,
+                'adjustment_reason' => "sale_reversal:{$reversalId}",
+                'earned_at' => now(),
+                'available_at' => now(),
+            ]);
+            $this->recordSyncEvent($entry);
+        }
+    }
+
     private function recordEarning(PosOrder $order, SaleItem $saleItem, CommissionPlan $plan, int $userId, $earnedAt, ?AccountsReceivablePayment $payment = null, float $ratio = 1.0): void
     {
         if (CommissionEntry::query()
@@ -154,6 +263,16 @@ class CommissionLedgerService
             ->where('entry_type', CommissionEntry::TYPE_EARNING)
             ->where('accounts_receivable_payment_id', $payment?->id)
             ->exists()) {
+            return;
+        }
+
+        $isCombo = $this->isComboLine($saleItem);
+        if (! $plan->include_combos && $isCombo) {
+            return;
+        }
+
+        $hasDiscount = $this->hasDiscount($saleItem, $isCombo);
+        if (! $plan->include_discounts && $hasDiscount) {
             return;
         }
 
@@ -183,6 +302,32 @@ class CommissionLedgerService
             'available_at' => $earnedAt->copy()->addDays($plan->maturation_days),
         ]);
         $this->recordSyncEvent($entry);
+    }
+
+    private function isComboLine(SaleItem $item): bool
+    {
+        if ($item->promotion_id === null) {
+            return false;
+        }
+
+        return $this->promotionScope((int) $item->promotion_id) === Promotion::SCOPE_COMBO;
+    }
+
+    private function hasDiscount(SaleItem $item, bool $isCombo): bool
+    {
+        if ((float) $item->discount_amount > 0 || (float) $item->discount_base_amount > 0) {
+            return true;
+        }
+
+        // Una promocion que no es combo (oferta de producto, factura o descuento
+        // heredado) implica un descuento sobre la linea.
+        return $item->promotion_id !== null && ! $isCombo;
+    }
+
+    private function promotionScope(int $promotionId): ?string
+    {
+        return $this->promotionScopeCache[$promotionId]
+            ??= Promotion::query()->whereKey($promotionId)->value('scope');
     }
 
     private function eligibleSnapshot(SaleItem $item, CommissionPlan $plan): array

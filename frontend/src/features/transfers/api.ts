@@ -60,6 +60,14 @@ function toQueryString(filters: Partial<TransferListFilters>): string {
   return q ? `?${q}` : '';
 }
 
+function idempotencyConfig(prefix: string): { headers: { 'Idempotency-Key': string } } {
+  const key =
+    globalThis.crypto?.randomUUID?.() ??
+    `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return { headers: { 'Idempotency-Key': `${prefix}-${key}` } };
+}
+
 export const TransferListMetaSchema = z.object({
   current_page: z.number().int().min(1),
   last_page: z.number().int().min(1),
@@ -136,7 +144,11 @@ export function useCreateTransfer() {
   const qc = useQueryClient();
   return useMutation<Transfer, Error, StoreTransferValues>({
     mutationFn: async (values: StoreTransferValues) =>
-      postOne<StoreTransferValues, Transfer>('/inventory-transfers', values),
+      postOne<StoreTransferValues, Transfer>(
+        '/inventory-transfers',
+        values,
+        idempotencyConfig('transfer-create'),
+      ),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: transferKeys.lists() });
       await qc.refetchQueries({ queryKey: transferKeys.lists() });
@@ -148,7 +160,11 @@ export function usePrepareTransfer() {
   const qc = useQueryClient();
   return useMutation<Transfer, Error, { id: number; values: PrepareTransferValues }>({
     mutationFn: async ({ id, values }: { id: number; values: PrepareTransferValues }) =>
-      postOne<PrepareTransferValues, Transfer>(`/inventory-transfers/${id}/prepare`, values),
+      postOne<PrepareTransferValues, Transfer>(
+        `/inventory-transfers/${id}/prepare`,
+        values,
+        idempotencyConfig(`transfer-${id}-prepare`),
+      ),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -170,7 +186,12 @@ export function useDispatchTransfer() {
     }: {
       id: number;
       values: { dispatched_at?: string | null; notes?: string | null };
-    }) => postOne(`/inventory-transfers/${id}/dispatch`, values),
+    }) =>
+      postOne(
+        `/inventory-transfers/${id}/dispatch`,
+        values,
+        idempotencyConfig(`transfer-${id}-dispatch`),
+      ),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -182,7 +203,11 @@ export function useReceiveTransfer() {
   const qc = useQueryClient();
   return useMutation<Transfer, Error, { id: number; values: ReceiveTransferValues }>({
     mutationFn: async ({ id, values }: { id: number; values: ReceiveTransferValues }) =>
-      postOne<ReceiveTransferValues, Transfer>(`/inventory-transfers/${id}/receive`, values),
+      postOne<ReceiveTransferValues, Transfer>(
+        `/inventory-transfers/${id}/receive`,
+        values,
+        idempotencyConfig(`transfer-${id}-receive`),
+      ),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -199,7 +224,11 @@ export function useCancelTransfer() {
   const qc = useQueryClient();
   return useMutation<Transfer, Error, { id: number; values: CancelTransferValues }>({
     mutationFn: async ({ id, values }: { id: number; values: CancelTransferValues }) =>
-      postOne(`/inventory-transfers/${id}/cancel`, values),
+      postOne(
+        `/inventory-transfers/${id}/cancel`,
+        values,
+        idempotencyConfig(`transfer-${id}-cancel`),
+      ),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -220,7 +249,12 @@ export function useResolveTransferDifferences() {
     }: {
       id: number;
       values: { items: unknown[]; notes?: string | null };
-    }) => postOne(`/inventory-transfers/${id}/resolve-differences`, values),
+    }) =>
+      postOne(
+        `/inventory-transfers/${id}/resolve-differences`,
+        values,
+        idempotencyConfig(`transfer-${id}-resolve`),
+      ),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
@@ -232,7 +266,11 @@ export function useAssignDriver() {
   const qc = useQueryClient();
   return useMutation<TransferDriver, Error, { id: number; values: AssignDriverValues }>({
     mutationFn: async ({ id, values }: { id: number; values: AssignDriverValues }) =>
-      putOne<AssignDriverValues, TransferDriver>(`/inventory-transfers/${id}/driver`, values),
+      putOne<AssignDriverValues, TransferDriver>(
+        `/inventory-transfers/${id}/driver`,
+        values,
+        idempotencyConfig(`transfer-${id}-driver`),
+      ),
     onSuccess: (_data, { id }) => {
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
     },
@@ -242,7 +280,11 @@ export function useAssignDriver() {
 export function useRemoveDriver() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => deleteOne(`/inventory-transfers/${id}/driver`),
+    mutationFn: async (id: number) =>
+      deleteOne(
+        `/inventory-transfers/${id}/driver`,
+        idempotencyConfig(`transfer-${id}-driver-remove`),
+      ),
     onSuccess: (_data, id) => {
       void qc.invalidateQueries({ queryKey: transferKeys.detail(id) });
     },

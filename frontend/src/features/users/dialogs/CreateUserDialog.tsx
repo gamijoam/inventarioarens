@@ -39,6 +39,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -49,6 +50,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
       setName('');
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
       setSelectedRoles(new Set());
       setErrors({});
     }
@@ -71,7 +73,15 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
     const errs: Record<string, string> = {};
     if (name.trim().length < 1) errs.name = 'Requerido.';
     if (!email.includes('@')) errs.email = 'Email invalido.';
-    if (password && password.length < 8) errs.password = 'Minimo 8 caracteres.';
+    if (password) {
+      const strong = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/.test(password);
+      if (!strong) {
+        errs.password = 'Minimo 8 caracteres, con al menos una mayuscula, una minuscula y un numero.';
+      }
+      if (confirmPassword !== password) errs.confirm_password = 'Las contrasenas no coinciden.';
+    } else if (confirmPassword) {
+      errs.confirm_password = 'Ingresa primero una contrasena.';
+    }
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -83,6 +93,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password: password || undefined,
+        confirm_password: password ? confirmPassword : undefined,
         roles: Array.from(selectedRoles),
       });
       toast.success('Usuario creado.');
@@ -145,7 +156,27 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
               placeholder="Si la dejas vacia, se genera una aleatoria"
               data-testid="create-user-password"
             />
+            <p className="text-text-muted text-xs" data-testid="create-user-password-hint">
+              Minimo 8 caracteres, con al menos una mayuscula, una minuscula y un numero. Si la
+              dejas vacia, el sistema genera una contrasena aleatoria.
+            </p>
             {errors.password && <p className="text-xs text-danger">{errors.password}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="create-confirm-password">Repetir contrasena</Label>
+            <Input
+              id="create-confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repite la contrasena"
+              disabled={!password}
+              data-testid="create-user-confirm-password"
+            />
+            {errors.confirm_password && (
+              <p className="text-xs text-danger">{errors.confirm_password}</p>
+            )}
           </div>
 
           <div className="space-y-1.5">

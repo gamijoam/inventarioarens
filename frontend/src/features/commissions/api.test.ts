@@ -39,6 +39,8 @@ describe('commissions api contract', () => {
         credit_policy: 'proportional_collections',
         maturation_days: 7,
         allow_self_stacking: false,
+        include_combos: true,
+        include_discounts: true,
         is_active: true,
         starts_at: '2026-08-01T00:00:00.000000Z',
         ends_at: null,

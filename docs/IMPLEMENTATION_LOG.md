@@ -1,4 +1,536 @@
-# Registro de implementación
+# Registro de implementación — 2026-08-28
+
+## 2026-08-28 - Cliente Electron del Conector Cloud
+
+- Se agrego una interfaz Electron independiente para vincular el conector mediante codigo temporal,
+  consultar el estado, comprobar la nube y activar/detener el polling desde una sola ventana.
+- La ventana se oculta en la bandeja y configura el arranque automatico del usuario sin tareas
+  programadas ni pasos manuales de PowerShell.
+- `electron-builder.yml` publica un instalador NSIS y un ejecutable portable aislados de los clientes
+  Administrativo, POS, Soporte Tecnico y del Motor Local.
+- El workflow `release-print-connector.yml` fue migrado de Node SEA + Inno Setup a Electron Builder.
+- Se agregaron pruebas de la GUI y del contrato de release en `tools/print-connector/gui.test.cjs`.
+- Se agrego `docs/GUIA_USUARIO_CONECTOR_IMPRESION.md` con el flujo de instalacion, pairing,
+  configuracion de estacion y diagnostico para el usuario final.
+
+## 2026-08-25 - Conector Cloud de impresion y ticket virtual
+
+- Se agrego el flujo de pairing de un solo uso, tokens por instalacion, heartbeat, cola con claim
+  lease, ACK y revocacion para conectores de impresion.
+- Las estaciones termicas pueden vincularse mediante `print_connector_id`; el POS deja esos jobs en
+  la nube para que el conector los recoja, mientras que los tickets digitales se descargan desde
+  el navegador.
+- Se agrego `tools/print-connector/connector.cjs`, independiente del Motor Local y sin listener
+  local. Soporta polling HTTPS, Windows `Out-Printer`, TCP 9100 y ESC/POS.
+- Se agregaron `package-connector.cjs`, `PrintConnector.iss` y tareas PowerShell para producir un
+  `.exe` standalone y un instalador Windows independiente. El workflow publica `v<version>-connector`.
+- Contrato documentado en `docs/PRINT_CONNECTOR.md`; tests del conector en
+  `tools/print-connector/connector.test.cjs`.
+
+## 2026-08-25 - Validación multiplataforma y release Electron 0.2.58
+
+- Se agregó `scripts/verify-electron-artifact.cjs`, que inspecciona el `app.asar` real con
+  `@electron/asar` y exige `electron/main.cjs`, exactamente `dist/<client>` y assets del renderer.
+- El verificador rechaza bundles de otro cliente y payload del Motor Local (`backend/`, PHP, SQLite,
+  `artisan`, `storage/` y scripts de instalación). Su contrato tiene tests en
+  `frontend/electron/artifact-verifier.test.js`.
+- `scripts/smoke-linux-appimage.cjs` ya deriva versión y nombres desde `frontend/package.json`; los
+  nombres antiguos `0.2.0` y `Soporte-Tecnico-Inventario-Arens` quedaron eliminados del contrato.
+- `.github/workflows/ci.yml` construye los tres clientes en matrices Linux (`--linux dir`) y Windows
+  (`--win dir`) y verifica su `app.asar` antes de terminar.
+- `.github/workflows/release.yml` corre en `windows-latest`, ejecuta `electron-builder --publish never`,
+  verifica `win-unpacked` y solo después publica `.exe`, `.blockmap` y `<client>.yml` con `gh release`.
+- La validación Linux generó y extrajo los tres AppImage de `0.2.58`. El arranque runtime no se pudo
+  completar en Linux porque no hay Motor Local en
+  `127.0.0.1:8787`; esto no afecta la validación del empaquetado.
+- Para publicar después del push, ejecutar una vez por cliente:
+  `gh workflow run release.yml --ref main -f client=admin --repo gamijoam/inventarioarens`, cambiando
+  `admin` por `pos` y `technician`. El workflow crea `v0.2.58-<client>` y elimina/recrea ese release
+  si ya existía.
+- Verificación posterior: `gh run list --workflow release.yml --repo gamijoam/inventarioarens` y
+  `gh release view v0.2.58-pos --repo gamijoam/inventarioarens --json tagName,isDraft,assets`.
+
+## 2026-08-25 - Corrección del contrato del test de pricing automático
+
+- El cálculo automático de `base_price` desde `last_purchase_cost` y `profit_margin` ya era correcto:
+  `100 * 1.25 = 125`.
+- El fallo estaba en el fixture de `ProductApiTest`: el recurso oculta `last_purchase_cost` a usuarios
+  sin `finance.costs.view`, pero el test esperaba verlo como `100`.
+- El test ahora otorga explícitamente ese permiso financiero; no se relajó la protección de costos.
+- Products: `129/129` tests verdes. Suite backend SQLite: `1504` aprobados, `4` skipped.
+
+## 2026-08-25 - Auditoría de rutas con tenant en URL
+
+- `UserAuditController` ahora rechaza cuando `{tenant}` no coincide con el tenant autenticado por
+  `X-Tenant`/token, igual que overrides y scopes.
+- Se agrego `tests/Feature/AccessControl/UserAuditApiTest.php` con caso cross-tenant y caso válido.
+- Se revisaron las demás familias de rutas explícitas: grupos usan `EnsureGroupOwner` o validación de
+  membresía, SaaS Master y Data Import Master usan `EnsurePlatformAdmin`, y Local Support queda
+  limitado a loopback y tenants configurados localmente.
+- `/api/tenants/*` y `tenant_user` permanecen cross-tenant por contrato documentado en
+  `docs/TENANCY_API.md`; sus permisos y comportamiento existente no se cambiaron.
+
+## 2026-08-25 - Perfiles visuales base por cliente Electron
+
+- `frontend/src/config/branding.ts` ahora define `AppVisualProfile` junto con cada
+  `APP_DEFINITION`, con acento, marca corta y etiqueta de producto.
+- Login consume el perfil en lugar de duplicar el logo y la etiqueta; se conserva exactamente la
+  apariencia vigente hasta que el cliente defina una paleta final.
+- `main.tsx` publica `data-app-mode` en `<html>` para permitir tematizacion posterior sin duplicar
+  features ni layouts.
+- Esto es la capa técnica de fallback por cliente; no reemplaza el futuro branding configurable por
+  tenant.
+
+## 2026-08-25 - Aislamiento del ciclo de vida del Motor Local
+
+- Se confirmo mediante `backend-runtime.test.js` que los clientes Electron no instalan servicios,
+  PHP/Laravel ni tareas del Motor Local.
+- El hook NSIS no define desinstalacion propia ni ejecuta scripts de backend; cada cliente se actualiza
+  en su carpeta aislada y el Motor Local conserva su instalacion, datos, impresion y sync.
+- Se corrigio el runbook para separar explicitamente releases de clientes y releases del Motor Local.
+
+## 2026-08-25 - Bundles Electron aislados por cliente
+
+- Cada configuracion `electron-builder.<cliente>.yml` empaqueta solamente `dist/<cliente>`; ya no
+  distribuye los bundles React de los otros clientes dentro del `app.asar`.
+- Se agrego `frontend/electron/client-bundles.test.js` para exigir exactamente un renderer por
+  instalador y evitar regresiones en futuros releases.
+- El Motor Local continua fuera de los instaladores de Administrativo, POS y Soporte Técnico.
+
+## 2026-08-25 - Panel React de capacidades por empresa
+
+- Se agrego la pantalla administrativa `/settings/capabilities`, visible en Configuracion para
+  usuarios con `settings.manage`.
+- Las capacidades base aparecen bloqueadas; los modulos opcionales se pueden activar o desactivar
+  y el guardado reemplaza la lista completa de modulos opcionales.
+- El parser Zod consume el response real de `GET/PATCH /api/tenant-capabilities` y actualiza el
+  `SessionStore` al guardar para refrescar el sidebar sin reiniciar Electron.
+- La ruta se genero en `frontend/src/routeTree.gen.ts` y se validaron builds `admin`, `pos` y
+  `technician`. POS y Soporte siguen limitados por sus respectivos `appMode`.
+- TDD: 3 tests del API y 2 tests del panel; suite frontend completa `841/842` verde, typecheck,
+  Prettier y ESLint focalizado verdes.
+
+## 2026-08-25 - Capacidades por tenant y matriz de clientes Electron
+
+- Se agrego `docs/MATRIZ_CAPACIDADES_CLIENTES_ELECTRON.md` como contrato inicial para separar modo
+  Electron, capacidades contratadas, permisos de usuario, scopes y servicios del Motor Local.
+- Se creo `tenant_capabilities` con catalogo estable de 22 capacidades.
+- Tenants existentes conservan todas sus capacidades durante la migracion. Los tenants creados por
+  los servicios oficiales reciben por defecto `dashboard`, `catalog`, `inventory`, `customers` y
+  `suppliers`.
+- Se agregaron `GET/PATCH /api/tenant-capabilities`, protegidos por `settings.manage` para cambios.
+- Login, `/api/auth/me` y `switch-tenant` exponen `capabilities[]` para que React y los tres clientes
+  Electron puedan adaptar menu y experiencia sin duplicar reglas de backend.
+- Se agrego middleware `capability:<key>` y se aplico a POS, caja, ventas, compras, finanzas,
+  reportes, promociones, comisiones, garantias, taller, interempresa, importacion, cotizaciones,
+  impresion y traslados.
+- El sidebar React ahora filtra modulos por `appMode`, capability y permiso. El backend sigue siendo
+  la autoridad y el Motor Local no se modifica desde los clientes.
+- TDD: `TenantCapabilitiesApiTest` + Auth/AccessControl/Tenancy/Bootstrap: 220/220 tests y 873
+  aserciones verdes; frontend `pnpm typecheck` verde y tests focalizados 16/16.
+
+## 2026-08-21 - Auditoria apertura de caja: fondos USD/VES no se guardaban (quirk type=number)
+
+- **Sintoma**: en Tucacas (tiendasarens) se abrio la caja con $1 y Bs 1 pero la sesion quedo
+  con opening_base_amount=0 y opening_local_amount=0; al cerrar "inicia con 0".
+- **Auditoria**:
+  - Backend OK: `CashRegisterService::open()` + `openingMovements()` suman correctamente
+    `opening_base_amount`/`opening_local_amount` (test existente con 25/5000 pasa).
+  - Frontend modulo y POS: `submitOpen`/handler POS envian correctamente ambos montos
+    (verificado con test que escribe 1 y 1 y confirma el payload).
+  - **Causa raiz**: los inputs de dinero usaban `type="number"`, que en algunos
+    dispositivos/navegadores no registran el valor tecleado (mismo quirk que el conteo de
+    denominaciones). Por eso el monto quedaba 0.
+- **Fix**: los fondos de apertura (USD y VES) en el modulo Cajas y en el OpenCashScreen del
+  POS ahora usan `type="text"` + `inputMode="decimal"` (parseo con `Number(...)` al enviar).
+- TDD: `CashRegisterSetup.test` agrega caso "al abrir turno envia los fondos USD y VES
+  ingresados (no 0)" + data-testids en sucursal/caja/cajero/fondos. Suite frontend 800/801,
+  tsc limpio, builds admin+pos OK.
+- Commit `54b92992`, deploy en ambas apps (bundle `index-C7DE7B-8.js`).
+
+## 2026-08-20 - Fix cierre de caja: VES perdido con denominaciones + nota reveladora en ciego
+
+- **Problema 1 (VES no se guardaba)**: en el handler de cierre del POS, si se usaba el conteo
+  por denominaciones (USD), `ves` tomaba `totals.VES` (= 0 al no haber denominaciones VES) y
+  pisaba el bolivar manual ingresado. Confirmado en produccion: sesion cerrada de Tucacas con
+  `counted_cash_usd=51` pero `counted_cash_ves=0` aunque el usuario habia declarado Bs.
+  Fix: `ves` siempre sale del campo manual "Efectivo contado Bs (VES)".
+- **Problema 2 (nota revela descuadre en cierre ciego)**: backend y frontend exigian nota por
+  diferencia aunque el modo fuera `blind`, lo que le revelaba al cajero que hay descuadre.
+  Ahora la nota obligatoria aplica SOLO en modo `standard`:
+  - Backend `CashRegisterService::close()`: no exige `closing_notes` si `counting_mode=blind`.
+  - POS `CashPanel` y modulo Cajas: en blind la nota es opcional y el boton "Cerrar turno" no
+    se bloquea por diferencia.
+- TDD: `CashPanel.test` agrega 2 casos (blind con diferencia sin nota => boton habilitado;
+  standard con diferencia sin nota => deshabilitado). `CashRegisterApiTest` agrega
+  `test_blind_close_does_not_require_closing_note_despite_difference`.
+  Backend CashRegister 21/21, frontend 798/799, tsc limpio, builds admin+pos OK.
+- Commit `d5b9ba8a`, deploy en ambas apps (bundle `index-DNpS-vRk.js`).
+
+## 2026-08-20 - POS Caja: modal mas grande, Bs manual (sin denominaciones VES), fix input cantidad
+
+- El panel "cash" ahora usa el `PanelShell` en modo `wide` (`sm:max-w-5xl`) en vez del
+  estrecho `sm:max-w-xl`, dejando el modal de Caja mucho mas grande.
+- Se elimina el **conteo por denominaciones en Bs (VES)**: el efectivo en bolivares se
+  ingresa manualmente (campo "Efectivo contado Bs (VES)", siempre editable). Solo queda
+  el conteo de denominaciones en **USD**.
+- **Fix del input de cantidad** de denominaciones: antes `type="number"` autocompletaba
+  mal (ej. escribir 1 en el 10 -> 100). Ahora `type="text"` + `inputMode="numeric"` +
+  `pattern="[0-9]*"`, muestra `''` cuando la cantidad es 0 y parsea estrictamente
+  (solo digitos). Aplica tambien en el modulo Cajas (componente compartido
+  `DenominationGrid`).
+- TDD: `CashPanel.test` agrega 2 casos (cantidad 1 en el 10 = 1; total USD suma
+  denominaciones 10*1 + 50*2 = 110). Suite frontend 796/797, tsc limpio, builds
+  admin+pos OK.
+- Commit `3e9921e1`, deploy en ambas apps (bundle `index-CNuy6H0Q.js`).
+
+## 2026-08-20 - POS: cierre de caja ciego con USD+VES y denominaciones (como el modulo Cajas)
+
+- **Problema**: el cierre del POS solo pedía "Efectivo contado USD" y enviaba
+  `counted_currency:'USD'`+`counted_amount` (legacy). Si el turno tenía ventas en VES, el
+  backend asumía VES=0 y generaba una diferencia sin poder declarar el efectivo. Además
+  mostraba el "Esperado" siempre (sin modo ciego), cosa que el usuario (Owner) marcó como
+  incorrecto: el cierre debe ser ciego (no revelar qué hay ni cuánto falta).
+- **Solucion**: el `CashPanel` ahora replica el arqueo del módulo Cajas (`ClosePanel`):
+  - **Toggle "Cierre ciego"** (por defecto ACTIVO): oculta Esperado y diferencias hasta
+    confirmar. Al apagarlo (standard) muestra Esperado USD/VES y Diferencia física.
+  - Campos **Efectivo contado USD y VES** + **conteo por denominaciones** (USD/VES).
+  - **Nota de cierre** obligatoria si hay diferencia; botón deshabilitado si falta.
+  - Payload completo: `counted_base_amount`, `counted_local_amount`, `counted_cash_usd`,
+    `counted_cash_ves`, `exchange_rate_type_id`, `counts`, `counting_mode` (blind/standard)
+    y `closing_notes` — idéntico al cierre del módulo Cajas.
+- Helpers de arqueo exportados desde `CashRegisterSetup.tsx` para reutilizar:
+  `CashCount`, `CloseForm`, `CASH_DENOMINATIONS`, `DenominationGrid`, `cashCountTotals`,
+  `closeDifference`, `hasDifference`, `localMoney`.
+- TDD: `CashPanel.test` actualizado (6: hero, ciego por defecto oculta esperado, standard
+  muestra esperado+diferencia, toggle, sin diferencia, movimientos+cierre). Suite frontend
+  794/795, tsc limpio, builds admin+pos OK.
+- Commit `f165428f`, deploy en ambas apps (rsync verificado, bundle `index-DAJ83omP.js`).
+
+## 2026-08-20 - POS: rediseno visual del panel Caja (CashPanel)
+
+- El panel que se abria al tocar "Caja" tenia un layout plano (grid de PanelCards sin
+  jerarquia). Redisenado con el mismo lenguaje visual del OpenCashScreen:
+  - Hero de turno activo con gradiente indigo + radial: icono cartera, nombre de caja,
+    sesion #, badge de estado, y stats de Sucursal / Apertura / Cajero.
+  - `MetricCard` ahora acepta icono: Fondo inicial (monedas) y Esperado (check verde).
+  - Banner de **Diferencia de cierre** (verde sobra / rojo falta) cuando la sesion ya
+    fue contada.
+  - Secciones "Movimiento extra" y "Cerrar caja" en 2 columnas, con `PanelCard`
+    extendido (icon + `tone='danger'`) y botones con iconos.
+  - Eliminado `InfoLine` (sin uso). `CashPanel` exportado para tests.
+- TDD: `CashPanel.test.tsx` (5: hero, metricas, diferencia, no-diferencia, acciones).
+  Suite frontend 793/794, tsc limpio, builds admin+pos OK.
+- Commit `e694621a`, deploy en ambas apps.
+
+## 2026-08-20 - POS: fusion de botones "Caja" y "Cerrar turno" + iconos en la shell
+
+- **Problema**: la shell del POS tenia dos botones ("Caja" y "Cerrar turno") que abrian
+  exactamente el mismo panel `cash` (`onOpenCash` y `onOpenClose` ambos hacian
+  `setPanel('cash')`). El `CashPanel` ya contiene las tres secciones: info del turno,
+  movimientos extra de caja y cerrar caja.
+- **Solucion**: fusion en un unico boton "Caja" (permiso `CASH_REGISTER_VIEW`; el cierre
+  dentro del panel sigue controlado por `canClose`). Se elimina `onOpenClose` de
+  `PosShellActionCallbacks` y la accion 'close'.
+- **Diseño**: `PosShellAction` ahora acepta `icon?: ReactNode` y la shell renderiza icono +
+  etiqueta con `inline-flex gap`. Acciones POS: Caja (Wallet), Pendientes (ClipboardList),
+  Recibo (Receipt).
+- TDD: `posShellActions.test.ts` actualizado (3 acciones, sin 'close'); suite frontend
+  788/789, tsc limpio, builds admin+pos OK.
+- Commit `b06e072f`, deploy en ambas apps.
+
+## 2026-08-20 - Almacen predeterminado en POS + fix "no me deja cambiar de almacen" + almacen en compras
+
+- **Almacen predeterminado (patron tasas)**:
+  - Migracion `add_is_default_to_warehouses_table`: columna `is_default` (default false) +
+    indice `(tenant_id, is_default)`.
+  - `WarehouseController`: swap en store/update dentro de transaccion (si llega
+    `is_default=true` limpia los demas), igual que `ExchangeRateTypeController`. Index
+    ordena el predeterminado primero.
+  - Modelo (`is_default` cast boolean + fillable), Requests y `WarehouseResource` exponen
+    el flag. `TenantRegistrationService` crea el primer almacen con `is_default=true`.
+  - Sync: `SyncCatalogOutboxService::recordWarehouse` y `SyncEventApplier::applyWarehouse`
+    replican `is_default`.
+  - `PosBootstrapController` expone `is_default` en warehouses y ordena default primero.
+  - Backfill en produccion: un almacen default por tenant (ambas DBs). En TUCACAS quedó
+    "TIENDA TUCACAS (001)".
+  - Frontend: `WarehousesManager` con badge "Predeterminado" en la tabla y Switch "Marcar
+    como predeterminado" en el form (patron ExchangeRateTypesManager/PriceListsManager).
+- **Fix bug POS "no me deja cambiar de almacen"**: el `useEffect` de arranque de
+  `PosTerminal` forzaba SIEMPRE `warehouses[0].id` (o el default) cada vez que
+  `warehouseId` difería, por lo que cualquier cambio manual se revertía al instante.
+  Ahora solo auto-setea cuando NO hay un almacen válido seleccionado (`hasValidCurrent`),
+  y al abrir prefiere el `is_default` si existe.
+- **Compras: mostrar a qué almacen fue la mercancia**: `PurchaseOrderResource` agrega
+  `warehouses` (almacenes distintos de los items) y el index eager-load
+  `items.warehouse`. Frontend: columna "Almacen" en el listado con badges por codigo.
+- TDD: `WarehouseDefaultTest` (4: swap en create, swap en update, orden del index +
+  is_default expuesto, aislamiento cross-tenant), caso nuevo en `PurchaseOrderApiTest`
+  (index y show exponen warehouses, 17/17), schema frontend `is_default` (41). Backend:
+  POS 86/86, compras 17/17, warehouses 4/4. Frontend 787/788, tsc limpio, builds
+  admin+pos OK.
+- Commit `0c809d9c`, deploy en `app.miinventariofacil.com` y `app.tiendasarens.com` con
+  migracion + optimize:clear + rsync + backfill.
+
+## 2026-08-20 - POS: busqueda en lista (nombres completos) + modal de detalle de producto
+
+- **Problema**: el area de busqueda del POS usaba una grilla de tarjetas pequenas
+  (`xl:grid-cols-3`) donde los nombres largos se truncaban ("LAVADOR...") y el badge de
+  stock se encimaba. Ademas no habia forma de ver la informacion completa de un producto
+  (descripcion corta/larga, categoria, tags, variantes) desde el POS.
+- **Rediseno de busqueda (Opcion A — lista)**: `ProductSearchPanel` pasa de grilla a lista
+  de filas. Cada fila: imagen (thumb 56px), nombre completo con `whitespace-normal`/`break-words`
+  (ya no se corta), SKU, aviso de stock bajo, badge de stock y precio. El boton "Agregar"
+  sigue en la fila entera (tap) y el icono `i` abre el detalle.
+- **ProductDetailDialog** (nuevo, `frontend/src/features/pos/ProductDetailDialog.tsx`):
+  se abre con el icono `Info` de cada fila. Muestra imagen grande, nombre, SKU y codigo de
+  barras, marca, categoria(s), tags, descripcion corta, descripcion larga (HTML pasado a
+  texto plano con `stripHtml` para evitar XSS — no hay sanitizador en el repo), variantes
+  (color + stock por almacen via `useProductVariants`) y precio base. Boton "Agregar al
+  ticket" reutiliza `onSelect` → `addProduct` (abre el `VariantPicker` si el producto lo
+  requiere).
+- TDD: `ProductDetailDialog.test.tsx` (4 tests: datos/descripcion/tags/variantes, onAdd,
+  onClose). Suite frontend 787/788; `tsc --noEmit` limpio; `build:admin` y `build:pos` OK.
+- Commit `5c051754`, deploy del bundle admin en `app.miinventariofacil.com` y
+  `app.tiendasarens.com`. El cliente Electron POS se actualiza con su propio release
+  (`pnpm run electron:build:pos` + workflow release.yml).
+
+## 2026-08-20 - Imagen de producto: mostrar URL externa en admin + descargar URL a la galería
+
+- Problema: el campo `image_url` (URL externa de fabricante/proveedor) se guardaba bien en
+  `products.image_url` pero el frontend administrativo NUNCA la mostraba (solo el POS la usaba
+  como fallback). El listado y el detalle de producto ignoraban el campo, asi que el usuario
+  pegaba un link y "no se veía nada".
+- **Opcion A (mostrar la URL en el admin)**:
+  - Listado de productos (`inventory/index.tsx`): nueva columna de miniatura que usa
+    `primary_image_url` → `images[0].thumb_url` → `image_url` como fallback.
+  - Detalle del producto (`$productId.tsx` + `ProductGalleryPanel`): nuevo prop `fallbackUrl`
+    que muestra la imagen externa cuando el producto no tiene fotos en la galería.
+- **Opcion B (descargar la URL a la galería — robusta)**:
+  - Backend: `POST /api/products/{id}/images/from-url` (antes de la ruta `{image}`).
+    `ProductImageService::fromUrl()` descarga la URL a un temp, valida (respuesta ok, no vacío,
+    ≤5MB) y delega en el pipeline `upload()`: variantes WebP, deduplicación por sha256, outbox
+    sync y propagación a spinoffs. Errores → 422 con mensaje en español.
+  - Frontend: botón "Descargar imagen de una URL" en `ImageGallery` (input + descargar +
+    cancelar) usando el hook `useUploadProductImageFromUrl`. Invalida galería y producto.
+- TDD: `ProductImageFromUrlTest` (5: happy path con Http::fake, URL fallida 422, no-imagen 422,
+  URL inválida 422, sin permiso 403/422). Frontend: fallback en `ProductGalleryPanel` (3) y
+  `ImageGalleryFromUrl` (2).
+- Backend Products 13/13 verde; suite frontend 782/783; `tsc --noEmit` limpio; `build:admin` OK;
+  Pint aplicado. Commit `68346a08`, deploy en `app.miinventariofacil.com` y `app.tiendasarens.com`.
+
+## 2026-08-18 - Comisiones: edicion de planes desde la UI
+
+- Bug: los planes de comisiones existentes no se podian editar (la UI solo permitia crearlos o
+  desactivarlos). El backend ya tenia `PATCH /commission-plans/{id}`.
+- `CommissionsManager`: boton `Editar` por plan que abre el formulario prellenado (incluidas las
+  personas asignadas) y guarda via `useUpdateCommissionPlan`; titulo y boton cambian al editar.
+- TDD: test de edicion prellenada + guardado. Suite frontend 751/752.
+
+## 2026-08-18 - Comisiones: incluir/excluir combos y descuentos
+
+- `commission_plans` gana dos banderas `include_combos` e `include_discounts` (default true).
+- `CommissionLedgerService` omite lineas de combos (promocion `scope=combo`) cuando
+  `include_combos=false`, y lineas con descuento (manual o promocion no-combo) cuando
+  `include_discounts=false`. Cache del scope de promocion para evitar N+1.
+- Requests, Resource y modelo actualizados; defaults del modelo en true.
+- Frontend: form de planes con dos checkboxes y resumen por plan (Combos/Descuentos).
+- TDD: `CommissionInclusionTest` (5 tests). Comisiones 20/20; suite frontend 750/751.
+
+## 2026-08-18 - Reporte Z: impresion termica via agente local
+
+- `PrinterServer` (agente `printer:serve`) ahora renderiza el Reporte Z en texto plano termico
+  (`buildPlainReportZ`) cuando el payload trae `doc: 'report_z'`; branch en `printThermal` y en el
+  fallback digital.
+- Frontend: `printReportZThermal(z, station)` envia el Z al agente (`127.0.0.1:17777/print`) y el
+  `ReportZDialog` agrega el boton `Imprimir termica` usando la estacion activa de `/printing`.
+- TDD: `PrinterServerReportZTest` (2 tests). Printing 32/33 (1 skip preexistente); frontend 749/750.
+
+## 2026-08-18 - Reporte Z de caja: Fase 2 (frontend)
+
+- Modulo `frontend/src/features/cash-register/`: `reportZApi` (consulta del Z, abrir/descargar PDF)
+  y `ReportZDialog` (muestra numero Z, totales USD/VES, desglose por metodo de pago y conteo,
+  con botones Imprimir y Descargar PDF).
+- Command Center de caja: boton `Reporte Z` por turno cerrado que abre el dialogo.
+- Setup de caja (POS): boton `Reporte Z` en turnos cerrados que abre el PDF termico 58/80mm.
+- TDD: `ReportZDialog.test.tsx` (2 tests). Suite frontend 749/750.
+
+## 2026-08-18 - Reporte Z de caja (Fase 1 backend + ticket termico)
+
+- Nueva migracion `add_z_number_to_cash_register_sessions`: columnas `z_number` (consecutivo por
+  caja) y `z_emitted_at`.
+- `ReportZService`: asigna el numero Z consecutivo por caja al cerrar el turno y construye el
+  reporte (tenant, caja, sucursal, cajero, apertura/cierre, totales USD/VES, desglose por metodo
+  de pago y arqueo).
+- `CashRegisterService::close` emite el Z al cerrar.
+- Endpoints: `GET /api/cash-register/sessions/{id}/report-z` (JSON),
+  `.../report-z.pdf` (PDF dompdf) y `.../report-z.ticket.html` (ticket termico 58/80mm).
+- Vista termica `resources/views/printing/report-z-ticket.blade.php` reutiliza el estilo y ancho
+  de perfil del modulo Printing.
+- El Z solo se emite para turnos cerrados y con permiso `cash_register.view` / `reports.cash.view`.
+- TDD: `tests/Feature/CashRegister/ReportZTest.php` (8 tests). Suite CashRegister 28/28.
+- Pendiente Fase 2: frontend (boton/imprimir Z al cerrar caja) y envio al agente de impresion local.
+
+## 2026-08-18 - Reportes V2: separacion de moneda en ventas y fix de reportes sin tasa
+
+- Fix: los reportes sin montos locales (ventas por producto, stock, CxC, CxP) devolvian `rate: null`
+  y el schema Zod lo rechazaba, mostrando "no se ve nada". `rate` ahora acepta `null`.
+- `Ventas por período` y `Ventas por empresa` ahora separan la moneda real como en metodos de pago:
+  `Total $`, `Pagado $`, `Pagado Bs`, `Equiv. $`, `Nº de ventas` (+ `Ticket promedio` en periodo).
+  La separacion viene de los pagos (`pos_payments.currency`) agregados por venta.
+- TDD: 27 tests ReportesV2; backend 52/52 y frontend 747/748.
+
+## 2026-08-18 - Reportes V2: sin equivalente en Bs para pagos en USD
+
+- En `Ventas por método de pago` se elimina la columna `Equiv. Bs` y la tasa solo se muestra
+  para metodos pagados en bolivares; para pagos en USD las columnas `Pagado Bs`, `Equiv. $` y
+  `Tasa` quedan en `—` (irrelevantes).
+- Backend: se quita la medida `ves_equiv` del reporte de metodos. TDD: backend 51/51, suite
+  frontend 747/748.
+
+## 2026-08-18 - Reportes V2: moneda por método de pago y equivalente en USD
+
+- Etiquetas amigables en todas las columnas (Total $, Total Bs, Pagado $, Pagado Bs, Equiv. $,
+  Equiv. Bs) en vez de nombres tecnicos como `amount_local`.
+- `Ventas por método de pago` ahora separa por moneda real del pago: `Pagado $` (USD real),
+  `Pagado Bs` (Bs real), `Equiv. $` (equivalente en $ de lo pagado en Bs) y `Equiv. Bs`.
+  Los metodos en Bs (Pago Movil, transferencia Bs, etc.) muestran `Pagado Bs` y su `Equiv. $`,
+  con `Pagado $` en cero.
+- Los montos en Bs muestran su equivalente en USD inline (`Bs 51.800,00 (~$700,00)`) en
+  ventas por periodo y por empresa; la tasa se mantiene por fila y global.
+- Backend: medidas condicionales por `currency` en pos_payments, `hiddenMeasures` para totales
+  calculados, y `localPairs` para la tasa. TDD: 26 tests ReportesV2 + suite backend 51/51 y
+  frontend 747/748.
+
+## 2026-08-18 - Reportes V2: signo Bs y tasa implicita
+
+- Los montos en bolivares (`sales_total_local`, `amount_local`) se muestran con signo `Bs` y
+  formato es-VE en tablas y totales (antes aparecian como numeros planos).
+- El backend expone la `rate` implicita (Bs/USD) por fila y global cuando el reporte tiene pares
+  local/base (`localPairs` en el catalogo). La tasa sale del snapshot historico almacenado.
+- UI: columna `Tasa Bs/USD` en la tabla y tarjeta `Tasa promedio (Bs/USD)` en totales para
+  reportes con montos locales.
+- TDD: 3 tests backend (rate en ventas, rate en metodos de pago, flag `has_local_amounts`) +
+  test frontend de signo y tasa. Backend Reportes 50/50, suite frontend 747/748.
+
+## 2026-08-18 - Reportes V2: filtro por empresa, dimension empresa y montos en Bs historicos
+
+- Filtro `company_id` en todos los reportes con `scope=organization` (valida que la empresa
+  pertenezca al grupo, si no 404). Frontend: selector Empresa (Todas + hijas) via `useGroupSpinoffs`.
+- Dimension `company` agregada a todas las plantillas (ventas, stock, CxC, CxP, metodos de pago)
+  para desglosar el resultado por empresa.
+- Montos historicos en Bs: `sales_total_local` (sales.total_local_amount) en ventas por
+  periodo/empresa y `amount_local` (pos_payments.amount_local) en ventas por metodo de pago.
+  Ambos son snapshots almacenados con la tasa de ese dia; no cambian si cambia la tasa.
+- TDD: 5 tests backend nuevos (filtro por empresa, rechazo fuera del grupo, dimension empresa,
+  local en metodos de pago y en ventas) + 1 test frontend de filtro. Backend Reportes 47/47,
+  suite frontend 747/748.
+
+## 2026-08-18 - Reportes V2: Fase 3 (export PDF y Excel)
+
+- Instalado `maatwebsite/excel` (PhpSpreadsheet) para exportacion real de Excel.
+- `GET /api/reports/v2/{report}/export?format=csv|xlsx|pdf` con los mismos filtros/permisos del
+  reporte. `ReportExportService` reutiliza el runner agregado y genera CSV (en memoria), XLSX
+  (`ReportExcelExport` + maatwebsite) y PDF (dompdf + vista Blade dedicada).
+- Requests refactorizados en `BaseReportRequest` (autorizacion compartida) + `ReportV2Request` +
+  `ReportExportRequest`. Se corrigio un fatal por colisionar `format()` con `Illuminate\Http\Request`.
+- Frontend: botones CSV / Excel / PDF en el builder (`downloadReportV2` con blob) junto al export
+  CSV en cliente.
+- TDD: 5 tests de export en `ReportV2ApiTest` (CSV, XLSX, PDF, permiso, formato invalido).
+  Backend ReportesV2+Reportes+Finanzas+Dashboard 41/41; suite frontend 746/747.
+
+## 2026-08-18 - Reportes V2: Fase 2 (frontend con graficas)
+
+- Instalada la dependencia `recharts` para graficas profesionales.
+- Nuevo feature `frontend/src/features/reports-v2/`: catalogo de plantillas agrupado por dominio
+  (Ventas/Inventario/Finanzas), builder con dimension, rango de fechas, almacen, bajo stock y ambito
+  (empresa/grupo), vista tabla + graficas (barras/linea/torta) y export CSV en cliente.
+- `GET /api/reports/v2` (catalogo) agregado al backend; autorizado por permiso del reporte.
+- Ruta `/reports` ahora tiene pestanas `Reportes V2` (default) y `Clasicos`.
+- Tests frontend `reportsV2.test.tsx` (5) y backend catalog (11/11). Suite frontend 746/747,
+  typecheck y eslint del feature limpios.
+- Pendiente Fase 3: export PDF y Excel (maatwebsite/excel) server-side.
+
+## 2026-08-18 - Reportes V2: Fase 1 (backend modular)
+
+- Nuevo modulo `app/Modules/ReportsV2` con catalogo declarativo de reportes (`ReportRegistry`) y
+  runner unico `ReportQueryService` que ejecuta una sola query SQL agregada (anti-N+1).
+- 8 reportes iniciales: ventas por periodo/producto/metodo de pago/empresa, stock por
+  producto/almacen, CxC por cliente y CxP por proveedor.
+- `GET /api/reports/v2/{code}` con `scope=tenant|organization`, `dimension`, rango de fechas,
+  `warehouse_id`, `low_stock_only` y `limit`.
+- Scope organization disponible para el Owner del grupo (`reports.organization.view` + Owner estricto);
+  las metricas se agregan sobre los spinoffs (comparativa entre empresas).
+- TDD: `tests/Feature/ReportsV2/ReportV2ApiTest.php` (10 tests, 33 aserciones) cubre tenant, org,
+  cross-tenant, permisos, filtros y anti-N+1. Suite Reportes+Finanzas+Dashboard 35/35.
+- Pendiente (fases siguientes): builder frontend con graficas (Recharts) y export CSV/Excel/PDF.
+
+## 2026-08-18 - Sidebar agrupado por secciones
+
+- El menu lateral paso de ~19 opciones planas a 6 secciones con encabezados: Operacion, Ventas,
+  Finanzas, Inventario, Analitica y Configuracion.
+- Reorden logico: operativo del dia primero, luego finanzas, inventario, analitica y administracion.
+- Se mantienen los submenus desplegables de Inventario y Acceso y el filtro de Organizaciones.
+- Cambio visual puro en `frontend/src/components/layout/Sidebar.tsx` (sin cambios de rutas ni permisos).
+- Test `Sidebar.test.tsx` actualizado con el nuevo orden + cobertura de encabezados de seccion.
+- Suite frontend 741/742 (1 skipped preexistente); typecheck limpio.
+
+## 2026-08-18 - Import de datos: velocidad y reanudacion
+
+- `DataImportService::runEntity` ahora inserta `data_import_rows` por lotes de 500 (antes un INSERT
+  por fila), reduciendo drasticamente los round-trips en archivos grandes.
+- Reanudacion automatica: las filas cuya clave natural ya fue importada con exito se omiten sin
+  ejecutar la logica de negocio. Al re-subir el mismo archivo, ignora lo ya cargado y procesa solo
+  lo nuevo; no se borran filas historicas al re-ejecutar.
+- Se agrego `ImporterInterface::naturalKey()` y `BaseImporter::importRows()`/`importRow()` para que
+  el orquestador pueda decidir el salto antes de procesar cada fila; los 11 importers implementan su
+  clave natural (sku, code, slug, documento, etc.).
+- `ProductPriceImporter` precarga mapas de productos, listas, tipos de tasa y precios existentes una
+  sola vez por ejecucion, eliminando consultas repetidas por fila.
+- Los workers del VPS ya escuchan `--queue=imports,default` con `--timeout=3600`; no fue necesario
+  cambiar la config de colas.
+- TDD: `tests/Feature/DataImport/DataImportResumeAndBatchTest.php` (5 tests, 21 aserciones).
+  Suite DataImport completa 82/82 verde.
+
+## 2026-08-17 - Dashboard consolidado de grupo
+
+- Implementado el plan `docs/PLAN_DASHBOARD_CONSOLIDADO_GRUPO.md`: vista de Jefe para Owners de
+  grupos que consulta todas las empresas hijas sin cambiar de tenant.
+- Agregado el permiso `reports.organization.view` a `BasePermissions` (Owner y Administrador lo
+  heredan); el permiso no se incluyo en Gerente/Vendedor/Almacen/Auditor.
+- `GET /api/dashboard/summary?scope=organization` autorizado solo para el Owner estricto del grupo
+  (`User::isStrictOwnerOf`) y validado contra el permiso en el contexto de team del grupo.
+- `OrganizationDashboardService` consolida en una sola query SQL con `GROUP BY tenant_id` ventas,
+  POS, cajas, CxC, CxP y bajo stock de todos los spinoffs; el numero de queries no crece con la
+  cantidad de empresas (test de anti-N+1 incluido).
+- `DashboardSummaryService::resolveDateRange` quedó estático y compartido por ambos servicios.
+- Frontend: selector de ambito `Esta empresa / Todo el grupo` visible para Owners de grupo;
+  `OrganizationDashboardView` muestra KPIs consolidados, tabla comparativa por empresa y boton
+  para entrar a cada sucursal (`switchTo`).
+- TDD: `tests/Feature/Dashboard/OrganizationDashboardTest.php` (9 tests, 46 aserciones) y
+  `frontend/src/features/dashboard/__tests__/organizationDashboard.test.tsx` (6 tests).
+- Verificacion: backend Dashboard 12/12, suite frontend 740/741 (1 skipped preexistente).
+
+## 2026-08-17 - Plan futuro: dashboard consolidado de grupo
+
+- Registrada la propuesta de una Vista Consolidada / Vista de Jefe para Owners de grupos.
+- El dashboard se mostrara por defecto en el tenant grupo y permitira consultar las empresas hijas
+  sin cambiar de tenant; las hijas conservaran dashboards operativos aislados.
+- La futura implementacion debe usar `reports.organization.view`, Owner estricto, consultas SQL
+  agregadas por `tenant_id` y pruebas anti-N+1 antes del codigo de produccion.
+- No implementado todavía. Contrato y plan TDD en `docs/PLAN_DASHBOARD_CONSOLIDADO_GRUPO.md`.
+
+## 2026-08-17 - Instalacion aislada Tiendas Arens
+
+- Creada una segunda instalacion Laravel en `/opt/tiendasarens-cloud` para
+  `app.tiendasarens.com`, sin reutilizar la base ni el directorio de MiInventarioFacil.
+- Creada la base PostgreSQL `inventory_tiendasarens` con el rol independiente `tiendasarens_app`.
+- Configurados PHP-FPM, Nginx, Traefik, queue worker y sync timer propios en el puerto interno `8082`.
+- Ejecutadas todas las migraciones y `RolesAndPermissionsSeeder`; el tenant `tiendasarens` fue creado
+  con bootstrap, Gabriel quedo como `Owner` del grupo y el endpoint publico se desactivo inmediatamente despues.
+- Verificacion: HTTPS valido, `/up` devuelve `200`, login por dominio funciona y la instalacion
+  existente `app.miinventariofacil.com` continua respondiendo `200`.
+- Procedimiento operativo: `docs/DEPLOY_TIENDAS_ARENS_VPS.md`.
 
 ## 2026-08-17 - Etapa 1.5: vencimiento automático de reservas POS
 
@@ -6965,3 +7497,113 @@ Regla:
 - Verificacion del corte: backend focalizado `94/94`; frontend de promociones/POS `172/172`;
   TypeScript y ESLint focalizado correctos. Prettier pasa en los archivos modificados; conserva
   avisos preexistentes en otros archivos POS no tocados.
+
+## 2026-08-19 - Traslados por variante (interno, logístico e inter-empresa) + sync + E2E
+
+- **Problema**: los traslados movian stock solo a nivel de producto (bucket sin variante), por lo que
+  "4 telefones Azul + 5 Naranja" no se podian trasladar: fallaba con stock insuficiente o el stock
+  llegaba al bucket base.
+- **Migracion**: `product_variant_id` en `inventory_transfer_items` e `inventory_transfer_request_items`.
+- **InventoryMovementService**: `transfer`, `reserve`, `release`, `dispatchReservedTransfer`,
+  `receiveTransfer`, `transferRequestOut/In` aceptan `productVariantId` y mueven el saldo por
+  `stock_balances.(product_id, product_variant_id)`.
+- **Traslado interno/simple/logistico**: `validateItems` valida que la variante pertenezca al
+  producto; create/prepare/dispatch/receive/cancel y la auto-reserva persisten y mueven la variante.
+- **Inter-empresa**: items con `product_variant_id` (variante del solicitante); al aceptar se
+  resuelve la variante local por identidad natural `(sku_variant|color)` via `localVariantId` y el
+  stock sale/entra por variante en cada empresa.
+- **Sync**: payload de items de traslado y de `stock_movement` ahora incluyen
+  `product_variant_id` + `product_variant_color`; el applier resuelve la variante del nodo destino
+  por `(producto, color)` (`variantIdBySku`/`variantIdForProduct`), y `createCloudProductExit/Entry`
+  replican saldos por variante.
+- **product-entries**: acepta `product_variant_id` para sembrar stock por variante (request, service,
+  item).
+- **Frontend**: `VariantSelect` (selector por linea con stock disponible) en el dialog de nuevo
+  traslado y en el de solicitud inter-empresa; schemas Zod con `product_variant_id`.
+- **Tests backend (TDD)**: `InventoryTransferVariantsTest` (5), `InventoryTransferRequestVariantsTest`
+  (2), `InventoryTransferVariantSyncTest` (1, 11 assertions), entrada por variante en
+  `ProductEntryApiTest`. Suite afectada verde (fallos preexistentes en SQLite: `NextSequenceRaceConditionFixTest`
+  Postgres-only y el test de 30 IMEIs de ProductEntries).
+- **E2E Playwright**: `frontend/e2e/transfers.variants.ui.spec.ts` — abre navegador, loguea como demo,
+  crea producto con 2 variantes, siembra stock 4/5 y simula el traslado 2 Azul + 3 Naranja; valida
+  `product_variant_id` y cantidades en la respuesta. Verde.
+- **Frontend**: 111/111 vitest; `tsc --noEmit` limpio.
+- **Deploy**: commit `10547ec5`; backend (pull + migrate `2026_08_19_090000` + optimize:clear) y bundle
+  admin en `app.miinventariofacil.com` y `app.tiendasarens.com`; verificada la columna
+  `product_variant_id` en ambas DBs y HTTP 200 en ambos dominios.
+
+## 2026-08-19 - Informacion de la empresa (razon social, RIF, domicilio) configurable en documentos
+
+- **Problema** (bloqueador P0 de `AUDITORIA_FISCAL_FUNCIONAL_POS_VENEZUELA_2026-08-16.md`): no existia
+  identidad fiscal del emisor (Tenant/Branch sin RIF ni razon social), y el ticket/guias solo mostraban
+  el nombre del tenant.
+- **CompanySettings** (`app/Modules/Tenancy/Services/CompanySettings.php`): lee
+  `tenant_settings.settings.company` con defaults tipados (razon_social, rif, domicilio_fiscal,
+  ciudad, estado, telefono, correo, website, regimen) y `show_on.sale_ticket|guide|report_z`.
+- **TenantSettingController**: valida `settings.company` (campos tipados + booleans) y restringe la
+  edicion de la seccion empresa a usuarios con permiso `settings.manage` (Owner/Administrador).
+- **Impresion**: `PosTicketPrintService`, `ReportZService` y `TransferGuidePdfService` inyectan
+  `company` + `show_company`; los templates `pos-ticket`, `report-z-ticket` y `guide` renderizan el
+  bloque de empresa (razon social, RIF, domicilio, ciudad/estado, telefono) solo si el flag
+  correspondiente esta activo y hay RIF.
+- **Frontend**: nueva seccion **Ajustes > Empresa** (`/settings/company`) con formulario de datos
+  legales + 3 toggles de visibilidad por documento. Permiso `settings.manage`.
+- **TDD**: `CompanySettingsApiTest` (7 tests: round-trip, defaults, 403 sin settings.manage, RIF en
+  ticket on/off, RIF en guia on/off) + `CompanySettingsPanel.test` (2). Backend Tenancy/Printing/
+  CashRegister/Transfers 138/138; frontend 765/765; `tsc` limpio.
+- **Deploy**: commit `62b3710` en `app.miinventariofacil.com` y `app.tiendasarens.com` (backend pull +
+  optimize:clear; bundle admin rsync). HTTP 200 + asset nuevo verificado.
+
+## 2026-08-19 - Info de la empresa: sync VPS -> local (tenant_settings.company)
+
+- La seccion `company` de `tenant_settings` ahora se sincroniza al resto de nodos:
+  - `SyncCatalogOutboxService::tenantSettingsUpdated` emite `tenant_settings.updated` (solo company).
+  - `TenantSettingController` emite el evento al guardar settings.
+  - `SyncInitialSnapshotService::queueTenantSettings` incluye company en la foto inicial (primer
+    descarga de una empresa en un nodo local).
+  - `SyncEventApplier::applyTenantSettings` aplica company en el nodo destino preservando las
+    secciones locales (telegram, etc.). Idempotente.
+- Frontend: placeholder generico "Nombre de la empresa" en razon social.
+- TDD: `TenantSettingsSyncTest` (3 tests: snapshot incluye company, outbox al actualizar, applier
+  merge preservando secciones locales). Sync/Tenancy 25/25.
+- Deploy: commit `a71be384` en ambas apps (pull + optimize:clear + bundle admin). HTTP 200.
+
+## 2026-08-19 - Modulo de Cotizaciones (PDF, conversion a venta, creacion desde POS y Armar pedido)
+
+- **Nuevo**: modulo `Quotations` (tablas `quotations` + `quotation_items`) con snapshot de precios
+  USD/VES, cliente, almacen, vencimiento y notas. Documento no fiscal.
+- **Endpoints**: CRUD `/api/quotations`, `POST /{id}/convert` (crea orden POS pendiente reusando
+  `PosCheckoutService::holdOrder`) y `GET /{id}/pdf` + `pdf.html`.
+- **Permisos**: `quotations.{view,create,update,delete,convert}` (Owner/Admin todos; Gerente y
+  Vendedor los 5; Almacen/Auditor solo view).
+- **PDF**: `resources/views/quotations/quotation-pdf.blade.php` con datos de la empresa
+  (`show_on.quotation`, nuevo toggle en Ajustes > Empresa) e items con variante.
+- **Frontend**: seccion **Cotizaciones** en Ventas (lista, detalle, PDF, convertir, cancelar) y
+  botones "Cotizacion" en el POS y "Crear cotizacion" en `/pos/armar` (desde el carrito).
+- **TDD**: `QuotationApiTest` (9: crear, variante ajena, filtros, 403, cross-tenant 404, convertir,
+  draft no convertible, PDF con empresa, cancelar) + `QuotationCreateDialog.test` + boton en
+  `ArmOrderScreen.test`. Backend 25/25; frontend 767/768; tsc y Pint limpios.
+- **Deploy**: commit `35128eb5` en ambas apps; migracion `2026_08_19_150000_create_quotations_tables`
+  aplicada; bundle admin publicado; HTTP 200 + tablas verificadas.
+
+## 2026-08-22 - Fase 1 de estabilizacion: conteos, track_stock, sync y hooks frontend
+
+- **TDD primero**: se agregaron tests rojos antes de implementar para conteos fisicos, productos sin
+  control de stock, autorizacion del transporte sync, eventos POS fuera de orden, mappings ambiguos
+  y ruta de Configuracion del frontend.
+- **Conteos fisicos**: `StockCountService` usa `InventoryMovementService` para actualizar
+  `stock_balances`, conservar auditoria y referenciar el `stock_count`; el snapshot incluye saldos
+  cero. `StockCountController` exige `inventory.view` para lectura e `inventory.adjust` para
+  operaciones de escritura.
+- **Productos `track_stock=false`**: ventas confirmadas y reservas/liberaciones POS ya no generan
+  movimientos ni modifican stock para esos productos.
+- **Sync**: nuevo permiso `sync.transport` para nodos, push/pull, ACK, bootstrap, pairing, imagenes,
+  readiness y status. `sync_inbox.occurred_at` permite ignorar eventos POS antiguos que intenten
+  revertir estados confirmados. Los mappings remotos fallan cerrado cuando la instalacion ya usa
+  `sync_tenant_mappings`; se conserva compatibilidad explicita para instalaciones legacy sin
+  mappings.
+- **Frontend**: hooks `useCan` condicionales corregidos en Reportes, CxP, Caja e Inventario. El enlace
+  principal de Configuracion apunta a `/settings/company`, ruta existente; test de Sidebar agregado.
+- **Tests**: Inventory/POS 154/154; Sync 169/170 (1 skip); frontend 824/825 (1 skip); TypeScript,
+  Pint y builds Admin/POS correctos. La suite backend combinada con `--process-isolation` excede el
+  timeout por volumen, por lo que las suites criticas se verifican por modulo.

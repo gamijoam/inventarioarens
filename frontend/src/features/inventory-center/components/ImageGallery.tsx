@@ -18,7 +18,7 @@
  * Delete: X en la esquina. Pide confirmacion antes de soft-delete.
  */
 import { useState } from 'react';
-import { GripVertical, Star, Trash2 } from 'lucide-react';
+import { Download, GripVertical, Star, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -30,6 +30,7 @@ import {
   useReorderProductImages,
   useUpdateProductImage,
   useUploadProductImage,
+  useUploadProductImageFromUrl,
 } from '../api';
 import type { ProductImage } from '../schemas';
 import { ImagePicker } from './ImagePicker';
@@ -51,8 +52,11 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ProductImage | null>(null);
+  const [urlInput, setUrlInput] = useState('');
+  const [urlOpen, setUrlOpen] = useState(false);
 
   const upload = useUploadProductImage(productId);
+  const uploadFromUrl = useUploadProductImageFromUrl(productId);
   const updateImage = useUpdateProductImage(productId);
   const deleteImage = useDeleteProductImage(productId);
   const reorder = useReorderProductImages(productId);
@@ -71,6 +75,31 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
         onError: (err) => toast.error(errorMessage(err) ?? 'Error al subir'),
       },
     );
+  }
+
+  async function handleDownloadFromUrls(text: string) {
+    const urls = text
+      .split(/\r?\n/)
+      .map((u) => u.trim())
+      .filter(Boolean);
+    if (urls.length === 0) return;
+
+    const results = await Promise.allSettled(
+      urls.map((url) => uploadFromUrl.mutateAsync({ url })),
+    );
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - ok;
+
+    if (failed === 0) {
+      toast.success(`Se descargaron ${ok} imagen(es) de la(s) URL(s)`);
+    } else {
+      toast.error(`${ok} descargada(s), ${failed} fallaron`);
+    }
+
+    if (ok > 0) {
+      setUrlInput('');
+      setUrlOpen(false);
+    }
   }
 
   function handleSetPrimary(image: ProductImage) {
@@ -241,6 +270,66 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
             hint="Agregar otra imagen"
             className={upload.isPending ? 'pointer-events-none opacity-60' : undefined}
           />
+        </div>
+      )}
+
+      {/* Descargar imagen desde una URL externa */}
+      {canEdit && (
+        <div className="border-t border-border pt-3">
+          {!urlOpen ? (
+            <button
+              type="button"
+              onClick={() => setUrlOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:border-primary hover:text-primary"
+              data-testid="open-from-url"
+            >
+              <Download className="size-3.5" />
+              Descargar imagen de una URL
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start gap-2">
+                <textarea
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                      void handleDownloadFromUrls(urlInput);
+                    }
+                  }}
+                  placeholder={'https://ejemplo.com/imagen1.jpg\nhttps://ejemplo.com/imagen2.jpg'}
+                  rows={3}
+                  className="flex-1 rounded border border-border bg-bg px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                  data-testid="from-url-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadFromUrls(urlInput)}
+                  disabled={uploadFromUrl.isPending || !urlInput.trim()}
+                  className="inline-flex h-9 items-center gap-1.5 rounded bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                  data-testid="from-url-submit"
+                >
+                  {uploadFromUrl.isPending && <Spinner className="size-3.5" />}
+                  Descargar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUrlOpen(false);
+                    setUrlInput('');
+                  }}
+                  className="inline-flex h-9 items-center rounded border border-border px-3 text-xs text-text-muted hover:text-text"
+                  aria-label="Cancelar"
+                >
+                  Cancelar
+                </button>
+              </div>
+              <p className="text-[11px] text-text-muted">
+                Puedes pegar varias URLs, una por línea. Las descarga a tu galería como fotos
+                propias (WebP, con sync). Ctrl+Enter para descargar.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

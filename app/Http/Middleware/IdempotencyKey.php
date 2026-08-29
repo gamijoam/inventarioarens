@@ -45,6 +45,8 @@ class IdempotencyKey
 
     public const TTL_HOURS = 24;
 
+    public function __construct(private readonly TenantManager $tenantManager) {}
+
     public function handle(Request $request, Closure $next): Response
     {
         $key = $this->extractKey($request);
@@ -61,7 +63,7 @@ class IdempotencyKey
         $path = '/'.ltrim($request->path(), '/');
         $body = (string) $request->getContent();
         $requestHash = hash('sha256', $body);
-        $tenantId = app(TenantManager::class)->id();
+        $tenantId = $this->tenantManager->id();
 
         if (strlen($key) > 191) {
             return new JsonResponse([
@@ -228,10 +230,15 @@ class IdempotencyKey
             $query->where('tenant_id', $tenantId);
         }
 
-        $query->update([
-            'response_status' => $status,
-            'response_body' => $body,
-        ]);
+        try {
+            $query->update([
+                'response_status' => $status,
+                'response_body' => $body,
+            ]);
+        } catch (QueryException) {
+            // Silencioso: si la respuesta no se persiste, el siguiente
+            // reintento re-ejecutara la accion.
+        }
     }
 
     private function releaseKey(string $key, string $method, string $path, ?int $tenantId): void

@@ -61,6 +61,36 @@ class ProductImageController extends Controller
         ], 201);
     }
 
+    public function storeFromUrl(Request $request, Product $product): JsonResponse
+    {
+        $this->authorize('update', $product);
+
+        $data = $request->validate([
+            'url' => ['required', 'url', 'max:500'],
+            'alt' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        try {
+            $image = $this->service->fromUrl(
+                product: $product,
+                url: $data['url'],
+                alt: $data['alt'] ?? null,
+                uploadedBy: $request->user(),
+            );
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => [
+                    'url' => [$e->getMessage()],
+                ],
+            ], 422);
+        }
+
+        return response()->json([
+            'data' => (new ProductImageResource($image->fresh(['variants'])))->resolve(),
+        ], 201);
+    }
+
     public function update(UpdateProductImageRequest $request, Product $product, ProductImage $image): JsonResponse
     {
         $this->authorize('update', $product);

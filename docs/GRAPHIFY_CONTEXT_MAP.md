@@ -1,4 +1,4 @@
-# Graphify Context Map
+# Graphify Context Map — 2026-08-25
 
 Este documento es el punto de entrada curado para consultar INVENTARIOARENS con Graphify.
 Agrupa la documentacion existente en secciones estables para que las consultas del grafo
@@ -277,6 +277,10 @@ del ticket al pagar). El agente local `printer:serve` escucha en `127.0.0.1:1777
 impresora fisica: driver Windows (PowerShell `Out-Printer`) / Linux (lpr/lp), o impresora de red
 por TCP 9100 con comandos ESC/POS (corte GS V, gaveta ESC p). El panel vive en `frontend` ruta
 `/printing` y la consola `/support` permite instalar/iniciar/probar el agente.
+Para instalaciones online existe ademas `tools/print-connector/`: un cliente Electron independiente
+que hace polling HTTPS saliente, reclama jobs con lease y confirma `printed` o `failed`. Su GUI
+gestiona el pairing, el estado y el arranque en segundo plano. No abre puertos ni depende del Motor
+Local. Los tickets digitales se descargan desde el navegador.
 
 Documentos clave:
 
@@ -288,6 +292,11 @@ Nodos de codigo frecuentes:
 - `PosTicketPrintService` (snapshot + render HTML/PDF del ticket)
 - `ThermalPrinterService` (driver / red ESC/POS, sanitize ASCII)
 - `PrinterServer` (HTTP server del agente local)
+- `PrintConnector` / `PrintConnectorToken` / `PrintConnectorPairingCode`
+- `PrintConnectorService` / `AuthenticatePrintConnector`
+- `tools/print-connector/connector.cjs` (core cloud independiente)
+- `tools/print-connector/main.cjs` (cliente Electron y bandeja)
+- `tools/print-connector/renderer/` (GUI de pairing y estado)
 - `PrintProfile` / `PrinterStation` / `PrintJob`
 - `PrinterServeCommand` (`php artisan printer:serve`)
 - `LocalTechnicalConsoleService::printerAction/printerTest` (consola /support)
@@ -329,7 +338,10 @@ Nodos de codigo frecuentes:
 Los tres clientes Electron (admin, pos, technician) usan `electron-updater` con GitHub
 Releases y canales separados. Cada cliente se instala en su propia carpeta
 (`oneClick: false`). La publicacion la orquesta `.github/workflows/release.yml`, que
-construye en Windows y publica con `gh release create v<version>-<client>` (no-draft).
+construye en Windows, verifica `win-unpacked/resources/app.asar` y publica con
+`gh release create v<version>-<client>` (no-draft). `.github/workflows/ci.yml` tambien
+empaqueta los tres clientes en Linux y Windows con `--dir` y valida el mismo contrato de
+aislamiento.
 
 Documento principal:
 
@@ -349,6 +361,9 @@ Nodos de codigo frecuentes:
 - `frontend/electron/auto-updater.cjs` (check cada 1 min)
 - `frontend/electron/backend-runtime.cjs` (supervisor de la API local)
 - `frontend/electron/update-policy.cjs`
+- `scripts/verify-electron-artifact.cjs` (contrato portable del app.asar)
+- `frontend/electron/artifact-verifier.test.js` (renderer correcto y exclusion del Motor Local)
+- `scripts/smoke-linux-appimage.cjs` (nombres AppImage derivados de `package.json`)
 - `.github/workflows/release.yml`
 - `.github/workflows/ci.yml`
 - `LocalTechnicalConsoleService` (vinculacion, tareas programadas)

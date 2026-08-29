@@ -251,3 +251,41 @@ Y `shared_preload_libraries = 'pg_stat_statements'`.
 1. Cambiar `CACHE_STORE=redis` + `QUEUE_CONNECTION=redis` (30 min).
 2. Aplicar migration de índices propuestos en §6 (0 código tocado).
 3. Activar `ALTER DATABASE … SET log_min_duration_statement = 500` (15 min).
+
+## 11. Benchmark Reports — 2026-08-22
+
+### SQLite local
+
+- `tests/Feature/Reports` + `tests/Feature/ReportsV2`: **43/43 tests**, **166 assertions**, OK.
+- Frontend `reportsApi.test.tsx`: **6/6 tests**, OK.
+- Frontend `tsc --noEmit`: OK.
+- El benchmark de regresión se ejecutó con `phpunit.sqlite.xml`; no requiere PostgreSQL local.
+
+### PostgreSQL VPS
+
+Se ejecutó únicamente `EXPLAIN (ANALYZE, BUFFERS)` contra la base correcta
+`inventory_arens` en PostgreSQL 16.14. No se modificaron datos, migraciones, servicios ni
+contenedores.
+
+Volumen observado: `110` ventas, `61` balances, `90` movimientos, `110` órdenes POS y `126` pagos.
+
+| Consulta | Tenant | Tiempo de ejecución | Resultado |
+|---|---:|---:|---|
+| Stock general, ordenado por almacén/producto, `LIMIT 50` | 2 | 0.132 ms | Correcto |
+| Movimientos, ordenados por id descendente, `LIMIT 50` | 2 | 0.150 ms | Correcto |
+| Stock agrupado por variante/almacén, `LIMIT 50` | 2 | 0.443 ms | Correcto |
+| Ventas V2 agrupadas por día, `LIMIT 200` | 2 | 5.342 ms | Correcto |
+
+Los planes usan `Seq Scan` en las tablas pequeñas actuales, comportamiento esperado por el
+optimizador. Ya existen los índices relevantes `sales_tenant_confirmed_at_idx`,
+`sm_tenant_date_idx`, `stock_balances_tenant_wh_product_idx` y el índice por
+`stock_balances(tenant_id, product_variant_id)`. No se agrega otro índice sin datos de mayor
+volumen que justifiquen el costo de escritura.
+
+### Cambios verificados
+
+- Reports V2 usa expresiones temporales compatibles con SQLite y PostgreSQL.
+- `stock`, `stock/low`, `movements` y `stock-by-variant` limitan resultados mediante paginación.
+- `sales-detail` y `cash-sessions` ahora también paginan filas y conservan el resumen global del filtro.
+- `sales-detail` carga unidades serializadas en una consulta por reporte, eliminando el N+1 por línea.
+- `stock-by-variant` dejó de depender del binding inexistente `app('tenant')` y usa `TenantManager`.

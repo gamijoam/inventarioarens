@@ -17,7 +17,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useNavigate } from '@tanstack/react-router';
-import { Pencil, Search, ShieldCheck, UserCircle } from 'lucide-react';
+import { Pencil, KeyRound, Search, ShieldCheck, UserCircle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -40,6 +40,7 @@ interface UsersManagerProps {
   onCreate?: () => void;
   onEdit?: (user: User) => void;
   onChangeRoles?: (user: User) => void;
+  onChangePassword?: (user: User) => void;
   canEdit?: boolean;
   initialScope?: 'tenant' | 'organization';
 }
@@ -48,6 +49,7 @@ export function UsersManager({
   onCreate,
   onEdit,
   onChangeRoles,
+  onChangePassword,
   canEdit = false,
   initialScope = 'tenant',
 }: UsersManagerProps = {}) {
@@ -69,7 +71,7 @@ export function UsersManager({
   const { data, isLoading, isError } = useUsers(filters);
   const navigate = useNavigate();
 
-  const columns = useColumns(onEdit, onChangeRoles, canEdit);
+  const columns = useColumns(onEdit, onChangeRoles, onChangePassword, canEdit);
   const table = useReactTable({
     data: data?.data ?? [],
     columns,
@@ -231,6 +233,7 @@ export function UsersManager({
 function useColumns(
   onEdit?: (user: User) => void,
   onChangeRoles?: (user: User) => void,
+  onChangePassword?: (user: User) => void,
   canEdit?: boolean,
 ) {
   const columnHelper = createColumnHelper<User>();
@@ -343,6 +346,21 @@ function useColumns(
                       <ShieldCheck className="size-4 text-text-muted" aria-hidden="true" />
                     </Button>
                   )}
+                  {onChangePassword && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChangePassword(info.row.original);
+                      }}
+                      title="Cambiar contrasena"
+                      aria-label="Cambiar contrasena"
+                      data-testid={`change-password-${info.row.original.id}`}
+                    >
+                      <KeyRound className="size-4 text-text-muted" aria-hidden="true" />
+                    </Button>
+                  )}
                   <StatusToggle user={info.row.original} canEdit={canEdit} />
                 </div>
               ),
@@ -350,7 +368,7 @@ function useColumns(
           ]
         : []),
     ],
-    [columnHelper, onEdit, onChangeRoles, canEdit],
+    [columnHelper, onEdit, onChangeRoles, onChangePassword, canEdit],
   );
 }
 

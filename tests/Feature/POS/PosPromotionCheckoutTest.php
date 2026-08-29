@@ -537,6 +537,24 @@ class PosPromotionCheckoutTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_checkout_without_promotion_permission_accepts_empty_promotion_arrays(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone] = $this->posFixture();
+        $cashier->revokePermissionTo('pos.promotions.apply');
+
+        $this->checkout($tenant, $cashier, [
+            'cash_register_session_id' => $session->id,
+            'combo_applications' => [],
+            'product_offer_applications' => [],
+            'items' => [[
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $phone->id,
+                'quantity' => 1,
+            ]],
+            'payments' => [$this->cashPayment(40)],
+        ])->assertCreated()->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+    }
+
     public function test_request_permission_does_not_allow_validating_a_pending_invoice_promotion(): void
     {
         [$tenant, $seller, $session, $warehouse, $phone, $charger] = $this->posFixture();

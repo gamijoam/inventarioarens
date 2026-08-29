@@ -1,0 +1,24 @@
+{
+  "name": "inventarioarens-print-connector",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Independent outbound cloud print connector for Inventario Arens",
+  "author": "INVENTARIOARENS",
+  "main": "main.cjs",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test connector.test.cjs gui.test.cjs",
+    "build:gui": "electron-builder --config electron-builder.yml --publish never",
+    "build:gui:win": "electron-builder --config electron-builder.yml --win --publish never",
+    "build:gui:dir": "electron-builder --config electron-builder.yml --win dir --publish never",
+    "package": "node package-connector.cjs",
+    "package:check": "node package-connector.cjs --check-only"
+  },
+  "devDependencies": {
+    "electron": "43.3.0",
+    "electron-builder": "26.15.3"
+  }
+}

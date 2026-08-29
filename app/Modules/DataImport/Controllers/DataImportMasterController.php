@@ -3,6 +3,7 @@
 namespace App\Modules\DataImport\Controllers;
 
 use App\Models\User;
+use App\Modules\DataImport\Jobs\RunDataImportEntity;
 use App\Modules\DataImport\Models\DataImport;
 use App\Modules\DataImport\Resources\DataImportResource;
 use App\Modules\DataImport\Services\DataImportService;
@@ -56,7 +57,7 @@ class DataImportMasterController extends Controller
         $this->ensureSameTenant($tenant, $dataImport);
 
         $request->validate([
-            'file' => ['required', 'file', 'max:5120'],
+            'file' => ['required', 'file', 'max:'.((int) config('data_import.max_file_mb', 50) * 1024)],
         ]);
 
         if (! ImportStatus::isValidEntity($entity)) {
@@ -84,23 +85,22 @@ class DataImportMasterController extends Controller
         $user = $this->resolveMasterActorUser($tenant, $request->user());
 
         try {
-            $entityRow = $this->service->runEntity($dataImport, $entity, $user);
-        } catch (\RuntimeException $e) {
+            $this->service->prepareEntityForQueue($dataImport, $entity);
+            RunDataImportEntity::dispatch(
+                $dataImport->id,
+                $entity,
+                $user->id,
+                $dataImport->tenant_id,
+            );
+        } catch (\RuntimeException|\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
         return response()->json([
-            'message' => "Importacion de {$entity} finalizada.",
+            'message' => "Importacion de {$entity} encolada.",
             'entity' => $entity,
-            'summary' => [
-                'total' => $entityRow->total_rows,
-                'ok' => $entityRow->succeeded_rows,
-                'skipped' => $entityRow->skipped_rows,
-                'failed' => $entityRow->failed_rows,
-                'status' => $entityRow->status,
-            ],
             'session' => new DataImportResource($dataImport->fresh('entities')),
-        ]);
+        ], 202);
     }
 
     public function report(Request $request, Tenant $tenant, DataImport $dataImport)

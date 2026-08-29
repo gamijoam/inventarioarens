@@ -16,6 +16,8 @@ class BrandController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        abort_unless($request->user()?->can('products.view'), 403);
+
         $query = Brand::query()
             ->when($request->filled('search'), function ($q) use ($request) {
                 $term = '%'.strtolower((string) $request->input('search')).'%';
@@ -38,8 +40,10 @@ class BrandController extends Controller
         return BrandResource::make($brand);
     }
 
-    public function show(Brand $brand): BrandResource
+    public function show(Request $request, Brand $brand): BrandResource
     {
+        abort_unless($request->user()?->can('products.view'), 403);
+
         $brand->loadCount('products');
 
         return BrandResource::make($brand);
@@ -53,8 +57,10 @@ class BrandController extends Controller
         return BrandResource::make($brand);
     }
 
-    public function destroy(Brand $brand, SyncCatalogOutboxService $syncCatalog): Response
+    public function destroy(Request $request, Brand $brand, SyncCatalogOutboxService $syncCatalog): Response
     {
+        abort_unless($request->user()?->can('products.delete'), 403);
+
         $deleted = clone $brand;
         $brand->delete();
         $syncCatalog->brandDeleted($deleted);

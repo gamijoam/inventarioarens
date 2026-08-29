@@ -98,8 +98,12 @@ class ProductResource extends JsonResource
             'reorder_quantity' => $this->reorder_quantity === null ? null : (float) $this->reorder_quantity,
             'suggested_purchase' => $this->when(isset($this->suggested_purchase), fn () => (float) $this->suggested_purchase),
 
-            'average_cost' => $this->average_cost === null ? null : (float) $this->average_cost,
-            'last_purchase_cost' => $this->last_purchase_cost === null ? null : (float) $this->last_purchase_cost,
+            'average_cost' => $request->user()?->can('finance.costs.view')
+                ? ($this->average_cost === null ? null : (float) $this->average_cost)
+                : null,
+            'last_purchase_cost' => $request->user()?->can('finance.costs.view')
+                ? ($this->last_purchase_cost === null ? null : (float) $this->last_purchase_cost)
+                : null,
             'average_cost_visible' => (bool) ($request->user()?->can('finance.costs.view') ?? false),
 
             'warranty_policy_id' => $this->warranty_policy_id,

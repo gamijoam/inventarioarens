@@ -128,4 +128,21 @@ class CategoryApiTest extends TestCase
         $this->assertCount(1, $response->json('data'));
         $this->assertSame('Root', $response->json('data.0.name'));
     }
+
+    public function test_category_catalog_requires_product_permissions(): void
+    {
+        $tenant = $this->tenant();
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant->id, ['status' => 'active']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/categories')
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/categories', ['name' => 'No autorizado', 'slug' => 'no-autorizado'])
+            ->assertForbidden();
+    }
 }

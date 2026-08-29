@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self';"
+    />
+    <title>Print Connector</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand-mark">A</div>
+        <div>
+          <p class="eyebrow">SISTEMA DE INVENTARIO</p>
+          <h1>Print Connector</h1>
+        </div>
+        <span id="header-status" class="status-pill status-neutral">Sin configurar</span>
+      </header>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow accent">IMPRESION LOCAL SEGURA</p>
+          <h2>Imprime desde la nube sin abrir puertos.</h2>
+          <p class="hero-copy">
+            Este conector permanece en segundo plano, consulta los trabajos autorizados y entrega
+            los tickets a la impresora de esta computadora.
+          </p>
+        </div>
+        <div class="signal-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
+      </section>
+
+      <section id="notice" class="notice hidden"></section>
+
+      <section class="grid">
+        <article class="card primary-card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">PRIMER PASO</p>
+              <h3>Vincular esta computadora</h3>
+            </div>
+            <span class="step-number">01</span>
+          </div>
+          <p class="muted">
+            Desde la pantalla <strong>Impresion</strong> de la aplicación online, genera un código y
+            escríbelo aquí.
+          </p>
+          <form id="register-form" class="form-stack">
+            <label
+              >URL de la nube<input
+                id="cloud-url"
+                type="url"
+                value="https://app.miinventariofacil.com/api"
+                required
+            /></label>
+            <label
+              >Código de vinculación<input
+                id="pairing-code"
+                type="text"
+                placeholder="Código generado en /printing"
+                autocomplete="off"
+                required
+            /></label>
+            <label
+              >Nombre de esta caja<input
+                id="connector-name"
+                type="text"
+                placeholder="Caja Principal"
+                required
+            /></label>
+            <button id="register-button" class="button button-primary" type="submit">
+              Vincular con la nube
+            </button>
+          </form>
+        </article>
+
+        <article class="card status-card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">ESTADO</p>
+              <h3 id="connection-title">Conector no vinculado</h3>
+            </div>
+            <div id="status-dot" class="status-dot neutral"></div>
+          </div>
+          <dl class="status-list">
+            <div>
+              <dt>Empresa / nube</dt>
+              <dd id="state-url">-</dd>
+            </div>
+            <div>
+              <dt>Esta instalación</dt>
+              <dd id="state-name">-</dd>
+            </div>
+            <div>
+              <dt>Proceso local</dt>
+              <dd id="state-process">Detenido</dd>
+            </div>
+            <div>
+              <dt>Última conexión</dt>
+              <dd id="state-last-connection">Aún no comprobada</dd>
+            </div>
+          </dl>
+          <div class="button-row">
+            <button id="check-button" class="button button-secondary" type="button">
+              Comprobar conexión
+            </button>
+            <button id="toggle-button" class="button button-ghost" type="button">Activar</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="card guide-card">
+        <div class="guide-icon">✓</div>
+        <div>
+          <h3>¿Dónde se configura la impresora?</h3>
+          <p class="muted">
+            La impresora, la caja y la sucursal se configuran desde <strong>/printing</strong> en la
+            aplicación online. Esta ventana solo vincula y supervisa la instalación local.
+          </p>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>Print Connector <strong id="app-version">-</strong></span>
+        <button id="data-button" class="link-button" type="button">Abrir carpeta de datos</button>
+      </footer>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

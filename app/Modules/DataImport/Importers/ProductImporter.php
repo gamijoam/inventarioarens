@@ -59,6 +59,11 @@ class ProductImporter extends BaseImporter
         ];
     }
 
+    public function naturalKey(array $payload): string
+    {
+        return trim((string) ($payload['sku'] ?? ''));
+    }
+
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
         $payload = $this->fillDefaults($payload);
