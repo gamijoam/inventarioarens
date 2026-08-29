@@ -11,6 +11,8 @@ class CrmWarehouseResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'tenant_id' => (int) ($this->branch?->tenant_id ?? $this->tenant_id),
+            'tenant_slug' => $this->branch?->tenant?->slug,
             'branch_id' => $this->branch_id,
             'branch_code' => $this->branch?->code,
             'branch_name' => $this->branch?->name,

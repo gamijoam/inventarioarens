@@ -236,6 +236,202 @@ class CrmIntegrationApiTest extends TestCase
         $this->assertDatabaseMissing('crm_api_tokens', ['name' => 'Alcance inconsistente']);
     }
 
+    public function test_subtree_token_requires_group_owner_and_lists_only_descendant_branches(): void
+    {
+        [$group, $manager] = $this->tenantWithManager('Tiendas Arens', 'tiendasarens');
+        [$childBranch, $childWarehouse] = $this->branchFor(Tenant::create([
+            'name' => 'Tucacas',
+            'slug' => 'tucacas',
+            'parent_id' => $group->id,
+            'is_group' => false,
+        ]), 'Tucacas', '001');
+        [$otherGroupBranch] = $this->branchFor(Tenant::create([
+            'name' => 'Otra empresa',
+            'slug' => 'otra-empresa',
+        ]), 'Otra empresa', '001');
+        [$inactiveBranch] = $this->branchFor(Tenant::create([
+            'name' => 'Sucursal suspendida',
+            'slug' => 'sucursal-suspendida',
+            'status' => 'inactive',
+            'parent_id' => $group->id,
+            'is_group' => false,
+        ]), 'Sucursal suspendida', '001');
+
+        $this->withHeaders([
+            'Authorization' => "Bearer {$this->loginToken($group, $manager)}",
+            'X-Tenant' => $group->slug,
+        ])->postJson('/api/crm/integration-tokens', [
+            'name' => 'CRM subtree sin Owner',
+            'tenant_scope' => 'subtree',
+            'scopes' => CrmApiToken::SCOPES,
+            'expires_at' => now()->addDays(30)->toIso8601String(),
+        ])->assertForbidden();
+
+        $this->makeStrictOwner($group, $manager);
+        $token = $this->issueCrmToken($group, $manager, [
+            'tenant_scope' => 'subtree',
+        ]);
+
+        $this->assertSame('subtree', $token['tenant_scope']);
+        $this->assertDatabaseHas('crm_api_tokens', [
+            'id' => $token['id'],
+            'tenant_id' => $group->id,
+            'tenant_scope' => 'subtree',
+        ]);
+
+        $this->crmGet($token['token'], '/api/v1/integrations/crm/branches')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.tenant_id', $childBranch->tenant_id)
+            ->assertJsonPath('data.0.tenant_slug', 'tucacas')
+            ->assertJsonPath('data.0.branch_id', $childBranch->id)
+            ->assertJsonPath('data.0.slug', 'tucacas')
+            ->assertJsonMissing(['tenant_id' => $group->id])
+            ->assertJsonMissing(['branch_id' => $otherGroupBranch->id])
+            ->assertJsonMissing(['branch_id' => $inactiveBranch->id]);
+
+        $this->crmGet($token['token'], '/api/v1/integrations/crm/warehouses')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.tenant_id', $childBranch->tenant_id)
+            ->assertJsonPath('data.0.tenant_slug', 'tucacas')
+            ->assertJsonPath('data.0.id', $childWarehouse->id)
+            ->assertJsonPath('data.0.branch_id', $childBranch->id);
+    }
+
+    public function test_subtree_availability_uses_preferred_child_and_returns_only_authorized_alternatives(): void
+    {
+        [$group, $manager] = $this->tenantWithManager('Tiendas Arens', 'tiendasarens');
+        $this->makeStrictOwner($group, $manager);
+        [$rootBranch] = $this->branchFor($group, 'MASTER', '000');
+        [$tucacasBranch, $tucacasWarehouse] = $this->branchFor(
+            $tucacas = Tenant::create([
+                'name' => 'Tucacas',
+                'slug' => 'tucacas',
+                'parent_id' => $group->id,
+                'is_group' => false,
+            ]),
+            'Tucacas',
+            '001',
+        );
+        [$bocaBranch, $bocaWarehouse] = $this->branchFor(
+            $boca = Tenant::create([
+                'name' => 'Boca de Aroa',
+                'slug' => 'boca-de-aroa',
+                'parent_id' => $group->id,
+                'is_group' => false,
+            ]),
+            'Boca de Aroa',
+            '001',
+        );
+        [, $outsideWarehouse] = $this->branchFor(
+            $outside = Tenant::create([
+                'name' => 'Fuera del grupo',
+                'slug' => 'fuera-del-grupo',
+            ]),
+            'Fuera del grupo',
+            '001',
+        );
+
+        $master = $this->product($group, 'Phone B', 'PHONE-B');
+        $master->forceFill(['is_catalog_master' => true])->save();
+        $tucacasProduct = $this->product($tucacas, 'Phone B', 'PHONE-B');
+        $tucacasProduct->forceFill([
+            'catalog_product_id' => $master->id,
+            'is_catalog_master' => false,
+        ])->save();
+        $bocaProduct = $this->product($boca, 'Phone B', 'PHONE-B');
+        $bocaProduct->forceFill([
+            'catalog_product_id' => $master->id,
+            'is_catalog_master' => false,
+        ])->save();
+        $outsideProduct = $this->product($outside, 'Phone B', 'PHONE-B');
+        $outsideProduct->forceFill([
+            'catalog_product_id' => $master->id,
+            'is_catalog_master' => false,
+        ])->save();
+
+        $this->stock($tucacas, $tucacasWarehouse, $tucacasProduct, 0, 1, 0);
+        $this->stock($boca, $bocaWarehouse, $bocaProduct, 6, 0, 0);
+        $this->stock($outside, $outsideWarehouse, $outsideProduct, 99, 0, 0);
+
+        $token = $this->issueCrmToken($group, $manager, [
+            'tenant_scope' => 'subtree',
+        ])['token'];
+
+        $this->crmGet($token, '/api/v1/integrations/crm/products?search=PHONE-B')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $master->id)
+            ->assertJsonPath('data.0.sku', 'PHONE-B');
+
+        $this->crmGet(
+            $token,
+            '/api/v1/integrations/crm/inventory/availability?sku=PHONE-B&branch_id='.$tucacasBranch->id.'&include_alternatives=true',
+        )
+            ->assertOk()
+            ->assertJsonPath('data.0.product_id', $master->id)
+            ->assertJsonPath('data.0.branch_id', $tucacasBranch->id)
+            ->assertJsonPath('data.0.tenant_id', $tucacas->id)
+            ->assertJsonPath('data.0.tenant_slug', 'tucacas')
+            ->assertJsonPath('data.0.available_quantity', 0)
+            ->assertJsonPath('data.0.has_availability', false)
+            ->assertJsonPath('data.0.alternatives.0.tenant_id', $boca->id)
+            ->assertJsonPath('data.0.alternatives.0.tenant_slug', 'boca-de-aroa')
+            ->assertJsonPath('data.0.alternatives.0.branch_id', $bocaBranch->id)
+            ->assertJsonPath('data.0.alternatives.0.available_quantity', 6)
+            ->assertJsonMissing(['branch_id' => $rootBranch->id])
+            ->assertJsonMissing(['branch_id' => $outsideWarehouse->branch_id]);
+
+        $this->crmGet($token, '/api/v1/integrations/crm/inventory/availability?branch_id='.$rootBranch->id)
+            ->assertNotFound();
+    }
+
+    public function test_subtree_token_cannot_query_a_branch_from_another_group(): void
+    {
+        [$group, $manager] = $this->tenantWithManager('Tiendas Arens', 'tiendasarens');
+        $this->makeStrictOwner($group, $manager);
+        [$outsideBranch] = $this->branchFor(Tenant::create([
+            'name' => 'Fuera del grupo',
+            'slug' => 'fuera-del-grupo',
+        ]), 'Fuera del grupo', '001');
+        $token = $this->issueCrmToken($group, $manager, [
+            'tenant_scope' => 'subtree',
+        ])['token'];
+
+        $this->crmGet($token, '/api/v1/integrations/crm/inventory/availability?branch_id='.$outsideBranch->id)
+            ->assertNotFound()
+            ->assertJsonPath('error', 'not_found');
+    }
+
+    public function test_non_owner_with_settings_permission_cannot_rotate_or_revoke_a_subtree_token(): void
+    {
+        [$group, $owner] = $this->tenantWithManager('Tiendas Arens', 'tiendasarens');
+        $this->makeStrictOwner($group, $owner);
+        $operator = User::factory()->create(['password' => 'secret123']);
+        $operator->tenants()->attach($group, ['status' => 'active']);
+        $this->grantSettingsManager($group, $operator);
+        $token = $this->issueCrmToken($group, $owner, [
+            'tenant_scope' => 'subtree',
+        ])['token'];
+        $tokenId = CrmApiToken::query()->latest('id')->value('id');
+        $session = $this->loginToken($group, $operator);
+
+        $this->withHeaders([
+            'Authorization' => "Bearer {$session}",
+            'X-Tenant' => $group->slug,
+        ])->postJson('/api/crm/integration-tokens/'.$tokenId.'/rotate')
+            ->assertForbidden();
+
+        $this->withHeaders([
+            'Authorization' => "Bearer {$session}",
+            'X-Tenant' => $group->slug,
+        ])->deleteJson('/api/crm/integration-tokens/'.$tokenId)
+            ->assertForbidden();
+
+        $this->crmGet($token, '/api/v1/integrations/crm/branches')->assertOk();
+    }
+
     public function test_crm_token_cannot_cross_tenants_or_call_mutating_api_routes(): void
     {
         [$tenantA, $managerA] = $this->tenantWithManager('Empresa A', 'empresa-a');
@@ -416,6 +612,59 @@ class CrmIntegrationApiTest extends TestCase
         return [$branchA, $branchB, $warehouseA, $warehouseB];
     }
 
+    private function branchFor(Tenant $tenant, string $name, string $code): array
+    {
+        app(TenantManager::class)->set($tenant);
+        $branch = Branch::create([
+            'tenant_id' => $tenant->id,
+            'name' => $name,
+            'code' => $code,
+            'status' => Branch::STATUS_ACTIVE,
+        ]);
+        $warehouse = Warehouse::create([
+            'tenant_id' => $tenant->id,
+            'branch_id' => $branch->id,
+            'name' => 'Almacén '.$name,
+            'code' => $code.'-01',
+            'status' => Warehouse::STATUS_ACTIVE,
+        ]);
+        app(TenantManager::class)->clear();
+
+        return [$branch, $warehouse];
+    }
+
+    private function makeStrictOwner(Tenant $tenant, User $user): void
+    {
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $role = Role::firstOrCreate([
+            'name' => 'Owner',
+            'guard_name' => 'web',
+            'tenant_id' => $tenant->id,
+        ]);
+        $role->syncPermissions(['settings.manage']);
+        $user->assignRole($role);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        app(TenantManager::class)->clear();
+    }
+
+    private function grantSettingsManager(Tenant $tenant, User $user): void
+    {
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $role = Role::firstOrCreate([
+            'name' => 'CRM Operator',
+            'guard_name' => 'web',
+            'tenant_id' => $tenant->id,
+        ]);
+        $role->syncPermissions(['settings.manage']);
+        $user->assignRole($role);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        app(TenantManager::class)->clear();
+    }
+
     private function product(
         Tenant $tenant,
         string $name,
@@ -469,6 +718,7 @@ class CrmIntegrationApiTest extends TestCase
         $session = $this->loginToken($tenant, $manager);
         $payload = array_merge([
             'name' => 'CRM test',
+            'tenant_scope' => 'tenant',
             'scopes' => CrmApiToken::SCOPES,
             'branch_ids' => null,
             'warehouse_ids' => null,

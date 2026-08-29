@@ -16,6 +16,19 @@
   `tiendas-arens`, filtro por `branch_id`, alternativas autorizadas, estados `has_availability` e
   `is_stale`, y consulta por hasta 100 `product_ids`.
 
+## 2026-08-29 - Alcance jerarquico para tokens CRM
+
+- Los tokens CRM aceptan `tenant_scope=tenant|subtree`; `subtree` requiere Owner estricto del grupo y
+  resuelve unicamente descendientes activos desde `parent_id`.
+- `GET /branches`, `GET /warehouses` y `GET /inventory/availability` filtran por ese arbol; el grupo
+  propietario no se incluye en resultados operativos y las respuestas exponen `tenant_id` y
+  `tenant_slug`.
+- La disponibilidad usa el catalogo maestro como identidad compartida, busca balances solo en copias
+  operativas descendientes y limita `alternatives` a sucursales autorizadas fuera de la ubicacion
+  solicitada.
+- Se agrego la migracion `2026_08_29_182000_add_tenant_scope_to_crm_api_tokens_table.php` y pruebas
+  de aislamiento jerarquico en `CrmIntegrationApiTest`.
+
 ## 2026-08-28 - Cliente Electron del Conector Cloud
 
 - Se agrego una interfaz Electron independiente para vincular el conector mediante codigo temporal,

@@ -41,8 +41,8 @@ class CrmApiTokenController extends Controller
 
     public function destroy(Request $request, int $tokenId, CrmApiTokenService $service): JsonResponse
     {
-        $this->authorizeManagement($request);
         $token = $this->tokenForCurrentTenant($tokenId);
+        $this->authorizeManagement($request, $token);
         $service->revoke($token, $request->user(), $request);
 
         return response()->json(['data' => ['revoked' => true, 'token_id' => $token->id]]);
@@ -50,8 +50,9 @@ class CrmApiTokenController extends Controller
 
     public function rotate(Request $request, int $tokenId, CrmApiTokenService $service): JsonResponse
     {
-        $this->authorizeManagement($request);
-        $result = $service->rotate($this->tokenForCurrentTenant($tokenId), $request->user(), $request);
+        $token = $this->tokenForCurrentTenant($tokenId);
+        $this->authorizeManagement($request, $token);
+        $result = $service->rotate($token, $request->user(), $request);
 
         $data = CrmApiTokenResource::make($result['token'])->resolve($request);
         $data['token'] = $result['plain_token'];
@@ -64,8 +65,15 @@ class CrmApiTokenController extends Controller
         return CrmApiToken::query()->whereKey($tokenId)->firstOrFail();
     }
 
-    private function authorizeManagement(Request $request): void
+    private function authorizeManagement(Request $request, ?CrmApiToken $token = null): void
     {
         abort_unless($request->user()?->can('settings.manage'), Response::HTTP_FORBIDDEN);
+
+        if ($token?->tenant_scope === CrmApiToken::TENANT_SCOPE_SUBTREE) {
+            abort_unless(
+                $request->user()->isStrictOwnerOf($token->tenant),
+                Response::HTTP_FORBIDDEN,
+            );
+        }
     }
 }

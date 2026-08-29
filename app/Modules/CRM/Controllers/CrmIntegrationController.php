@@ -12,6 +12,7 @@ use App\Modules\CRM\Resources\CrmBranchResource;
 use App\Modules\CRM\Resources\CrmProductResource;
 use App\Modules\CRM\Resources\CrmWarehouseResource;
 use App\Modules\CRM\Services\CrmScopeService;
+use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sync\Models\SyncState;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,7 +26,10 @@ class CrmIntegrationController extends Controller
     public function branches(CrmLocationsRequest $request, CrmScopeService $scope): AnonymousResourceCollection
     {
         $token = $this->token($request);
-        $query = $scope->visibleBranches(Branch::query())->orderBy('name');
+        $query = $scope
+            ->visibleBranches(Branch::withoutGlobalScopes(), $scope->tenantIds($token))
+            ->with('tenant')
+            ->orderBy('name');
         $this->applyStatus($query, $request->validated('status'));
 
         if (($branchIds = $scope->branchIds($token)) !== null) {
@@ -38,7 +42,9 @@ class CrmIntegrationController extends Controller
     public function warehouses(CrmLocationsRequest $request, CrmScopeService $scope): AnonymousResourceCollection
     {
         $token = $this->token($request);
-        $query = $scope->warehouses($token)->with('branch')->orderBy('name');
+        $query = $scope->warehouses($token)
+            ->with(['branch' => fn ($branch) => $branch->withoutGlobalScopes()->with('tenant')])
+            ->orderBy('name');
         $this->applyStatus($query, $request->validated('status'));
 
         if ($request->filled('branch_id')) {
@@ -50,9 +56,9 @@ class CrmIntegrationController extends Controller
         return CrmWarehouseResource::collection($query->paginate($this->perPage($request)));
     }
 
-    public function products(CrmCatalogProductsRequest $request): AnonymousResourceCollection
+    public function products(CrmCatalogProductsRequest $request, CrmScopeService $scope): AnonymousResourceCollection
     {
-        $query = Product::query()
+        $query = $scope->catalogProducts($this->token($request))
             ->with(['brand', 'categories'])
             ->where('is_active', true)
             ->orderBy('name');
@@ -70,9 +76,9 @@ class CrmIntegrationController extends Controller
         return CrmProductResource::collection($query->paginate($this->perPage($request)));
     }
 
-    public function product(string $sku): CrmProductResource
+    public function product(Request $request, CrmScopeService $scope, string $sku): CrmProductResource
     {
-        $product = Product::query()
+        $product = $scope->catalogProducts($this->token($request))
             ->with(['brand', 'categories'])
             ->where('is_active', true)
             ->whereRaw('LOWER(sku) = ?', [mb_strtolower($sku)])
@@ -84,6 +90,7 @@ class CrmIntegrationController extends Controller
     public function availability(CrmAvailabilityRequest $request, CrmScopeService $scope): AnonymousResourceCollection
     {
         $token = $this->token($request);
+        $tenantIds = $scope->tenantIds($token);
         $warehouseQuery = $scope->warehouses($token)->where('status', 'active');
         $selectedWarehouseQuery = clone $warehouseQuery;
         $requestedBranch = null;
@@ -92,7 +99,8 @@ class CrmIntegrationController extends Controller
         $branchId = $request->filled('branch_id') ? (int) $request->validated('branch_id') : null;
         if ($branchId !== null) {
             $scope->assertBranchAllowed($token, $branchId);
-            $requestedBranch = Branch::query()
+            $requestedBranch = Branch::withoutGlobalScopes()
+                ->with('tenant')
                 ->whereKey($branchId)
                 ->where('status', Branch::STATUS_ACTIVE)
                 ->firstOrFail();
@@ -114,7 +122,10 @@ class CrmIntegrationController extends Controller
             ? $selectedWarehouseQuery->pluck('id')->map(fn ($id) => (int) $id)->all()
             : $accessibleWarehouseIds;
         $selectedWarehouses = $requestedBranch !== null && $requestedWarehouse === null && $selectedWarehouseIds !== []
-            ? (clone $warehouseQuery)->whereIn('id', $selectedWarehouseIds)->with('branch')->get()
+            ? (clone $warehouseQuery)
+                ->whereIn('id', $selectedWarehouseIds)
+                ->with(['branch' => fn ($branch) => $branch->withoutGlobalScopes()->with('tenant')])
+                ->get()
             : collect();
         $preferredWarehouse = $requestedWarehouse
             ?? ($requestedBranch !== null && $selectedWarehouses->count() === 1 ? $selectedWarehouses->first() : null);
@@ -124,6 +135,8 @@ class CrmIntegrationController extends Controller
             'code' => $requestedBranch->code,
             'name' => $requestedBranch->name,
             'slug' => $requestedBranch->slug,
+            'tenant_id' => (int) $requestedBranch->tenant_id,
+            'tenant_slug' => $requestedBranch->tenant?->slug,
         ] : null;
         $requestedWarehouseData = $preferredWarehouse ? [
             'id' => (int) $preferredWarehouse->id,
@@ -131,11 +144,8 @@ class CrmIntegrationController extends Controller
             'name' => $preferredWarehouse->name,
         ] : null;
 
-        $query = Product::query()
+        $query = $scope->catalogProducts($token)
             ->where('is_active', true)
-            ->with(['stockBalances' => function ($balances) use ($accessibleWarehouseIds): void {
-                $balances->whereIn('warehouse_id', $accessibleWarehouseIds)->with('warehouse.branch');
-            }])
             ->orderBy('name');
 
         if ($accessibleWarehouseIds === []) {
@@ -161,8 +171,9 @@ class CrmIntegrationController extends Controller
             });
         }
 
-        $lastSyncAt = $this->lastSyncAt();
+        $lastSyncAt = $this->lastSyncAt($tenantIds);
         $products = $query->paginate($this->perPage($request));
+        $this->attachAvailabilityBalances($products->getCollection(), $tenantIds, $accessibleWarehouseIds);
         $products->getCollection()->each(function (Product $product) use (
             $lastSyncAt,
             $selectedWarehouseIds,
@@ -178,6 +189,49 @@ class CrmIntegrationController extends Controller
         });
 
         return CrmAvailabilityResource::collection($products);
+    }
+
+    private function attachAvailabilityBalances($products, array $tenantIds, array $warehouseIds): void
+    {
+        $catalogProductIds = $products->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $skus = $products->pluck('sku')->filter()->values()->all();
+
+        if ($catalogProductIds === [] || $warehouseIds === []) {
+            $products->each(fn (Product $product) => $product->setRelation('stockBalances', collect()));
+
+            return;
+        }
+
+        $operationalProducts = Product::withoutGlobalScopes()
+            ->whereIn('tenant_id', $tenantIds)
+            ->where('is_active', true)
+            ->where(function (Builder $query) use ($catalogProductIds, $skus): void {
+                $query
+                    ->whereIn('catalog_product_id', $catalogProductIds)
+                    ->orWhereIn('id', $catalogProductIds)
+                    ->orWhereIn('sku', $skus);
+            })
+            ->get(['id', 'sku', 'catalog_product_id']);
+
+        $balances = StockBalance::withoutGlobalScopes()
+            ->whereIn('tenant_id', $tenantIds)
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->whereIn('product_id', $operationalProducts->pluck('id'))
+            ->with([
+                'product' => fn ($product) => $product->withoutGlobalScopes(),
+                'warehouse' => fn ($warehouse) => $warehouse
+                    ->withoutGlobalScopes()
+                    ->with(['branch' => fn ($branch) => $branch->withoutGlobalScopes()->with('tenant')]),
+            ])
+            ->get();
+        $balancesBySku = $balances->groupBy(fn (StockBalance $balance): string => mb_strtolower((string) $balance->product?->sku));
+
+        $products->each(function (Product $product) use ($balancesBySku): void {
+            $product->setRelation(
+                'stockBalances',
+                $balancesBySku->get(mb_strtolower((string) $product->sku), collect()),
+            );
+        });
     }
 
     private function token(Request $request): CrmApiToken
@@ -199,9 +253,12 @@ class CrmIntegrationController extends Controller
         return max(1, min(100, (int) ($request->validated('per_page') ?? 25)));
     }
 
-    private function lastSyncAt(): ?Carbon
+    private function lastSyncAt(array $tenantIds): ?Carbon
     {
-        $last = SyncState::query()->orderByDesc('last_success_at')->first()?->last_success_at;
+        $last = SyncState::withoutGlobalScopes()
+            ->whereIn('tenant_id', $tenantIds)
+            ->orderByDesc('last_success_at')
+            ->first()?->last_success_at;
 
         return $last;
     }

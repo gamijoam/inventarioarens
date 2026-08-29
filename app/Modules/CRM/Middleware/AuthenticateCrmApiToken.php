@@ -42,6 +42,13 @@ class AuthenticateCrmApiToken
             ['WWW-Authenticate' => 'Bearer realm="crm", error="invalid_token"'],
         );
 
+        abort_unless(
+            $token->tenant_scope !== CrmApiToken::TENANT_SCOPE_SUBTREE || $token->tenant->isGroup(),
+            Response::HTTP_UNAUTHORIZED,
+            'La credencial CRM tiene un alcance jerárquico inválido.',
+            ['WWW-Authenticate' => 'Bearer realm="crm", error="invalid_token"'],
+        );
+
         $this->assertOptionalTenantHeader($request, $token->tenant);
         $this->tenants->set($token->tenant);
         $request->attributes->set('crm_token', $token);

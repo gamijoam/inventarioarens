@@ -13,20 +13,32 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class CrmApiTokenService
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly CrmScopeService $scope,
+    ) {}
 
     public function issue(array $data, Tenant $tenant, User $actor, Request $request): array
     {
         $branchIds = $this->normalizeIds($data['branch_ids'] ?? null);
         $warehouseIds = $this->normalizeIds($data['warehouse_ids'] ?? null);
-        $this->validateLocationRelationship($tenant, $branchIds, $warehouseIds);
+        $tenantScope = $data['tenant_scope'] ?? CrmApiToken::TENANT_SCOPE_TENANT;
+
+        if ($tenantScope === CrmApiToken::TENANT_SCOPE_SUBTREE
+            && (! $tenant->isGroup() || ! $actor->isStrictOwnerOf($tenant))) {
+            throw new AccessDeniedHttpException('Solo el Owner estricto del grupo puede emitir un token subtree.');
+        }
+
+        $this->validateLocationRelationship($tenant, $tenantScope, $branchIds, $warehouseIds);
 
         $plainToken = $this->newPlainToken();
         $token = CrmApiToken::create([
             'tenant_id' => $tenant->id,
+            'tenant_scope' => $tenantScope,
             'created_by' => $actor->id,
             'name' => $data['name'],
             'token_prefix' => substr($plainToken, 0, 16),
@@ -45,6 +57,7 @@ class CrmApiTokenService
                 'token_id' => $token->id,
                 'token_prefix' => $token->token_prefix,
                 'name' => $token->name,
+                'tenant_scope' => $token->tenant_scope,
                 'scopes' => $token->scopes,
                 'branch_ids' => $token->branch_ids,
                 'warehouse_ids' => $token->warehouse_ids,
@@ -108,11 +121,17 @@ class CrmApiTokenService
         );
     }
 
-    private function validateLocationRelationship(Tenant $tenant, ?array $branchIds, ?array $warehouseIds): void
-    {
+    private function validateLocationRelationship(
+        Tenant $tenant,
+        string $tenantScope,
+        ?array $branchIds,
+        ?array $warehouseIds,
+    ): void {
+        $tenantIds = $this->scope->tenantIdsFor($tenant, $tenantScope);
+
         if ($branchIds !== null) {
             $count = Branch::withoutGlobalScopes()
-                ->where('tenant_id', $tenant->id)
+                ->whereIn('tenant_id', $tenantIds)
                 ->whereIn('id', $branchIds)
                 ->count();
 
@@ -128,7 +147,7 @@ class CrmApiTokenService
         }
 
         $warehouses = Warehouse::withoutGlobalScopes()
-            ->where('tenant_id', $tenant->id)
+            ->whereIn('tenant_id', $tenantIds)
             ->whereIn('id', $warehouseIds)
             ->get(['id', 'branch_id']);
 

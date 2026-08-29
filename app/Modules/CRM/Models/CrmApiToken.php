@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'tenant_id',
+    'tenant_scope',
     'created_by',
     'name',
     'token_prefix',
@@ -36,6 +37,15 @@ class CrmApiToken extends Model
         self::SCOPE_CATALOG_READ,
         self::SCOPE_INVENTORY_READ,
         self::SCOPE_BRANCHES_READ,
+    ];
+
+    public const TENANT_SCOPE_TENANT = 'tenant';
+
+    public const TENANT_SCOPE_SUBTREE = 'subtree';
+
+    public const TENANT_SCOPES = [
+        self::TENANT_SCOPE_TENANT,
+        self::TENANT_SCOPE_SUBTREE,
     ];
 
     public function tenant(): BelongsTo

@@ -32,6 +32,20 @@ sin acceso directo a PostgreSQL/SQLite y sin permisos para modificar datos.
 - El CRM debe cargar `branch_id`, `branch_code`, `branch_name` y `slug` desde `GET /branches`; no
   debe hardcodear IDs.
 
+### Alcance jerarquico
+
+- Un token con `tenant_scope=tenant` solo consulta el tenant propietario, como los tokens existentes.
+- Un token con `tenant_scope=subtree` debe pertenecer a un tenant grupo y solo consulta sus tenants
+  descendientes activos. El tenant propietario no se incluye en sucursales, almacenes ni inventario
+  operativo.
+- La emision de `subtree` requiere `settings.manage` y el rol estricto `Owner` del grupo. El servidor
+  calcula los descendientes desde `parent_id`; nunca acepta una lista de tenants confiada desde el
+  payload ni desde headers.
+- El catalogo de un token `subtree` usa el catalogo maestro del grupo. Los precios y datos descriptivos
+  son compartidos, mientras que el stock se busca unicamente en las copias operativas descendientes.
+- Las restricciones opcionales `branch_ids` y `warehouse_ids` se validan contra los descendientes
+  activos autorizados y se aplican como interseccion.
+
 ## Scopes
 
 Los scopes permitidos son:
@@ -66,9 +80,10 @@ Content-Type: application/json
 ```json
 {
   "name": "CRM produccion",
+  "tenant_scope": "subtree",
   "scopes": ["catalog.read", "inventory.read", "branches.read"],
-  "branch_ids": [12, 18],
-  "warehouse_ids": [31, 32],
+  "branch_ids": null,
+  "warehouse_ids": null,
   "expires_at": "2027-08-29T00:00:00Z"
 }
 ```
@@ -123,6 +138,8 @@ Cada elemento tiene esta forma:
 ```json
 {
   "branch_id": 12,
+  "tenant_id": 2,
+  "tenant_slug": "tucacas",
   "branch_code": "CENTRO",
   "branch_name": "Sucursal Centro",
   "slug": "sucursal-centro",
@@ -181,6 +198,8 @@ Respuesta de ejemplo:
       "branch_code": "CENTRO",
       "branch_name": "Sucursal Centro",
       "branch_slug": "sucursal-centro",
+      "tenant_id": 2,
+      "tenant_slug": "tucacas",
       "warehouse_id": 31,
       "warehouse_code": "CENTRO-01",
       "warehouse_name": "Almacen Centro",
@@ -214,10 +233,12 @@ Respuesta de ejemplo:
           "warehouse_code": "CENTRO-01",
           "warehouse_name": "Almacen Centro",
           "branch_id": 12,
-          "branch_code": "CENTRO",
-          "branch_name": "Sucursal Centro",
-          "branch_slug": "sucursal-centro",
-          "available_quantity": 7,
+         "branch_code": "CENTRO",
+         "branch_name": "Sucursal Centro",
+         "branch_slug": "sucursal-centro",
+         "tenant_id": 2,
+         "tenant_slug": "tucacas",
+         "available_quantity": 7,
           "reserved_quantity": 2,
           "damaged_quantity": 1,
           "as_of": "2026-08-29T14:20:00+00:00",
@@ -246,6 +267,11 @@ disponible, aunque exista stock reservado o danado. `alternatives` solo se llena
 otras sucursales autorizadas que tengan `available_quantity > 0`; nunca incluye la
 sucursal solicitada ni `tiendas-arens`.
 
+Para un token `tenant_scope=subtree`, la sucursal seleccionada es la ubicacion preferida. Las
+alternativas se calculan solo entre sucursales de tenants descendientes activos del grupo propietario.
+El resultado principal y cada alternativa incluyen `tenant_id` y `tenant_slug` para que el CRM pueda
+identificar la empresa operativa sin inferirla desde IDs locales.
+
 Ejemplos de estados para el CRM:
 
 ### Producto disponible en la sucursal seleccionada
@@ -271,7 +297,9 @@ Ejemplos de estados para el CRM:
   "has_availability": false,
   "alternatives": [
     {
-      "branch_id": 18,
+     "branch_id": 18,
+      "tenant_id": 3,
+      "tenant_slug": "boca-de-aroa",
       "branch_code": "NORTE",
       "branch_name": "Sucursal Norte",
       "branch_slug": "sucursal-norte",

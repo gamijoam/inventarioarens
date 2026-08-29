@@ -12,6 +12,7 @@ class CrmApiTokenResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'tenant_scope' => $this->tenant_scope ?? 'tenant',
             'token_prefix' => $this->token_prefix,
             'scopes' => $this->scopes ?? [],
             'branch_ids' => $this->branch_ids,

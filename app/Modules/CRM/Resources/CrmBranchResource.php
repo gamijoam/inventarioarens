@@ -17,6 +17,8 @@ class CrmBranchResource extends JsonResource
             'name' => $this->name,
             'branch_name' => $this->name,
             'slug' => $this->slug,
+            'tenant_id' => (int) $this->tenant_id,
+            'tenant_slug' => $this->tenant?->slug,
             'status' => $this->status,
             'location' => null,
             'created_at' => $this->created_at?->toISOString(),
