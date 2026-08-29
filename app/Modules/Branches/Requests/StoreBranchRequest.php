@@ -21,6 +21,13 @@ class StoreBranchRequest extends FormRequest
                 'max:255',
                 Rule::unique('branches', 'code')->where('tenant_id', $tenantId),
             ],
+            'slug' => [
+                'nullable',
+                'string',
+                'max:255',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique('branches', 'slug')->where('tenant_id', $tenantId),
+            ],
             'status' => ['sometimes', 'string', Rule::in([Branch::STATUS_ACTIVE, Branch::STATUS_INACTIVE])],
         ];
     }

@@ -68,6 +68,7 @@ return [
 
     'crm' => [
         'rate_limit_per_minute' => (int) env('CRM_RATE_LIMIT_PER_MINUTE', 60),
+        'stock_stale_after_minutes' => (int) env('CRM_STOCK_STALE_AFTER_MINUTES', 30),
     ],
 
 ];

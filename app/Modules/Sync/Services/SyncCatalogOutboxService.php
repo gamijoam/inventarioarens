@@ -434,6 +434,7 @@ class SyncCatalogOutboxService
             payload: [
                 'code' => $branch->code,
                 'name' => $branch->name,
+                'slug' => $branch->slug,
                 'status' => $branch->status,
             ],
             idempotencyKey: $this->eventKey($eventType, 'branch', $branch->id, $branch->updated_at),

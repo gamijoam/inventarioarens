@@ -68,6 +68,10 @@ class CrmIntegrationApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $branchA->id)
+            ->assertJsonPath('data.0.branch_id', $branchA->id)
+            ->assertJsonPath('data.0.branch_code', 'CENTRO')
+            ->assertJsonPath('data.0.branch_name', 'Sucursal Centro')
+            ->assertJsonPath('data.0.slug', 'sucursal-centro')
             ->assertJsonMissing(['id' => $branchB->id]);
 
         $this->crmGet($token, '/api/v1/integrations/crm/warehouses')
@@ -100,6 +104,86 @@ class CrmIntegrationApiTest extends TestCase
             ->assertJsonCount(1, 'data.0.warehouses')
             ->assertJsonPath('data.0.warehouses.0.warehouse_id', $warehouseA->id)
             ->assertJsonMissing(['warehouse_id' => $warehouseB->id]);
+
+        $this->crmGet($token, '/api/v1/integrations/crm/inventory/availability?sku=PHONE-A&branch_id='.$branchA->id)
+            ->assertOk()
+            ->assertJsonPath('data.0.branch_id', $branchA->id)
+            ->assertJsonPath('data.0.branch_code', 'CENTRO')
+            ->assertJsonPath('data.0.branch_name', 'Sucursal Centro')
+            ->assertJsonPath('data.0.warehouse_id', $warehouseA->id)
+            ->assertJsonPath('data.0.warehouse_name', 'Almacén Centro')
+            ->assertJsonPath('data.0.available_quantity', 7)
+            ->assertJsonPath('data.0.has_availability', true);
+    }
+
+    public function test_availability_reports_selected_branch_and_authorized_alternatives(): void
+    {
+        [$tenant, $manager] = $this->tenantWithManager();
+        [$branchA, $branchB, $warehouseA, $warehouseB] = $this->locations($tenant);
+        $product = $this->product($tenant, 'Phone B', 'PHONE-B');
+        $token = $this->issueCrmToken($tenant, $manager)['token'];
+        $this->stock($tenant, $warehouseB, $product, 6, 1, 0);
+
+        $this->crmGet(
+            $token,
+            '/api/v1/integrations/crm/inventory/availability?sku=PHONE-B&branch_id='.$branchA->id.'&include_alternatives=true'
+        )
+            ->assertOk()
+            ->assertJsonPath('data.0.sku', 'PHONE-B')
+            ->assertJsonPath('data.0.branch_id', $branchA->id)
+            ->assertJsonPath('data.0.branch_code', 'CENTRO')
+            ->assertJsonPath('data.0.branch_name', 'Sucursal Centro')
+            ->assertJsonPath('data.0.warehouse_id', $warehouseA->id)
+            ->assertJsonPath('data.0.warehouse_name', 'Almacén Centro')
+            ->assertJsonPath('data.0.available_quantity', 0)
+            ->assertJsonPath('data.0.has_availability', false)
+            ->assertJsonPath('data.0.alternatives.0.branch_id', $branchB->id)
+            ->assertJsonPath('data.0.alternatives.0.branch_code', 'NORTE')
+            ->assertJsonPath('data.0.alternatives.0.available_quantity', 6)
+            ->assertJsonPath('data.0.alternatives.0.is_stale', false)
+            ->assertJsonPath('data.0.alternatives.0.as_of', fn ($value) => is_string($value) && $value !== '');
+    }
+
+    public function test_availability_marks_stale_inventory_and_does_not_invent_stock(): void
+    {
+        [$tenant, $manager] = $this->tenantWithManager();
+        [$branchA, , $warehouseA] = $this->locations($tenant);
+        $stale = $this->product($tenant, 'Stale phone', 'STALE-PHONE');
+        $empty = $this->product($tenant, 'Empty phone', 'EMPTY-PHONE');
+        $token = $this->issueCrmToken($tenant, $manager)['token'];
+
+        $this->stock($tenant, $warehouseA, $stale, 2, 0, 0, now()->subMinutes(31));
+        $this->stock($tenant, $warehouseA, $empty, 0, 0, 8);
+
+        $this->crmGet($token, '/api/v1/integrations/crm/inventory/availability?branch_id='.$branchA->id)
+            ->assertOk()
+            ->assertJsonPath('data.0.sku', 'EMPTY-PHONE')
+            ->assertJsonPath('data.0.available_quantity', 0)
+            ->assertJsonPath('data.0.has_availability', false)
+            ->assertJsonPath('data.1.sku', 'STALE-PHONE')
+            ->assertJsonPath('data.1.available_quantity', 2)
+            ->assertJsonPath('data.1.has_availability', true)
+            ->assertJsonPath('data.1.is_stale', true);
+    }
+
+    public function test_crm_never_exposes_the_excluded_tiendas_arens_branch(): void
+    {
+        [$tenant, $manager] = $this->tenantWithManager();
+        $this->locations($tenant);
+        app(TenantManager::class)->set($tenant);
+        Branch::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Tiendas Arens',
+            'code' => 'TIENDAS-ARENS',
+            'status' => Branch::STATUS_ACTIVE,
+        ]);
+        app(TenantManager::class)->clear();
+        $token = $this->issueCrmToken($tenant, $manager)['token'];
+
+        $this->crmGet($token, '/api/v1/integrations/crm/branches')
+            ->assertOk()
+            ->assertJsonMissing(['slug' => 'tiendas-arens'])
+            ->assertJsonCount(2, 'data');
     }
 
     public function test_crm_scope_is_required_for_each_read_operation(): void
@@ -187,6 +271,42 @@ class CrmIntegrationApiTest extends TestCase
         $this->crmGet($token, '/api/v1/integrations/crm/inventory/availability?warehouse_id='.$warehouseB->id)
             ->assertForbidden()
             ->assertJsonPath('error', 'insufficient_scope');
+    }
+
+    public function test_crm_returns_not_found_for_unknown_tenant_branch_and_product(): void
+    {
+        [$tenant, $manager] = $this->tenantWithManager();
+        $this->locations($tenant);
+        $token = $this->issueCrmToken($tenant, $manager)['token'];
+
+        $this->crmGet($token, '/api/v1/integrations/crm/products/NOT-FOUND')
+            ->assertNotFound();
+        $this->crmGet($token, '/api/v1/integrations/crm/inventory/availability?branch_id=999999')
+            ->assertNotFound();
+        $this->crmGet($token, '/api/v1/integrations/crm/products', [
+            'X-Tenant' => 'tenant-that-does-not-exist',
+        ])->assertNotFound();
+    }
+
+    public function test_branch_slugs_are_generated_stably_and_are_unique_per_tenant(): void
+    {
+        [$tenant] = $this->tenantWithManager();
+        app(TenantManager::class)->set($tenant);
+        $first = Branch::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Sucursal Centro',
+            'code' => 'CENTRO-1',
+        ]);
+        $first->update(['name' => 'Sucursal Centro Nueva']);
+        $second = Branch::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Sucursal Centro',
+            'code' => 'CENTRO-2',
+        ]);
+        app(TenantManager::class)->clear();
+
+        $this->assertSame('sucursal-centro', $first->fresh()->slug);
+        $this->assertSame('sucursal-centro-2', $second->slug);
     }
 
     public function test_expired_and_revoked_crm_tokens_are_rejected(): void
@@ -325,6 +445,7 @@ class CrmIntegrationApiTest extends TestCase
         float $available,
         float $reserved,
         float $damaged,
+        ?\DateTimeInterface $updatedAt = null,
     ): StockBalance {
         app(TenantManager::class)->set($tenant);
         $balance = StockBalance::create([
@@ -335,6 +456,9 @@ class CrmIntegrationApiTest extends TestCase
             'quantity_reserved' => $reserved,
             'quantity_damaged' => $damaged,
         ]);
+        if ($updatedAt !== null) {
+            $balance->forceFill(['updated_at' => $updatedAt])->save();
+        }
         app(TenantManager::class)->clear();
 
         return $balance;

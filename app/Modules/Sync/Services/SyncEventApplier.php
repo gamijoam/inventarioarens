@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 
@@ -358,6 +359,7 @@ class SyncEventApplier
             ['tenant_id' => $tenant->id, 'code' => $code],
             [
                 'name' => $this->requiredString($payload, 'name'),
+                'slug' => $payload['slug'] ?? Str::slug($this->requiredString($payload, 'name')),
                 'status' => $payload['status'] ?? 'active',
                 'updated_at' => now(),
             ]

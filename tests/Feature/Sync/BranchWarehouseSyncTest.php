@@ -54,6 +54,13 @@ class BranchWarehouseSyncTest extends TestCase
 
         Branch::create(['name' => 'Sucursal Norte', 'code' => 'NORTE']);
 
+        $event = DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'branch.created')
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame('sucursal-norte', json_decode((string) $event->payload, true)['slug']);
         $this->assertDatabaseHas('sync_outbox', [
             'tenant_id' => $tenant->id,
             'event_type' => 'branch.created',
@@ -81,6 +88,7 @@ class BranchWarehouseSyncTest extends TestCase
         $this->enqueueEvent($tenant->id, 'branch.created', [
             'code' => 'SUR',
             'name' => 'Sucursal Sur',
+            'slug' => 'sucursal-sur',
             'status' => 'active',
         ], 1);
         $this->enqueueEvent($tenant->id, 'warehouse.created', [
@@ -97,6 +105,7 @@ class BranchWarehouseSyncTest extends TestCase
             'tenant_id' => $tenant->id,
             'code' => 'SUR',
             'name' => 'Sucursal Sur',
+            'slug' => 'sucursal-sur',
         ]);
         $this->assertDatabaseHas('warehouses', [
             'tenant_id' => $tenant->id,

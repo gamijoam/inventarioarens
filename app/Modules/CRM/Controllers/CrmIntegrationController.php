@@ -25,7 +25,7 @@ class CrmIntegrationController extends Controller
     public function branches(CrmLocationsRequest $request, CrmScopeService $scope): AnonymousResourceCollection
     {
         $token = $this->token($request);
-        $query = Branch::query()->orderBy('name');
+        $query = $scope->visibleBranches(Branch::query())->orderBy('name');
         $this->applyStatus($query, $request->validated('status'));
 
         if (($branchIds = $scope->branchIds($token)) !== null) {
@@ -84,32 +84,61 @@ class CrmIntegrationController extends Controller
     public function availability(CrmAvailabilityRequest $request, CrmScopeService $scope): AnonymousResourceCollection
     {
         $token = $this->token($request);
-        $warehouseQuery = $scope->warehouses($token);
+        $warehouseQuery = $scope->warehouses($token)->where('status', 'active');
+        $selectedWarehouseQuery = clone $warehouseQuery;
+        $requestedBranch = null;
+        $requestedWarehouse = null;
 
         $branchId = $request->filled('branch_id') ? (int) $request->validated('branch_id') : null;
         if ($branchId !== null) {
             $scope->assertBranchAllowed($token, $branchId);
-            $warehouseQuery->where('branch_id', $branchId);
+            $requestedBranch = Branch::query()
+                ->whereKey($branchId)
+                ->where('status', Branch::STATUS_ACTIVE)
+                ->firstOrFail();
+            $selectedWarehouseQuery->where('branch_id', $branchId);
         }
 
         if ($request->filled('warehouse_id')) {
-            $scope->assertWarehouseAllowed(
+            $requestedWarehouse = $scope->assertWarehouseAllowed(
                 $token,
                 (int) $request->validated('warehouse_id'),
                 $branchId,
             );
-            $warehouseQuery->whereKey((int) $request->validated('warehouse_id'));
+            $requestedBranch ??= $requestedWarehouse->branch;
+            $selectedWarehouseQuery->whereKey($requestedWarehouse->id);
         }
 
-        $warehouseIds = $warehouseQuery->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $accessibleWarehouseIds = (clone $warehouseQuery)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $selectedWarehouseIds = $branchId !== null || $request->filled('warehouse_id')
+            ? $selectedWarehouseQuery->pluck('id')->map(fn ($id) => (int) $id)->all()
+            : $accessibleWarehouseIds;
+        $selectedWarehouses = $requestedBranch !== null && $requestedWarehouse === null && $selectedWarehouseIds !== []
+            ? (clone $warehouseQuery)->whereIn('id', $selectedWarehouseIds)->with('branch')->get()
+            : collect();
+        $preferredWarehouse = $requestedWarehouse
+            ?? ($requestedBranch !== null && $selectedWarehouses->count() === 1 ? $selectedWarehouses->first() : null);
+
+        $requestedBranchData = $requestedBranch ? [
+            'id' => (int) $requestedBranch->id,
+            'code' => $requestedBranch->code,
+            'name' => $requestedBranch->name,
+            'slug' => $requestedBranch->slug,
+        ] : null;
+        $requestedWarehouseData = $preferredWarehouse ? [
+            'id' => (int) $preferredWarehouse->id,
+            'code' => $preferredWarehouse->code,
+            'name' => $preferredWarehouse->name,
+        ] : null;
+
         $query = Product::query()
             ->where('is_active', true)
-            ->with(['stockBalances' => function ($balances) use ($warehouseIds): void {
-                $balances->whereIn('warehouse_id', $warehouseIds)->with('warehouse.branch');
+            ->with(['stockBalances' => function ($balances) use ($accessibleWarehouseIds): void {
+                $balances->whereIn('warehouse_id', $accessibleWarehouseIds)->with('warehouse.branch');
             }])
             ->orderBy('name');
 
-        if ($warehouseIds === []) {
+        if ($accessibleWarehouseIds === []) {
             $query->whereIn('id', []);
         }
 
@@ -118,6 +147,9 @@ class CrmIntegrationController extends Controller
         }
         if ($request->filled('product_id')) {
             $query->whereKey((int) $request->validated('product_id'));
+        }
+        if ($request->filled('product_ids')) {
+            $query->whereIn('id', array_map('intval', $request->validated('product_ids')));
         }
         if ($search = trim((string) $request->validated('search', ''))) {
             $like = '%'.mb_strtolower($search).'%';
@@ -131,7 +163,19 @@ class CrmIntegrationController extends Controller
 
         $lastSyncAt = $this->lastSyncAt();
         $products = $query->paginate($this->perPage($request));
-        $products->getCollection()->each(fn (Product $product) => $product->setAttribute('crm_last_sync_at', $lastSyncAt));
+        $products->getCollection()->each(function (Product $product) use (
+            $lastSyncAt,
+            $selectedWarehouseIds,
+            $requestedBranchData,
+            $requestedWarehouseData,
+            $request,
+        ): void {
+            $product->setAttribute('crm_last_sync_at', $lastSyncAt);
+            $product->setAttribute('crm_selected_warehouse_ids', $selectedWarehouseIds);
+            $product->setAttribute('crm_requested_branch', $requestedBranchData);
+            $product->setAttribute('crm_requested_warehouse', $requestedWarehouseData);
+            $product->setAttribute('crm_include_alternatives', $request->boolean('include_alternatives'));
+        });
 
         return CrmAvailabilityResource::collection($products);
     }

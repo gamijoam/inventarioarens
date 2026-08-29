@@ -12,6 +12,9 @@
 - Contrato operativo documentado en `docs/CRM_INTEGRATION_API.md`.
 - TDD: `tests/Feature/CRM/CrmIntegrationApiTest.php` cubre emision, scopes, permisos, ubicaciones,
   cross-tenant, solo lectura, expiracion, revocacion, rotacion y rate limiting.
+- La revision del contrato agrego slug persistido para sucursales, exclusion permanente de
+  `tiendas-arens`, filtro por `branch_id`, alternativas autorizadas, estados `has_availability` e
+  `is_stale`, y consulta por hasta 100 `product_ids`.
 
 ## 2026-08-28 - Cliente Electron del Conector Cloud
 

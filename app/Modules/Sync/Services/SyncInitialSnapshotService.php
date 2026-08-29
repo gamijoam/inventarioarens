@@ -87,6 +87,7 @@ class SyncInitialSnapshotService
                     $this->record($tenant, $targetNodeId, $installationCode, 'branch.created', 'branch', (int) $branch->id, [
                         'code' => $branch->code,
                         'name' => $branch->name,
+                        'slug' => $branch->slug,
                         'status' => $branch->status,
                     ]);
                     $count++;

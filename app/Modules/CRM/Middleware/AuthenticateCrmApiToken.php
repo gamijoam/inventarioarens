@@ -85,7 +85,13 @@ class AuthenticateCrmApiToken
             ->first();
 
         abort_unless(
-            $headerTenant && (int) $headerTenant->id === (int) $tokenTenant->id,
+            $headerTenant,
+            Response::HTTP_NOT_FOUND,
+            'Tenant not found.',
+        );
+
+        abort_unless(
+            (int) $headerTenant->id === (int) $tokenTenant->id,
             Response::HTTP_FORBIDDEN,
             'La credencial CRM no pertenece al tenant solicitado.',
         );

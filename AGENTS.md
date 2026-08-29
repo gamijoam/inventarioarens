@@ -285,9 +285,14 @@ Compartida por cualquier cliente (web, móvil, CLI) que consuma el backend:
 - Cada token puede restringirse por `branch_ids` y/o `warehouse_ids`; el filtro se aplica en servidor
   y una consulta directa fuera del alcance responde 403. El rate limit por defecto es 60 solicitudes
   por minuto por token (`CRM_RATE_LIMIT_PER_MINUTE`).
+- Un tenant representa la empresa completa; las sucursales son recursos internos con `branch_id`,
+  `branch_code`, `branch_name` y slug persistido. `tiendas-arens` se excluye siempre de la API CRM.
+- Disponibilidad acepta `branch_id`, `warehouse_id`, `product_ids` e `include_alternatives`; las
+  alternativas solo incluyen otras sucursales autorizadas con `available_quantity > 0`.
 - El CRM no recibe costos, margenes, clientes, ventas, pagos ni permisos de escritura. Las consultas
   de disponibilidad exponen cantidades disponibles/reservadas/dañadas, `as_of`, `stock_source` y
-  `last_sync_at`. El contrato completo esta en `docs/CRM_INTEGRATION_API.md`.
+  `last_sync_at` e `is_stale` según `CRM_STOCK_STALE_AFTER_MINUTES` (30 minutos por defecto). El
+  contrato completo esta en `docs/CRM_INTEGRATION_API.md`.
 
 ---
 

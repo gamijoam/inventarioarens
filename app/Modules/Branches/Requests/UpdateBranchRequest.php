@@ -25,6 +25,16 @@ class UpdateBranchRequest extends FormRequest
                     ->where('tenant_id', $tenantId)
                     ->ignore($branch?->id),
             ],
+            'slug' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:255',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique('branches', 'slug')
+                    ->where('tenant_id', $tenantId)
+                    ->ignore($branch?->id),
+            ],
             'status' => ['sometimes', 'required', 'string', Rule::in([Branch::STATUS_ACTIVE, Branch::STATUS_INACTIVE])],
         ];
     }
