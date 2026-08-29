@@ -188,8 +188,8 @@ demo seeder tests are tagged `@group heavy`.
 
 Este es el flujo completo para lanzar un cambio (bugfix o feature) a los clientes de escritorio.
 Estos pasos aplican a cambios de interfaz. Los cambios de Laravel, PHP o sync se publican por separado
-mediante el release del Motor Local. El Conector Cloud de impresion tiene su propio release
-`v<version>-connector` mediante `.github/workflows/release-print-connector.yml`.
+mediante el release del Motor Local. El Conector Cloud de impresion tiene su propio cliente Electron y
+release `v<version>-connector` mediante `.github/workflows/release-print-connector.yml`.
 
 ### Antes de empezar (checklist)
 
@@ -217,6 +217,7 @@ Un release por cliente, tag `v<version>-<client>`:
 gh workflow run release.yml -f client=pos          --repo gamijoam/inventarioarens
 gh workflow run release.yml -f client=admin        --repo gamijoam/inventarioarens
 gh workflow run release.yml -f client=technician   --repo gamijoam/inventarioarens
+gh workflow run release-print-connector.yml -f version=0.2.0 -f prerelease=true --repo gamijoam/inventarioarens
 ```
 
 Seguir el estado hasta que termine (3-4 min):
@@ -232,8 +233,10 @@ contra una DB ya migrada por otro cliente nuevo.
 ### Paso 3 - Verificar la publicacion
 
 ```bash
-# Debe salir no-draft y con 3 assets (.exe, .blockmap, <channel>.yml)
+# Debe salir no-draft y con los assets del cliente seleccionado
 gh release view v0.2.4-pos --repo gamijoam/inventarioarens --json tagName,isDraft,assets
+# Para el conector: instalador NSIS, portable y sus hashes
+gh release view v0.2.0-connector --repo gamijoam/inventarioarens --json tagName,isDraft,assets
 ```
 
 ### Paso 4 - En la PC del usuario

@@ -1,6 +1,8 @@
 # Conector De Impresion Cloud
 
-Actualizado: 2026-08-25
+Actualizado: 2026-08-28
+
+Guia para usuarios: `docs/GUIA_USUARIO_CONECTOR_IMPRESION.md`.
 
 ## Objetivo
 
@@ -16,9 +18,13 @@ POS online -> print_jobs en la nube -> polling del conector -> impresora local -
 
 1. Un usuario con `printing.manage` genera `POST /api/printing/connectors/pairing-codes`.
 2. El codigo se muestra una sola vez y expira en 10 minutos.
-3. El instalador ejecuta `node connector.cjs register CODE "Nombre de caja" "https://app.miinventariofacil.com/api"`.
-4. La nube consume el codigo una sola vez y devuelve un token exclusivo para esa instalacion.
-5. El token se guarda en `%ProgramData%\InventarioArens\PrintConnector\config.json` y nunca se muestra en `status`.
+3. El usuario instala `InventarioArens-Print-Connector-Setup-<version>.exe` o ejecuta el portable.
+4. La ventana **Print Connector** recibe la URL de la nube, el codigo y el nombre de la caja.
+5. Al seleccionar **Vincular con la nube**, la nube consume el codigo una sola vez y devuelve un token exclusivo para esa instalacion.
+6. El token se guarda en la carpeta de datos de la aplicacion y nunca se muestra en la interfaz.
+7. El cliente queda en segundo plano, con acceso desde el icono de la bandeja y arranque automatico del usuario.
+
+La URL predeterminada es `https://app.miinventariofacil.com/api`. El usuario no necesita abrir una consola ni ejecutar scripts para instalar o vincular el conector.
 
 ## Transporte
 
@@ -47,17 +53,20 @@ Los trabajos `thermal` con estacion vinculada a un conector ya no se envian desd
 
 - Backend: `app/Modules/Printing/`.
 - Migracion: `database/migrations/2026_08_25_180000_create_print_connectors_table.php`.
-- Conector independiente: `tools/print-connector/connector.cjs`.
-- Pruebas del conector: `tools/print-connector/connector.test.cjs`.
-- Empaquetado standalone: `tools/print-connector/package-connector.cjs`.
-- Instalador Windows: `tools/print-connector/PrintConnector.iss`.
+- Core del conector: `tools/print-connector/connector.cjs`.
+- Cliente Electron: `tools/print-connector/main.cjs`, `preload.cjs` y `renderer/`.
+- Empaquetado Electron: `tools/print-connector/electron-builder.yml`.
+- Pruebas del conector y GUI: `tools/print-connector/{connector.test.cjs,gui.test.cjs}`.
+- Workflow de release: `.github/workflows/release-print-connector.yml`.
+- Empaquetador Node SEA e instalador Inno Setup: legado de migracion; no forman parte del release GUI.
 
 Pruebas locales:
 
 ```text
 cd tools/print-connector
-npm test
-npm run package:check
+pnpm install
+pnpm test
+pnpm run build:gui:dir
 ```
 
-El workflow `.github/workflows/release-print-connector.yml` construye en `windows-latest` y publica el ejecutable portable, el instalador y sus hashes en `v<version>-connector`.
+El workflow `.github/workflows/release-print-connector.yml` construye en `windows-latest` y publica el ejecutable portable, el instalador Electron y sus hashes en `v<version>-connector`.

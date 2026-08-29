@@ -193,6 +193,26 @@ test('keeps polling after a temporary cloud error', async () => {
   assert.deepEqual(errors, ['Cloud offline']);
 });
 
+test('passes the abort signal to cloud requests so the GUI can stop cleanly', async () => {
+  const controller = new AbortController();
+  const signals = [];
+  const connector = new PrintConnector({
+    config: {
+      cloudApiUrl: 'https://app.example.test/api',
+      token: 'secret',
+    },
+    fetchImpl: async (_url, options) => {
+      signals.push(options.signal);
+      return response(200, { data: [] });
+    },
+  });
+
+  await connector.pollOnce(controller.signal);
+
+  assert.ok(signals.length >= 1);
+  assert.ok(signals.every((signal) => signal === controller.signal));
+});
+
 test('validates the standalone package inputs and arguments', async () => {
   await assert.doesNotReject(() => ensureReleaseInputs());
   assert.deepEqual(parseArgs(['--version', '0.1.0', '--check-only']), {

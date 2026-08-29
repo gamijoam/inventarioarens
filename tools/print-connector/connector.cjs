@@ -164,9 +164,10 @@ class PrintConnector {
     };
   }
 
-  async request(method, endpoint, body) {
+  async request(method, endpoint, body, signal) {
     const headers = { ...this.authHeaders() };
     const options = { method, headers };
+    if (signal) options.signal = signal;
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
       options.body = JSON.stringify(body);
@@ -208,31 +209,35 @@ class PrintConnector {
     return result.connector;
   }
 
-  async heartbeat() {
-    const body = await this.request('GET', '/printing/connector/heartbeat');
+  async heartbeat(signal) {
+    const body = await this.request('GET', '/printing/connector/heartbeat', undefined, signal);
     this.lastHeartbeatAt = Date.now();
     return body.data?.connector;
   }
 
-  async pollOnce() {
+  async pollOnce(signal) {
     const body = await this.request(
       'GET',
       `/printing/connector/jobs?limit=${this.config.batchSize || 20}`,
+      undefined,
+      signal,
     );
     const jobs = body.data || [];
     const results = [];
-    for (const job of jobs) results.push(await this.processJob(job));
+    for (const job of jobs) results.push(await this.processJob(job, signal));
     if (Date.now() - this.lastHeartbeatAt >= (this.config.heartbeatIntervalMs || 60_000))
-      await this.heartbeat();
+      await this.heartbeat(signal);
     return results;
   }
 
-  async processJob(summary) {
+  async processJob(summary, signal) {
     let claim;
     try {
       const body = await this.request(
         'POST',
         `/printing/connector/jobs/${encodeURIComponent(summary.job_uuid)}/claim`,
+        undefined,
+        signal,
       );
       claim = body.data;
     } catch (error) {
@@ -254,6 +259,7 @@ class PrintConnector {
           claim_token: claim.claim_token,
           status: 'printed',
         },
+        signal,
       );
       return { jobUuid: summary.job_uuid, status: 'printed' };
     } catch (error) {
@@ -265,6 +271,7 @@ class PrintConnector {
           status: 'failed',
           message: error.message,
         },
+        signal,
       );
       return {
         jobUuid: summary.job_uuid,
@@ -298,7 +305,7 @@ class PrintConnector {
   async run({ signal } = {}) {
     while (!signal?.aborted) {
       try {
-        await this.pollOnce();
+        await this.pollOnce(signal);
       } catch (error) {
         this.onError(error);
       }

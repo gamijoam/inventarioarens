@@ -725,8 +725,13 @@ existente, confirmar primero con el usuario (afecta a otros productos).
   HTTPS saliente con token propio, pairing de un solo uso, claim/ACK y reintentos por lease. No
   abre puertos ni depende del Motor Local. Las estaciones termicas vinculadas a un conector no se
   envian desde React al agente `:17777`; los tickets digitales se descargan desde el navegador.
-  Contrato en `docs/PRINT_CONNECTOR.md`. Su release independiente usa
-  `.github/workflows/release-print-connector.yml` y publica `v<version>-connector`.
+  Contrato en `docs/PRINT_CONNECTOR.md`. Desde 2026-08-28 el instalable es un cliente Electron
+  independiente (`tools/print-connector/main.cjs` + `renderer/`) con pairing, estado, bandeja y
+  arranque automatico; el usuario no necesita ejecutar PowerShell. Su release usa
+  `.github/workflows/release-print-connector.yml` y publica instalador NSIS + portable en
+  `v<version>-connector`. El packager Node SEA y las tareas PowerShell anteriores quedan solo como
+  artefactos de migracion y no se incluyen en la GUI.
+- Guia de uso para usuarios finales: `docs/GUIA_USUARIO_CONECTOR_IMPRESION.md`.
 - Prueba fisica con impresora real: `docs/GUIA_PRUEBA_IMPRESORA_REAL.md`.
 - Consola `/support` controla el agente: `POST /api/local-support/printer/{action,test}`
   (instalar/iniciar/probar) + auto-arranque en Electron (`backend-runtime.cjs` → `printer:serve`).

@@ -1,4 +1,17 @@
-# Registro de implementación — 2026-08-25
+# Registro de implementación — 2026-08-28
+
+## 2026-08-28 - Cliente Electron del Conector Cloud
+
+- Se agrego una interfaz Electron independiente para vincular el conector mediante codigo temporal,
+  consultar el estado, comprobar la nube y activar/detener el polling desde una sola ventana.
+- La ventana se oculta en la bandeja y configura el arranque automatico del usuario sin tareas
+  programadas ni pasos manuales de PowerShell.
+- `electron-builder.yml` publica un instalador NSIS y un ejecutable portable aislados de los clientes
+  Administrativo, POS, Soporte Tecnico y del Motor Local.
+- El workflow `release-print-connector.yml` fue migrado de Node SEA + Inno Setup a Electron Builder.
+- Se agregaron pruebas de la GUI y del contrato de release en `tools/print-connector/gui.test.cjs`.
+- Se agrego `docs/GUIA_USUARIO_CONECTOR_IMPRESION.md` con el flujo de instalacion, pairing,
+  configuracion de estacion y diagnostico para el usuario final.
 
 ## 2026-08-25 - Conector Cloud de impresion y ticket virtual
 

@@ -277,10 +277,10 @@ del ticket al pagar). El agente local `printer:serve` escucha en `127.0.0.1:1777
 impresora fisica: driver Windows (PowerShell `Out-Printer`) / Linux (lpr/lp), o impresora de red
 por TCP 9100 con comandos ESC/POS (corte GS V, gaveta ESC p). El panel vive en `frontend` ruta
 `/printing` y la consola `/support` permite instalar/iniciar/probar el agente.
-Para instalaciones online existe ademas `tools/print-connector/connector.cjs`: un proceso
-independiente que hace polling HTTPS saliente, reclama jobs con lease y confirma `printed` o
-`failed`. No abre puertos ni depende del Motor Local. Los tickets digitales se descargan desde el
-navegador.
+Para instalaciones online existe ademas `tools/print-connector/`: un cliente Electron independiente
+que hace polling HTTPS saliente, reclama jobs con lease y confirma `printed` o `failed`. Su GUI
+gestiona el pairing, el estado y el arranque en segundo plano. No abre puertos ni depende del Motor
+Local. Los tickets digitales se descargan desde el navegador.
 
 Documentos clave:
 
@@ -294,7 +294,9 @@ Nodos de codigo frecuentes:
 - `PrinterServer` (HTTP server del agente local)
 - `PrintConnector` / `PrintConnectorToken` / `PrintConnectorPairingCode`
 - `PrintConnectorService` / `AuthenticatePrintConnector`
-- `tools/print-connector/connector.cjs` (conector cloud independiente)
+- `tools/print-connector/connector.cjs` (core cloud independiente)
+- `tools/print-connector/main.cjs` (cliente Electron y bandeja)
+- `tools/print-connector/renderer/` (GUI de pairing y estado)
 - `PrintProfile` / `PrinterStation` / `PrintJob`
 - `PrinterServeCommand` (`php artisan printer:serve`)
 - `LocalTechnicalConsoleService::printerAction/printerTest` (consola /support)

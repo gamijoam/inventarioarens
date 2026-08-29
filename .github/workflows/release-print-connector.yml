@@ -1,20 +1,20 @@
-name: Release Print Connector
+name: Release Print Connector GUI
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version del Conector de Impresion"
+        description: 'Version del Conector de Impresion'
         required: true
-        default: "0.1.0"
+        default: '0.2.0'
       prerelease:
-        description: "Publicar como release de prueba"
+        description: 'Publicar como release de prueba'
         required: true
         type: boolean
         default: false
   push:
     tags:
-      - "v*-connector"
+      - 'v*-connector'
 
 permissions:
   contents: write
@@ -33,7 +33,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Resolve version
         id: version
@@ -61,42 +66,42 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
 
-      - name: Run connector tests
+      - name: Set package version
         shell: bash
-        run: npm test --prefix tools/print-connector
-
-      - name: Validate packaging contract
-        shell: bash
-        run: npm run package:check --prefix tools/print-connector
-
-      - name: Build standalone connector executable
-        shell: bash
-        run: node tools/print-connector/package-connector.cjs --version '${{ steps.version.outputs.version }}' --output-dir build/print-connector
-
-      - name: Install Inno Setup
-        shell: powershell
-        run: choco install innosetup --no-progress -y
-
-      - name: Build connector installer
-        shell: powershell
+        env:
+          CONNECTOR_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          $iscc = (Get-Command iscc.exe -ErrorAction Stop).Source
-          & $iscc "/DConnectorVersion=${{ steps.version.outputs.version }}" 'tools\print-connector\PrintConnector.iss'
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup fallo con codigo $LASTEXITCODE." }
+          set -euo pipefail
+          node -e "const fs=require('node:fs'); const file='tools/print-connector/package.json'; const pkg=JSON.parse(fs.readFileSync(file, 'utf8')); pkg.version=process.env.CONNECTOR_VERSION; fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\\n');"
+
+      - name: Install connector dependencies
+        working-directory: tools/print-connector
+        run: pnpm install --frozen-lockfile
+
+      - name: Run connector tests
+        working-directory: tools/print-connector
+        run: pnpm test
+
+      - name: Build Electron GUI
+        working-directory: tools/print-connector
+        run: pnpm run build:gui:win
 
       - name: Validate Windows artifacts
         shell: powershell
         run: |
-          $stage = Get-ChildItem -LiteralPath 'build\print-connector\stage' -Filter 'InventarioArens-Print-Connector.exe'
-          if ($stage.Count -ne 1) { throw "Se esperaba un ejecutable portable y se encontraron $($stage.Count)." }
-          $release = Get-ChildItem -LiteralPath 'build\print-connector\release' -Filter '*.exe'
-          if ($release.Count -ne 1) { throw "Se esperaba un instalador y se encontraron $($release.Count)." }
-          foreach ($artifact in @($stage) + @($release)) {
+          $root = 'build\print-connector-gui'
+          $portable = @(Get-ChildItem -LiteralPath $root -Filter '*-Portable-*.exe' -File)
+          $setup = @(Get-ChildItem -LiteralPath $root -Filter '*-Setup-*.exe' -File)
+          if ($portable.Count -ne 1) { throw "Se esperaba un portable y se encontraron $($portable.Count)." }
+          if ($setup.Count -ne 1) { throw "Se esperaba un instalador y se encontraron $($setup.Count)." }
+          if (-not (Test-Path -LiteralPath "$root\win-unpacked\resources\app.asar")) {
+            throw 'Falta el app.asar del cliente Electron.'
+          }
+          foreach ($artifact in @($portable) + @($setup)) {
             $hash = (Get-FileHash -LiteralPath $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash *$($artifact.Name)" | Set-Content -LiteralPath "$($artifact.FullName).sha256" -Encoding ASCII
           }
-          Get-ChildItem -LiteralPath 'build\print-connector\stage' -File | Select-Object Name, Length
-          Get-ChildItem -LiteralPath 'build\print-connector\release' -File | Select-Object Name, Length
+          Get-ChildItem -LiteralPath $root -File | Select-Object Name, Length
 
       - name: Publish connector release
         shell: bash
@@ -112,8 +117,8 @@ jobs:
           gh release delete "$TAG" --repo gamijoam/inventarioarens --yes 2>/dev/null || true
           gh release create "$TAG" \
             "${RELEASE_FLAGS[@]}" \
-            build/print-connector/stage/*.exe \
-            build/print-connector/stage/*.sha256 \
-            build/print-connector/release/*.exe \
-            build/print-connector/release/*.sha256
+            build/print-connector-gui/*-Portable-*.exe \
+            build/print-connector-gui/*-Portable-*.sha256 \
+            build/print-connector-gui/*-Setup-*.exe \
+            build/print-connector-gui/*-Setup-*.sha256
           echo "Publicado $TAG"

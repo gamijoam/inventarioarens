@@ -473,7 +473,8 @@ Archivos principales:
 - `resources/views/printing/pos-ticket.blade.php`
 - `frontend/src/features/printing/{PrintingManager.tsx,api.ts}`
 - `tools/print-connector/{connector.cjs,connector.test.cjs}`
-- `tools/print-connector/{package-connector.cjs,PrintConnector.iss}`
+- `tools/print-connector/{main.cjs,preload.cjs,renderer/,gui.test.cjs}`
+- `tools/print-connector/electron-builder.yml`
 
 Regla importante:
 
@@ -483,6 +484,9 @@ Regla importante:
 - modo red requiere `printer_type=network` + `network_host` + `network_port` (TCP 9100).
 - estaciones termicas con `print_connector_id` se procesan por el conector Cloud y no por el agente
   local del navegador; el contrato completo esta en `docs/PRINT_CONNECTOR.md`.
+- el release Windows del conector usa Electron Builder y publica un instalador NSIS y un portable;
+  `package-connector.cjs`, `PrintConnector.iss` y las tareas PowerShell son artefactos de migracion y
+  no se incluyen en el paquete GUI.
 
 ### Purchases
 
