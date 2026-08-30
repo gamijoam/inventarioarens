@@ -224,6 +224,31 @@
   }
 }
 
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .fiscal-preview-print,
+  .fiscal-preview-print * {
+    visibility: visible;
+  }
+
+  .fiscal-preview-print {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    transform: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .fiscal-preview-print button {
+    display: none;
+  }
+}
+
 /* Tokens de la skin operativa. Quedan al final para que dominen sobre la paleta historica. */
 @theme {
   --color-primary: #3158c8;

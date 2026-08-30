@@ -99,6 +99,7 @@ describe('<Sidebar>', () => {
       'Garantías',
       'Taller',
       'Reportes',
+      'Documentos internos',
       'Importar datos',
       'Impresion',
       'Acceso',

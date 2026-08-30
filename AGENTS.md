@@ -456,6 +456,8 @@ subject_type, subject_id) en 24h no se duplica.
 - Las líneas de `SalesReturnItem` copian el snapshot fiscal de `SaleItem` al solicitar la devolución. Nota de crédito, saldo a favor, reembolso y CxC deben usar esos importes históricos, nunca consultar la alícuota vigente.
 - `Customer.fiscal_name` conserva el nombre legal/fiscal separado del nombre comercial; si se omite al crear un cliente, se deriva de `name` y se replica en el payload de sync.
 - `GET /api/reports/fiscal/iva` es un reporte interno tenant-scoped de ventas confirmadas, agrupado por snapshots fiscales y con desglose USD/VES. No es una factura, declaración ni emisión certificada.
+- `POST /api/fiscal/documents/previews` crea un snapshot `internal_preview` idempotente de una venta confirmada. `FiscalDocument` conserva emisor, sucursal, cliente, totales y líneas, pero no tiene numeración, número de control ni estado de emisión oficial.
+- `GET /api/fiscal/documents` lista esos snapshots con filtros por venta, estado y fechas. El frontend los muestra en `/fiscal/documents` y permite imprimir únicamente una vista comercial marcada `No emitido`.
 - La emisión fiscal certificada y la impresora fiscal todavía no están integradas. El ticket sigue siendo comercial.
 - Contratos: `docs/FISCAL_IDENTITY_API.md` y `docs/FISCAL_TAX_RATES_API.md`.
 - Configuración frontend: `/settings/company` administra identidad/condición fiscal y

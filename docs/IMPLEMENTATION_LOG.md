@@ -1,5 +1,25 @@
 # Registro de implementación — 2026-08-28
 
+## 2026-08-29 - Preview pre-fiscal interno
+
+- Se agregó el agregado `FiscalDocument` con líneas tenant-scoped y snapshots inmutables de empresa,
+  sucursal, cliente, venta, productos, descuentos e impuestos.
+- `POST /api/fiscal/documents/previews` genera previews solo desde ventas confirmadas y usa lock de
+  venta más restricción única para evitar duplicados.
+- `GET /api/fiscal/documents/{fiscalDocument}` devuelve el snapshot sin exponer numeración fiscal,
+  número de control ni autorización; `officially_issued` siempre es falso.
+- Se agregó el contrato Zod/API frontend y la acción `Vista previa interna` dentro del detalle de
+  ventas confirmadas; el diálogo muestra snapshots y deja explícito que no hay emisión oficial.
+- Se agregó `GET /api/fiscal/documents` con filtros por venta, estado y fechas; la acción frontend
+  consulta el historial y reabre el documento persistido antes de crear uno nuevo.
+- Se agregó la bandeja `/fiscal/documents` con filtros, paginación, apertura de snapshots e impresión
+  comercial mediante `window.print`, con estilos de impresión que ocultan controles.
+- Se ampliaron `frontend/e2e/fiscal.api.spec.ts` y `frontend/e2e/fiscal.ui.spec.ts` para cubrir
+  creación, idempotencia, listado, reapertura, filtros, diálogo e impresión del preview interno.
+- Verificación TDD: backend fiscal `73/73` tests, `463` aserciones; frontend suite completa `883`
+  tests pasaron, `1` skip. Los E2E Playwright API/UI quedaron agregados y tipados, pero se marcaron
+  `skipped` en este entorno por falta de las variables `PLAYWRIGHT_E2E_*`.
+
 ## 2026-08-29 - Reporte interno de IVA y perfil fiscal de clientes
 
 - Se agregó `fiscal_name` a clientes, con backfill desde `name`, edición en el cliente Administrativo

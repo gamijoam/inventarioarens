@@ -53,6 +53,7 @@ import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/in
 import { Route as AuthedInventoryAdminRouteImport } from './routes/_authed/inventory/admin'
 import { Route as AuthedInventoryProductIdRouteImport } from './routes/_authed/inventory/$productId'
 import { Route as AuthedInventoryTransferRequestsRequestIdRouteImport } from './routes/_authed/inventory-transfer-requests/$requestId'
+import { Route as AuthedFiscalDocumentsRouteImport } from './routes/_authed/fiscal/documents'
 import { Route as AuthedAccessRolesRouteImport } from './routes/_authed/access/roles'
 import { Route as AuthedAccessPermissionsRouteImport } from './routes/_authed/access/permissions'
 import { Route as AuthedAccessGroupsRouteImport } from './routes/_authed/access/groups'
@@ -285,6 +286,11 @@ const AuthedInventoryTransferRequestsRequestIdRoute =
     path: '/$requestId',
     getParentRoute: () => AuthedInventoryTransferRequestsRoute,
   } as any)
+const AuthedFiscalDocumentsRoute = AuthedFiscalDocumentsRouteImport.update({
+  id: '/fiscal/documents',
+  path: '/fiscal/documents',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedAccessRolesRoute = AuthedAccessRolesRouteImport.update({
   id: '/access/roles',
   path: '/access/roles',
@@ -343,6 +349,7 @@ export interface FileRoutesByFullPath {
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
+  '/fiscal/documents': typeof AuthedFiscalDocumentsRoute
   '/inventory-transfer-requests/$requestId': typeof AuthedInventoryTransferRequestsRequestIdRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
@@ -393,6 +400,7 @@ export interface FileRoutesByTo {
   '/access/groups': typeof AuthedAccessGroupsRoute
   '/access/permissions': typeof AuthedAccessPermissionsRoute
   '/access/roles': typeof AuthedAccessRolesRouteWithChildren
+  '/fiscal/documents': typeof AuthedFiscalDocumentsRoute
   '/inventory-transfer-requests/$requestId': typeof AuthedInventoryTransferRequestsRequestIdRoute
   '/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/inventory/admin': typeof AuthedInventoryAdminRoute
@@ -445,6 +453,7 @@ export interface FileRoutesById {
   '/_authed/access/groups': typeof AuthedAccessGroupsRoute
   '/_authed/access/permissions': typeof AuthedAccessPermissionsRoute
   '/_authed/access/roles': typeof AuthedAccessRolesRouteWithChildren
+  '/_authed/fiscal/documents': typeof AuthedFiscalDocumentsRoute
   '/_authed/inventory-transfer-requests/$requestId': typeof AuthedInventoryTransferRequestsRequestIdRoute
   '/_authed/inventory/$productId': typeof AuthedInventoryProductIdRoute
   '/_authed/inventory/admin': typeof AuthedInventoryAdminRoute
@@ -497,6 +506,7 @@ export interface FileRouteTypes {
     | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
+    | '/fiscal/documents'
     | '/inventory-transfer-requests/$requestId'
     | '/inventory/$productId'
     | '/inventory/admin'
@@ -547,6 +557,7 @@ export interface FileRouteTypes {
     | '/access/groups'
     | '/access/permissions'
     | '/access/roles'
+    | '/fiscal/documents'
     | '/inventory-transfer-requests/$requestId'
     | '/inventory/$productId'
     | '/inventory/admin'
@@ -598,6 +609,7 @@ export interface FileRouteTypes {
     | '/_authed/access/groups'
     | '/_authed/access/permissions'
     | '/_authed/access/roles'
+    | '/_authed/fiscal/documents'
     | '/_authed/inventory-transfer-requests/$requestId'
     | '/_authed/inventory/$productId'
     | '/_authed/inventory/admin'
@@ -937,6 +949,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInventoryTransferRequestsRequestIdRouteImport
       parentRoute: typeof AuthedInventoryTransferRequestsRoute
     }
+    '/_authed/fiscal/documents': {
+      id: '/_authed/fiscal/documents'
+      path: '/fiscal/documents'
+      fullPath: '/fiscal/documents'
+      preLoaderRoute: typeof AuthedFiscalDocumentsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/access/roles': {
       id: '/_authed/access/roles'
       path: '/access/roles'
@@ -1061,6 +1080,7 @@ interface AuthedRouteChildren {
   AuthedAccessGroupsRoute: typeof AuthedAccessGroupsRoute
   AuthedAccessPermissionsRoute: typeof AuthedAccessPermissionsRoute
   AuthedAccessRolesRoute: typeof AuthedAccessRolesRouteWithChildren
+  AuthedFiscalDocumentsRoute: typeof AuthedFiscalDocumentsRoute
   AuthedInventoryProductIdRoute: typeof AuthedInventoryProductIdRoute
   AuthedInventoryAdminRoute: typeof AuthedInventoryAdminRoute
   AuthedInventoryCatalogsRoute: typeof AuthedInventoryCatalogsRoute
@@ -1102,6 +1122,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAccessGroupsRoute: AuthedAccessGroupsRoute,
   AuthedAccessPermissionsRoute: AuthedAccessPermissionsRoute,
   AuthedAccessRolesRoute: AuthedAccessRolesRouteWithChildren,
+  AuthedFiscalDocumentsRoute: AuthedFiscalDocumentsRoute,
   AuthedInventoryProductIdRoute: AuthedInventoryProductIdRoute,
   AuthedInventoryAdminRoute: AuthedInventoryAdminRoute,
   AuthedInventoryCatalogsRoute: AuthedInventoryCatalogsRoute,

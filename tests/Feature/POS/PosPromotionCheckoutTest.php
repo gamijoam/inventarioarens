@@ -231,6 +231,56 @@ class PosPromotionCheckoutTest extends TestCase
             ->assertJsonPath('data.sale.items.1.fiscal_tax_category', FiscalTaxRate::CATEGORY_EXEMPT);
     }
 
+    public function test_selected_combo_application_preserves_fiscal_override_on_checkout(): void
+    {
+        [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();
+        $this->useTenant($tenant);
+        $exempt = FiscalTaxRate::create([
+            'code' => 'EXENTO-SELECTED',
+            'name' => 'Exento seleccionado',
+            'rate' => 0,
+            'category' => FiscalTaxRate::CATEGORY_EXEMPT,
+            'is_active' => true,
+        ]);
+        $promotion = $this->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/promotions', [
+                'name' => 'Combo seleccionado exento',
+                'code' => 'COMBO-SELECTED-EXENTO',
+                'benefit_type' => 'fixed_bundle_price',
+                'price_usd' => 50,
+                'fiscal_tax_mode' => 'override',
+                'fiscal_tax_rate_id' => $exempt->id,
+                'items' => [
+                    ['product_id' => $phone->id, 'quantity' => 1],
+                    ['product_id' => $charger->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->checkout($tenant, $cashier, [
+            'cash_register_session_id' => $session->id,
+            'combo_applications' => [[
+                'promotion_id' => $promotion['id'],
+                'instance_uuid' => 'selected-combo-1',
+                'sets' => 1,
+            ]],
+            'items' => [
+                ...array_map(
+                    fn (array $item): array => [...$item, 'combo_instance_uuid' => 'selected-combo-1'],
+                    $this->bundleItems($warehouse, $phone, $charger),
+                ),
+            ],
+            'payments' => [$this->cashPayment(50)],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.sale.fiscal_tax_base_amount', 0)
+            ->assertJsonPath('data.sale.fiscal_snapshot_at', fn (mixed $value): bool => $value !== null)
+            ->assertJsonPath('data.sale.items.0.fiscal_tax_category', FiscalTaxRate::CATEGORY_EXEMPT)
+            ->assertJsonPath('data.sale.items.1.fiscal_tax_category', FiscalTaxRate::CATEGORY_EXEMPT);
+    }
+
     public function test_checkout_applies_percentage_discount_only_to_selected_products(): void
     {
         [$tenant, $cashier, $session, $warehouse, $phone, $charger] = $this->posFixture();

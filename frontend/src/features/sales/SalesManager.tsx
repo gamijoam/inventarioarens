@@ -22,6 +22,7 @@ import { activeUsdVesRate, currentLocalBalance } from '@/features/receivables/cu
 import { useCreateSalesReturn, type SalesReturnPayload } from '@/features/sales-returns/api';
 import { useCreateWarrantyClaim, type WarrantyClaimPayload } from '@/features/warranties/api';
 import { useCancelSale, useSale, useSales, type SaleListFilters } from './api';
+import { FiscalDocumentPreviewDialog } from './FiscalDocumentPreviewDialog';
 import { ReverseSaleDialog } from './ReverseSaleDialog';
 import { SALE_STATUS_LABELS, type Sale, type SaleItem, type SaleStatus } from './schemas';
 
@@ -591,6 +592,7 @@ function SaleDetail({
           onOpenChange={setShowReverseForm}
         />
       )}
+      {current.status === 'confirmed' && <FiscalDocumentPreviewDialog sale={current} />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-text-muted">

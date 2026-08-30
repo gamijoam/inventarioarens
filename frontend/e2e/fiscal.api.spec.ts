@@ -218,6 +218,51 @@ test.describe('Fiscal POS E2E flow (API)', () => {
         expect(item.fiscal_tax_category).toBe('exempt');
       }
 
+      const previewResponse = await api.post('/api/fiscal/documents/previews', {
+        data: { sale_id: checkout.sale.id },
+      });
+      expect(previewResponse.status(), 'internal preview creation status').toBe(201);
+      const preview = (await previewResponse.json()).data as {
+        id: number;
+        sale_id: number;
+        document_type: string;
+        document_mode: string;
+        status: string;
+        officially_issued: boolean;
+        items: { sale_item_id: number }[];
+      };
+      expect(preview.sale_id).toBe(checkout.sale.id);
+      expect(preview.document_type).toBe('internal_preview');
+      expect(preview.document_mode).toBe('internal_preview');
+      expect(preview.status).toBe('preview');
+      expect(preview.officially_issued).toBe(false);
+      expect(preview.items).toHaveLength(2);
+
+      const repeatedPreviewResponse = await api.post('/api/fiscal/documents/previews', {
+        data: { sale_id: checkout.sale.id },
+      });
+      expect(repeatedPreviewResponse.status(), 'internal preview idempotency status').toBe(200);
+      expect((await repeatedPreviewResponse.json()).data.id).toBe(preview.id);
+
+      const listResponse = await api.get(
+        `/api/fiscal/documents?sale_id=${checkout.sale.id}&status=preview&per_page=1`,
+      );
+      expect(listResponse.status(), 'internal preview list status').toBe(200);
+      const list = (await listResponse.json()) as {
+        data: { id: number; sale_id: number; officially_issued: boolean; items: unknown[] }[];
+        meta: { total: number };
+      };
+      expect(list.meta.total).toBe(1);
+      expect(list.data).toHaveLength(1);
+      expect(list.data[0]?.id).toBe(preview.id);
+      expect(list.data[0]?.sale_id).toBe(checkout.sale.id);
+      expect(list.data[0]?.officially_issued).toBe(false);
+      expect(list.data[0]?.items).toHaveLength(2);
+
+      const reopenedResponse = await api.get(`/api/fiscal/documents/${preview.id}`);
+      expect(reopenedResponse.status(), 'internal preview reopen status').toBe(200);
+      expect((await reopenedResponse.json()).data.id).toBe(preview.id);
+
       const returnResponse = await api.post('/api/sales-returns', {
         data: {
           sale_id: checkout.sale.id,

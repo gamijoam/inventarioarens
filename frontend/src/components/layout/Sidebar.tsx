@@ -273,6 +273,13 @@ const NAV_ITEMS: NavItem[] = [
     section: SECTION_LABELS.ANALITICA,
   },
   {
+    to: '/fiscal/documents',
+    label: 'Documentos internos',
+    icon: FileText,
+    permissionAny: [PERMISSIONS.SALES_VIEW, PERMISSIONS.REPORTS_VIEW, PERMISSIONS.REPORTS_SALES_VIEW],
+    section: SECTION_LABELS.ANALITICA,
+  },
+  {
     to: '/import',
     label: 'Importar datos',
     icon: Upload,

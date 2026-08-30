@@ -225,8 +225,48 @@ test('muestra en navegador el combo fiscal y la devolución con snapshot', async
     await expect(saleRow).toBeVisible();
     await saleRow.click();
     const saleDetail = saleRow.locator('xpath=following-sibling::tr');
+    await saleDetail.getByRole('button', { name: 'Vista previa interna', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Vista previa interna', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Documento interno para revisión comercial. No constituye emisión fiscal oficial.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(page.getByText('Interno · No emitido', { exact: true })).toBeVisible();
+    await expect(page.getByText(/número de control/i)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Cerrar', exact: true }).last().click();
+
     await saleDetail.getByRole('button', { name: 'Devolver', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Registrar devolución' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cerrar', exact: true }).last().click();
+
+    await page.addInitScript(() => {
+      (window as Window & { __fiscalPreviewPrinted?: boolean }).print = () => {
+        (window as Window & { __fiscalPreviewPrinted?: boolean }).__fiscalPreviewPrinted = true;
+      };
+    });
+    await page.goto('/fiscal/documents');
+    await expect(page.getByRole('heading', { name: 'Documentos internos' })).toBeVisible();
+    await page.getByLabel('Venta').fill(String(checkout.sale.id));
+    const previewRow = page
+      .getByRole('row')
+      .filter({ hasText: `#${checkout.sale.id}` })
+      .first();
+    await expect(previewRow).toBeVisible();
+    await previewRow.getByRole('button', { name: 'Abrir', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Vista previa interna', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Imprimir vista comercial', exact: true }).click();
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __fiscalPreviewPrinted?: boolean }).__fiscalPreviewPrinted,
+      ),
+    ).toBe(true);
+    await page.getByRole('button', { name: 'Cerrar', exact: true }).last().click();
   } finally {
     if (fixture) await api.delete(`/api/promotions/${fixture.promotionId}`);
     await api.dispose();

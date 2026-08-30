@@ -3739,6 +3739,20 @@ El reporte agrupa ventas confirmadas del tenant actual utilizando los snapshots 
 líneas. Acepta `date`, `date_from`, `date_to`, `branch_id`, `customer_id` y `product_id`. Es un
 reporte interno de control; no es una factura fiscal ni genera número de control o autorización.
 
+### Preview pre-fiscal interno
+
+```txt
+POST /api/fiscal/documents/previews
+GET  /api/fiscal/documents?sale_id=&status=&date_from=&date_to=&per_page=
+GET  /api/fiscal/documents/{fiscalDocument}
+```
+
+El POST recibe `sale_id` y solo acepta ventas confirmadas del tenant actual. Repetirlo para la misma
+venta es idempotente. La respuesta conserva snapshots de empresa, sucursal, cliente, totales,
+productos, descuentos e impuestos. `document_mode` es `internal_preview` y `officially_issued` es
+`false`; no se generan series, números fiscales, números de control ni autorizaciones.
+El listado devuelve snapshots completos paginados y permite filtrar por venta, estado y fechas.
+
 ## Kardex
 
 Archivo de rutas:
