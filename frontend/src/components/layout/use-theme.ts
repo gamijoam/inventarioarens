@@ -1,8 +1,14 @@
 import { useContext } from 'react';
-import { ThemeContext, type ThemeContextValue } from './ThemeProvider';
+import { ThemeContext, THEMES, type ThemeContextValue } from './ThemeProvider';
+
+const defaultThemeValue: ThemeContextValue = {
+  theme: 'avilacar-orange',
+  themeConfig: THEMES['avilacar-orange'],
+  setTheme: () => {},
+  availableThemes: Object.values(THEMES),
+};
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme debe usarse dentro de <ThemeProvider>');
-  return ctx;
+  return ctx ?? defaultThemeValue;
 }

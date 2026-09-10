@@ -162,4 +162,31 @@ describe('<Sidebar>', () => {
       '/settings/company',
     );
   });
+
+  it('oculta traslados e interempresa cuando las capacidades de traslado estan desactivadas', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+    // Configuración típica de Avilacar sin traslados
+    mockSessionState.capabilities = new Set([
+      'dashboard',
+      'catalog',
+      'inventory',
+      'customers',
+      'suppliers',
+      'sales',
+      'pos',
+      'reports',
+      'printing',
+    ]);
+
+    render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    expect(screen.queryByRole('link', { name: 'Traslados' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Solicitudes inter-empresa' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Taller' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Garantías' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Comisiones' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'POS' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Inventario' })).toBeTruthy();
+  });
 });

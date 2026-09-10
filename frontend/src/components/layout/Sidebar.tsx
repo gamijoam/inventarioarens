@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   LayoutDashboard,
@@ -36,13 +36,12 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
-import { Can } from '@/components/permissions/Can';
 import { useTenantGroups } from '@/features/access/tenantGroupsApi';
 import { PERMISSIONS } from '@/permissions/constants';
 import { APP_SHORT_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
-import { useCanAny } from '@/permissions/useCan';
 import { useSessionStore } from '@/stores/session';
+import { PermissionContext } from '@/permissions/PermissionContext';
 import { useUnreadIntercompanyNotificationsCount } from '@/features/inventory-transfer-notifications/api';
 
 interface NavItem {
@@ -146,6 +145,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Clientes',
     icon: Users,
     permission: PERMISSIONS.CUSTOMERS_VIEW,
+    capability: 'customers',
     section: SECTION_LABELS.VENTAS,
   },
 
@@ -179,6 +179,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Proveedores',
     icon: Building,
     permission: PERMISSIONS.SUPPLIERS_VIEW,
+    capability: 'suppliers',
     section: SECTION_LABELS.FINANZAS,
   },
 
@@ -188,6 +189,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Inventario',
     icon: Boxes,
     permission: PERMISSIONS.PRODUCTS_VIEW,
+    capability: 'inventory',
     section: SECTION_LABELS.INVENTARIO,
     children: [
       {
@@ -360,6 +362,9 @@ export function Sidebar() {
   const { data: tenantGroups, isError, isLoading } = useTenantGroups();
   const ownedGroupIds = new Set((tenantGroups ?? []).map((g) => g.id));
   const routerState = useRouterState();
+  const permissionCtx = useContext(PermissionContext);
+  const permissions = permissionCtx?.permissions;
+  const capabilities = useSessionStore((state) => state.capabilities);
 
   const currentPath = routerState.location.pathname;
 
@@ -373,9 +378,26 @@ export function Sidebar() {
   const shouldHideOrgItem = loadedOwnedGroups && ownedGroupIds.size === 0;
   const usersScope: UsersSearch['scope'] =
     loadedOwnedGroups && ownedGroupIds.size > 0 ? 'organization' : 'tenant';
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    item.hideIfNoOwnedGroup ? !shouldHideOrgItem : true,
-  );
+
+  const isItemVisible = (item: NavItem): boolean => {
+    if (item.hideIfNoOwnedGroup && shouldHideOrgItem) return false;
+    if (item.capability && capabilities && capabilities.size > 0 && !capabilities.has(item.capability)) {
+      return false;
+    }
+    if (permissions && item.permission && !permissions.has(item.permission)) {
+      return false;
+    }
+    if (permissions && item.permissionAny && !item.permissionAny.some((p) => permissions.has(p))) {
+      return false;
+    }
+    if (item.children && item.children.length > 0) {
+      const visibleSub = item.children.filter(isItemVisible);
+      if (visibleSub.length === 0) return false;
+    }
+    return true;
+  };
+
+  const visibleItems = NAV_ITEMS.filter(isItemVisible);
 
   const searchForItem = (item: NavItem): UsersSearch | undefined =>
     item.to === '/users' ? { scope: usersScope } : undefined;
@@ -426,16 +448,15 @@ export function Sidebar() {
               return (
                 <li key={item.to}>
                   {sectionHeader}
-                  <NavItemAccess item={item}>
-                    <Group
-                      item={item}
-                      isParentActive={isParentActive}
-                      currentPath={currentPath}
-                      collapsed={collapsed}
-                      usersScope={usersScope}
-                      shouldHideOrgItem={shouldHideOrgItem}
-                    />
-                  </NavItemAccess>
+                  <Group
+                    item={item}
+                    isParentActive={isParentActive}
+                    currentPath={currentPath}
+                    collapsed={collapsed}
+                    usersScope={usersScope}
+                    shouldHideOrgItem={shouldHideOrgItem}
+                    filterSubItem={isItemVisible}
+                  />
                 </li>
               );
             }
@@ -467,7 +488,7 @@ export function Sidebar() {
             return (
               <li key={item.to}>
                 {sectionHeader}
-                <NavItemAccess item={item}>{linkContent}</NavItemAccess>
+                {linkContent}
               </li>
             );
           })}
@@ -500,32 +521,6 @@ export function Sidebar() {
   );
 }
 
-function CanAny({ permissions, children }: { permissions: string[]; children: React.ReactNode }) {
-  return useCanAny(permissions) ? <>{children}</> : null;
-}
-
-function NavItemAccess({ item, children }: { item: NavItem; children: React.ReactNode }) {
-  const capabilities = useSessionStore((state) => state.capabilities);
-
-  if (item.capability && capabilities?.size > 0 && !capabilities.has(item.capability)) {
-    return null;
-  }
-
-  if (item.permissionAny) {
-    return <CanAny permissions={item.permissionAny}>{children}</CanAny>;
-  }
-
-  if (item.permission) {
-    return (
-      <Can I={item.permission} fallback={null}>
-        {children}
-      </Can>
-    );
-  }
-
-  return <>{children}</>;
-}
-
 /**
  * Group: renderiza un NavItem que tiene children como un submenu colapsable.
  * Cuando el usuario esta en una ruta del grupo, el submenu se expande.
@@ -537,6 +532,7 @@ function Group({
   collapsed,
   usersScope,
   shouldHideOrgItem,
+  filterSubItem,
 }: {
   item: NavItem;
   isParentActive: boolean;
@@ -544,18 +540,14 @@ function Group({
   collapsed: boolean;
   usersScope: UsersSearch['scope'];
   shouldHideOrgItem: boolean;
+  filterSubItem?: (item: NavItem) => boolean;
 }) {
   const [open, setOpen] = useState(isParentActive);
-  const visibleChildren = item.children!.filter((sub) =>
-    sub.hideIfNoOwnedGroup ? !shouldHideOrgItem : true,
-  );
-
-  // Si el padre se vuelve activo (navigate), abrimos el submenu.
-  if (isParentActive && !open) {
-    // No podemos setState en render; usamos un efecto. En la practica el
-    // padre se vuelve activo via navigate, que ya re-renderiza con la
-    // prop isParentActive, y abrimos via el efecto siguiente.
-  }
+  const visibleChildren = item.children!.filter((sub) => {
+    if (sub.hideIfNoOwnedGroup && shouldHideOrgItem) return false;
+    if (filterSubItem) return filterSubItem(sub);
+    return true;
+  });
 
   if (collapsed) {
     // En modo colapsado, mostramos solo el icono. Click navega al padre
@@ -633,7 +625,7 @@ function Group({
 
             return (
               <li key={sub.to}>
-                <NavItemAccess item={sub}>{linkContent}</NavItemAccess>
+                {linkContent}
               </li>
             );
           })}
