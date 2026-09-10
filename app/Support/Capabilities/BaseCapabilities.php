@@ -12,7 +12,7 @@ class BaseCapabilities
         'suppliers',
     ];
 
-    public const DEFAULT_NEW = self::REQUIRED;
+    public const DEFAULT_NEW = self::ALL;
 
     public const ALL = [
         'dashboard',

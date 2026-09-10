@@ -18,7 +18,7 @@ class TenantCapabilitiesApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_new_tenant_profile_enables_only_core_and_inventory(): void
+    public function test_new_tenant_profile_enables_all_capabilities_by_default(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Nueva', 'slug' => 'empresa-nueva']);
         $service = app(TenantCapabilityService::class);
@@ -27,7 +27,8 @@ class TenantCapabilitiesApiTest extends TestCase
 
         $this->assertSame(BaseCapabilities::DEFAULT_NEW, $service->enabledKeys($tenant));
         $this->assertTrue($service->enabled($tenant, 'inventory'));
-        $this->assertFalse($service->enabled($tenant, 'pos'));
+        $this->assertTrue($service->enabled($tenant, 'pos'));
+        $this->assertTrue($service->enabled($tenant, 'intercompany'));
     }
 
     public function test_legacy_tenant_without_capability_rows_keeps_all_capabilities(): void
@@ -53,7 +54,7 @@ class TenantCapabilitiesApiTest extends TestCase
             ->assertJsonPath('data.capabilities.0.key', 'dashboard')
             ->assertJsonPath('data.capabilities.0.enabled', true)
             ->assertJsonPath('data.capabilities.5.key', 'sales')
-            ->assertJsonPath('data.capabilities.5.enabled', false);
+            ->assertJsonPath('data.capabilities.5.enabled', true);
     }
 
     public function test_manager_can_enable_optional_capability_without_disabling_required_ones(): void
@@ -99,6 +100,7 @@ class TenantCapabilitiesApiTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'POS User', ['pos.view']);
         app(TenantCapabilityService::class)->initializeForNewTenant($tenant);
+        app(TenantCapabilityService::class)->replaceEnabled($tenant, []);
 
         $this
             ->actingAs($user)

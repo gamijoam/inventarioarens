@@ -62,6 +62,25 @@ function InventoryTransferRequestsPage() {
     return <Outlet />;
   }
 
+  const capabilities = useSessionStore((s) => s.capabilities);
+  const hasCapability = capabilities?.size === 0 || capabilities?.has('intercompany');
+
+  if (!hasCapability) {
+    return (
+      <PageLayout
+        title="Traslados interempresa"
+        description="Solicita stock o propone un envío entre empresas del grupo."
+      >
+        <div className="border-border bg-surface rounded-lg border p-6">
+          <p className="text-text-muted text-sm">
+            La capacidad <strong>Interempresa</strong> no está habilitada para esta empresa.
+            Puedes activarla desde <strong>Configuración &gt; Capacidades y módulos</strong> si tienes permisos de administración.
+          </p>
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout
       title="Traslados interempresa"

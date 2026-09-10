@@ -14,12 +14,12 @@ interface NotificationEvent {
   message: string;
 }
 
-export function useIntercompanyNotificationBroadcast(tenantId?: number) {
+export function useIntercompanyNotificationBroadcast(tenantId?: number, enabled = true) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId || !enabled) return;
     const echo = initEcho();
     if (!echo) return;
 

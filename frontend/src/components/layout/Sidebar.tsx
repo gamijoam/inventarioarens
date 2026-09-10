@@ -654,7 +654,9 @@ function Group({
  */
 function UnreadTransferRequestsBadge() {
   const currentTenantId = useSessionStore((s) => s.tenant?.id);
-  const { data: count } = useUnreadIntercompanyNotificationsCount(Boolean(currentTenantId));
+  const capabilities = useSessionStore((s) => s.capabilities);
+  const hasCapability = capabilities?.size === 0 || capabilities?.has('intercompany');
+  const { data: count } = useUnreadIntercompanyNotificationsCount(Boolean(currentTenantId) && hasCapability);
 
   if (!count || count <= 0) return null;
 

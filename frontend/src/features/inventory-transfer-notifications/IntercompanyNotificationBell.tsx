@@ -22,11 +22,15 @@ import { useIntercompanyNotificationBroadcast } from './useIntercompanyNotificat
 export function IntercompanyNotificationBell() {
   const navigate = useNavigate();
   const tenantId = useSessionStore((state) => state.tenant?.id);
-  const notifications = useIntercompanyNotifications(Boolean(tenantId));
-  const unread = useUnreadIntercompanyNotificationsCount(Boolean(tenantId));
+  const capabilities = useSessionStore((state) => state.capabilities);
+  const hasCapability = capabilities?.size === 0 || capabilities?.has('intercompany');
+  const isEnabled = Boolean(tenantId) && hasCapability;
+
+  const notifications = useIntercompanyNotifications(isEnabled);
+  const unread = useUnreadIntercompanyNotificationsCount(isEnabled);
   const markRead = useMarkIntercompanyNotificationRead();
   const markAllRead = useMarkAllIntercompanyNotificationsRead();
-  useIntercompanyNotificationBroadcast(tenantId);
+  useIntercompanyNotificationBroadcast(tenantId, isEnabled);
 
   const count = unread.data ?? 0;
   return (
