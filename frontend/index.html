@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Sistema de Inventario y Punto de Venta" />
     <title>SDI · Sistema de Inventario</title>
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('sdi-theme') || 'avilacar-orange';
+          document.documentElement.setAttribute('data-theme', t);
+          if (t === 'avilacar-dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-bg text-text-primary antialiased">
     <div id="root"></div>

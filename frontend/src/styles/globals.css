@@ -1,14 +1,130 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-:root {
+/* ============================================================================
+ * PALETA DE COLORES — REPUESTOS AVILACAR (Temas Dinámicos)
+ * ----------------------------------------------------------------------------
+ * Temas conmutables mediante data-theme en <html>:
+ *  - avilacar-orange: Naranja Fuego (Racing) + Rojo Acento + Blanco Puro
+ *  - avilacar-red: Rojo Pasión (Sport) + Naranja Neón + Blanco Cristal
+ *  - avilacar-dark: Dark Pitstop (Nocturno) + Naranja Neón + Rojo Sport
+ *  - classic: Azul Índigo Original
+ * ============================================================================ */
+
+/* Tema 1 (Default): Avilacar Orange Racing */
+:root,
+[data-theme='avilacar-orange'] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #ea580c;
+  --primary-hover: #c2410c;
+  --primary-foreground: #ffffff;
+  --secondary: #fff7ed;
+  --secondary-foreground: #9a3412;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #fed7aa;
+  --accent-foreground: #9a3412;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #f97316;
+  --radius: 0.5rem;
+
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-inverted: #ffffff;
+}
+
+/* Tema 2: Avilacar Red Sport */
+[data-theme='avilacar-red'] {
+  --background: #f9fafb;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #dc2626;
+  --primary-hover: #b91c1c;
+  --primary-foreground: #ffffff;
+  --secondary: #fef2f2;
+  --secondary-foreground: #991b1b;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #ffedd5;
+  --accent-foreground: #c2410c;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --input: #d1d5db;
+  --ring: #ef4444;
+  --radius: 0.5rem;
+
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+  --text-inverted: #ffffff;
+}
+
+/* Tema 3: Avilacar Dark Pitstop (Nocturno) */
+[data-theme='avilacar-dark'],
+.dark {
+  --background: #0b0f17;
+  --foreground: #f8fafc;
+  --card: #131b2e;
+  --card-foreground: #f8fafc;
+  --popover: #131b2e;
+  --popover-foreground: #f8fafc;
+  --primary: #f97316;
+  --primary-hover: #ea580c;
+  --primary-foreground: #0b0f17;
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #2c1a11;
+  --accent-foreground: #fdba74;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #1e293b;
+  --border-strong: #334155;
+  --input: #334155;
+  --ring: #f97316;
+  --radius: 0.5rem;
+
+  --bg: #0b0f17;
+  --surface: #131b2e;
+  --surface-elevated: #1a243b;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-inverted: #0b0f17;
+}
+
+/* Tema 4: Clásico Original (Azul Índigo) */
+[data-theme='classic'] {
   --background: #f7f8fa;
   --foreground: #172033;
   --card: #ffffff;
   --card-foreground: #172033;
   --popover: #ffffff;
   --popover-foreground: #172033;
-  --primary: #3158c8;
+  --primary: #4d35ff;
+  --primary-hover: #3a28cc;
   --primary-foreground: #ffffff;
   --secondary: #edf1f7;
   --secondary-foreground: #26334d;
@@ -19,26 +135,19 @@
   --destructive: #c83a4b;
   --destructive-foreground: #ffffff;
   --border: #dfe4ec;
+  --border-strong: #d4d4d4;
   --input: #cfd6e2;
   --ring: #6d8bea;
   --radius: 0.5rem;
-}
 
-/* ============================================================================
- * PALETA DE COLORES — INVENTARIOARENS Frontend
- * ----------------------------------------------------------------------------
- * Para cambiar TODA la paleta del sitio, modifica SOLO el bloque
- * `@theme` debajo. Cada color tiene un nombre semantico que describe
- * su rol en la UI (no su tono). Cambiar `--color-primary` cambia TODOS
- * los lugares donde se usa "el morado de marca".
- *
- * Convenciones de nombres:
- *   - color-X          = color base (sin "fg" ni "border")
- *   - color-X-fg       = color del texto/foreground cuando va SOBRE color-X
- *   - color-X-hover    = estado hover del boton/link
- *
- * El tema es SOLO CLARO (sin dark mode, segun decision del usuario 2026-07-13).
- * ============================================================================ */
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --text-primary: #171717;
+  --text-secondary: #404040;
+  --text-muted: #737373;
+  --text-inverted: #fafafa;
+}
 
 @theme {
   --color-background: var(--background);
@@ -55,31 +164,32 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  /* === Marca (cambiar aqui = toda la UI cambia) === */
-  --color-primary: #4d35ff;          /* Morado principal — botones primarios, links, focus ring */
-  --color-primary-hover: #3a28cc;    /* Hover del primary */
-  --color-primary-foreground: #ffffff; /* Texto sobre primary */
 
-  /* === Estados semanticos === */
+  /* === Marca conmutable === */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+
+  /* === Estados semánticos === */
   --color-success: #16a34a;
   --color-success-foreground: #ffffff;
   --color-warning: #f59e0b;
   --color-warning-foreground: #ffffff;
-  --color-danger: #dc2626;
-  --color-danger-foreground: #ffffff;
+  --color-danger: var(--destructive);
+  --color-danger-foreground: var(--destructive-foreground);
   --color-info: #0ea5e9;
   --color-info-foreground: #ffffff;
 
-  /* === Neutros (fondos, superficies, bordes, texto) === */
-  --color-bg: #fafafa;               /* Fondo general de la pagina */
-  --color-surface: #ffffff;          /* Cards, modales, sheets */
-  --color-surface-elevated: #ffffff; /* Cards con sombra elevada */
-  --color-border: #e5e5e5;           /* Bordes sutiles */
-  --color-border-strong: #d4d4d4;    /* Bordes de inputs, separadores */
-  --color-text-primary: #171717;     /* Texto principal */
-  --color-text-secondary: #404040;   /* Texto secundario */
-  --color-text-muted: #737373;       /* Texto deshabilitado, placeholders */
-  --color-text-inverted: #fafafa;    /* Texto claro sobre fondos oscuros */
+  /* === Neutros conmutables === */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-inverted: var(--text-inverted);
 
   /* === Tipografia ===
    * Sistema de tokens escalables. Para AGRANDAR todo el texto en 1 nivel,
