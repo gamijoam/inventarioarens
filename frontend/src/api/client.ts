@@ -103,8 +103,23 @@ api.interceptors.response.use(
         break;
       }
       case 403: {
-        toast.error(body?.message ?? 'No tienes permiso para esta acción.');
-        throw new ForbiddenError(body?.message);
+        const msg = (typeof body === 'string' ? body : (body?.message ?? '')) + '';
+        const isCapabilityError = /no est[aá] habilitada/i.test(msg) || /capacidad/i.test(msg);
+        if (isCapabilityError) {
+          const capMatch = msg.match(/capacidad ['"]?([^'"]+)['"]? no est[aá] habilitada/i);
+          const cap = capMatch?.[1];
+          if (cap) {
+            const state = useSessionStore.getState();
+            if (state.capabilities && state.capabilities.has(cap)) {
+              const next = new Set(state.capabilities);
+              next.delete(cap);
+              state.setCapabilities(Array.from(next));
+            }
+          }
+          throw new ForbiddenError(msg);
+        }
+        toast.error(msg || 'No tienes permiso para esta acción.');
+        throw new ForbiddenError(msg);
       }
       case 404: {
         toast.error(body?.message ?? 'Recurso no encontrado.');

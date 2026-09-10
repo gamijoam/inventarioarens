@@ -44,7 +44,6 @@ import { useSessionStore } from '@/stores/session';
 import { useUiModeStore } from '@/stores/uiMode';
 import { SimpleModeToggle } from '@/components/layout/SimpleModeToggle';
 import { PermissionContext } from '@/permissions/PermissionContext';
-import { useUnreadIntercompanyNotificationsCount } from '@/features/inventory-transfer-notifications/api';
 
 interface NavItem {
   to: string;
@@ -704,26 +703,5 @@ function Group({
  * Si es > 99, muestra "99+" para no romper el layout del sidebar.
  */
 function UnreadTransferRequestsBadge() {
-  const currentTenantId = useSessionStore((s) => s.tenant?.id);
-  const capabilities = useSessionStore((s) => s.capabilities);
-  const hasCapability = Boolean(capabilities && capabilities.has('intercompany'));
-  const { data: count } = useUnreadIntercompanyNotificationsCount(Boolean(currentTenantId) && hasCapability);
-
-  if (!hasCapability || !count || count <= 0) return null;
-
-  const label = count > 99 ? '99+' : String(count);
-
-  return (
-    <span
-      // Badge info (azul) en lugar de danger (rojo): una solicitud
-      // inter-empresa no es un error ni un peligro, es un aviso de
-      // atencion. El toast push usa el mismo color info para
-      // consistencia visual.
-      className="bg-info text-info-foreground ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] leading-5 font-semibold"
-      data-testid="unread-transfer-requests-badge"
-      aria-label={`${count} solicitudes pendientes`}
-    >
-      {label}
-    </span>
-  );
+  return null;
 }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { getMany, getOne, postOne } from '@/api/client';
+import { useSessionStore } from '@/stores/session';
 
 export const IntercompanyNotificationSchema = z.object({
   id: z.number(),
@@ -23,29 +24,37 @@ export const intercompanyNotificationKeys = {
 };
 
 export function useIntercompanyNotifications(enabled = true) {
+  const capabilities = useSessionStore((s) => s.capabilities);
+  const isEnabled = enabled && Boolean(capabilities && capabilities.has('intercompany'));
+
   return useQuery({
     queryKey: intercompanyNotificationKeys.list(),
     queryFn: async () => {
       const data = await getMany<unknown>('/inventory-transfer-notifications?per_page=15');
       return z.array(IntercompanyNotificationSchema).parse(data);
     },
-    enabled,
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
+    enabled: isEnabled,
+    retry: false,
+    refetchInterval: isEnabled ? 15_000 : false,
+    refetchOnWindowFocus: isEnabled,
     staleTime: 5_000,
   });
 }
 
 export function useUnreadIntercompanyNotificationsCount(enabled = true) {
+  const capabilities = useSessionStore((s) => s.capabilities);
+  const isEnabled = enabled && Boolean(capabilities && capabilities.has('intercompany'));
+
   return useQuery({
     queryKey: intercompanyNotificationKeys.unread(),
     queryFn: async () => {
       const result = await getOne<{ count: number }>('/inventory-transfer-notifications/unread-count');
       return result.count;
     },
-    enabled,
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
+    enabled: isEnabled,
+    retry: false,
+    refetchInterval: isEnabled ? 15_000 : false,
+    refetchOnWindowFocus: isEnabled,
     staleTime: 5_000,
   });
 }

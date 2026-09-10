@@ -48,7 +48,6 @@ export function Topbar() {
   const tenant = useSessionStore((s) => s.tenant);
   const roles = useSessionStore((s) => s.roles);
   const permissions = useSessionStore((s) => s.permissions);
-  const capabilities = useSessionStore((s) => s.capabilities);
   const { signOut, refreshSession } = useAuth();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
@@ -56,9 +55,7 @@ export function Topbar() {
   const canViewProducts = grantedPermissions.has(PERMISSIONS.PRODUCTS_VIEW);
   const canViewCurrency = grantedPermissions.has(PERMISSIONS.CURRENCY_VIEW);
   const canManageCurrency = grantedPermissions.has(PERMISSIONS.CURRENCY_MANAGE);
-  const canViewIntercompany =
-    grantedPermissions.has(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_VIEW) &&
-    Boolean(capabilities && capabilities.has('intercompany'));
+  const canViewIntercompany = false;
 
   const handleSignOut = async () => {
     setSigningOut(true);
