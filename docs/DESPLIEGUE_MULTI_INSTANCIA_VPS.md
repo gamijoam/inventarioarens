@@ -73,6 +73,14 @@ echo "=== 1. Compilando frontend en source si hubo cambios ==="
 for target_entry in "${TARGETS[@]}"; do
   IFS=":" read -r target_dir target_user target_group <<< "$target_entry"
   echo "----------------------------------------------------"
+  
+  # Verificar rama activa: si no esta en 'main', protegerla de sobreescritura
+  CURRENT_BRANCH=$(git -C "$target_dir" rev-parse --abbrev-ref HEAD)
+  if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo ">> [SKIP] $target_dir esta en rama '$CURRENT_BRANCH'. No se sobreescribe con main."
+    continue
+  fi
+
   echo "Actualizando $target_dir ..."
 
   # 1. Pull Git local
@@ -114,3 +122,29 @@ echo "=== Sincronización finalizada con éxito ==="
    La columna de equipo en Spatie es `tenant_id` (`config/permission.php`).
 3. **Aislamiento**:  
    Modificar o restablecer una base de datos en una instancia no afecta en absoluto a las demás. Nunca ejecutar comandos destructivos (`migrate:fresh`, `vps_wipe.py`) sin especificar con certeza absoluta el directorio y la base de datos destino.
+
+---
+
+## 6. Instancias con Ramas Personalizadas (Repuestos Avilacar)
+
+Cuando un cliente requiere cambios visuales o de interfaz exclusivos que no aplican al producto base, se aísla en su propia rama Git:
+
+- **Instancia**: `/opt/repuestosavilacar-cloud` (`app.repuestosavilacar.com`)
+- **Rama Git**: `client/repuestosavilacar`
+- **Compilación de Frontend**:  
+  Posee un enlace simbólico `frontend/node_modules -> /opt/inventarioarens-cloud/frontend/node_modules`, permitiendo compilar su propio bundle de React sin duplicar paquetes en disco.
+- **Script de Despliegue de Avilacar**:  
+  `/opt/repuestosavilacar-cloud/scripts/build-avilacar.sh`
+  1. Compila el frontend local: `pnpm run build` en su propio directorio.
+  2. Ajusta permisos: `chown -R www-data:www-data frontend/dist`.
+  3. Limpia cachés de Laravel: `artisan optimize:clear`.
+  4. Recarga `php8.4-fpm`.
+- **Protección Automática**:  
+  El script `scripts/sync-all-vps-instances.sh` inspecciona la rama activa de cada instancia. Al detectar que `/opt/repuestosavilacar-cloud` está en `client/repuestosavilacar`, omite el pull de `main` y la sobreescritura de `frontend/dist`.
+- **Incorporar Mejoras de `main` a la Rama Personalizada**:  
+  Si se publican correcciones en `main` que deban incorporarse a Avilacar:
+  ```bash
+  git -C /opt/repuestosavilacar-cloud merge /opt/inventarioarens-cloud/main
+  bash /opt/repuestosavilacar-cloud/scripts/build-avilacar.sh
+  ```
+
