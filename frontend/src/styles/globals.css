@@ -334,17 +334,6 @@
   }
 }
 
-/* Tokens de la skin operativa. Quedan al final para que dominen sobre la paleta historica. */
-@theme {
-  --color-primary: #3158c8;
-  --color-primary-hover: #2446a8;
-  --color-bg: #f7f8fa;
-  --color-border: #dfe4ec;
-  --color-border-strong: #cfd6e2;
-  --color-text-primary: #172033;
-  --color-text-secondary: #39465e;
-  --color-text-muted: #657089;
-}
 
 /* ============================================================================
  * Utilidades custom
