@@ -15,7 +15,12 @@ echo "=== Sincronizando instancias en VPS desde $SOURCE_DIR ==="
 for target_entry in "${TARGETS[@]}"; do
   IFS=":" read -r target_dir target_user target_group <<< "$target_entry"
   echo "----------------------------------------------------"
-  echo ">> Actualizando $target_dir ..."
+  # Verificar rama activa: si no esta en 'main', protegerla de sobreescritura
+  CURRENT_BRANCH=$(git -C "$target_dir" rev-parse --abbrev-ref HEAD)
+  if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo ">> [SKIP] $target_dir esta en rama '$CURRENT_BRANCH'. No se sobreescribe con main."
+    continue
+  fi
 
   # 1. Pull Git local Fast-Forward
   git -C "$target_dir" pull "$SOURCE_DIR" main --ff-only
