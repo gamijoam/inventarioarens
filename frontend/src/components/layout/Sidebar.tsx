@@ -41,6 +41,8 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { APP_SHORT_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
 import { useSessionStore } from '@/stores/session';
+import { useUiModeStore } from '@/stores/uiMode';
+import { SimpleModeToggle } from '@/components/layout/SimpleModeToggle';
 import { PermissionContext } from '@/permissions/PermissionContext';
 import { useUnreadIntercompanyNotificationsCount } from '@/features/inventory-transfer-notifications/api';
 
@@ -353,8 +355,57 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+const SIMPLE_MODE_ITEMS: NavItem[] = [
+  {
+    to: '/dashboard',
+    label: 'Tablero',
+    icon: LayoutDashboard,
+  },
+  {
+    to: '/inventory',
+    label: 'Inventario',
+    icon: Boxes,
+    permission: PERMISSIONS.PRODUCTS_VIEW,
+    capability: 'inventory',
+  },
+  {
+    to: '/pos',
+    label: 'Ventas / POS',
+    icon: ShoppingCart,
+    permission: PERMISSIONS.POS_VIEW,
+    capability: 'pos',
+  },
+  {
+    to: '/customers',
+    label: 'Clientes',
+    icon: Users,
+    permission: PERMISSIONS.CUSTOMERS_VIEW,
+    capability: 'customers',
+  },
+  {
+    to: '/reports',
+    label: 'Reportes',
+    icon: BarChart3,
+    permissionAny: [PERMISSIONS.REPORTS_VIEW, PERMISSIONS.FINANCE_REPORTS_VIEW],
+    capability: 'reports',
+  },
+  {
+    to: '/users',
+    label: 'Usuarios',
+    icon: ShieldCheck,
+    permissionAny: [PERMISSIONS.USERS_VIEW, PERMISSIONS.ROLES_VIEW],
+  },
+  {
+    to: '/settings/company',
+    label: 'Configuración',
+    icon: Settings,
+    permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
+  },
+];
+
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const isSimpleMode = useUiModeStore((s) => s.isSimpleMode);
   // Cargamos los grupos donde soy Owner para que el item "Organizaciones"
   // aparezca solo si tengo al menos uno. Si el query falla o carga lento,
   // mostramos el item por defecto (la pagina ya maneja el empty state
@@ -397,7 +448,8 @@ export function Sidebar() {
     return true;
   };
 
-  const visibleItems = NAV_ITEMS.filter(isItemVisible);
+  const activeNavItems = isSimpleMode ? SIMPLE_MODE_ITEMS : NAV_ITEMS;
+  const visibleItems = activeNavItems.filter(isItemVisible);
 
   const searchForItem = (item: NavItem): UsersSearch | undefined =>
     item.to === '/users' ? { scope: usersScope } : undefined;
@@ -427,6 +479,13 @@ export function Sidebar() {
           </div>
         )}
       </div>
+
+      {/* Modo Fácil Toggle Banner en Sidebar */}
+      {!collapsed && (
+        <div className="border-border border-b p-2 bg-primary/5">
+          <SimpleModeToggle className="w-full justify-between" />
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">
@@ -647,10 +706,10 @@ function Group({
 function UnreadTransferRequestsBadge() {
   const currentTenantId = useSessionStore((s) => s.tenant?.id);
   const capabilities = useSessionStore((s) => s.capabilities);
-  const hasCapability = capabilities?.size === 0 || capabilities?.has('intercompany');
+  const hasCapability = Boolean(capabilities && capabilities.has('intercompany'));
   const { data: count } = useUnreadIntercompanyNotificationsCount(Boolean(currentTenantId) && hasCapability);
 
-  if (!count || count <= 0) return null;
+  if (!hasCapability || !count || count <= 0) return null;
 
   const label = count > 99 ? '99+' : String(count);
 

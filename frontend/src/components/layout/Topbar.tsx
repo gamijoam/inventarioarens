@@ -39,6 +39,7 @@ import {
 import type { Product, PriceList } from '@/features/inventory-center/schemas';
 import { IntercompanyNotificationBell } from '@/features/inventory-transfer-notifications/IntercompanyNotificationBell';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
+import { SimpleModeToggle } from '@/components/layout/SimpleModeToggle';
 
 const EMPTY_PRICE_LISTS: PriceList[] = [];
 
@@ -57,7 +58,7 @@ export function Topbar() {
   const canManageCurrency = grantedPermissions.has(PERMISSIONS.CURRENCY_MANAGE);
   const canViewIntercompany =
     grantedPermissions.has(PERMISSIONS.INVENTORY_TRANSFER_REQUESTS_VIEW) &&
-    (capabilities?.size === 0 || capabilities?.has('intercompany'));
+    Boolean(capabilities && capabilities.has('intercompany'));
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -122,6 +123,8 @@ export function Topbar() {
         >
           <RefreshCw className="size-4" aria-hidden="true" />
         </Button>
+
+        <SimpleModeToggle />
 
         <ThemeSwitcher />
 

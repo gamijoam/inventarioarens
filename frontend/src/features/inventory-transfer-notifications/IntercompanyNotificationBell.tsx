@@ -23,7 +23,7 @@ export function IntercompanyNotificationBell() {
   const navigate = useNavigate();
   const tenantId = useSessionStore((state) => state.tenant?.id);
   const capabilities = useSessionStore((state) => state.capabilities);
-  const hasCapability = capabilities?.size === 0 || capabilities?.has('intercompany');
+  const hasCapability = Boolean(capabilities && capabilities.has('intercompany'));
   const isEnabled = Boolean(tenantId) && hasCapability;
 
   const notifications = useIntercompanyNotifications(isEnabled);
@@ -31,6 +31,10 @@ export function IntercompanyNotificationBell() {
   const markRead = useMarkIntercompanyNotificationRead();
   const markAllRead = useMarkAllIntercompanyNotificationsRead();
   useIntercompanyNotificationBroadcast(tenantId, isEnabled);
+
+  if (!hasCapability) {
+    return null;
+  }
 
   const count = unread.data ?? 0;
   return (

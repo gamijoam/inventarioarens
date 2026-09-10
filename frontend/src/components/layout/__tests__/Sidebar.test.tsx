@@ -36,6 +36,7 @@ vi.mock('@/stores/session', () => ({
     selector(mockSessionState),
 }));
 
+import { useUiModeStore } from '@/stores/uiMode';
 import { Sidebar } from '../Sidebar';
 
 function makeWrapper(perms: string[]) {
@@ -61,6 +62,7 @@ function makeWrapper(perms: string[]) {
 }
 
 beforeEach(() => {
+  useUiModeStore.setState({ isSimpleMode: false });
   mockSessionState.capabilities = new Set();
   mockUseTenantGroups.mockReset();
   mockUseUnreadTransferRequestsCount.mockReset();
@@ -188,5 +190,27 @@ describe('<Sidebar>', () => {
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'POS' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Inventario' })).toBeTruthy();
+  });
+
+  it('muestra solo los 7 modulos esenciales cuando el Modo Fácil esta activado', () => {
+    useUiModeStore.setState({ isSimpleMode: true });
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    const labels = screen
+      .getAllByRole('link')
+      .map((link) => link.textContent?.trim())
+      .filter(Boolean);
+
+    expect(labels).toEqual([
+      'Tablero',
+      'Inventario',
+      'Ventas / POS',
+      'Clientes',
+      'Reportes',
+      'Usuarios',
+      'Configuración',
+    ]);
   });
 });
