@@ -7,6 +7,12 @@ AVILACAR_DIR="/opt/repuestosavilacar-cloud"
 echo "=== Compilando frontend para Repuestos Avilacar ==="
 cd "$AVILACAR_DIR/frontend"
 pnpm run build
+
+# Copiar el build de dist/admin a dist/ para servicio web
+if [ -d "$AVILACAR_DIR/frontend/dist/admin" ]; then
+  cp -rf "$AVILACAR_DIR/frontend/dist/admin/"* "$AVILACAR_DIR/frontend/dist/"
+fi
+
 chown -R www-data:www-data "$AVILACAR_DIR/frontend/dist"
 
 echo "=== Limpiando caches de Laravel ==="
