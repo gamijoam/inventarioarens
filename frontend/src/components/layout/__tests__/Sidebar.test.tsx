@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
 import { PermissionContext, type PermissionContextValue } from '@/permissions/PermissionContext';
@@ -230,5 +230,28 @@ describe('<Sidebar>', () => {
       .filter(Boolean);
 
     expect(labels).toEqual(['Inventario', 'Configuración']);
+  });
+
+  it('en Modo Fácil muestra los submódulos configurados (ej: Tasas y Catálogos) dentro de Inventario', () => {
+    useUiModeStore.setState({
+      isSimpleMode: true,
+      visibleRoutes: ['/inventory', '/inventory/currency', '/inventory/catalogs'],
+    });
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    // Abrimos el submenú de Inventario
+    const openButtons = screen.getAllByRole('button', { name: /abrir submenú/i });
+    expect(openButtons[0]).toBeDefined();
+    fireEvent.click(openButtons[0]!);
+
+    expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Catálogos' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Tipos de tasa' })).toBeTruthy();
+
+    // Los no configurados permanecen ocultos
+    expect(screen.queryByRole('link', { name: 'Movimientos manuales' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Administración' })).toBeNull();
   });
 });
