@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Search,
   TrendingUp,
-  UserCircle,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -76,26 +75,26 @@ export function Topbar() {
   };
 
   return (
-    <header className="border-border bg-surface flex h-14 items-center justify-between border-b px-4 sm:px-6">
+    <header className="border-slate-200/80 bg-white/95 backdrop-blur flex h-16 items-center justify-between border-b px-4 sm:px-6 sticky top-0 z-20 shadow-xs">
       {/* Tenant activo */}
-      <div className="flex items-center gap-2">
-        <div className="bg-bg text-text-muted flex size-8 items-center justify-center rounded-md">
+      <div className="flex items-center gap-2.5">
+        <div className="hidden sm:flex size-8 items-center justify-center rounded-xl bg-orange-50 border border-orange-200 text-orange-600">
           <Building2 className="size-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm leading-tight font-medium">{tenant?.name ?? '—'}</p>
+            <p className="text-xs sm:text-sm leading-tight font-bold text-slate-900">{tenant?.name ?? '—'}</p>
             {tenant && (
               <Badge
                 variant={tenant.is_group ? 'primary' : tenant.parent_id ? 'info' : 'outline'}
-                className="text-[10px]"
+                className="text-[10px] rounded-lg"
                 data-testid="tenant-context-badge"
               >
                 {tenant.is_group ? 'Grupo' : tenant.parent_id ? 'Sucursal' : 'Empresa'}
               </Badge>
             )}
           </div>
-          <p className="text-text-muted text-xs leading-tight">{tenant?.slug ?? '—'}</p>
+          <p className="text-slate-400 text-xs leading-tight font-mono">{tenant?.slug ?? '—'}</p>
         </div>
         <AppVersionBadge />
       </div>
@@ -116,8 +115,9 @@ export function Topbar() {
           onClick={handleRefresh}
           title="Refrescar permisos"
           aria-label="Refrescar permisos"
+          className="rounded-xl hover:bg-slate-100"
         >
-          <RefreshCw className="size-4" aria-hidden="true" />
+          <RefreshCw className="size-4 text-slate-600" aria-hidden="true" />
         </Button>
 
         <ThemeSwitcher />
@@ -126,10 +126,17 @@ export function Topbar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-2" data-testid="user-menu-trigger">
-              <UserCircle className="size-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{user?.name ?? 'Usuario'}</span>
-              <ChevronDown className="size-3 opacity-60" aria-hidden="true" />
+            <Button variant="ghost" size="sm" className="gap-2.5 rounded-xl hover:bg-slate-100 p-1" data-testid="user-menu-trigger">
+              <div className="size-8 rounded-full bg-orange-600 text-white font-bold flex items-center justify-center ring-2 ring-orange-200 shadow-xs text-xs">
+                {(user?.name ?? 'AA').slice(0, 2).toUpperCase()}
+              </div>
+              <div className="hidden md:block text-left leading-tight">
+                <span className="block text-xs font-bold text-slate-900">{user?.name ?? 'Usuario'}</span>
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  {roles[0] ?? 'Operador'}
+                </span>
+              </div>
+              <ChevronDown className="size-3 opacity-60 text-slate-400" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -376,17 +383,17 @@ function RateIndicator({
     <Button
       variant="outline"
       size="sm"
-      className="hidden gap-1.5 xl:inline-flex"
+      className="hidden gap-1.5 xl:inline-flex bg-amber-50/90 hover:bg-amber-100/90 border-amber-200/90 text-amber-900 rounded-xl font-semibold shadow-xs"
       onClick={onManage}
       title="Gestionar tasa del día"
     >
-      <TrendingUp className="text-success size-3.5" aria-hidden="true" /> {label}{' '}
+      <TrendingUp className="text-amber-600 size-3.5" aria-hidden="true" /> {label}{' '}
       <ExternalLink className="size-3 opacity-50" aria-hidden="true" />
     </Button>
   ) : (
-    <Badge variant="success" className="hidden xl:inline-flex" title="Tasa vigente del día">
-      <TrendingUp className="mr-1 size-3" aria-hidden="true" /> {label}
-    </Badge>
+    <div className="hidden xl:inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200/80 text-amber-900 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs" title="Tasa vigente del día">
+      <TrendingUp className="text-amber-600 size-3.5" aria-hidden="true" /> {label}
+    </div>
   );
 }
 
@@ -430,11 +437,11 @@ function TenantSwitcher(_props: TenantSwitcherProps = {}) {
         <Button
           variant="outline"
           size="sm"
-          className="hidden gap-2 md:inline-flex"
+          className="hidden gap-2 md:inline-flex rounded-xl border-slate-200 bg-slate-50 hover:bg-white text-xs font-semibold shadow-xs"
           data-testid="tenant-switcher"
         >
-          <Building2 className="size-3.5" aria-hidden="true" />
-          {tenant?.name ?? 'Empresa'}
+          <span className="size-2 rounded-full bg-orange-500 ring-2 ring-orange-200" />
+          <span className="truncate max-w-[140px]">{tenant?.name ?? 'Empresa'}</span>
           <ChevronDown className="size-3 opacity-60" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>

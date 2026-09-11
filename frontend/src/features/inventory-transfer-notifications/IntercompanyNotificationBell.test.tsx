@@ -13,8 +13,8 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 vi.mock('@/stores/session', () => ({
-  useSessionStore: (selector: (state: { tenant: { id: number } }) => unknown) =>
-    selector({ tenant: { id: 7 } }),
+  useSessionStore: (selector: (state: { tenant: { id: number }; capabilities: Set<string> }) => unknown) =>
+    selector({ tenant: { id: 7 }, capabilities: new Set(['intercompany']) }),
 }));
 
 vi.mock('./api', () => ({

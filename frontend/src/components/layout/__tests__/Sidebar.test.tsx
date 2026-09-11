@@ -254,4 +254,13 @@ describe('<Sidebar>', () => {
     expect(screen.queryByRole('link', { name: 'Movimientos manuales' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Administración' })).toBeNull();
   });
+
+  it('renderiza la identidad retro de Repuestos Avilacar con badge RA e indicador', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    expect(screen.getByText('RA')).toBeDefined();
+    expect(screen.getByText('Repuestos Avilacar')).toBeDefined();
+  });
 });

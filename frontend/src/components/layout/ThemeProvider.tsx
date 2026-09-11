@@ -4,7 +4,7 @@
  */
 import { createContext, useEffect, useState, type ReactNode } from 'react';
 
-export type ThemeId = 'avilacar-orange' | 'avilacar-red' | 'avilacar-dark' | 'classic';
+export type ThemeId = 'avilacar-retro' | 'avilacar-orange' | 'avilacar-red' | 'avilacar-dark' | 'classic';
 export type Theme = ThemeId;
 
 export interface ThemeConfig {
@@ -18,6 +18,15 @@ export interface ThemeConfig {
 }
 
 export const THEMES: Record<ThemeId, ThemeConfig> = {
+  'avilacar-retro': {
+    id: 'avilacar-retro',
+    name: 'Retro Avilacar (Midnight & Fuego)',
+    description: 'Estilo clásico retro: fondo cálido, sidebar medianoche y acentos naranja fuego',
+    primaryColor: '#ea580c',
+    accentColor: '#0f1e36',
+    bgColor: '#f8fafc',
+    isDark: false,
+  },
   'avilacar-orange': {
     id: 'avilacar-orange',
     name: 'Naranja Fuego (Racing)',
@@ -89,7 +98,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const saved = localStorage.getItem(STORAGE_KEY) as ThemeId;
       if (saved && THEMES[saved]) return saved;
     }
-    return 'avilacar-orange';
+    return 'avilacar-retro';
   });
 
   const setTheme = (next: ThemeId) => {
@@ -111,7 +120,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     <ThemeContext.Provider
       value={{
         theme,
-        themeConfig: THEMES[theme] ?? THEMES['avilacar-orange'],
+        themeConfig: THEMES[theme] ?? THEMES['avilacar-retro'],
         setTheme,
         availableThemes: Object.values(THEMES),
       }}

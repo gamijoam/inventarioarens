@@ -14,7 +14,6 @@ import { useState } from 'react';
 
 import { getOne } from '@/api/client';
 import { PageLayout } from '@/components/layout/PageLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -115,10 +114,10 @@ function DashboardPage() {
       title="Dashboard"
       description="Centro ejecutivo de ventas, POS, caja, inventario y finanzas."
     >
-      <Card>
-        <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-end">
+      <div className="bg-white/95 rounded-2xl border border-orange-100 shadow-sm backdrop-blur-sm p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
           <Field label="Periodo">
-            <Select value={period} onChange={(event) => setPeriod(event.target.value as Period)}>
+            <Select value={period} onChange={(event) => setPeriod(event.target.value as Period)} className="rounded-xl">
               <option value="today">Hoy</option>
               <option value="week">Semana</option>
               <option value="month">Mes</option>
@@ -132,6 +131,7 @@ function DashboardPage() {
                   type="date"
                   value={dateFrom}
                   onChange={(event) => setDateFrom(event.target.value)}
+                  className="rounded-xl"
                 />
               </Field>
               <Field label="Hasta">
@@ -139,6 +139,7 @@ function DashboardPage() {
                   type="date"
                   value={dateTo}
                   onChange={(event) => setDateTo(event.target.value)}
+                  className="rounded-xl"
                 />
               </Field>
             </>
@@ -148,6 +149,7 @@ function DashboardPage() {
               <Select
                 value={scope}
                 onChange={(event) => setScope(event.target.value as DashboardScope)}
+                className="rounded-xl"
               >
                 {tenant?.is_group ? (
                   <option value="organization">Todo el grupo</option>
@@ -163,17 +165,17 @@ function DashboardPage() {
             </Field>
           )}
           {data && (
-            <div className="text-text-muted flex items-center gap-2 text-sm md:ml-auto">
+            <div className="text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-2 text-xs font-semibold md:ml-auto">
               {isOrganization ? (
-                <Building2 className="size-4" />
+                <Building2 className="size-4 text-orange-600" />
               ) : (
-                <CalendarDays className="size-4" />
+                <CalendarDays className="size-4 text-orange-600" />
               )}
-              {data.period.from} al {data.period.to}
+              <span>{data.period.from} al {data.period.to}</span>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {isLoading && <DashboardSkeleton />}
 
@@ -240,40 +242,46 @@ function TenantDashboardSummary({ data }: { data: DashboardSummary }) {
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Alertas de inventario</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50/40 to-transparent">
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm">Alertas de inventario</h4>
+              <p className="text-xs text-slate-500">Productos con existencia por debajo del umbral mínimo.</p>
+            </div>
+            <span className="text-xs bg-slate-100 text-slate-700 font-semibold px-2.5 py-1 rounded-full border border-slate-200">
+              {data.inventory.low_stock_items.length} alertas
+            </span>
+          </div>
+          <div className="p-4">
             {data.inventory.low_stock_items.length === 0 ? (
               <EmptyState
-                icon={<AlertTriangle className="size-8" />}
+                icon={<AlertTriangle className="size-8 text-amber-500" />}
                 title="Sin alertas de stock"
                 description="No hay productos por debajo del umbral configurado."
               />
             ) : (
-              <div className="border-border overflow-auto rounded-md border">
-                <table className="w-full min-w-[560px] text-sm">
-                  <thead className="bg-bg text-text-muted text-left text-xs uppercase">
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full min-w-[560px] text-sm text-left">
+                  <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200/80">
                     <tr>
-                      <th className="px-3 py-2">Producto</th>
-                      <th className="px-3 py-2">Almacén</th>
-                      <th className="px-3 py-2 text-right">Disponible</th>
+                      <th className="py-2.5 px-3">Producto</th>
+                      <th className="py-2.5 px-3">Almacén</th>
+                      <th className="py-2.5 px-3 text-right">Disponible</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-border divide-y">
+                  <tbody className="divide-y divide-slate-100">
                     {data.inventory.low_stock_items.map((item) => (
-                      <tr key={`${item.product_id}-${item.warehouse_id}`}>
-                        <td className="px-3 py-2">
-                          <div className="font-medium">
+                      <tr key={`${item.product_id}-${item.warehouse_id}`} className="hover:bg-amber-50/30 transition-colors">
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-slate-900">
                             {item.product_name ?? `Producto #${item.product_id}`}
                           </div>
-                          <div className="text-text-muted text-xs">{item.sku ?? '-'}</div>
+                          <div className="text-slate-400 text-xs font-mono">{item.sku ?? '-'}</div>
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="py-2.5 px-3 text-slate-600">
                           {item.warehouse_name ?? `Almacén #${item.warehouse_id}`}
                         </td>
-                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600 tabular-nums">
                           {item.quantity_available}
                         </td>
                       </tr>
@@ -282,38 +290,42 @@ function TenantDashboardSummary({ data }: { data: DashboardSummary }) {
                 </table>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Lectura ejecutiva</CardTitle>
-          </CardHeader>
-          <CardContent className="text-text-secondary space-y-3 text-sm">
-            <p>
-              El periodo seleccionado concentra ventas confirmadas, tickets POS pagados, cajas
-              abiertas y saldos financieros abiertos. Para auditoría detallada usa el módulo
-              Reportes.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Info
-                label="Balance operativo"
-                value={formatMoney(
-                  data.finance.accounts_receivable_balance_base_amount -
-                    data.finance.accounts_payable_balance_base_amount,
-                )}
-              />
-              <Info
-                label="Ventas promedio"
-                value={formatMoney(
-                  data.sales.confirmed_count > 0
-                    ? data.sales.total_base_amount / data.sales.confirmed_count
-                    : 0,
-                )}
-              />
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 flex flex-col justify-between">
+          <div>
+            <div className="border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-900 text-sm">Lectura ejecutiva</h4>
+              <p className="text-xs text-slate-500">
+                Resumen analítico del periodo seleccionado (ventas, tickets POS, cajas y saldos).
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Balance operativo</div>
+                <div className="text-2xl font-black font-mono mt-1 text-emerald-600">
+                  {formatMoney(
+                    data.finance.accounts_receivable_balance_base_amount -
+                      data.finance.accounts_payable_balance_base_amount,
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">CxC neta menos CxP acumuladas</p>
+              </div>
+              <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ventas promedio</div>
+                <div className="text-2xl font-black font-mono mt-1 text-slate-900">
+                  {formatMoney(
+                    data.sales.confirmed_count > 0
+                      ? data.sales.total_base_amount / data.sales.confirmed_count
+                      : 0,
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Por venta confirmada en periodo</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </>
   );
@@ -328,45 +340,68 @@ interface MetricCardProps {
 }
 
 function MetricCard({ title, icon: Icon, value, helper, tone }: MetricCardProps) {
-  const toneClasses = {
-    primary: 'text-primary',
-    success: 'text-success',
-    warning: 'text-warning',
-    danger: 'text-danger',
-    info: 'text-info',
-    default: 'text-text-primary',
+  const toneConfig = {
+    primary: {
+      value: 'text-slate-900',
+      box: 'bg-orange-50 border-orange-200 text-orange-600',
+      stripe: 'bg-gradient-to-r from-orange-500 to-amber-400',
+    },
+    success: {
+      value: 'text-emerald-600',
+      box: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+      stripe: 'bg-emerald-500',
+    },
+    warning: {
+      value: 'text-amber-600',
+      box: 'bg-amber-50 border-amber-200 text-amber-600',
+      stripe: 'bg-amber-400',
+    },
+    danger: {
+      value: 'text-rose-600',
+      box: 'bg-rose-50 border-rose-200 text-rose-600',
+      stripe: 'bg-rose-500',
+    },
+    info: {
+      value: 'text-sky-600',
+      box: 'bg-sky-50 border-sky-200 text-sky-600',
+      stripe: 'bg-sky-500',
+    },
+    default: {
+      value: 'text-slate-900',
+      box: 'bg-slate-50 border-slate-200 text-slate-600',
+      stripe: 'bg-slate-300',
+    },
   } as const;
 
+  const config = toneConfig[tone] ?? toneConfig.default;
+
   return (
-    <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-4">
+    <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-text-muted text-xs font-medium uppercase">{title}</p>
-          <p className={`mt-1 text-2xl font-semibold tabular-nums ${toneClasses[tone]}`}>{value}</p>
-          <p className="text-text-muted mt-1 text-xs">{helper}</p>
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">{title}</span>
+          <span className={`mt-1 text-2xl font-black tabular-nums font-mono tracking-tight block ${config.value}`}>
+            {value}
+          </span>
         </div>
-        <div className={`bg-bg shrink-0 rounded-md p-2 ${toneClasses[tone]}`}>
+        <div className={`size-10 rounded-xl border flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${config.box}`}>
           <Icon className="size-5" aria-hidden="true" />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="mt-3 flex items-center text-xs text-slate-500 font-medium">
+        <span className="size-2 rounded-full bg-slate-300 mr-1.5 shrink-0" />
+        <span className="truncate">{helper}</span>
+      </div>
+      <div className={`absolute bottom-0 left-0 right-0 h-1 ${config.stripe}`} />
+    </div>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="w-full md:w-52">
-      <Label>{label}</Label>
+      <Label className="text-xs font-bold text-slate-500">{label}</Label>
       <div className="mt-1">{children}</div>
-    </div>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-border rounded-md border p-3">
-      <div className="text-text-muted text-xs uppercase">{label}</div>
-      <div className="text-text-primary mt-1 font-semibold tabular-nums">{value}</div>
     </div>
   );
 }

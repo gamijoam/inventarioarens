@@ -113,13 +113,13 @@ export function LoginPage() {
     <main
       className={cn(
         'relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-10 sm:px-8',
-        'bg-[#e8ecf1]',
+        'bg-warm-ambient',
       )}
       data-app-mode={APP_MODE}
       data-testid="login-page"
     >
       <div
-        className={cn('absolute inset-x-0 top-0 h-1', isPos ? 'bg-emerald-400' : 'bg-primary')}
+        className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-orange-600 via-orange-500 to-amber-400"
         aria-hidden="true"
       />
 
@@ -127,8 +127,8 @@ export function LoginPage() {
         <form
           onSubmit={handleSubmit}
           className={cn(
-            'relative rounded-2xl border bg-white p-8 shadow-[0_24px_60px_rgba(27,31,44,0.12)] sm:p-10',
-            isPos ? 'border-emerald-200' : 'border-[#e2e5ea]',
+            'relative rounded-2xl border bg-white/95 backdrop-blur-md p-8 shadow-[0_24px_60px_rgba(234,88,12,0.10)] sm:p-10',
+            isPos ? 'border-emerald-200' : 'border-orange-100',
           )}
           aria-label="Formulario de inicio de sesión"
         >
@@ -136,17 +136,28 @@ export function LoginPage() {
           <header className="mb-8 text-center">
             <div
               className={cn(
-                'mx-auto flex size-14 items-center justify-center rounded-xl text-white shadow-sm',
-                isPos ? 'bg-emerald-500' : 'bg-primary',
+                'mx-auto flex size-14 items-center justify-center rounded-2xl p-0.5 shadow-lg',
+                isPos
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-400 shadow-orange-500/25',
               )}
               aria-hidden="true"
             >
-              <span className="text-xl font-bold tracking-wide">{APP_VISUAL_PROFILE.logoMark}</span>
+              <div className="size-full bg-white rounded-[14px] flex items-center justify-center">
+                <span
+                  className={cn(
+                    'text-xl font-black tracking-tight',
+                    isPos ? 'text-emerald-600' : 'text-orange-600',
+                  )}
+                >
+                  {APP_VISUAL_PROFILE.logoMark}
+                </span>
+              </div>
             </div>
             <p
               className={cn(
-                'mt-3 text-sm font-semibold tracking-[0.22em]',
-                isPos ? 'text-emerald-600' : 'text-primary',
+                'mt-3 text-sm font-bold tracking-[0.22em]',
+                isPos ? 'text-emerald-600' : 'text-orange-600',
               )}
             >
               {APP_VISUAL_PROFILE.productLabel}
@@ -190,7 +201,7 @@ export function LoginPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 disabled={loginLoading}
-                className="h-11 rounded-lg border bg-white px-4 pl-9 text-sm shadow-sm"
+                className="h-11 rounded-xl border-slate-200 bg-white px-4 pl-9 text-sm shadow-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10"
                 data-testid="login-email"
               />
               {lookupLoading && (
@@ -238,7 +249,7 @@ export function LoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 disabled={loginLoading}
-                className="h-11 rounded-lg border bg-white px-4 pr-11 pl-9 text-sm shadow-sm"
+                className="h-11 rounded-xl border-slate-200 bg-white px-4 pr-11 pl-9 text-sm shadow-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10"
                 data-testid="login-password"
               />
               <button
@@ -258,7 +269,7 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={() => setForgotOpen((open) => !open)}
-                className="text-primary text-xs font-medium hover:underline"
+                className="text-orange-600 hover:text-orange-700 text-xs font-semibold hover:underline"
                 data-testid="login-forgot"
               >
                 Forgot Password?
@@ -274,7 +285,12 @@ export function LoginPage() {
           <Button
             type="submit"
             fullWidth
-            className="mt-6 h-12 rounded-lg text-sm font-semibold tracking-[0.14em]"
+            className={cn(
+              'mt-6 h-12 rounded-xl text-sm font-bold tracking-[0.14em] text-white shadow-md transition-all',
+              isPos
+                ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-orange-500/25 active:scale-[0.99]',
+            )}
             loading={loginLoading}
             disabled={!selectedTenant || !email || !password}
             data-testid="login-submit"

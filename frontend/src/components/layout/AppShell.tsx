@@ -26,7 +26,7 @@ export function AppShell({ children }: AppShellProps) {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-warm-ambient custom-scrollbar">
           <div
             className={cn(
               'mx-auto w-full px-4 py-6 sm:px-6 lg:px-8',

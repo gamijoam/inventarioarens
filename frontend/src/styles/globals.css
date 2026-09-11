@@ -11,8 +11,42 @@
  *  - classic: Azul Índigo Original
  * ============================================================================ */
 
-/* Tema 1 (Default): Avilacar Orange Racing */
+/* Tema 0 (Default): Avilacar Retro (Midnight & Fuego) */
 :root,
+[data-theme='avilacar-retro'] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #ea580c;
+  --primary-hover: #c2410c;
+  --primary-foreground: #ffffff;
+  --secondary: #fff7ed;
+  --secondary-foreground: #9a3412;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #fed7aa;
+  --accent-foreground: #9a3412;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #f97316;
+  --radius: 0.75rem;
+
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-inverted: #ffffff;
+}
+
+/* Tema 1: Avilacar Orange Racing */
 [data-theme='avilacar-orange'] {
   --background: #f8fafc;
   --foreground: #0f172a;
@@ -354,4 +388,29 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
+  /* Subtle warm ambient gradient matching Avilacar branding */
+  .bg-warm-ambient {
+    background: linear-gradient(180deg, #FFEAD4 0%, #FFF4E8 220px, #F8FAFC 520px);
+  }
+  .dark .bg-warm-ambient,
+  [data-theme='avilacar-dark'] .bg-warm-ambient {
+    background: linear-gradient(180deg, #161b26 0%, #111622 220px, #0b0f17 520px);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.04);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+  }
 }
+

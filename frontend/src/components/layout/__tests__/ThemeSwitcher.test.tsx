@@ -10,6 +10,9 @@ function TestConsumer() {
     <div>
       <span data-testid="current-theme">{theme}</span>
       <span data-testid="current-name">{themeConfig.name}</span>
+      <button data-testid="btn-retro" onClick={() => setTheme('avilacar-retro')}>
+        Set Retro
+      </button>
       <button data-testid="btn-red" onClick={() => setTheme('avilacar-red')}>
         Set Red
       </button>
@@ -33,16 +36,16 @@ describe('Theme System for Repuestos Avilacar', () => {
     document.documentElement.classList.remove('dark');
   });
 
-  it('initializes with avilacar-orange by default', () => {
+  it('initializes with avilacar-retro by default', () => {
     render(
       <ThemeProvider>
         <TestConsumer />
       </ThemeProvider>
     );
 
-    expect(screen.getByTestId('current-theme').textContent).toBe('avilacar-orange');
-    expect(screen.getByTestId('current-name').textContent).toBe(THEMES['avilacar-orange'].name);
-    expect(document.documentElement.getAttribute('data-theme')).toBe('avilacar-orange');
+    expect(screen.getByTestId('current-theme').textContent).toBe('avilacar-retro');
+    expect(screen.getByTestId('current-name').textContent).toBe(THEMES['avilacar-retro'].name);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('avilacar-retro');
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 
@@ -115,6 +118,7 @@ describe('Theme System for Repuestos Avilacar', () => {
     });
 
     // Theme names should be rendered in the dropdown
+    expect(screen.getByText('Retro Avilacar (Midnight & Fuego)')).toBeDefined();
     expect(screen.getByText('Naranja Fuego (Racing)')).toBeDefined();
     expect(screen.getByText('Rojo Pasión (Sport)')).toBeDefined();
     expect(screen.getByText('Dark Pitstop (Nocturno)')).toBeDefined();

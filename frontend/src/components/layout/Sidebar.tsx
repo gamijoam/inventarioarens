@@ -39,7 +39,6 @@ import {
 import { cn } from '@/lib/cn';
 import { useTenantGroups } from '@/features/access/tenantGroupsApi';
 import { PERMISSIONS } from '@/permissions/constants';
-import { APP_SHORT_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
 import { useSessionStore } from '@/stores/session';
 import { useUiModeStore } from '@/stores/uiMode';
@@ -427,38 +426,40 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'border-border bg-surface flex flex-col border-r transition-[width] duration-200',
-        collapsed ? 'w-16' : 'w-60',
+        'bg-gradient-to-b from-[#0F1E36] via-[#142642] to-[#0A1526] text-slate-200 border-r border-slate-800 shadow-xl flex flex-col justify-between shrink-0 transition-[width] duration-200 z-30',
+        collapsed ? 'w-16' : 'w-64',
       )}
       aria-label="Navegación principal"
     >
       {/* Brand */}
-      <div className="border-border flex h-14 items-center gap-2 border-b px-3">
+      <div className="flex h-16 items-center gap-3 border-b border-slate-800/80 bg-[#0A1526]/60 px-3.5">
         <div
-          className={cn(
-            'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-wide',
-            'shadow-sm',
-          )}
+          className="size-10 rounded-xl bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-400 p-0.5 shadow-lg shadow-orange-500/20 flex items-center justify-center shrink-0"
           aria-hidden="true"
         >
-          SDI
+          <div className="size-full bg-white rounded-[9px] flex items-center justify-center">
+            <span className="text-orange-600 font-black tracking-tighter text-sm">RA</span>
+          </div>
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{APP_SHORT_NAME}</p>
+            <h1 className="truncate text-sm font-bold text-white tracking-tight leading-tight">Repuestos Avilacar</h1>
+            <span className="text-[11px] text-amber-300/80 font-medium flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" /> SDI Inventario
+            </span>
           </div>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">
-        <ul className="space-y-0.5">
+      <nav className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-1.5" aria-label="Módulos">
+        <ul className="space-y-1">
           {visibleItems.map((item, index) => {
             const prevSection = visibleItems[index - 1]?.section;
             const isNewSection = item.section != null && item.section !== prevSection;
             const sectionHeader =
               !collapsed && isNewSection ? (
-                <div className="text-text-muted px-2.5 pt-3 pb-1 text-[10px] font-semibold tracking-wider uppercase">
+                <div className="text-slate-400 px-3 pt-3 pb-1 text-[11px] font-bold tracking-wider uppercase">
                   {item.section}
                 </div>
               ) : null;
@@ -490,16 +491,22 @@ export function Sidebar() {
                 to={item.to}
                 search={searchForItem(item)}
                 className={cn(
-                  'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all',
                   isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-text-secondary hover:bg-bg hover:text-text-primary',
+                    ? 'bg-white text-[#0F1E36] font-semibold shadow-md shadow-black/10'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10',
                   collapsed && 'justify-center',
                 )}
                 title={collapsed ? item.label : undefined}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                <item.icon
+                  className={cn(
+                    'size-4 shrink-0',
+                    isActive ? 'text-orange-600' : 'text-slate-400',
+                  )}
+                  aria-hidden="true"
+                />
                 {!collapsed && <span className="truncate">{item.label}</span>}
                 {!collapsed && item.to === '/inventory-transfer-requests' && (
                   <UnreadTransferRequestsBadge />
@@ -518,12 +525,12 @@ export function Sidebar() {
       </nav>
 
       {/* Collapse */}
-      <div className="border-border border-t p-2">
+      <div className="border-slate-800 border-t p-2 bg-[#0A1526]/60">
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
           className={cn(
-            'text-text-muted hover:bg-bg hover:text-text-secondary flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs',
+            'text-slate-400 hover:bg-white/10 hover:text-white flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium transition-colors',
             collapsed && 'justify-center',
           )}
           aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
@@ -579,16 +586,21 @@ function Group({
         to={item.to}
         search={item.to === '/users' ? { scope: usersScope } : undefined}
         className={cn(
-          'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
+          'flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors justify-center',
           isParentActive
-            ? 'bg-primary/10 text-primary'
-            : 'text-text-secondary hover:bg-bg hover:text-text-primary',
-          'justify-center',
+            ? 'bg-white text-[#0F1E36] font-semibold shadow-md'
+            : 'text-slate-300 hover:text-white hover:bg-white/10',
         )}
         title={item.label}
         aria-current={isParentActive ? 'page' : undefined}
       >
-        <item.icon className="size-4 shrink-0" aria-hidden="true" />
+        <item.icon
+          className={cn(
+            'size-4 shrink-0',
+            isParentActive ? 'text-orange-600' : 'text-slate-400',
+          )}
+          aria-hidden="true"
+        />
       </Link>
     );
   }
@@ -600,21 +612,27 @@ function Group({
           to={item.to}
           search={item.to === '/users' ? { scope: usersScope } : undefined}
           className={cn(
-            'flex flex-1 items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
+            'flex flex-1 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all',
             isParentActive
-              ? 'bg-primary/10 text-primary'
-              : 'text-text-secondary hover:bg-bg hover:text-text-primary',
+              ? 'bg-white text-[#0F1E36] font-semibold shadow-md shadow-black/10'
+              : 'text-slate-300 hover:text-white hover:bg-white/10',
           )}
           title={item.label}
           aria-current={isParentActive ? 'page' : undefined}
         >
-          <item.icon className="size-4 shrink-0" aria-hidden="true" />
+          <item.icon
+            className={cn(
+              'size-4 shrink-0',
+              isParentActive ? 'text-orange-600' : 'text-slate-400',
+            )}
+            aria-hidden="true"
+          />
           <span className="truncate">{item.label}</span>
         </Link>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="text-text-muted hover:bg-bg hover:text-text-secondary rounded p-1.5"
+          className="text-slate-400 hover:bg-white/10 hover:text-white rounded-lg p-1.5 transition-colors"
           aria-label={open ? 'Cerrar submenú' : 'Abrir submenú'}
           aria-expanded={open}
         >
@@ -625,7 +643,7 @@ function Group({
         </button>
       </div>
       {open && (
-        <ul className="border-border mt-0.5 ml-4 space-y-0.5 border-l pl-2">
+        <ul className="border-slate-700/60 mt-1 ml-4 space-y-1 border-l pl-2">
           {visibleChildren.map((sub) => {
             const isSubActive = currentPath === sub.to;
             const linkContent = (
@@ -633,14 +651,20 @@ function Group({
                 to={sub.to}
                 search={sub.to === '/users' ? { scope: usersScope } : undefined}
                 className={cn(
-                  'flex items-center gap-3 rounded px-2.5 py-1.5 text-sm transition-colors',
+                  'flex items-center gap-3 rounded-lg px-2.5 py-1.5 text-sm transition-colors',
                   isSubActive
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-text-secondary hover:bg-bg hover:text-text-primary',
+                    ? 'bg-white/20 text-white font-medium shadow-xs'
+                    : 'text-slate-400 hover:bg-white/10 hover:text-white',
                 )}
                 aria-current={isSubActive ? 'page' : undefined}
               >
-                <sub.icon className="size-3.5 shrink-0" aria-hidden="true" />
+                <sub.icon
+                  className={cn(
+                    'size-3.5 shrink-0',
+                    isSubActive ? 'text-orange-400' : 'text-slate-400',
+                  )}
+                  aria-hidden="true"
+                />
                 <span className="truncate">{sub.label}</span>
               </Link>
             );
