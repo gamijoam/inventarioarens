@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+import { createFileRoute, Navigate, Outlet, redirect } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { AuthedLayout } from '@/components/layout/AuthedLayout';
@@ -94,11 +94,7 @@ function AuthedLayoutComponent() {
   }
 
   if (!user || !tenant) {
-    return (
-      <div className="bg-bg flex min-h-screen items-center justify-center">
-        <div className="text-text-muted text-sm">Cargando sesion...</div>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
 
   return (

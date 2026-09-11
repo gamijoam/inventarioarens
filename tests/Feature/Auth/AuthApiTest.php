@@ -270,6 +270,54 @@ class AuthApiTest extends TestCase
             ->assertUnauthorized();
     }
 
+    public function test_me_endpoint_returns_tenant_and_permissions_for_platform_admin_in_tenant_session(): void
+    {
+        $tenant = Tenant::create(['name' => 'Repuestos Avilacar', 'slug' => 'repuestos-avilacar']);
+        $user = User::factory()->create([
+            'email' => 'admin@repuestosavilacar.com',
+            'password' => 'secret123',
+            'is_platform_admin' => true,
+        ]);
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+
+        $token = $this->loginToken($tenant, $user);
+
+        $response = $this
+            ->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/auth/me')
+            ->assertOk();
+
+        $response->assertJsonPath('data.user.id', $user->id);
+        $response->assertJsonPath('data.user.is_platform_admin', true);
+        $response->assertJsonPath('data.tenant.id', $tenant->id);
+        $response->assertJsonPath('data.tenant.slug', $tenant->slug);
+    }
+
+    public function test_me_endpoint_returns_null_tenant_for_platform_admin_without_tenant_session(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'superadmin@example.com',
+            'password' => 'secret123',
+            'is_platform_admin' => true,
+        ]);
+
+        $token = $this->postJson('/api/auth/platform-login', [
+            'email' => $user->email,
+            'password' => 'secret123',
+        ])
+            ->assertCreated()
+            ->json('data.token');
+
+        $this
+            ->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.user.id', $user->id)
+            ->assertJsonPath('data.user.is_platform_admin', true)
+            ->assertJsonPath('data.tenant', null);
+    }
+
     private function userInTenant(Tenant $tenant): User
     {
         $user = User::factory()->create([

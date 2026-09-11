@@ -54,16 +54,32 @@ export function useAuth(): UseAuthResult {
   const refreshSession = useCallback(async () => {
     try {
       const me = await apiMe();
+      const currentTenant = useSessionStore.getState().tenant;
+      // Si la respuesta de me no trae tenant pero en el store ya teníamos uno activo en sesión de empresa,
+      // preservamos el tenant activo para evitar que la UI quede en blanco o 'Cargando sesión...'
+      const resolvedTenant = me.tenant ?? currentTenant;
+
+      const currentRoles = useSessionStore.getState().roles;
+      const currentPermissions = useSessionStore.getState().permissions;
+
+      const rawRoles = Array.isArray(me.roles)
+        ? me.roles.map((r: unknown) =>
+            typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
+          )
+        : [];
+      const resolvedRoles = rawRoles.length > 0 ? rawRoles : currentRoles;
+
+      const resolvedPermissions =
+        Array.isArray(me.permissions) && me.permissions.length > 0
+          ? me.permissions
+          : Array.from(currentPermissions);
+
       useSessionStore.getState().setSession({
         expiresAt: me.expires_at ?? null,
         user: me.user,
-        tenant: me.tenant,
-        roles: Array.isArray(me.roles)
-          ? me.roles.map((r: unknown) =>
-              typeof r === 'string' ? r : ((r as { name?: string }).name ?? String(r)),
-            )
-          : [],
-        permissions: me.permissions ?? [],
+        tenant: resolvedTenant,
+        roles: resolvedRoles,
+        permissions: resolvedPermissions,
         capabilities: me.capabilities ?? [],
         scopeStatus: me.scope_status ?? 'none',
         scopes: me.scopes ?? {

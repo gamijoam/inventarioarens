@@ -104,9 +104,7 @@ class AuthController extends Controller
 
     public function me(Request $request): AuthSessionResource
     {
-        $tenant = $request->user()?->isPlatformAdmin()
-            ? null
-            : app(TenantManager::class)->current();
+        $tenant = app(TenantManager::class)->current();
 
         return AuthSessionResource::make(
             $this->auth->currentSession(
