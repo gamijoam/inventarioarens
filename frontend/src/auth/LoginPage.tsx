@@ -154,35 +154,37 @@ export function LoginPage() {
         >
           {/* Logo corporativo */}
           <header className="mb-8 text-center">
-            <div
-              className={cn(
-                'mx-auto flex size-14 items-center justify-center rounded-2xl p-0.5 shadow-lg',
-                isPos
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-400 shadow-orange-500/25',
-              )}
-              aria-hidden="true"
-            >
-              <div className="size-full bg-white rounded-[14px] flex items-center justify-center overflow-hidden p-1">
-                {activeLogo ? (
-                  <img
-                    src={activeLogo}
-                    alt={activeName || 'Logo de la empresa'}
-                    className="size-full object-contain"
-                    data-testid="login-tenant-logo"
-                  />
-                ) : (
+            {activeLogo ? (
+              <div className="mx-auto flex h-24 sm:h-28 max-w-[280px] items-center justify-center p-1">
+                <img
+                  src={activeLogo}
+                  alt={activeName || 'Logo de la empresa'}
+                  className="max-h-full max-w-full object-contain filter drop-shadow-sm"
+                  data-testid="login-tenant-logo"
+                />
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  'mx-auto flex size-20 items-center justify-center rounded-2xl p-0.5 shadow-lg',
+                  isPos
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-400 shadow-orange-500/25',
+                )}
+                aria-hidden="true"
+              >
+                <div className="size-full bg-white rounded-[14px] flex items-center justify-center">
                   <span
                     className={cn(
-                      'text-xl font-black tracking-tight',
+                      'text-2xl font-black tracking-tight',
                       isPos ? 'text-emerald-600' : 'text-orange-600',
                     )}
                   >
                     {APP_VISUAL_PROFILE.logoMark}
                   </span>
-                )}
+                </div>
               </div>
-            </div>
+            )}
             <p
               className={cn(
                 'mt-3 text-sm font-bold tracking-[0.22em]',
