@@ -21,12 +21,13 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CompanySettingsApiTest extends TestCase
@@ -134,7 +135,10 @@ class CompanySettingsApiTest extends TestCase
 
         $logoUrl = $response->json('data.logo_url');
         $this->assertNotEmpty($logoUrl);
-        $this->assertStringContainsString('storage/tenants/' . $tenant->id . '/logo_', $logoUrl);
+        $this->assertStringContainsString('storage/tenants/'.$tenant->id.'/logo_', $logoUrl);
+
+        $relativeStoragePath = Str::after($logoUrl, '/storage/');
+        Storage::disk('public')->assertExists($relativeStoragePath);
 
         $settings = CompanySettings::getForTenant($tenant);
         $this->assertSame($logoUrl, $settings['logo_url']);
@@ -149,6 +153,37 @@ class CompanySettingsApiTest extends TestCase
 
         $settingsAfter = CompanySettings::getForTenant($tenant);
         $this->assertNull($settingsAfter['logo_url']);
+        Storage::disk('public')->assertMissing($relativeStoragePath);
+    }
+
+    public function test_uploading_new_logo_replaces_and_deletes_old_file(): void
+    {
+        Storage::fake('public');
+
+        $tenant = Tenant::create(['name' => 'Logo Replace', 'slug' => 'logo-replace']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Admin', ['settings.manage']);
+
+        $firstFile = UploadedFile::fake()->image('logo1.png', 200, 200);
+        $res1 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->post('/api/tenant-settings/logo', ['logo' => $firstFile]);
+
+        $firstUrl = $res1->json('data.logo_url');
+        $firstPath = Str::after($firstUrl, '/storage/');
+        Storage::disk('public')->assertExists($firstPath);
+
+        $secondFile = UploadedFile::fake()->image('logo2.png', 200, 200);
+        $res2 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->post('/api/tenant-settings/logo', ['logo' => $secondFile]);
+
+        $secondUrl = $res2->json('data.logo_url');
+        $secondPath = Str::after($secondUrl, '/storage/');
+        Storage::disk('public')->assertExists($secondPath);
+        Storage::disk('public')->assertMissing($firstPath);
     }
 
     public function test_member_without_settings_manage_cannot_upload_logo(): void

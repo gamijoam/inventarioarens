@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -122,18 +123,26 @@ class TenantSettingController extends Controller
             'logo' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:2048'],
         ]);
 
-        $file = $request->file('logo');
-        $ext = $file->getClientOriginalExtension() ?: 'png';
-        $filename = 'logo_' . time() . '_' . Str::random(8) . '.' . $ext;
-        $path = $file->storeAs("tenants/{$tenant->id}", $filename, 'public');
-
-        $logoUrl = '/storage/' . $path;
-
         $setting = $tenant->setting
             ?: TenantSetting::firstOrCreate(['tenant_id' => $tenant->id]);
 
         $current = $setting->settings ?? [];
         $currentCompany = $current['company'] ?? [];
+
+        // Si ya existía un logo en disco, limpiarlo antes de asignar el nuevo
+        $oldUrl = $currentCompany['logo_url'] ?? null;
+        if ($oldUrl && str_starts_with($oldUrl, '/storage/')) {
+            $oldPath = Str::after($oldUrl, '/storage/');
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $file = $request->file('logo');
+        $ext = $file->getClientOriginalExtension() ?: 'png';
+        $filename = 'logo_'.time().'_'.Str::random(8).'.'.$ext;
+        $path = $file->storeAs("tenants/{$tenant->id}", $filename, 'public');
+
+        $logoUrl = '/storage/'.$path;
+
         $currentCompany['logo_url'] = $logoUrl;
         $current['company'] = $currentCompany;
 
@@ -163,6 +172,11 @@ class TenantSettingController extends Controller
 
         $current = $setting->settings ?? [];
         if (isset($current['company'])) {
+            $oldUrl = $current['company']['logo_url'] ?? null;
+            if ($oldUrl && str_starts_with($oldUrl, '/storage/')) {
+                $oldPath = Str::after($oldUrl, '/storage/');
+                Storage::disk('public')->delete($oldPath);
+            }
             $current['company']['logo_url'] = null;
         }
 
