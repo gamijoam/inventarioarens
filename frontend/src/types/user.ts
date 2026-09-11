@@ -13,6 +13,7 @@ export interface Tenant {
   domain?: string | null;
   parent_id?: number | null;
   is_group?: boolean;
+  logo_url?: string | null;
 }
 
 export interface Role {
@@ -62,6 +63,16 @@ export interface TenantOption {
   slug: string;
   name: string;
   is_active: boolean;
+  domain?: string | null;
+  logo_url?: string | null;
+}
+
+export interface PublicTenantInfo {
+  id: number;
+  slug: string;
+  name: string;
+  domain?: string | null;
+  logo_url?: string | null;
 }
 
 /** Respuesta de POST /api/auth/login. */

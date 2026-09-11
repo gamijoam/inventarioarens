@@ -29,8 +29,29 @@
         @if(!empty($ticket['copy']))
             <div class="copy">COPIA</div>
         @endif
+        @php
+            $showCompany = !isset($ticket['tenant']['show_company']) || !empty($ticket['tenant']['show_company']);
+            $logoUrl = $ticket['tenant']['company']['logo_url'] ?? null;
+            $logoSrc = $logoUrl;
+            if ($logoUrl && str_starts_with($logoUrl, '/storage/')) {
+                $subPath = substr($logoUrl, 9);
+                $filePath = public_path($logoUrl);
+                if (!file_exists($filePath)) {
+                    $filePath = storage_path('app/public/' . $subPath);
+                }
+                if (file_exists($filePath)) {
+                    $mime = @mime_content_type($filePath) ?: 'image/png';
+                    $logoSrc = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($filePath));
+                }
+            }
+        @endphp
+        @if($showCompany && !empty($logoUrl))
+            <div class="logo-container" style="text-align: center; margin-bottom: 6px;">
+                <img src="{{ $logoSrc }}" alt="Logo" style="max-width: {{ $width === 58 ? '110px' : '140px' }}; max-height: 55px; object-fit: contain; margin: 0 auto; display: block;" />
+            </div>
+        @endif
         <div class="bold">{{ $profile['logo_text'] ?: ($ticket['tenant']['name'] ?? 'Sistema de Inventario') }}</div>
-        @if(!empty($ticket['tenant']['show_company']) && !empty($ticket['tenant']['company']['rif']))
+        @if($showCompany && !empty($ticket['tenant']['company']['rif']))
             <div class="small">{{ $ticket['tenant']['company']['razon_social'] ?: ($ticket['tenant']['name'] ?? '') }}</div>
             <div class="small">RIF: {{ $ticket['tenant']['company']['rif'] }}</div>
             @if(!empty($ticket['tenant']['company']['domicilio_fiscal']))

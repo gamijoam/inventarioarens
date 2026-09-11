@@ -11,6 +11,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -59,6 +61,7 @@ class TenantSettingController extends Controller
             'settings.company.correo' => ['nullable', 'email', 'max:150'],
             'settings.company.website' => ['nullable', 'string', 'max:150'],
             'settings.company.regimen' => ['nullable', 'string', 'max:80'],
+            'settings.company.logo_url' => ['nullable', 'string', 'max:500'],
             'settings.company.show_on' => ['sometimes', 'array'],
             'settings.company.show_on.sale_ticket' => ['sometimes', 'boolean'],
             'settings.company.show_on.guide' => ['sometimes', 'boolean'],
@@ -97,6 +100,88 @@ class TenantSettingController extends Controller
 
         // Propaga la seccion company al resto de nodos (VPS -> local) para
         // que los tickets/guias locales reflejen la identidad de la empresa.
+        $this->syncCatalog->tenantSettingsUpdated($tenant, $setting->fresh());
+
+        return response()->json([
+            'data' => [
+                'tenant_id' => $tenant->id,
+                'settings' => $this->mergeCompanyInto($tenant, $this->mergeWhitelistInto($tenant, $setting->fresh()->settings ?? [])),
+            ],
+        ]);
+    }
+
+    public function uploadLogo(Request $request): JsonResponse
+    {
+        $tenant = app(TenantManager::class)->require();
+        $this->authorizeManage($request, $tenant);
+
+        if (! $request->user()->can('settings.manage')) {
+            abort(403, 'Solo el administrador de la empresa puede modificar el logo.');
+        }
+
+        $request->validate([
+            'logo' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:2048'],
+        ]);
+
+        $setting = $tenant->setting
+            ?: TenantSetting::firstOrCreate(['tenant_id' => $tenant->id]);
+
+        $current = $setting->settings ?? [];
+        $currentCompany = $current['company'] ?? [];
+
+        // Si ya existía un logo en disco, limpiarlo antes de asignar el nuevo
+        $oldUrl = $currentCompany['logo_url'] ?? null;
+        if ($oldUrl && str_starts_with($oldUrl, '/storage/')) {
+            $oldPath = Str::after($oldUrl, '/storage/');
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $file = $request->file('logo');
+        $ext = $file->getClientOriginalExtension() ?: 'png';
+        $filename = 'logo_'.time().'_'.Str::random(8).'.'.$ext;
+        $path = $file->storeAs("tenants/{$tenant->id}", $filename, 'public');
+
+        $logoUrl = '/storage/'.$path;
+
+        $currentCompany['logo_url'] = $logoUrl;
+        $current['company'] = $currentCompany;
+
+        $setting->update(['settings' => $current]);
+
+        $this->syncCatalog->tenantSettingsUpdated($tenant, $setting->fresh());
+
+        return response()->json([
+            'data' => [
+                'logo_url' => $logoUrl,
+                'settings' => $this->mergeCompanyInto($tenant, $this->mergeWhitelistInto($tenant, $setting->fresh()->settings ?? [])),
+            ],
+        ]);
+    }
+
+    public function deleteLogo(Request $request): JsonResponse
+    {
+        $tenant = app(TenantManager::class)->require();
+        $this->authorizeManage($request, $tenant);
+
+        if (! $request->user()->can('settings.manage')) {
+            abort(403, 'Solo el administrador de la empresa puede modificar el logo.');
+        }
+
+        $setting = $tenant->setting
+            ?: TenantSetting::firstOrCreate(['tenant_id' => $tenant->id]);
+
+        $current = $setting->settings ?? [];
+        if (isset($current['company'])) {
+            $oldUrl = $current['company']['logo_url'] ?? null;
+            if ($oldUrl && str_starts_with($oldUrl, '/storage/')) {
+                $oldPath = Str::after($oldUrl, '/storage/');
+                Storage::disk('public')->delete($oldPath);
+            }
+            $current['company']['logo_url'] = null;
+        }
+
+        $setting->update(['settings' => $current]);
+
         $this->syncCatalog->tenantSettingsUpdated($tenant, $setting->fresh());
 
         return response()->json([

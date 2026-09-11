@@ -25,8 +25,29 @@
 </head>
 <body>
     <div class="center">
+        @php
+            $showCompany = !isset($z['tenant']['show_company']) || !empty($z['tenant']['show_company']);
+            $logoUrl = $z['tenant']['company']['logo_url'] ?? null;
+            $logoSrc = $logoUrl;
+            if ($logoUrl && str_starts_with($logoUrl, '/storage/')) {
+                $subPath = substr($logoUrl, 9);
+                $filePath = public_path($logoUrl);
+                if (!file_exists($filePath)) {
+                    $filePath = storage_path('app/public/' . $subPath);
+                }
+                if (file_exists($filePath)) {
+                    $mime = @mime_content_type($filePath) ?: 'image/png';
+                    $logoSrc = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($filePath));
+                }
+            }
+        @endphp
+        @if($showCompany && !empty($logoUrl))
+            <div class="logo-container" style="text-align: center; margin-bottom: 6px;">
+                <img src="{{ $logoSrc }}" alt="Logo" style="max-width: {{ $width === 58 ? '110px' : '140px' }}; max-height: 55px; object-fit: contain; margin: 0 auto; display: block;" />
+            </div>
+        @endif
         <div class="bold">{{ $profile['logo_text'] ?: ($z['tenant']['name'] ?? 'Sistema de Inventario') }}</div>
-        @if(!empty($z['tenant']['show_company']) && !empty($z['tenant']['company']['rif']))
+        @if($showCompany && !empty($z['tenant']['company']['rif']))
             <div class="small">{{ $z['tenant']['company']['razon_social'] ?: ($z['tenant']['name'] ?? '') }}</div>
             <div class="small">RIF: {{ $z['tenant']['company']['rif'] }}</div>
             @if(!empty($z['tenant']['company']['domicilio_fiscal']))

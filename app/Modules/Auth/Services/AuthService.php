@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Audit\Services\AuditLogger;
 use App\Modules\Auth\Models\AuthToken;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Tenancy\Services\TenantCapabilityService;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class AuthService
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
                 'domain' => $tenant->domain,
+                'logo_url' => CompanySettings::getForTenant($tenant)['logo_url'] ?? null,
             ])
             ->values()
             ->all();

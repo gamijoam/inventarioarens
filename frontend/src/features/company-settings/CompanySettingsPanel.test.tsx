@@ -7,6 +7,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const updateMutation = vi.fn();
+const uploadMutation = vi.fn();
+const deleteMutation = vi.fn();
 const data = {
   razon_social: 'Comercial Arens, C.A.',
   rif: 'J-12345678-9',
@@ -17,12 +19,15 @@ const data = {
   correo: 'info@comercialarens.com',
   website: 'https://comercialarens.com',
   regimen: 'Contribuyente formal',
+  logo_url: '/storage/tenants/1/logo_test.png',
   show_on: { sale_ticket: true, guide: false, report_z: true },
 };
 
 vi.mock('./api', () => ({
   useCompanySettings: () => ({ data }),
   useUpdateCompanySettings: () => ({ mutateAsync: updateMutation }),
+  useUploadCompanyLogo: () => ({ mutateAsync: uploadMutation }),
+  useDeleteCompanyLogo: () => ({ mutateAsync: deleteMutation }),
 }));
 
 vi.mock('sonner', () => ({
@@ -80,5 +85,36 @@ describe('CompanySettingsPanel', () => {
     expect(payload.show_on.sale_ticket).toBe(true);
     expect(payload.show_on.guide).toBe(true);
     expect(payload.show_on.report_z).toBe(true);
+  });
+
+  it('muestra el preview del logo y permite eliminarlo', async () => {
+    deleteMutation.mockResolvedValue({});
+    render(<CompanySettingsPanel />);
+
+    await waitFor(() => {
+      const img = screen.getByTestId('company-logo-preview') as HTMLImageElement;
+      expect(img.src).toContain('/storage/tenants/1/logo_test.png');
+    });
+
+    const deleteBtn = screen.getByTestId('company-logo-delete');
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(deleteMutation).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('permite subir un nuevo logo', async () => {
+    uploadMutation.mockResolvedValue({ logo_url: '/storage/tenants/1/logo_new.png' });
+    render(<CompanySettingsPanel />);
+
+    const fileInput = screen.getByTestId('company-logo-input');
+    const file = new File(['dummy content'], 'new_logo.png', { type: 'image/png' });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(uploadMutation).toHaveBeenCalledWith(file);
+    });
   });
 });

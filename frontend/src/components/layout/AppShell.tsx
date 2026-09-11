@@ -1,6 +1,8 @@
 import { type ReactNode } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
+import { useSessionStore } from '@/stores/session';
+import { useTenantFavicon } from '@/lib/useTenantFavicon';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -13,6 +15,9 @@ interface AppShellProps {
  * Sidebar colapsable a la izquierda + topbar arriba + contenido.
  */
 export function AppShell({ children }: AppShellProps) {
+  const tenant = useSessionStore((state) => state.tenant);
+  useTenantFavicon(tenant?.logo_url);
+
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isFullBleed = pathname === '/pos' || pathname.startsWith('/pos/');
   const isWide = pathname === '/commissions';

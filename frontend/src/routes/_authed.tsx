@@ -1,9 +1,10 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
+import { createFileRoute, Navigate, Outlet, redirect } from '@tanstack/react-router';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { AuthedLayout } from '@/components/layout/AuthedLayout';
 import { APP_MODE, isRouteAllowedForAppMode } from '@/config/branding';
 import { useSessionStore } from '@/stores/session';
+import { useAuth } from '@/auth/useAuth';
 import { PermissionProvider, buildPermissionValue } from '@/permissions/PermissionContext';
 import { applyDevSession, isAuthDisabled, isSyntheticDevSession } from '@/auth/devBypass';
 
@@ -12,17 +13,11 @@ import { applyDevSession, isAuthDisabled, isSyntheticDevSession } from '@/auth/d
  *
  * El guard real (sync) ocurre en `beforeLoad` antes de cualquier render:
  *  - Si isAuthDisabled() (dev) -> dejamos pasar sin checks.
- *  - Si hay cookie + store hidratado -> dejamos pasar (render PermissionProvider + Outlet).
- *  - Si NO hay cookie -> redirect a /login.
+ *  - Si no hay sesion hidratada -> redirect a /login (o a /master si veniamos de ahi).
+ *  - Si el usuario es super-admin y esta en una ruta no-master -> redirect a /master.
  *
- * NO usamos un RequireAuth async (como antes) porque el estado de sesion
- * ya esta disponible sync desde:
- *   1. Cookie httpOnly (browser -> server, automatica).
- *   2. localStorage hidratado (zustand persist).
- *
- * Esto resuelve el bug "Cargando sesion..." tras refresh.
- *
- * Ver docs/AUTH_COOKIE_API.md seccion "Routing (sync detection de sesion)".
+ * Este patron evita "flicker" de carga y previene que los hijos se monten
+ * e intenten disparar queries sin token.
  */
 export const Route = createFileRoute('/_authed')({
   beforeLoad: ({ location }) => {
@@ -61,14 +56,20 @@ function AuthedLayoutComponent() {
   const user = useSessionStore((s) => s.user);
   const tenant = useSessionStore((s) => s.tenant);
 
+  const { refreshSession } = useAuth();
+  const refreshedTenantRef = useRef<number | null>(null);
+
   // En modo bypass, inyectamos la sesion fake UNA vez via useEffect.
-  // ANTES lo haciamos en render, lo que causaba "Cannot update a component
-  // while rendering a different component" + loop infinito de re-renders.
+  // En modo normal, refrescamos la sesion de fondo para sincronizar capacidades
+  // actualizadas (evita que el localStorage retenga capacidades apagadas en la nube).
   useEffect(() => {
     if (isAuthDisabled()) {
       applyDevSession();
+    } else if (user && tenant && refreshedTenantRef.current !== tenant.id) {
+      refreshedTenantRef.current = tenant.id;
+      void refreshSession();
     }
-  }, []);
+  }, [refreshSession, user, tenant]);
 
   const isHydrated = Boolean(user && tenant && permissions.size > 0);
 
@@ -93,11 +94,7 @@ function AuthedLayoutComponent() {
   }
 
   if (!user || !tenant) {
-    return (
-      <div className="bg-bg flex min-h-screen items-center justify-center">
-        <div className="text-text-muted text-sm">Cargando sesion...</div>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
 
   return (

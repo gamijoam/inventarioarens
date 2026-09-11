@@ -10,13 +10,21 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
+import { Building2, Trash2, Upload } from 'lucide-react';
+
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Spinner } from '@/components/ui/Spinner';
 
-import { useCompanySettings, useUpdateCompanySettings, type CompanySettings } from './api';
+import {
+  useCompanySettings,
+  useUpdateCompanySettings,
+  useUploadCompanyLogo,
+  useDeleteCompanyLogo,
+  type CompanySettings,
+} from './api';
 
 interface ShowOnState {
   sale_ticket: boolean;
@@ -35,6 +43,8 @@ const SHOW_ON_LABELS: Array<{ key: keyof ShowOnState; label: string; hint: strin
 export function CompanySettingsPanel() {
   const { data, isLoading } = useCompanySettings();
   const update = useUpdateCompanySettings();
+  const uploadLogo = useUploadCompanyLogo();
+  const deleteLogo = useDeleteCompanyLogo();
 
   const [razonSocial, setRazonSocial] = useState('');
   const [rif, setRif] = useState('');
@@ -45,6 +55,9 @@ export function CompanySettingsPanel() {
   const [correo, setCorreo] = useState('');
   const [website, setWebsite] = useState('');
   const [regimen, setRegimen] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [deletingLogo, setDeletingLogo] = useState(false);
   const [showOn, setShowOn] = useState<ShowOnState>({
     sale_ticket: true,
     guide: true,
@@ -64,6 +77,7 @@ export function CompanySettingsPanel() {
     setCorreo(data.correo ?? '');
     setWebsite(data.website ?? '');
     setRegimen(data.regimen ?? '');
+    setLogoUrl(data.logo_url ?? null);
     setShowOn({
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
@@ -73,6 +87,46 @@ export function CompanySettingsPanel() {
   }, [data]);
 
   if (isLoading) return <Spinner label="Cargando información de la empresa..." />;
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Solo se permiten archivos de imagen (PNG, JPG, WebP, SVG).');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('La imagen no debe superar los 2MB.');
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const res = await uploadLogo.mutateAsync(file);
+      setLogoUrl(res.logo_url);
+      toast.success('Logo actualizado correctamente.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al subir el logo.');
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleDeleteLogo() {
+    setDeletingLogo(true);
+    try {
+      await deleteLogo.mutateAsync();
+      setLogoUrl(null);
+      toast.success('Logo eliminado correctamente.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar el logo.');
+    } finally {
+      setDeletingLogo(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -87,6 +141,7 @@ export function CompanySettingsPanel() {
         correo: correo.trim() || null,
         website: website.trim() || null,
         regimen: regimen.trim() || null,
+        logo_url: logoUrl,
         show_on: showOn,
       };
       await update.mutateAsync(payload);
@@ -100,6 +155,79 @@ export function CompanySettingsPanel() {
 
   return (
     <div className="space-y-4">
+      {/* Logo de la empresa */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Logo de la empresa</CardTitle>
+          <CardDescription>
+            Identidad visual que se mostrará en el inicio de sesión, en la pestaña del navegador y en la cabecera del sistema.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          <div className="relative flex size-24 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-2 shadow-xs dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Logo de la empresa"
+                className="size-full object-contain"
+                data-testid="company-logo-preview"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-slate-400">
+                <Building2 className="size-8" />
+                <span className="text-[10px] mt-1 font-medium">Sin logo</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                  onChange={handleFileChange}
+                  disabled={uploadingLogo || deletingLogo}
+                  className="sr-only"
+                  data-testid="company-logo-input"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  loading={uploadingLogo}
+                  className="pointer-events-none"
+                >
+                  <span>
+                    <Upload className="size-4 mr-2" />
+                    {logoUrl ? 'Cambiar logo' : 'Subir logo'}
+                  </span>
+                </Button>
+              </label>
+
+              {logoUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteLogo}
+                  loading={deletingLogo}
+                  disabled={uploadingLogo}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  data-testid="company-logo-delete"
+                >
+                  <Trash2 className="size-4 mr-2" />
+                  Eliminar logo
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-text-muted">
+              Formatos recomendados: PNG o SVG transparente. Tamaño máximo permitido: 2MB.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Información de la empresa</CardTitle>

@@ -292,11 +292,14 @@ class PosTicketPrintService
     private function previewSnapshot(PrintProfile $profile): array
     {
         $tenant = app(TenantManager::class)->require();
+        $company = CompanySettings::getForTenant($tenant);
 
         return [
             'tenant' => [
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
+                'company' => $company,
+                'show_company' => (bool) ($company['show_on']['sale_ticket'] ?? false),
             ],
             'profile' => $this->profileSnapshot($profile),
             'copy' => false,

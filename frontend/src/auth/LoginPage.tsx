@@ -4,15 +4,16 @@ import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
 import { APP_MODE, APP_VISUAL_PROFILE } from '@/config/branding';
 import { getLoginPresentation } from '@/auth/loginPresentation';
-import { lookupTenants } from '@/api/endpoints/auth';
+import { getPublicTenant, lookupTenants } from '@/api/endpoints/auth';
 import { useAuth } from '@/auth/useAuth';
 import { useSessionStore } from '@/stores/session';
+import { useTenantFavicon } from '@/lib/useTenantFavicon';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Spinner } from '@/components/ui/Spinner';
-import type { TenantOption } from '@/types/user';
+import type { PublicTenantInfo, TenantOption } from '@/types/user';
 import { cn } from '@/lib/cn';
 import { getPostLoginRoute } from '@/auth/postLoginRoute';
 
@@ -32,6 +33,25 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [publicTenant, setPublicTenant] = useState<PublicTenantInfo | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void getPublicTenant()
+      .then((info) => {
+        if (active && info) {
+          setPublicTenant(info);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const activeLogo = selectedTenant?.logo_url || publicTenant?.logo_url;
+  const activeName = selectedTenant?.name || publicTenant?.name;
+  useTenantFavicon(activeLogo);
 
   useEffect(() => {
     if (!isValidEmail(email)) {
@@ -136,12 +156,21 @@ export function LoginPage() {
           <header className="mb-8 text-center">
             <div
               className={cn(
-                'mx-auto flex size-14 items-center justify-center rounded-xl text-white shadow-sm',
+                'mx-auto flex size-14 items-center justify-center rounded-xl text-white shadow-sm overflow-hidden p-1',
                 isPos ? 'bg-emerald-500' : 'bg-primary',
               )}
               aria-hidden="true"
             >
-              <span className="text-xl font-bold tracking-wide">{APP_VISUAL_PROFILE.logoMark}</span>
+              {activeLogo ? (
+                <img
+                  src={activeLogo}
+                  alt={activeName || 'Logo de la empresa'}
+                  className="size-full object-contain"
+                  data-testid="login-tenant-logo"
+                />
+              ) : (
+                <span className="text-xl font-bold tracking-wide">{APP_VISUAL_PROFILE.logoMark}</span>
+              )}
             </div>
             <p
               className={cn(
@@ -149,7 +178,7 @@ export function LoginPage() {
                 isPos ? 'text-emerald-600' : 'text-primary',
               )}
             >
-              {APP_VISUAL_PROFILE.productLabel}
+              {activeName || APP_VISUAL_PROFILE.productLabel}
             </p>
           </header>
 

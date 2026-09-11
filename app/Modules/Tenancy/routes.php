@@ -29,6 +29,8 @@ Route::middleware(['api.auth', 'tenant'])->group(function (): void {
     // Configuracion por empresa (apartado Telegram, alertas, etc).
     Route::get('tenant-settings', [TenantSettingController::class, 'show']);
     Route::patch('tenant-settings', [TenantSettingController::class, 'update']);
+    Route::post('tenant-settings/logo', [TenantSettingController::class, 'uploadLogo']);
+    Route::delete('tenant-settings/logo', [TenantSettingController::class, 'deleteLogo']);
     Route::get('tenant-capabilities', [TenantCapabilityController::class, 'show']);
     Route::patch('tenant-capabilities', [TenantCapabilityController::class, 'update']);
 });

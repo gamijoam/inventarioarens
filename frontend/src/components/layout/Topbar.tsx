@@ -81,8 +81,17 @@ export function Topbar() {
     <header className="border-border bg-surface flex h-14 items-center justify-between border-b px-4 sm:px-6">
       {/* Tenant activo */}
       <div className="flex items-center gap-2">
-        <div className="bg-bg text-text-muted flex size-8 items-center justify-center rounded-md">
-          <Building2 className="size-4" aria-hidden="true" />
+        <div className="bg-bg text-text-muted flex size-8 items-center justify-center rounded-md overflow-hidden p-0.5">
+          {tenant?.logo_url ? (
+            <img
+              src={tenant.logo_url}
+              alt={tenant.name || 'Logo'}
+              className="size-full object-contain"
+              data-testid="topbar-tenant-logo"
+            />
+          ) : (
+            <Building2 className="size-4" aria-hidden="true" />
+          )}
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

@@ -8,6 +8,7 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -270,6 +271,54 @@ class AuthApiTest extends TestCase
             ->assertUnauthorized();
     }
 
+    public function test_me_endpoint_returns_tenant_and_permissions_for_platform_admin_in_tenant_session(): void
+    {
+        $tenant = Tenant::create(['name' => 'Repuestos Avilacar', 'slug' => 'repuestos-avilacar']);
+        $user = User::factory()->create([
+            'email' => 'admin@repuestosavilacar.com',
+            'password' => 'secret123',
+            'is_platform_admin' => true,
+        ]);
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+
+        $token = $this->loginToken($tenant, $user);
+
+        $response = $this
+            ->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/auth/me')
+            ->assertOk();
+
+        $response->assertJsonPath('data.user.id', $user->id);
+        $response->assertJsonPath('data.user.is_platform_admin', true);
+        $response->assertJsonPath('data.tenant.id', $tenant->id);
+        $response->assertJsonPath('data.tenant.slug', $tenant->slug);
+    }
+
+    public function test_me_endpoint_returns_null_tenant_for_platform_admin_without_tenant_session(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'superadmin@example.com',
+            'password' => 'secret123',
+            'is_platform_admin' => true,
+        ]);
+
+        $token = $this->postJson('/api/auth/platform-login', [
+            'email' => $user->email,
+            'password' => 'secret123',
+        ])
+            ->assertCreated()
+            ->json('data.token');
+
+        $this
+            ->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.user.id', $user->id)
+            ->assertJsonPath('data.user.is_platform_admin', true)
+            ->assertJsonPath('data.tenant', null);
+    }
+
     private function userInTenant(Tenant $tenant): User
     {
         $user = User::factory()->create([
@@ -308,5 +357,92 @@ class AuthApiTest extends TestCase
             ])
             ->assertCreated()
             ->json('data.token');
+    }
+
+    public function test_available_tenants_includes_logo_url(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Con Logo', 'slug' => 'empresa-con-logo']);
+        $user = User::factory()->create([
+            'email' => 'logo@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+
+        DB::table('tenant_settings')->updateOrInsert(
+            ['tenant_id' => $tenant->id],
+            [
+                'settings' => json_encode([
+                    'company' => ['logo_url' => '/storage/tenants/' . $tenant->id . '/logo.png'],
+                ]),
+                'updated_at' => now(),
+            ]
+        );
+
+        $this
+            ->postJson('/api/auth/tenants', [
+                'email' => 'logo@example.test',
+            ])
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.logo_url', '/storage/tenants/' . $tenant->id . '/logo.png');
+    }
+
+    public function test_session_includes_tenant_logo_url(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Logo Me', 'slug' => 'empresa-logo-me']);
+        $user = User::factory()->create([
+            'email' => 'logome@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+
+        DB::table('tenant_settings')->updateOrInsert(
+            ['tenant_id' => $tenant->id],
+            [
+                'settings' => json_encode([
+                    'company' => ['logo_url' => '/storage/tenants/' . $tenant->id . '/logo_me.png'],
+                ]),
+                'updated_at' => now(),
+            ]
+        );
+
+        $token = $this->loginToken($tenant, $user);
+
+        $this
+            ->withHeader('Authorization', 'Bearer ' . $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.tenant.logo_url', '/storage/tenants/' . $tenant->id . '/logo_me.png');
+    }
+
+    public function test_public_tenant_returns_info_by_domain_or_slug(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Avilacar Repuestos',
+            'slug' => 'repuestos-avilacar',
+            'domain' => 'app.repuestosavilacar.com',
+        ]);
+
+        DB::table('tenant_settings')->updateOrInsert(
+            ['tenant_id' => $tenant->id],
+            [
+                'settings' => json_encode([
+                    'company' => [
+                        'razon_social' => 'Repuestos Avilacar, C.A.',
+                        'logo_url' => '/storage/tenants/' . $tenant->id . '/logo_avilacar.png',
+                    ],
+                ]),
+                'updated_at' => now(),
+            ]
+        );
+
+        $this
+            ->withServerVariables(['HTTP_HOST' => 'app.repuestosavilacar.com'])
+            ->getJson('/api/auth/public-tenant')
+            ->assertOk()
+            ->assertJsonPath('data.slug', 'repuestos-avilacar')
+            ->assertJsonPath('data.name', 'Repuestos Avilacar, C.A.')
+            ->assertJsonPath('data.logo_url', '/storage/tenants/' . $tenant->id . '/logo_avilacar.png');
     }
 }

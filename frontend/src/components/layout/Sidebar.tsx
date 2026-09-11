@@ -353,6 +353,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const tenant = useSessionStore((state) => state.tenant);
   // Cargamos los grupos donde soy Owner para que el item "Organizaciones"
   // aparezca solo si tengo al menos uno. Si el query falla o carga lento,
   // mostramos el item por defecto (la pagina ya maneja el empty state
@@ -392,16 +393,25 @@ export function Sidebar() {
       <div className="border-border flex h-14 items-center gap-2 border-b px-3">
         <div
           className={cn(
-            'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-wide',
+            'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-wide overflow-hidden p-0.5',
             'shadow-sm',
           )}
           aria-hidden="true"
         >
-          SDI
+          {tenant?.logo_url ? (
+            <img
+              src={tenant.logo_url}
+              alt={tenant.name || 'Logo'}
+              className="size-full object-contain"
+              data-testid="sidebar-tenant-logo"
+            />
+          ) : (
+            'SDI'
+          )}
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{APP_SHORT_NAME}</p>
+            <p className="truncate text-sm font-semibold">{tenant?.name || APP_SHORT_NAME}</p>
           </div>
         )}
       </div>
