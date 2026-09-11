@@ -176,6 +176,62 @@ class ReportRegistry
                 ],
                 'defaultDimension' => 'product',
             ],
+            'sales_by_category' => [
+                'name' => 'Ventas por categoría',
+                'domain' => 'ventas',
+                'permission' => 'reports.sales.view',
+                'orgSupported' => true,
+                'base' => 'sale_items si join sales s on s.id = si.sale_id and s.tenant_id = si.tenant_id left join product_category pc on pc.product_id = si.product_id and pc.tenant_id = si.tenant_id left join categories c on c.id = pc.category_id and c.tenant_id = si.tenant_id',
+                'dateColumn' => 's.confirmed_at',
+                'statusSql' => "s.status in ('confirmed', 'voided')",
+                'measures' => [
+                    'units' => 'sum(si.quantity)',
+                    'amount' => 'sum(si.base_total_amount)',
+                    'sales_count' => 'count(distinct s.id)',
+                ],
+                'defaultMeasure' => 'amount',
+                'dimensions' => [
+                    'category' => [
+                        'expr' => 'coalesce(c.id, 0)',
+                        'label' => "coalesce(c.name, 'Sin categoría')",
+                    ],
+                    'cashier' => [
+                        'expr' => 'u.id',
+                        'label' => 'u.name',
+                        'join' => 'left join users u on u.id = s.created_by',
+                    ],
+                    'company' => $this->companyDimension('si'),
+                ],
+                'defaultDimension' => 'category',
+            ],
+            'sales_by_customer' => [
+                'name' => 'Ventas por cliente',
+                'domain' => 'ventas',
+                'permission' => 'reports.sales.view',
+                'orgSupported' => true,
+                'base' => 'sales s left join customers c on c.id = s.customer_id and c.tenant_id = s.tenant_id',
+                'dateColumn' => 's.confirmed_at',
+                'statusSql' => "s.status in ('confirmed', 'voided')",
+                'measures' => [
+                    'sales_total' => 'coalesce(sum(s.total_base_amount), 0)',
+                    'sales_count' => 'count(s.id)',
+                    'ticket_avg' => 'coalesce(avg(s.total_base_amount), 0)',
+                ],
+                'defaultMeasure' => 'sales_total',
+                'dimensions' => [
+                    'customer' => [
+                        'expr' => 'coalesce(c.id, 0)',
+                        'label' => "coalesce(c.name, 'Consumidor Final')",
+                    ],
+                    'cashier' => [
+                        'expr' => 'u.id',
+                        'label' => 'u.name',
+                        'join' => 'left join users u on u.id = s.created_by',
+                    ],
+                    'company' => $this->companyDimension('s'),
+                ],
+                'defaultDimension' => 'customer',
+            ],
             'sales_by_payment_method' => [
                 'name' => 'Ventas por método de pago',
                 'domain' => 'ventas',
