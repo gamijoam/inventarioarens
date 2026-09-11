@@ -13,6 +13,7 @@ use App\Modules\Auth\Resources\PlatformSessionResource;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\CookieIssuer;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,42 @@ class AuthController extends Controller
         private readonly AuthService $auth,
         private readonly CookieIssuer $cookies,
     ) {}
+
+    public function publicTenant(Request $request): JsonResponse
+    {
+        $identifier = $request->header('X-Tenant')
+            ?? $request->route('tenant')
+            ?? $request->query('tenant');
+
+        $tenant = null;
+        if ($identifier) {
+            $tenant = Tenant::query()
+                ->where('slug', $identifier)
+                ->orWhere('domain', $identifier)
+                ->first();
+        } else {
+            $host = $request->getHost();
+            $tenant = Tenant::query()
+                ->where('domain', $host)
+                ->first();
+        }
+
+        if (! $tenant) {
+            return response()->json(['data' => null]);
+        }
+
+        $company = CompanySettings::getForTenant($tenant);
+
+        return response()->json([
+            'data' => [
+                'id' => $tenant->id,
+                'name' => $company['razon_social'] ?: $tenant->name,
+                'slug' => $tenant->slug,
+                'domain' => $tenant->domain,
+                'logo_url' => $company['logo_url'] ?? null,
+            ],
+        ]);
+    }
 
     public function tenants(TenantLookupRequest $request): JsonResponse
     {

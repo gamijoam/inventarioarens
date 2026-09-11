@@ -14,7 +14,7 @@
  * Ver docs/AUTH_COOKIE_API.md para el contrato completo.
  */
 import { postOne, getOne } from '@/api/client';
-import type { LoginResponse, TenantLookupResponse, UserSession } from '@/types/user';
+import type { LoginResponse, PublicTenantInfo, TenantLookupResponse, UserSession } from '@/types/user';
 
 export interface TenantLookupRequest {
   email: string;
@@ -88,4 +88,11 @@ export function switchTenant(slug: string, device_name?: string) {
     '/auth/switch-tenant',
     { slug, device_name },
   );
+}
+
+/** GET /api/auth/public-tenant — Devuelve información pública del tenant por dominio o slug. */
+export function getPublicTenant(slugOrDomain?: string) {
+  return getOne<PublicTenantInfo | null>('/auth/public-tenant', {
+    headers: slugOrDomain ? { 'X-Tenant': slugOrDomain } : undefined,
+  });
 }

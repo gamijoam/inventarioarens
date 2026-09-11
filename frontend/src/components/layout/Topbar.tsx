@@ -78,8 +78,17 @@ export function Topbar() {
     <header className="border-slate-200/80 bg-white/95 backdrop-blur flex h-16 items-center justify-between border-b px-4 sm:px-6 sticky top-0 z-20 shadow-xs">
       {/* Tenant activo */}
       <div className="flex items-center gap-2.5">
-        <div className="hidden sm:flex size-8 items-center justify-center rounded-xl bg-orange-50 border border-orange-200 text-orange-600">
-          <Building2 className="size-4" aria-hidden="true" />
+        <div className="hidden sm:flex size-8 items-center justify-center rounded-xl bg-orange-50 border border-orange-200 text-orange-600 overflow-hidden">
+          {tenant?.logo_url ? (
+            <img
+              src={tenant.logo_url}
+              alt={tenant.name || 'Logo'}
+              className="size-full object-contain p-0.5"
+              data-testid="topbar-tenant-logo"
+            />
+          ) : (
+            <Building2 className="size-4" aria-hidden="true" />
+          )}
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

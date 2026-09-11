@@ -48,4 +48,18 @@ describe('<Topbar>', () => {
 
     expect(screen.getByTestId('tenant-context-badge')).toHaveTextContent('Empresa');
   });
+
+  it('muestra el logo del tenant cuando logo_url esta definido', () => {
+    currentTenant = {
+      name: 'Empresa Logo',
+      slug: 'empresa-logo',
+      is_group: false,
+      parent_id: null,
+      logo_url: '/storage/tenants/1/logo.png',
+    } as any;
+    render(<Topbar />);
+
+    const logo = screen.getByTestId('topbar-tenant-logo');
+    expect(logo).toHaveAttribute('src', '/storage/tenants/1/logo.png');
+  });
 });

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Auth\Resources;
 
+use App\Modules\Tenancy\Services\CompanySettings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,6 +26,7 @@ class AuthSessionResource extends JsonResource
                 'domain' => $tenant->domain,
                 'parent_id' => $tenant->parent_id,
                 'is_group' => (bool) $tenant->is_group,
+                'logo_url' => CompanySettings::getForTenant($tenant)['logo_url'] ?? null,
             ] : null,
             'roles' => $this['roles'] ?? [],
             'permissions' => $this['permissions'] ?? [],

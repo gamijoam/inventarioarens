@@ -263,4 +263,22 @@ describe('<Sidebar>', () => {
     expect(screen.getByText('RA')).toBeDefined();
     expect(screen.getByText('Repuestos Avilacar')).toBeDefined();
   });
+
+  it('renderiza la imagen del logo cuando tenant.logo_url está configurado', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+    mockSessionState.tenant = {
+      id: 1,
+      name: 'Repuestos Avilacar',
+      slug: 'repuestos-avilacar',
+      logo_url: '/storage/tenants/1/logo.png',
+    } as any;
+
+    render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    const logo = screen.getByTestId('sidebar-tenant-logo');
+    expect(logo).toHaveAttribute('src', '/storage/tenants/1/logo.png');
+
+    // Reset
+    mockSessionState.tenant = { id: 1 } as any;
+  });
 });

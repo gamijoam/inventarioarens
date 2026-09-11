@@ -4,6 +4,7 @@ use App\Modules\Auth\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('auth/tenants', [AuthController::class, 'tenants'])->middleware('throttle:auth');
+Route::get('auth/public-tenant', [AuthController::class, 'publicTenant'])->middleware('throttle:auth');
 
 Route::post('auth/platform-login', [AuthController::class, 'platformLogin'])->middleware('throttle:auth');
 

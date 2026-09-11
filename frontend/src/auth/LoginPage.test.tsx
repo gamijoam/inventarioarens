@@ -10,8 +10,11 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+const mockGetPublicTenant = vi.fn().mockResolvedValue(null);
+
 vi.mock('@/api/endpoints/auth', () => ({
   lookupTenants: vi.fn(),
+  getPublicTenant: () => mockGetPublicTenant(),
 }));
 
 vi.mock('@/auth/useAuth', () => ({
@@ -33,5 +36,20 @@ describe('<LoginPage>', () => {
     expect(screen.getByTestId('login-submit')).toHaveTextContent('LOGIN');
     expect(screen.getByTestId('login-submit')).toBeDisabled();
     expect(screen.getByTestId('login-forgot')).toBeInTheDocument();
+  });
+
+  it('renders company logo when tenant has logo_url', async () => {
+    mockGetPublicTenant.mockResolvedValueOnce({
+      id: 1,
+      name: 'Repuestos Avilacar',
+      slug: 'repuestos-avilacar',
+      logo_url: '/storage/tenants/1/logo.png',
+    });
+
+    render(<LoginPage />);
+
+    const logo = await screen.findByTestId('login-tenant-logo');
+    expect(logo).toHaveAttribute('src', '/storage/tenants/1/logo.png');
+    expect(screen.getByText('Repuestos Avilacar')).toBeInTheDocument();
   });
 });

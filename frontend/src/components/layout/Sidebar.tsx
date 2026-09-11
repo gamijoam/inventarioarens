@@ -373,6 +373,7 @@ export function Sidebar() {
   const permissionCtx = useContext(PermissionContext);
   const permissions = permissionCtx?.permissions;
   const capabilities = useSessionStore((state) => state.capabilities);
+  const tenant = useSessionStore((state) => state.tenant);
 
   const currentPath = routerState.location.pathname;
 
@@ -434,16 +435,29 @@ export function Sidebar() {
       {/* Brand */}
       <div className="flex h-16 items-center gap-3 border-b border-slate-800/80 bg-[#0A1526]/60 px-3.5">
         <div
-          className="size-10 rounded-xl bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-400 p-0.5 shadow-lg shadow-orange-500/20 flex items-center justify-center shrink-0"
+          className="size-10 rounded-xl bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-400 p-0.5 shadow-lg shadow-orange-500/20 flex items-center justify-center shrink-0 overflow-hidden"
           aria-hidden="true"
         >
-          <div className="size-full bg-white rounded-[9px] flex items-center justify-center">
-            <span className="text-orange-600 font-black tracking-tighter text-sm">RA</span>
+          <div className="size-full bg-white rounded-[9px] flex items-center justify-center overflow-hidden">
+            {tenant?.logo_url ? (
+              <img
+                src={tenant.logo_url}
+                alt={tenant.name || 'Logo'}
+                className="size-full object-contain p-0.5"
+                data-testid="sidebar-tenant-logo"
+              />
+            ) : (
+              <span className="text-orange-600 font-black tracking-tighter text-sm">
+                {tenant?.name ? tenant.name.slice(0, 2).toUpperCase() : 'RA'}
+              </span>
+            )}
           </div>
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-bold text-white tracking-tight leading-tight">Repuestos Avilacar</h1>
+            <h1 className="truncate text-sm font-bold text-white tracking-tight leading-tight">
+              {tenant?.name || 'Repuestos Avilacar'}
+            </h1>
             <span className="text-[11px] text-amber-300/80 font-medium flex items-center gap-1.5">
               <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" /> SDI Inventario
             </span>

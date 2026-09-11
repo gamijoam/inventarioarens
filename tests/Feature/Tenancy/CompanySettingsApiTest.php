@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CompanySettingsApiTest extends TestCase
@@ -108,6 +110,83 @@ class CompanySettingsApiTest extends TestCase
                 'settings' => ['company' => ['rif' => 'J-00000000-1']],
             ])
             ->assertStatus(403);
+    }
+
+    public function test_admin_can_upload_and_delete_company_logo(): void
+    {
+        Storage::fake('public');
+
+        $tenant = Tenant::create(['name' => 'Logo Test', 'slug' => 'logo-test']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Admin', ['settings.manage']);
+
+        $file = UploadedFile::fake()->image('empresa_logo.png', 300, 300);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->post('/api/tenant-settings/logo', [
+                'logo' => $file,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonStructure(['data' => ['logo_url']]);
+
+        $logoUrl = $response->json('data.logo_url');
+        $this->assertNotEmpty($logoUrl);
+        $this->assertStringContainsString('storage/tenants/' . $tenant->id . '/logo_', $logoUrl);
+
+        $settings = CompanySettings::getForTenant($tenant);
+        $this->assertSame($logoUrl, $settings['logo_url']);
+
+        $deleteResponse = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->deleteJson('/api/tenant-settings/logo');
+
+        $deleteResponse->assertOk()
+            ->assertJsonPath('data.settings.company.logo_url', null);
+
+        $settingsAfter = CompanySettings::getForTenant($tenant);
+        $this->assertNull($settingsAfter['logo_url']);
+    }
+
+    public function test_member_without_settings_manage_cannot_upload_logo(): void
+    {
+        Storage::fake('public');
+
+        $tenant = Tenant::create(['name' => 'No Manage', 'slug' => 'no-manage']);
+        $user = $this->userInTenant($tenant);
+
+        $file = UploadedFile::fake()->image('test.png', 100, 100);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->post('/api/tenant-settings/logo', [
+                'logo' => $file,
+            ])
+            ->assertStatus(403);
+    }
+
+    public function test_logo_upload_validates_image_file(): void
+    {
+        Storage::fake('public');
+
+        $tenant = Tenant::create(['name' => 'Invalid Logo', 'slug' => 'invalid-logo']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Admin', ['settings.manage']);
+
+        $pdfFile = UploadedFile::fake()->create('document.pdf', 500, 'application/pdf');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/tenant-settings/logo', [
+                'logo' => $pdfFile,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['logo']);
     }
 
     public function test_company_info_appears_on_pos_ticket_when_enabled(): void

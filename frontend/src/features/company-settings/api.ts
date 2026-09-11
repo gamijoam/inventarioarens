@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getOne, patchOne } from '@/api/client';
+import { getOne, patchOne, postOne, deleteOne } from '@/api/client';
+import { useSessionStore } from '@/stores/session';
 import { z } from 'zod';
 
 export const CompanySettingsSchema = z.object({
@@ -13,6 +14,7 @@ export const CompanySettingsSchema = z.object({
   correo: z.string().nullable().optional(),
   website: z.string().nullable().optional(),
   regimen: z.string().nullable().optional(),
+  logo_url: z.string().nullable().optional(),
   show_on: z
     .object({
       sale_ticket: z.boolean().optional(),
@@ -70,8 +72,64 @@ export function useUpdateCompanySettings() {
       }
       return parsed.data;
     },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      const currentTenant = useSessionStore.getState().tenant;
+      if (currentTenant && data.settings?.company?.razon_social) {
+        useSessionStore.getState().setTenant({
+          ...currentTenant,
+          name: data.settings.company.razon_social,
+        });
+      }
+    },
+  });
+}
+
+export function useUploadCompanyLogo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('logo', file);
+      const data = await postOne<FormData, { logo_url: string; settings: TenantSettings['settings'] }>(
+        '/tenant-settings/logo',
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        },
+      );
+      return data;
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      const currentTenant = useSessionStore.getState().tenant;
+      if (currentTenant && res?.logo_url) {
+        useSessionStore.getState().setTenant({
+          ...currentTenant,
+          logo_url: res.logo_url,
+        });
+      }
+    },
+  });
+}
+
+export function useDeleteCompanyLogo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      await deleteOne('/tenant-settings/logo');
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      const currentTenant = useSessionStore.getState().tenant;
+      if (currentTenant) {
+        useSessionStore.getState().setTenant({
+          ...currentTenant,
+          logo_url: null,
+        });
+      }
     },
   });
 }
