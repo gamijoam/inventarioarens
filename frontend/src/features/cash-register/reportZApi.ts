@@ -48,6 +48,44 @@ export const ReportZSchema = z.object({
       total_amount: z.number(),
     }),
   ),
+  categories: z
+    .array(
+      z.object({
+        id: z.number().nullable(),
+        name: z.string(),
+        items_count: z.number(),
+        amount_base: z.number(),
+        amount_local: z.number(),
+        products: z
+          .array(
+            z.object({
+              id: z.number().nullable().optional(),
+              name: z.string(),
+              sku: z.string().nullable().optional(),
+              quantity: z.number(),
+              amount_base: z.number(),
+              amount_local: z.number(),
+            }),
+          )
+          .optional()
+          .default([]),
+      }),
+    )
+    .optional()
+    .default([]),
+  customers: z
+    .array(
+      z.object({
+        id: z.number().nullable(),
+        name: z.string(),
+        document: z.string().nullable().optional(),
+        orders_count: z.number().int(),
+        amount_base: z.number(),
+        amount_local: z.number(),
+      }),
+    )
+    .optional()
+    .default([]),
 });
 export type ReportZ = z.infer<typeof ReportZSchema>;
 

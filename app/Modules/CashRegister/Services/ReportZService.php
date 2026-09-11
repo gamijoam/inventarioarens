@@ -51,13 +51,146 @@ class ReportZService
 
     public function build(CashRegisterSession $session): array
     {
-        $session->loadMissing(['branch', 'cashRegister', 'cashier', 'counts', 'posOrders.payments.paymentMethod']);
+        $session->loadMissing([
+            'branch',
+            'cashRegister',
+            'cashier',
+            'counts',
+            'posOrders.payments.paymentMethod',
+            'posOrders.customer',
+            'posOrders.sale.items.product.categories',
+        ]);
 
         $paidOrders = $session->posOrders->whereIn('status', [PosOrder::STATUS_PAID, PosOrder::STATUS_VOIDED]);
         $payments = $paidOrders->flatMap->payments->where('status', PosPayment::STATUS_CAPTURED);
         $reversals = SaleReversal::query()
             ->where('cash_register_session_id', $session->id)
             ->get();
+
+        $categoryAggregates = [];
+        $customerAggregates = [];
+
+        foreach ($paidOrders as $order) {
+            $customerId = $order->customer_id;
+            $customerName = $order->customer?->name ?? $order->customer_name ?? 'Consumidor Final';
+            $customerDoc = $order->customer
+                ? trim(($order->customer->document_type ?? '').'-'.($order->customer->document_number ?? ''), '-')
+                : null;
+            if ($customerDoc === '') {
+                $customerDoc = null;
+            }
+            $customerKey = $customerId ? 'id:'.$customerId : 'name:'.mb_strtolower($customerName);
+
+            if (! isset($customerAggregates[$customerKey])) {
+                $customerAggregates[$customerKey] = [
+                    'id' => $customerId,
+                    'name' => $customerName,
+                    'document' => $customerDoc,
+                    'orders_count' => 0,
+                    'amount_base' => 0.0,
+                    'amount_local' => 0.0,
+                ];
+            }
+            $customerAggregates[$customerKey]['orders_count']++;
+            $customerAggregates[$customerKey]['amount_base'] += (float) $order->paid_base_amount;
+            $customerAggregates[$customerKey]['amount_local'] += (float) $order->paid_local_amount;
+
+            $orderExchangeRate = (float) ($order->payments->where('exchange_rate', '>', 0)->first()?->exchange_rate ?? 0);
+            $items = $order->sale?->items ?? collect();
+
+            foreach ($items as $item) {
+                $qty = (float) $item->quantity;
+                $amountBase = (float) $item->base_total_amount;
+                $itemRate = (float) ($item->exchange_rate ?: $orderExchangeRate);
+                $amountLocal = $item->sale_currency === 'VES'
+                    ? (float) $item->total_amount
+                    : round($amountBase * $itemRate, 4);
+
+                $product = $item->product;
+                $categories = $product?->categories;
+
+                $prodId = $product?->id;
+                $prodKey = $prodId ? (string) $prodId : 'item:'.$item->id;
+                $prodName = $product?->name ?? 'Producto #'.$item->product_id;
+                $prodSku = $product?->sku;
+
+                $targetCategories = ($categories && $categories->isNotEmpty())
+                    ? $categories
+                    : collect([null]);
+
+                foreach ($targetCategories as $category) {
+                    $catId = $category?->id;
+                    $catName = $category?->name ?? 'Sin categoría';
+                    $catKey = $catId !== null ? 'id:'.$catId : 'none';
+
+                    if (! isset($categoryAggregates[$catKey])) {
+                        $categoryAggregates[$catKey] = [
+                            'id' => $catId,
+                            'name' => $catName,
+                            'items_count' => 0.0,
+                            'amount_base' => 0.0,
+                            'amount_local' => 0.0,
+                            'products' => [],
+                        ];
+                    }
+
+                    $categoryAggregates[$catKey]['items_count'] += $qty;
+                    $categoryAggregates[$catKey]['amount_base'] += $amountBase;
+                    $categoryAggregates[$catKey]['amount_local'] += $amountLocal;
+
+                    if (! isset($categoryAggregates[$catKey]['products'][$prodKey])) {
+                        $categoryAggregates[$catKey]['products'][$prodKey] = [
+                            'id' => $prodId,
+                            'name' => $prodName,
+                            'sku' => $prodSku,
+                            'quantity' => 0.0,
+                            'amount_base' => 0.0,
+                            'amount_local' => 0.0,
+                        ];
+                    }
+                    $categoryAggregates[$catKey]['products'][$prodKey]['quantity'] += $qty;
+                    $categoryAggregates[$catKey]['products'][$prodKey]['amount_base'] += $amountBase;
+                    $categoryAggregates[$catKey]['products'][$prodKey]['amount_local'] += $amountLocal;
+                }
+            }
+        }
+
+        $categories = collect($categoryAggregates)
+            ->map(fn ($cat) => [
+                'id' => $cat['id'],
+                'name' => $cat['name'],
+                'items_count' => round((float) $cat['items_count'], 4),
+                'amount_base' => round((float) $cat['amount_base'], 4),
+                'amount_local' => round((float) $cat['amount_local'], 4),
+                'products' => collect($cat['products'])
+                    ->map(fn ($prod) => [
+                        'id' => $prod['id'],
+                        'name' => $prod['name'],
+                        'sku' => $prod['sku'],
+                        'quantity' => round((float) $prod['quantity'], 4),
+                        'amount_base' => round((float) $prod['amount_base'], 4),
+                        'amount_local' => round((float) $prod['amount_local'], 4),
+                    ])
+                    ->sortByDesc('amount_base')
+                    ->values()
+                    ->all(),
+            ])
+            ->sortByDesc('amount_base')
+            ->values()
+            ->all();
+
+        $customers = collect($customerAggregates)
+            ->map(fn ($cust) => [
+                'id' => $cust['id'],
+                'name' => $cust['name'],
+                'document' => $cust['document'],
+                'orders_count' => (int) $cust['orders_count'],
+                'amount_base' => round((float) $cust['amount_base'], 4),
+                'amount_local' => round((float) $cust['amount_local'], 4),
+            ])
+            ->sortByDesc('amount_base')
+            ->values()
+            ->all();
 
         $tenant = Tenant::query()->withoutGlobalScopes()->whereKey($session->tenant_id)->first();
         $company = $tenant ? CompanySettings::getForTenant($tenant) : CompanySettings::defaults();
@@ -120,6 +253,8 @@ class ReportZService
                 'quantity' => $count->quantity,
                 'total_amount' => round((float) $count->total_amount, 4),
             ])->values()->all(),
+            'categories' => $categories,
+            'customers' => $customers,
         ];
     }
 

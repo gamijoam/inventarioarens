@@ -56,6 +56,7 @@ export const REPORT_DIMENSION_LABELS: Record<string, string> = {
   week: 'Semana',
   month: 'Mes',
   product: 'Producto',
+  category: 'Categoría',
   cashier: 'Cajero / Vendedor',
   method: 'Método de pago',
   company: 'Empresa',

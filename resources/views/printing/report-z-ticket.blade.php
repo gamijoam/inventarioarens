@@ -108,6 +108,28 @@
         @endforeach
     @endif
 
+    @if(!empty($z['categories']))
+        <div class="line"></div>
+        <div class="bold">Ventas por Categoria</div>
+        @foreach($z['categories'] as $cat)
+            <div class="row small">
+                <span>{{ $cat['name'] }} (x{{ $cat['items_count'] }})</span>
+                <span>{{ $money($cat['amount_base']) }}</span>
+            </div>
+        @endforeach
+    @endif
+
+    @if(!empty($z['customers']))
+        <div class="line"></div>
+        <div class="bold">Ventas por Cliente</div>
+        @foreach($z['customers'] as $cust)
+            <div class="row small">
+                <span>{{ $cust['name'] }} ({{ $cust['orders_count'] }} tkt)</span>
+                <span>{{ $money($cust['amount_base']) }}</span>
+            </div>
+        @endforeach
+    @endif
+
     <div class="line"></div>
     @if(!empty($profile['footer_text']))
         <div class="center">{!! nl2br(e($profile['footer_text'])) !!}</div>
