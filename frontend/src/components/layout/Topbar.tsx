@@ -39,7 +39,6 @@ import {
 import type { Product, PriceList } from '@/features/inventory-center/schemas';
 import { IntercompanyNotificationBell } from '@/features/inventory-transfer-notifications/IntercompanyNotificationBell';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
-import { SimpleModeToggle } from '@/components/layout/SimpleModeToggle';
 
 const EMPTY_PRICE_LISTS: PriceList[] = [];
 
@@ -120,8 +119,6 @@ export function Topbar() {
         >
           <RefreshCw className="size-4" aria-hidden="true" />
         </Button>
-
-        <SimpleModeToggle />
 
         <ThemeSwitcher />
 

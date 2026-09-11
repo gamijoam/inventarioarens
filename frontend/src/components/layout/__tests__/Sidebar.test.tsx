@@ -192,7 +192,7 @@ describe('<Sidebar>', () => {
     expect(screen.getByRole('link', { name: 'Inventario' })).toBeTruthy();
   });
 
-  it('muestra solo los 7 modulos esenciales cuando el Modo Fácil esta activado', () => {
+  it('muestra solo los módulos configurados cuando el Modo Fácil está activado', () => {
     useUiModeStore.setState({ isSimpleMode: true });
     mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
 
@@ -204,13 +204,31 @@ describe('<Sidebar>', () => {
       .filter(Boolean);
 
     expect(labels).toEqual([
-      'Tablero',
-      'Inventario',
-      'Ventas / POS',
+      'Dashboard',
+      'POS',
       'Clientes',
+      'Inventario',
       'Reportes',
-      'Usuarios',
+      'Acceso',
       'Configuración',
     ]);
+  });
+
+  it('permite personalizar qué módulos se visualizan en el Modo Fácil', () => {
+    // Activamos solo Inventario y Configuración
+    useUiModeStore.setState({
+      isSimpleMode: true,
+      visibleRoutes: ['/inventory', '/settings/company'],
+    });
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    const labels = screen
+      .getAllByRole('link')
+      .map((link) => link.textContent?.trim())
+      .filter(Boolean);
+
+    expect(labels).toEqual(['Inventario', 'Configuración']);
   });
 });

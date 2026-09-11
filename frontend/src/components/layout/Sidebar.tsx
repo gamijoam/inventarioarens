@@ -33,6 +33,7 @@ import {
   Send,
   BadgeDollarSign,
   Wrench,
+  Sparkles,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -42,7 +43,6 @@ import { APP_SHORT_NAME } from '@/config/branding';
 import { ShieldCheck } from 'lucide-react';
 import { useSessionStore } from '@/stores/session';
 import { useUiModeStore } from '@/stores/uiMode';
-import { SimpleModeToggle } from '@/components/layout/SimpleModeToggle';
 import { PermissionContext } from '@/permissions/PermissionContext';
 
 interface NavItem {
@@ -338,6 +338,12 @@ const NAV_ITEMS: NavItem[] = [
         permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
       },
       {
+        to: '/settings/simple-mode',
+        label: 'Modo Fácil',
+        icon: Sparkles,
+        permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
+      },
+      {
         to: '/settings/telegram',
         label: 'Telegram',
         icon: Send,
@@ -354,57 +360,10 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const SIMPLE_MODE_ITEMS: NavItem[] = [
-  {
-    to: '/dashboard',
-    label: 'Tablero',
-    icon: LayoutDashboard,
-  },
-  {
-    to: '/inventory',
-    label: 'Inventario',
-    icon: Boxes,
-    permission: PERMISSIONS.PRODUCTS_VIEW,
-    capability: 'inventory',
-  },
-  {
-    to: '/pos',
-    label: 'Ventas / POS',
-    icon: ShoppingCart,
-    permission: PERMISSIONS.POS_VIEW,
-    capability: 'pos',
-  },
-  {
-    to: '/customers',
-    label: 'Clientes',
-    icon: Users,
-    permission: PERMISSIONS.CUSTOMERS_VIEW,
-    capability: 'customers',
-  },
-  {
-    to: '/reports',
-    label: 'Reportes',
-    icon: BarChart3,
-    permissionAny: [PERMISSIONS.REPORTS_VIEW, PERMISSIONS.FINANCE_REPORTS_VIEW],
-    capability: 'reports',
-  },
-  {
-    to: '/users',
-    label: 'Usuarios',
-    icon: ShieldCheck,
-    permissionAny: [PERMISSIONS.USERS_VIEW, PERMISSIONS.ROLES_VIEW],
-  },
-  {
-    to: '/settings/company',
-    label: 'Configuración',
-    icon: Settings,
-    permissionAny: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.TENANTS_VIEW],
-  },
-];
-
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const isSimpleMode = useUiModeStore((s) => s.isSimpleMode);
+  const visibleRoutes = useUiModeStore((s) => s.visibleRoutes);
   // Cargamos los grupos donde soy Owner para que el item "Organizaciones"
   // aparezca solo si tengo al menos uno. Si el query falla o carga lento,
   // mostramos el item por defecto (la pagina ya maneja el empty state
@@ -440,6 +399,19 @@ export function Sidebar() {
     if (permissions && item.permissionAny && !item.permissionAny.some((p) => permissions.has(p))) {
       return false;
     }
+    if (isSimpleMode) {
+      const isSettings = item.to === '/settings/company' || item.to.startsWith('/settings');
+      const isAllowed = visibleRoutes.includes(item.to);
+      const hasAllowedChild = Boolean(
+        item.children &&
+          item.children.some(
+            (c) => visibleRoutes.includes(c.to) || c.to.startsWith('/settings'),
+          ),
+      );
+      if (!isSettings && !isAllowed && !hasAllowedChild) {
+        return false;
+      }
+    }
     if (item.children && item.children.length > 0) {
       const visibleSub = item.children.filter(isItemVisible);
       if (visibleSub.length === 0) return false;
@@ -447,8 +419,7 @@ export function Sidebar() {
     return true;
   };
 
-  const activeNavItems = isSimpleMode ? SIMPLE_MODE_ITEMS : NAV_ITEMS;
-  const visibleItems = activeNavItems.filter(isItemVisible);
+  const visibleItems = NAV_ITEMS.filter(isItemVisible);
 
   const searchForItem = (item: NavItem): UsersSearch | undefined =>
     item.to === '/users' ? { scope: usersScope } : undefined;
@@ -478,13 +449,6 @@ export function Sidebar() {
           </div>
         )}
       </div>
-
-      {/* Modo Fácil Toggle Banner en Sidebar */}
-      {!collapsed && (
-        <div className="border-border border-b p-2 bg-primary/5">
-          <SimpleModeToggle className="w-full justify-between" />
-        </div>
-      )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">

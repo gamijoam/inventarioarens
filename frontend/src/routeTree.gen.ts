@@ -42,6 +42,7 @@ import { Route as AuthedImportIndexRouteImport } from './routes/_authed/import/i
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedTransfersTransferIdRouteImport } from './routes/_authed/transfers/$transferId'
 import { Route as AuthedSettingsTelegramRouteImport } from './routes/_authed/settings/telegram'
+import { Route as AuthedSettingsSimpleModeRouteImport } from './routes/_authed/settings/simple-mode'
 import { Route as AuthedSettingsCompanyRouteImport } from './routes/_authed/settings/company'
 import { Route as AuthedSettingsCapabilitiesRouteImport } from './routes/_authed/settings/capabilities'
 import { Route as AuthedQuotationsQuotationIdRouteImport } from './routes/_authed/quotations.$quotationId'
@@ -224,6 +225,12 @@ const AuthedSettingsTelegramRoute = AuthedSettingsTelegramRouteImport.update({
   path: '/settings/telegram',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedSettingsSimpleModeRoute =
+  AuthedSettingsSimpleModeRouteImport.update({
+    id: '/settings/simple-mode',
+    path: '/settings/simple-mode',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedSettingsCompanyRoute = AuthedSettingsCompanyRouteImport.update({
   id: '/settings/company',
   path: '/settings/company',
@@ -347,6 +354,7 @@ export interface FileRoutesByFullPath {
   '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
   '/settings/company': typeof AuthedSettingsCompanyRoute
+  '/settings/simple-mode': typeof AuthedSettingsSimpleModeRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -396,6 +404,7 @@ export interface FileRoutesByTo {
   '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
   '/settings/company': typeof AuthedSettingsCompanyRoute
+  '/settings/simple-mode': typeof AuthedSettingsSimpleModeRoute
   '/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
@@ -447,6 +456,7 @@ export interface FileRoutesById {
   '/_authed/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/_authed/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
   '/_authed/settings/company': typeof AuthedSettingsCompanyRoute
+  '/_authed/settings/simple-mode': typeof AuthedSettingsSimpleModeRoute
   '/_authed/settings/telegram': typeof AuthedSettingsTelegramRoute
   '/_authed/transfers/$transferId': typeof AuthedTransfersTransferIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/quotations/$quotationId'
     | '/settings/capabilities'
     | '/settings/company'
+    | '/settings/simple-mode'
     | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
@@ -547,6 +558,7 @@ export interface FileRouteTypes {
     | '/quotations/$quotationId'
     | '/settings/capabilities'
     | '/settings/company'
+    | '/settings/simple-mode'
     | '/settings/telegram'
     | '/transfers/$transferId'
     | '/users/$userId'
@@ -597,6 +609,7 @@ export interface FileRouteTypes {
     | '/_authed/quotations/$quotationId'
     | '/_authed/settings/capabilities'
     | '/_authed/settings/company'
+    | '/_authed/settings/simple-mode'
     | '/_authed/settings/telegram'
     | '/_authed/transfers/$transferId'
     | '/_authed/users/$userId'
@@ -848,6 +861,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsTelegramRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/settings/simple-mode': {
+      id: '/_authed/settings/simple-mode'
+      path: '/settings/simple-mode'
+      fullPath: '/settings/simple-mode'
+      preLoaderRoute: typeof AuthedSettingsSimpleModeRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/settings/company': {
       id: '/_authed/settings/company'
       path: '/settings/company'
@@ -1050,6 +1070,7 @@ interface AuthedRouteChildren {
   AuthedPosArmarRoute: typeof AuthedPosArmarRoute
   AuthedSettingsCapabilitiesRoute: typeof AuthedSettingsCapabilitiesRoute
   AuthedSettingsCompanyRoute: typeof AuthedSettingsCompanyRoute
+  AuthedSettingsSimpleModeRoute: typeof AuthedSettingsSimpleModeRoute
   AuthedSettingsTelegramRoute: typeof AuthedSettingsTelegramRoute
   AuthedImportIndexRoute: typeof AuthedImportIndexRoute
   AuthedInventoryIndexRoute: typeof AuthedInventoryIndexRoute
@@ -1090,6 +1111,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPosArmarRoute: AuthedPosArmarRoute,
   AuthedSettingsCapabilitiesRoute: AuthedSettingsCapabilitiesRoute,
   AuthedSettingsCompanyRoute: AuthedSettingsCompanyRoute,
+  AuthedSettingsSimpleModeRoute: AuthedSettingsSimpleModeRoute,
   AuthedSettingsTelegramRoute: AuthedSettingsTelegramRoute,
   AuthedImportIndexRoute: AuthedImportIndexRoute,
   AuthedInventoryIndexRoute: AuthedInventoryIndexRoute,
