@@ -182,6 +182,90 @@ class InventoryCenterSummaryApiTest extends TestCase
         $this->assertStringNotContainsString('Samsung A06', $content);
     }
 
+    public function test_inventory_center_exports_custom_columns_only_name(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/inventory-center/export?columns=name');
+
+        $response
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+        $content = $response->getContent();
+
+        $lines = array_filter(explode("\n", trim(str_replace("\r", '', $content))));
+        $this->assertEquals('Producto', ltrim($lines[0], "\xEF\xBB\xBF"));
+        $this->assertStringNotContainsString('SKU', $lines[0]);
+        $this->assertStringNotContainsString('Disponible', $lines[0]);
+        $this->assertStringContainsString('Samsung A06', $content);
+        $this->assertStringContainsString('Audifonos Tipo C', $content);
+        $this->assertStringContainsString('Xiaomi Serial', $content);
+    }
+
+    public function test_inventory_center_exports_custom_columns_name_and_sku(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/inventory-center/export?columns=name,sku');
+
+        $response->assertOk();
+        $content = $response->getContent();
+
+        $this->assertStringContainsString('Producto;SKU', $content);
+        $this->assertStringNotContainsString('Disponible', $content);
+        $this->assertStringContainsString('"Samsung A06";A06-0', $content);
+    }
+
+    public function test_inventory_center_exports_custom_columns_with_barcode_and_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $product = Product::where('sku', 'A06-0')->first();
+        $product->update(['barcode' => '750123456789']);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/inventory-center/export?columns=name,barcode,stock_available');
+
+        $response->assertOk();
+        $content = $response->getContent();
+
+        $this->assertStringContainsString('Producto;"Código de barras";Disponible', $content);
+        $this->assertStringContainsString('"Samsung A06";750123456789;5', $content);
+    }
+
+    public function test_inventory_center_exports_fallback_on_invalid_columns(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->inventoryUser($tenant);
+        $this->seedInventory($tenant);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/inventory-center/export?columns=invalid,unknown');
+
+        $response->assertOk();
+        $content = $response->getContent();
+
+        // Falls back to default columns
+        $this->assertStringContainsString('Producto;SKU;"Tipo de control";Moneda;"Precio base";Disponible;Reservado;Dañado;"Estado de stock"', $content);
+    }
+
     public function test_inventory_center_bulk_action_assigns_warranty_and_rate_with_audits(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
