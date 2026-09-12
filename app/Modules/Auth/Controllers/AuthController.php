@@ -88,10 +88,12 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
+        $tenant = $this->resolveTenant($request);
+
         $session = $this->auth->login(
             $request->validated('email'),
             $request->validated('password'),
-            app(TenantManager::class)->require(),
+            $tenant,
             $request
         );
 
@@ -302,5 +304,28 @@ class AuthController extends Controller
         }
 
         return false;
+    }
+
+    private function resolveTenant(Request $request): ?Tenant
+    {
+        $identifier = $request->header('X-Tenant')
+            ?? $request->route('tenant')
+            ?? $request->query('tenant');
+
+        if ($identifier) {
+            return Tenant::query()
+                ->where('slug', $identifier)
+                ->orWhere('domain', $identifier)
+                ->first();
+        }
+
+        $host = $request->getHost();
+        if ($host && ! in_array($host, ['localhost', '127.0.0.1'], true)) {
+            return Tenant::query()
+                ->where('domain', $host)
+                ->first();
+        }
+
+        return null;
     }
 }

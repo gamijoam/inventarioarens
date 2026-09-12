@@ -130,6 +130,26 @@ describe('useSessionStore (Plan C: cookie httpOnly)', () => {
     expect(useSessionStore.getState().tenant?.slug).toBe('b');
     expect(useSessionStore.getState().user?.email).toBe('a');
   });
+
+  it('setPendingSelection guarda user y lista de empresas pendientes sin tenant activo', () => {
+    useSessionStore.getState().setPendingSelection(
+      { id: 1, email: 'u@e.com', name: 'User', is_active: true },
+      [
+        { id: 10, slug: 'empresa-1', name: 'Empresa 1', is_active: true },
+        { id: 20, slug: 'empresa-2', name: 'Empresa 2', is_active: true },
+      ],
+    );
+
+    const state = useSessionStore.getState();
+    expect(state.user?.email).toBe('u@e.com');
+    expect(state.tenant).toBeNull();
+    expect(state.pendingTenants).toHaveLength(2);
+    expect(state.pendingTenants[0]?.slug).toBe('empresa-1');
+    expect(state.pendingTenants[1]?.slug).toBe('empresa-2');
+
+    useSessionStore.getState().clearPendingTenants();
+    expect(useSessionStore.getState().pendingTenants).toHaveLength(0);
+  });
 });
 
 describe('hasAuthCookie (sync detection desde document.cookie)', () => {

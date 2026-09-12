@@ -23,17 +23,20 @@ export const Route = createFileRoute('/login')({
       return;
     }
 
-    if (typeof document !== 'undefined') {
-      const hasCookie = document.cookie
-        .split('; ')
-        .some((c) => c.startsWith('auth_token='));
-      if (hasCookie) {
-        const session = useSessionStore.getState();
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw redirect({
-          to: getPostLoginRoute(session.roles, Array.from(session.permissions)),
-        });
-      }
+    const session = useSessionStore.getState();
+
+    if (session.tenant && session.user) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({
+        to: getPostLoginRoute(session.roles, Array.from(session.permissions)),
+      });
+    }
+
+    if (session.user && !session.tenant && session.pendingTenants.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({
+        to: '/select-company',
+      });
     }
   },
   component: LoginPage,

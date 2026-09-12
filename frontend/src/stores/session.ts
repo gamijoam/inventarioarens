@@ -19,12 +19,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-import type { Tenant, User, UserScopes } from '@/types/user';
+import type { Tenant, TenantOption, User, UserScopes } from '@/types/user';
 
 export interface SessionState {
   // El token NO vive aqui. Lo maneja la cookie httpOnly del navegador.
   user: User | null;
   tenant: Tenant | null;
+  pendingTenants: TenantOption[];
   roles: string[];
   permissions: Set<string>;
   capabilities: Set<string>;
@@ -42,6 +43,10 @@ export interface SessionState {
     scopeStatus: SessionState['scopeStatus'];
     scopes: UserScopes;
   }) => void;
+
+  setPendingSelection: (user: User, tenants: TenantOption[]) => void;
+
+  clearPendingTenants: () => void;
 
   setTenant: (tenant: Tenant) => void;
 
@@ -66,6 +71,7 @@ const emptyScopes: UserScopes = {
 const initialState = {
   user: null,
   tenant: null,
+  pendingTenants: [] as TenantOption[],
   roles: [] as string[],
   permissions: new Set<string>(),
   capabilities: new Set<string>(),
@@ -84,12 +90,25 @@ export const useSessionStore = create<SessionState>()(
           expiresAt: data.expiresAt,
           user: data.user,
           tenant: data.tenant,
+          pendingTenants: [],
           roles: data.roles,
           permissions: new Set(data.permissions),
           capabilities: new Set(data.capabilities ?? []),
           scopeStatus: data.scopeStatus,
           scopes: data.scopes,
         }),
+
+      setPendingSelection: (user, tenants) =>
+        set({
+          user,
+          tenant: null,
+          pendingTenants: tenants,
+          roles: [],
+          permissions: new Set(),
+          capabilities: new Set(),
+        }),
+
+      clearPendingTenants: () => set({ pendingTenants: [] }),
 
       setTenant: (tenant) => set({ tenant }),
 
@@ -100,6 +119,7 @@ export const useSessionStore = create<SessionState>()(
           ...initialState,
           permissions: new Set(),
           capabilities: new Set(),
+          pendingTenants: [],
         }),
 
       // Sync: indica si tenemos datos de sesion hidratados.
@@ -114,6 +134,7 @@ export const useSessionStore = create<SessionState>()(
       partialize: (state) => ({
         user: state.user,
         tenant: state.tenant,
+        pendingTenants: state.pendingTenants,
         roles: state.roles,
         permissions: Array.from(state.permissions),
         capabilities: Array.from(state.capabilities),
@@ -126,6 +147,7 @@ export const useSessionStore = create<SessionState>()(
         const persisted = persistedState as
           | Partial<{
               permissions: string[] | Set<string>;
+              pendingTenants: TenantOption[];
             }>
           | undefined;
         const perms = persisted?.permissions;
@@ -138,6 +160,9 @@ export const useSessionStore = create<SessionState>()(
               ? ((persisted as { capabilities: string[] }).capabilities ?? [])
               : [],
           ),
+          pendingTenants: Array.isArray(persisted?.pendingTenants)
+            ? persisted.pendingTenants
+            : [],
         };
       },
     },

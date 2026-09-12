@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as SelectCompanyRouteImport } from './routes/select-company'
 import { Route as MasterRouteImport } from './routes/master'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
@@ -67,6 +68,11 @@ const SupportRoute = SupportRouteImport.update({
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SelectCompanyRoute = SelectCompanyRouteImport.update({
+  id: '/select-company',
+  path: '/select-company',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MasterRoute = MasterRouteImport.update({
@@ -317,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/master': typeof MasterRouteWithChildren
+  '/select-company': typeof SelectCompanyRoute
   '/setup': typeof SetupRoute
   '/support': typeof SupportRoute
   '/cash-register': typeof AuthedCashRegisterRoute
@@ -367,6 +374,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/master': typeof MasterRouteWithChildren
+  '/select-company': typeof SelectCompanyRoute
   '/setup': typeof SetupRoute
   '/support': typeof SupportRoute
   '/cash-register': typeof AuthedCashRegisterRoute
@@ -419,6 +427,7 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/master': typeof MasterRouteWithChildren
+  '/select-company': typeof SelectCompanyRoute
   '/setup': typeof SetupRoute
   '/support': typeof SupportRoute
   '/_authed/cash-register': typeof AuthedCashRegisterRoute
@@ -471,6 +480,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/master'
+    | '/select-company'
     | '/setup'
     | '/support'
     | '/cash-register'
@@ -521,6 +531,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/master'
+    | '/select-company'
     | '/setup'
     | '/support'
     | '/cash-register'
@@ -572,6 +583,7 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/login'
     | '/master'
+    | '/select-company'
     | '/setup'
     | '/support'
     | '/_authed/cash-register'
@@ -624,6 +636,7 @@ export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
   MasterRoute: typeof MasterRouteWithChildren
+  SelectCompanyRoute: typeof SelectCompanyRoute
   SetupRoute: typeof SetupRoute
   SupportRoute: typeof SupportRoute
 }
@@ -642,6 +655,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/select-company': {
+      id: '/select-company'
+      path: '/select-company'
+      fullPath: '/select-company'
+      preLoaderRoute: typeof SelectCompanyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/master': {
@@ -1137,6 +1157,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
   MasterRoute: MasterRouteWithChildren,
+  SelectCompanyRoute: SelectCompanyRoute,
   SetupRoute: SetupRoute,
   SupportRoute: SupportRoute,
 }

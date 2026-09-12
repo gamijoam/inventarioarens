@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
 import { APP_MODE, APP_VISUAL_PROFILE } from '@/config/branding';
 import { getLoginPresentation } from '@/auth/loginPresentation';
-import { getPublicTenant, lookupTenants } from '@/api/endpoints/auth';
+import { getPublicTenant } from '@/api/endpoints/auth';
 import { useAuth } from '@/auth/useAuth';
 import { useSessionStore } from '@/stores/session';
 import { useTenantFavicon } from '@/lib/useTenantFavicon';
@@ -12,12 +12,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
-import { Spinner } from '@/components/ui/Spinner';
-import type { PublicTenantInfo, TenantOption } from '@/types/user';
+import type { PublicTenantInfo } from '@/types/user';
 import { cn } from '@/lib/cn';
 import { getPostLoginRoute } from '@/auth/postLoginRoute';
-
-const DEBOUNCE_MS = 500;
 
 export function LoginPage() {
   const presentation = getLoginPresentation(APP_MODE);
@@ -26,9 +23,6 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [tenants, setTenants] = useState<TenantOption[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<TenantOption | null>(null);
-  const [lookupLoading, setLookupLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -49,39 +43,18 @@ export function LoginPage() {
     };
   }, []);
 
-  const activeLogo = selectedTenant?.logo_url || publicTenant?.logo_url;
-  const activeName = selectedTenant?.name || publicTenant?.name;
+  const activeLogo = publicTenant?.logo_url;
+  const activeName = publicTenant?.name;
   useTenantFavicon(activeLogo);
-
-  useEffect(() => {
-    if (!isValidEmail(email)) {
-      setTenants([]);
-      setSelectedTenant(null);
-      return;
-    }
-
-    const handle = window.setTimeout(async () => {
-      setLookupLoading(true);
-      setError(null);
-      try {
-        const data = await lookupTenants({ email });
-        setTenants(data);
-        setSelectedTenant(data.length === 1 ? data[0]! : null);
-      } catch {
-        setTenants([]);
-        setSelectedTenant(null);
-      } finally {
-        setLookupLoading(false);
-      }
-    }, DEBOUNCE_MS);
-
-    return () => window.clearTimeout(handle);
-  }, [email]);
 
   useEffect(() => {
     if (isAuthenticated) {
       const session = useSessionStore.getState();
-      void navigate({ to: getPostLoginRoute(session.roles, Array.from(session.permissions)) });
+      if (session.tenant) {
+        void navigate({ to: getPostLoginRoute(session.roles, Array.from(session.permissions)) });
+      } else if (session.pendingTenants.length > 0) {
+        void navigate({ to: '/select-company' });
+      }
     }
   }, [isAuthenticated, navigate]);
 
@@ -89,10 +62,6 @@ export function LoginPage() {
     event.preventDefault();
     setError(null);
 
-    if (!selectedTenant) {
-      setError('Selecciona una empresa para continuar.');
-      return;
-    }
     if (!email || !password) {
       setError('Email y contraseña son obligatorios.');
       return;
@@ -100,17 +69,23 @@ export function LoginPage() {
 
     setLoginLoading(true);
     try {
-      await signIn(selectedTenant.slug, {
-        email,
+      const result = await signIn({
+        email: email.trim(),
         password,
         device_name: window.navigator.userAgent.slice(0, 100),
       });
+
+      if (result.requiresSelection) {
+        await navigate({ to: '/select-company' });
+        return;
+      }
+
       const session = useSessionStore.getState();
       await navigate({ to: getPostLoginRoute(session.roles, Array.from(session.permissions)) });
     } catch (err) {
       const status = (err as { status?: number })?.status;
       if (status === 401 || status === 422) useSessionStore.getState().clearSession();
-      setError(formatLoginError(err, selectedTenant.slug));
+      setError(formatLoginError(err));
     } finally {
       setLoginLoading(false);
     }
@@ -235,30 +210,7 @@ export function LoginPage() {
                 className="h-11 rounded-xl border-slate-200 bg-white px-4 pl-9 text-sm shadow-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/10"
                 data-testid="login-email"
               />
-              {lookupLoading && (
-                <Spinner size="sm" className="absolute top-1/2 right-3 -translate-y-1/2" />
-              )}
             </div>
-          </div>
-
-          {/* Empresa (selector discreto, justo encima de la contrasena) */}
-          <div className="mt-5 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="tenant" className="text-text-primary text-sm font-medium">
-                Empresa
-              </Label>
-              {tenants.length > 1 && (
-                <span className="text-text-muted text-xs">{tenants.length} disponibles</span>
-              )}
-            </div>
-            <TenantPicker
-              tenants={tenants}
-              selected={selectedTenant}
-              onChange={setSelectedTenant}
-              email={email}
-              disabled={loginLoading}
-              lookupLoading={lookupLoading}
-            />
           </div>
 
           {/* Contrasena */}
@@ -323,7 +275,7 @@ export function LoginPage() {
                 : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-orange-500/25 active:scale-[0.99]',
             )}
             loading={loginLoading}
-            disabled={!selectedTenant || !email || !password}
+            disabled={!email || !password || loginLoading}
             data-testid="login-submit"
           >
             LOGIN
@@ -355,11 +307,7 @@ export function LoginPage() {
   );
 }
 
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-function formatLoginError(err: unknown, slug: string): string {
+function formatLoginError(err: unknown): string {
   const status = (err as { status?: number })?.status;
   const message = (err as Error)?.message ?? 'Error al iniciar sesión.';
 
@@ -367,87 +315,14 @@ function formatLoginError(err: unknown, slug: string): string {
     case 401:
       return 'Email o contraseña incorrectos.';
     case 403:
-      return 'Tu cuenta no está activa. Contacta al administrador.';
+      return message || 'Tu cuenta no está activa. Contacta al administrador.';
     case 404:
-      return `La empresa "${slug}" no existe. Selecciona otra empresa o limpia el caché.`;
+      return message || 'Empresa o servicio no encontrado.';
     case 422:
-      return /no pertenece|inactiv/i.test(message)
-        ? `Tu email no tiene acceso a la empresa "${slug}". Verifica que seleccionaste la empresa correcta.`
-        : message;
+      return message;
     case 429:
       return 'Demasiados intentos de autenticación. Espera 1 minuto antes de reintentar.';
     default:
       return message;
   }
-}
-
-interface TenantPickerProps {
-  tenants: TenantOption[];
-  selected: TenantOption | null;
-  onChange: (tenant: TenantOption | null) => void;
-  email: string;
-  disabled: boolean;
-  lookupLoading: boolean;
-}
-
-function TenantPicker({
-  tenants,
-  selected,
-  onChange,
-  email,
-  disabled,
-  lookupLoading,
-}: TenantPickerProps) {
-  if (!isValidEmail(email)) {
-    return (
-      <div className="bg-surface text-text-muted rounded-lg border border-dashed px-3 py-2.5 text-xs">
-        Ingresa un email válido para buscar empresas.
-      </div>
-    );
-  }
-  if (lookupLoading) {
-    return (
-      <div className="bg-surface text-text-muted rounded-lg border border-dashed px-3 py-2.5 text-xs">
-        Buscando empresas...
-      </div>
-    );
-  }
-  if (tenants.length === 0) {
-    return (
-      <div className="border-warning bg-warning/5 text-warning rounded-lg border px-3 py-2.5 text-xs">
-        No hay empresas activas para este email.
-      </div>
-    );
-  }
-  if (tenants.length === 1) {
-    return (
-      <div className="border-primary/40 bg-primary/5 flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm">
-        <Building2 className="text-primary size-4" aria-hidden="true" />
-        <span className="font-medium">{tenants[0]!.name}</span>
-        <span className="text-text-muted text-xs">({tenants[0]!.slug})</span>
-      </div>
-    );
-  }
-  return (
-    <select
-      className={cn(
-        'text-text-primary flex h-11 w-full rounded-lg border border-[#e2e5ea] bg-white px-3 text-sm shadow-sm',
-        'focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-      )}
-      value={selected?.slug ?? ''}
-      onChange={(event) =>
-        onChange(tenants.find((tenant) => tenant.slug === event.target.value) ?? null)
-      }
-      disabled={disabled}
-      data-testid="login-tenant"
-    >
-      <option value="">— Selecciona una empresa —</option>
-      {tenants.map((tenant) => (
-        <option key={tenant.id} value={tenant.slug}>
-          {tenant.name} ({tenant.slug})
-        </option>
-      ))}
-    </select>
-  );
 }

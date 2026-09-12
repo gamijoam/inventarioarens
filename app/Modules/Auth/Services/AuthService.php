@@ -46,10 +46,8 @@ class AuthService
             ->all();
     }
 
-    public function login(string $email, string $password, Tenant $tenant, Request $request): array
+    public function login(string $email, string $password, ?Tenant $tenant, Request $request): array
     {
-        $this->setTenantContext($tenant);
-
         try {
             $user = $this->validateCredentials($email, $password);
         } catch (ValidationException $exception) {
@@ -59,7 +57,7 @@ class AuthService
                 oldValues: null,
                 newValues: [
                     'email' => $email,
-                    'tenant_slug' => $tenant->slug,
+                    'tenant_slug' => $tenant?->slug,
                     'reason' => 'invalid_credentials',
                     'ip_address' => $request->ip(),
                 ],
@@ -68,24 +66,86 @@ class AuthService
             throw $exception;
         }
 
+        if ($tenant) {
+            $this->setTenantContext($tenant);
+            $this->audit->record(
+                action: 'auth.login.success',
+                entity: $user,
+                user: $user,
+                newValues: [
+                    'tenant_slug' => $tenant->slug,
+                    'ip_address' => $request->ip(),
+                ],
+            );
+
+            $session = $this->issueSessionForTenant($user, $tenant, $request);
+            $session['requires_tenant_selection'] = false;
+
+            return $session;
+        }
+
+        $activeTenants = $user->tenants()
+            ->wherePivot('status', 'active')
+            ->orderBy('name')
+            ->get();
+
+        if ($activeTenants->isEmpty()) {
+            $this->audit->record(
+                action: 'auth.login.failed',
+                user: $user,
+                oldValues: null,
+                newValues: [
+                    'email' => $email,
+                    'reason' => 'no_active_tenants',
+                    'ip_address' => $request->ip(),
+                ],
+            );
+
+            abort(403, 'El usuario no pertenece a ninguna empresa activa.');
+        }
+
+        if ($activeTenants->count() === 1) {
+            /** @var Tenant $autoTenant */
+            $autoTenant = $activeTenants->first();
+            $this->setTenantContext($autoTenant);
+            $this->audit->record(
+                action: 'auth.login.success',
+                entity: $user,
+                user: $user,
+                newValues: [
+                    'tenant_slug' => $autoTenant->slug,
+                    'ip_address' => $request->ip(),
+                ],
+            );
+
+            $session = $this->issueSessionForTenant($user, $autoTenant, $request);
+            $session['requires_tenant_selection'] = false;
+
+            return $session;
+        }
+
         $this->audit->record(
             action: 'auth.login.success',
             entity: $user,
             user: $user,
             newValues: [
-                'tenant_slug' => $tenant->slug,
+                'interim' => true,
+                'available_tenants_count' => $activeTenants->count(),
                 'ip_address' => $request->ip(),
             ],
         );
 
-        return $this->issueSessionForTenant($user, $tenant, $request);
+        return $this->issueInterimSessionForTenantSelection($user, $activeTenants, $request);
     }
 
     public function switchTenant(User $user, Tenant $tenant, Request $request): array
     {
         $this->setTenantContext($tenant);
 
-        return $this->issueSessionForTenant($user, $tenant, $request);
+        $session = $this->issueSessionForTenant($user, $tenant, $request);
+        $session['requires_tenant_selection'] = false;
+
+        return $session;
     }
 
     private function issueSessionForTenant(User $user, Tenant $tenant, Request $request): array
@@ -130,6 +190,57 @@ class AuthService
             'roles' => $this->roles($user),
             'permissions' => $this->permissions($user),
             'capabilities' => $this->capabilities->enabledKeys($tenant),
+            'requires_tenant_selection' => false,
+        ];
+    }
+
+    private function issueInterimSessionForTenantSelection(User $user, $activeTenants, Request $request): array
+    {
+        $plainToken = Str::random(80);
+        $token = AuthToken::create([
+            'tenant_id' => null,
+            'user_id' => $user->id,
+            'name' => $request->input('device_name', 'tenant-selector'),
+            'token_hash' => hash('sha256', $plainToken),
+            'abilities' => ['auth.switch_tenant'],
+            'expires_at' => now()->addMinutes(15),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        $this->audit->record(
+            action: 'auth.token.issued',
+            entity: $user,
+            user: $user,
+            newValues: [
+                'token_id' => $token->id,
+                'token_name' => $token->name,
+                'interim' => true,
+                'expires_at' => $token->expires_at?->toISOString(),
+                'ip_address' => $request->ip(),
+            ],
+        );
+
+        $tenantsData = $activeTenants->map(fn (Tenant $t): array => [
+            'id' => $t->id,
+            'name' => $t->name,
+            'slug' => $t->slug,
+            'domain' => $t->domain,
+            'logo_url' => CompanySettings::getForTenant($t)['logo_url'] ?? null,
+            'is_active' => true,
+        ])->values()->all();
+
+        return [
+            'requires_tenant_selection' => true,
+            'token' => $plainToken,
+            'token_type' => 'Bearer',
+            'expires_at' => $token->expires_at?->toISOString(),
+            'user' => $user,
+            'tenant' => null,
+            'tenants' => $tenantsData,
+            'roles' => [],
+            'permissions' => [],
+            'capabilities' => [],
         ];
     }
 
