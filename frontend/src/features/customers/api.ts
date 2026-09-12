@@ -35,6 +35,7 @@ export function useCustomers(filters: CustomerFilters = {}) {
       const data = await getMany<unknown>(`/customers${toQueryString(filters)}`);
       return z.array(CustomerSchema).parse(data);
     },
+    placeholderData: (prev) => prev,
   });
 }
 
