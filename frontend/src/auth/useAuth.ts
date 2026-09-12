@@ -26,13 +26,21 @@ import {
 } from '@/api/endpoints/auth';
 import { useSessionStore } from '@/stores/session';
 
+import type { TenantOption } from '@/types/user';
+
+export interface SignInResult {
+  requiresSelection: boolean;
+  tenants?: TenantOption[];
+}
+
 interface UseAuthResult {
   isAuthenticated: boolean;
   isReady: boolean;
-  signIn: (tenantSlug: string, payload: LoginRequest) => Promise<void>;
+  signIn: (payload: LoginRequest, tenantSlug?: string | null) => Promise<SignInResult>;
   signInPlatform: (payload: LoginRequest) => Promise<void>;
   signOut: () => Promise<void>;
   switchTo: (slug: string) => Promise<void>;
+  selectCompany: (slug: string) => Promise<void>;
   refreshSession: () => Promise<void>;
 }
 
@@ -99,10 +107,18 @@ export function useAuth(): UseAuthResult {
   }, []);
 
   const signIn = useCallback(
-    async (tenantSlug: string, payload: LoginRequest) => {
+    async (payload: LoginRequest, tenantSlug?: string | null): Promise<SignInResult> => {
       // La cookie httpOnly se emite automaticamente en el response del login.
       // Solo necesitamos guardar el resto en el store.
-      const data = await apiLogin(tenantSlug, payload);
+      const data = await apiLogin(payload, tenantSlug);
+
+      if (data.requires_tenant_selection) {
+        useSessionStore.getState().setPendingSelection(data.user, data.tenants ?? []);
+        return {
+          requiresSelection: true,
+          tenants: data.tenants ?? [],
+        };
+      }
 
       if (!data.tenant) {
         throw new Error('Sesion de empresa invalida.');
@@ -139,6 +155,10 @@ export function useAuth(): UseAuthResult {
 
       // Invalidamos todas las queries para forzar re-fetch con el nuevo tenant.
       queryClient.clear();
+
+      return {
+        requiresSelection: false,
+      };
     },
     [queryClient],
   );
@@ -208,6 +228,14 @@ export function useAuth(): UseAuthResult {
     [queryClient],
   );
 
+  const selectCompany = useCallback(
+    async (slug: string) => {
+      await switchTo(slug);
+      useSessionStore.getState().clearPendingTenants();
+    },
+    [switchTo],
+  );
+
   return {
     isAuthenticated,
     isReady,
@@ -215,6 +243,7 @@ export function useAuth(): UseAuthResult {
     signInPlatform,
     signOut,
     switchTo,
+    selectCompany,
     refreshSession,
   };
 }

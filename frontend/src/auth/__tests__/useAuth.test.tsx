@@ -121,4 +121,100 @@ describe('useAuth - refreshSession (TDD session preservation)', () => {
     expect(state.tenant).not.toBeNull();
     expect(state.tenant?.slug).toBe('repuestos-avilacar');
   });
+
+  it('signIn resuelve directo cuando usuario pertenece a una sola empresa', async () => {
+    vi.mocked(authApi.login).mockResolvedValue({
+      requires_tenant_selection: false,
+      token: 'bearer-token-123',
+      expires_at: '2099-01-01T00:00:00Z',
+      user: { id: 2, email: 'single@example.com', name: 'Single User', is_active: true },
+      tenant: { id: 10, slug: 'empresa-solitaria', name: 'Empresa Solitaria', is_active: true },
+      roles: ['Vendedor'],
+      permissions: ['pos.view'],
+      capabilities: ['pos'],
+      scope_status: 'none',
+      scopes: emptyScopes,
+    } as any);
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    let signInResult: any;
+    await act(async () => {
+      signInResult = await result.current.signIn({
+        email: 'single@example.com',
+        password: 'secret',
+      });
+    });
+
+    expect(signInResult).toEqual({ requiresSelection: false });
+    const state = useSessionStore.getState();
+    expect(state.user?.email).toBe('single@example.com');
+    expect(state.tenant?.slug).toBe('empresa-solitaria');
+    expect(state.pendingTenants).toHaveLength(0);
+  });
+
+  it('signIn guarda selección pendiente cuando backend responde requires_tenant_selection = true', async () => {
+    vi.mocked(authApi.login).mockResolvedValue({
+      requires_tenant_selection: true,
+      token: 'interim-token-456',
+      expires_at: '2099-01-01T00:00:00Z',
+      user: { id: 3, email: 'multi@example.com', name: 'Multi User', is_active: true },
+      tenant: null,
+      tenants: [
+        { id: 1, slug: 'empresa-1', name: 'Empresa 1', is_active: true },
+        { id: 2, slug: 'empresa-2', name: 'Empresa 2', is_active: true },
+      ],
+      roles: [],
+      permissions: [],
+      capabilities: [],
+    } as any);
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    let signInResult: any;
+    await act(async () => {
+      signInResult = await result.current.signIn({
+        email: 'multi@example.com',
+        password: 'secret',
+      });
+    });
+
+    expect(signInResult.requiresSelection).toBe(true);
+    expect(signInResult.tenants).toHaveLength(2);
+    const state = useSessionStore.getState();
+    expect(state.user?.email).toBe('multi@example.com');
+    expect(state.tenant).toBeNull();
+    expect(state.pendingTenants).toHaveLength(2);
+  });
+
+  it('selectCompany ejecuta switchTo y limpia pendingTenants', async () => {
+    useSessionStore.getState().setPendingSelection(
+      { id: 3, email: 'multi@example.com', name: 'Multi User', is_active: true },
+      [
+        { id: 1, slug: 'empresa-1', name: 'Empresa 1', is_active: true },
+        { id: 2, slug: 'empresa-2', name: 'Empresa 2', is_active: true },
+      ],
+    );
+
+    vi.mocked(authApi.switchTenantApi).mockResolvedValue({
+      expires_at: '2099-01-01T00:00:00Z',
+      user: { id: 3, email: 'multi@example.com', name: 'Multi User', is_active: true },
+      tenant: { id: 2, slug: 'empresa-2', name: 'Empresa 2', is_active: true },
+      roles: ['Vendedor'],
+      permissions: ['pos.view'],
+      capabilities: ['pos'],
+      scope_status: 'none',
+      scopes: emptyScopes,
+    } as any);
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    await act(async () => {
+      await result.current.selectCompany('empresa-2');
+    });
+
+    const state = useSessionStore.getState();
+    expect(state.tenant?.slug).toBe('empresa-2');
+    expect(state.pendingTenants).toHaveLength(0);
+  });
 });

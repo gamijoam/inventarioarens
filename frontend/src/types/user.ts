@@ -78,10 +78,12 @@ export interface PublicTenantInfo {
 /** Respuesta de POST /api/auth/login. */
 export interface LoginResponse {
   data: {
+    requires_tenant_selection?: boolean;
     token: string;
     expires_at?: string;
     user: User;
     tenant: Tenant | null;
+    tenants?: TenantOption[];
     roles: Role[];
     permissions: string[];
     capabilities?: string[];

@@ -8,9 +8,7 @@ Route::get('auth/public-tenant', [AuthController::class, 'publicTenant'])->middl
 
 Route::post('auth/platform-login', [AuthController::class, 'platformLogin'])->middleware('throttle:auth');
 
-Route::middleware('tenant')->group(function (): void {
-    Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
-});
+Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
 
 Route::middleware(['api.auth', 'tenant'])->group(function (): void {
     Route::get('auth/me', [AuthController::class, 'me']);

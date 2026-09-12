@@ -438,11 +438,154 @@ class AuthApiTest extends TestCase
         );
 
         $this
-            ->withServerVariables(['HTTP_HOST' => 'app.repuestosavilacar.com'])
-            ->getJson('/api/auth/public-tenant')
+            ->getJson('http://app.repuestosavilacar.com/api/auth/public-tenant')
             ->assertOk()
             ->assertJsonPath('data.slug', 'repuestos-avilacar')
             ->assertJsonPath('data.name', 'Repuestos Avilacar, C.A.')
             ->assertJsonPath('data.logo_url', '/storage/tenants/' . $tenant->id . '/logo_avilacar.png');
+    }
+
+    public function test_user_with_single_company_logs_in_directly_without_x_tenant(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Única', 'slug' => 'empresa-unica']);
+        $user = User::factory()->create([
+            'email' => 'unica@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+        $this->grantRole($tenant, $user, 'Administrador', ['products.view']);
+
+        $response = $this
+            ->postJson('/api/auth/login', [
+                'email' => 'unica@example.test',
+                'password' => 'secret123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.requires_tenant_selection', false)
+            ->assertJsonPath('data.tenant.slug', 'empresa-unica')
+            ->assertJsonPath('data.user.email', 'unica@example.test')
+            ->assertJsonPath('data.token_type', 'Bearer');
+
+        $token = $response->json('data.token');
+        $this->assertNotEmpty($token);
+        $this->assertDatabaseHas('auth_tokens', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+        ]);
+    }
+
+    public function test_user_with_multiple_companies_receives_selection_payload_without_x_tenant(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Alfa Corp', 'slug' => 'alfa-corp']);
+        $tenantB = Tenant::create(['name' => 'Beta Corp', 'slug' => 'beta-corp']);
+        $user = User::factory()->create([
+            'email' => 'multi@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenantA, ['status' => 'active']);
+        $user->tenants()->attach($tenantB, ['status' => 'active']);
+
+        $response = $this
+            ->postJson('/api/auth/login', [
+                'email' => 'multi@example.test',
+                'password' => 'secret123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.requires_tenant_selection', true)
+            ->assertJsonPath('data.user.email', 'multi@example.test')
+            ->assertJsonPath('data.tenant', null)
+            ->assertJsonCount(2, 'data.tenants')
+            ->assertJsonPath('data.tenants.0.slug', 'alfa-corp')
+            ->assertJsonPath('data.tenants.1.slug', 'beta-corp');
+
+        $interimToken = $response->json('data.token');
+        $this->assertNotEmpty($interimToken);
+
+        $this->assertDatabaseHas('auth_tokens', [
+            'tenant_id' => null,
+            'user_id' => $user->id,
+        ]);
+    }
+
+    public function test_user_with_interim_token_can_switch_tenant_to_complete_login(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Alfa Corp', 'slug' => 'alfa-corp']);
+        $tenantB = Tenant::create(['name' => 'Beta Corp', 'slug' => 'beta-corp']);
+        $user = User::factory()->create([
+            'email' => 'multi_switch@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenantA, ['status' => 'active']);
+        $user->tenants()->attach($tenantB, ['status' => 'active']);
+        $this->grantRole($tenantB, $user, 'Vendedor', ['pos.view']);
+
+        $loginResponse = $this
+            ->postJson('/api/auth/login', [
+                'email' => 'multi_switch@example.test',
+                'password' => 'secret123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.requires_tenant_selection', true);
+
+        $interimToken = $loginResponse->json('data.token');
+
+        $switchResponse = $this
+            ->withHeader('Authorization', "Bearer {$interimToken}")
+            ->postJson('/api/auth/switch-tenant', [
+                'tenant_slug' => 'beta-corp',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.tenant.slug', 'beta-corp')
+            ->assertJsonPath('data.user.email', 'multi_switch@example.test')
+            ->assertJsonPath('data.permissions.0', 'pos.view');
+
+        $finalToken = $switchResponse->json('data.token');
+        $this->assertNotEmpty($finalToken);
+        $this->assertDatabaseHas('auth_tokens', [
+            'tenant_id' => $tenantB->id,
+            'user_id' => $user->id,
+        ]);
+    }
+
+    public function test_user_with_zero_active_companies_is_rejected_without_x_tenant(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Inactiva', 'slug' => 'empresa-inactiva']);
+        $user = User::factory()->create([
+            'email' => 'inactivo@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenant, ['status' => 'inactive']);
+
+        $this
+            ->postJson('/api/auth/login', [
+                'email' => 'inactivo@example.test',
+                'password' => 'secret123',
+            ])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'El usuario no pertenece a ninguna empresa activa.');
+    }
+
+    public function test_legacy_login_with_x_tenant_header_still_works_directly(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Alfa Corp', 'slug' => 'alfa-corp']);
+        $tenantB = Tenant::create(['name' => 'Beta Corp', 'slug' => 'beta-corp']);
+        $user = User::factory()->create([
+            'email' => 'legacy@example.test',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenantA, ['status' => 'active']);
+        $user->tenants()->attach($tenantB, ['status' => 'active']);
+        $this->grantRole($tenantB, $user, 'Vendedor', ['pos.view']);
+
+        $this
+            ->withHeader('X-Tenant', 'beta-corp')
+            ->postJson('/api/auth/login', [
+                'email' => 'legacy@example.test',
+                'password' => 'secret123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.requires_tenant_selection', false)
+            ->assertJsonPath('data.tenant.slug', 'beta-corp')
+            ->assertJsonPath('data.user.email', 'legacy@example.test');
     }
 }

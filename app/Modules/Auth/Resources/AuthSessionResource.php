@@ -12,7 +12,8 @@ class AuthSessionResource extends JsonResource
     {
         $tenant = $this['tenant'] ?? null;
 
-        return [
+        $payload = [
+            'requires_tenant_selection' => (bool) ($this['requires_tenant_selection'] ?? false),
             'user' => [
                 'id' => $this['user']->id,
                 'name' => $this['user']->name,
@@ -32,5 +33,11 @@ class AuthSessionResource extends JsonResource
             'permissions' => $this['permissions'] ?? [],
             'capabilities' => $this['capabilities'] ?? [],
         ];
+
+        if (isset($this['tenants'])) {
+            $payload['tenants'] = $this['tenants'];
+        }
+
+        return $payload;
     }
 }
