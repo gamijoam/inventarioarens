@@ -2,11 +2,11 @@
  * SuppliersManager: CRUD de proveedores con busqueda, filtro activo/inactivo.
  * Mismo patron que CustomersManager (refactorizable a un shared component).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -45,9 +45,22 @@ type FormValues = z.input<typeof StoreSupplierSchema>;
 
 export function SuppliersManager() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeOnly, setActiveOnly] = useState(true);
-  const { data: suppliers = [], isLoading } = useSuppliers({
-    search: search || undefined,
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const {
+    data: suppliers = [],
+    isLoading,
+    isFetching,
+  } = useSuppliers({
+    search: debouncedSearch || undefined,
     active_only: activeOnly,
   });
   const create = useCreateSupplier();
@@ -56,8 +69,6 @@ export function SuppliersManager() {
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Supplier | null>(null);
-
-  if (isLoading) return <Skeleton className="h-32 w-full" />;
 
   return (
     <>
@@ -68,8 +79,18 @@ export function SuppliersManager() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o documento..."
-            className="pl-9"
+            className="pl-9 pr-8"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text cursor-pointer p-0.5 rounded"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Switch
@@ -84,17 +105,19 @@ export function SuppliersManager() {
         </Button>
       </div>
 
-      {suppliers.length === 0 ? (
+      {isLoading && suppliers.length === 0 ? (
+        <Skeleton className="h-32 w-full" />
+      ) : suppliers.length === 0 ? (
         <EmptyState
-          title={search ? 'Sin resultados' : 'Sin proveedores'}
+          title={debouncedSearch ? 'Sin resultados' : 'Sin proveedores'}
           description={
-            search
+            debouncedSearch
               ? 'Ningun proveedor coincide con la busqueda.'
               : 'Crea el primer proveedor para poder registrar ordenes de compra.'
           }
         />
       ) : (
-        <div className="rounded-lg border border-border bg-surface">
+        <div className={`rounded-lg border border-border bg-surface ${isFetching ? 'opacity-70 transition-opacity' : ''}`}>
           <table className="w-full table-dense">
             <thead className="border-b border-border bg-bg/60 text-left">
               <tr>

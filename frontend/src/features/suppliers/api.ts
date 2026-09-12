@@ -34,6 +34,7 @@ export function useSuppliers(filters: SupplierFilters = {}) {
       const data = await getMany<unknown>(`/suppliers${toQueryString(filters)}`);
       return z.array(SupplierSchema).parse(data);
     },
+    placeholderData: (prev) => prev,
   });
 }
 
