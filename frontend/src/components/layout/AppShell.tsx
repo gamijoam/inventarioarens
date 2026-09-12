@@ -1,8 +1,13 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { useSessionStore } from '@/stores/session';
 import { useTenantFavicon } from '@/lib/useTenantFavicon';
+import { useUiPreferences } from '@/features/company-settings/api';
+import {
+  saveStoredProductFormVisibility,
+  type ProductFormVisibility,
+} from '@/features/inventory-center/productFormConfig';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -17,6 +22,17 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const tenant = useSessionStore((state) => state.tenant);
   useTenantFavicon(tenant?.logo_url);
+
+  const { data: uiPreferences } = useUiPreferences();
+
+  useEffect(() => {
+    if (uiPreferences?.product_form_visibility) {
+      saveStoredProductFormVisibility(
+        uiPreferences.product_form_visibility as unknown as ProductFormVisibility,
+        tenant?.id,
+      );
+    }
+  }, [uiPreferences?.product_form_visibility, tenant?.id]);
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isFullBleed = pathname === '/pos' || pathname.startsWith('/pos/');

@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/session';
+import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
 import { useProductForm } from '../forms';
 import { ProductForm } from '../components/ProductForm';
 import { useTags } from '../api';
@@ -40,6 +41,8 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
   const navigate = useNavigate();
   const tenant = useSessionStore((state) => state.tenant);
   const { data: tags = [] } = useTags();
+  const { data: uiPreferences } = useUiPreferences();
+  const updateUiPreferences = useUpdateUiPreferences();
 
   const [visibility, setVisibility] = useState<ProductFormVisibility>(() =>
     getStoredProductFormVisibility(tenant?.id),
@@ -47,17 +50,33 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
   useEffect(() => {
-    setVisibility(getStoredProductFormVisibility(tenant?.id));
-  }, [tenant?.id]);
+    if (uiPreferences?.product_form_visibility) {
+      setVisibility({
+        ...getStoredProductFormVisibility(tenant?.id),
+        ...uiPreferences.product_form_visibility,
+        name: true,
+        base_price: true,
+      });
+    } else {
+      setVisibility(getStoredProductFormVisibility(tenant?.id));
+    }
+  }, [tenant?.id, uiPreferences?.product_form_visibility]);
 
   const handleUpdateVisibility = (newVisibility: ProductFormVisibility) => {
-    setVisibility(newVisibility);
-    saveStoredProductFormVisibility(newVisibility, tenant?.id);
+    const safeVisibility = { ...newVisibility, name: true, base_price: true };
+    setVisibility(safeVisibility);
+    saveStoredProductFormVisibility(safeVisibility, tenant?.id);
+    updateUiPreferences.mutate({
+      product_form_visibility: safeVisibility as unknown as Record<string, boolean>,
+    });
   };
 
   const handleResetVisibility = () => {
     const def = resetStoredProductFormVisibility(tenant?.id);
     setVisibility(def);
+    updateUiPreferences.mutate({
+      product_form_visibility: def as unknown as Record<string, boolean>,
+    });
   };
 
   const { form, onSubmit, isSubmitting } = useProductForm({

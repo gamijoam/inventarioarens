@@ -39,7 +39,23 @@ describe('<CustomizeProductFieldsDialog>', () => {
 
     const nameCheckbox = screen.getByTestId('checkbox-field-name');
     expect(nameCheckbox).toBeDisabled();
-    expect(screen.getByText('Obligatorio')).toBeInTheDocument();
+    expect(screen.getAllByText('Obligatorio').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('mantiene el campo Precio de venta (base_price) como obligatorio y deshabilitado para desmarcar para evitar productos sin precio de venta en POS', () => {
+    render(
+      <CustomizeProductFieldsDialog
+        open={true}
+        onOpenChange={() => {}}
+        visibility={CREATE_PRODUCT_FORM_VISIBILITY}
+        onChange={() => {}}
+        onReset={() => {}}
+      />,
+    );
+
+    const basePriceCheckbox = screen.getByTestId('checkbox-field-base_price');
+    expect(basePriceCheckbox).toBeDisabled();
+    expect(screen.getByText(/Obligatorio para facturar y vender en POS\/caja/i)).toBeInTheDocument();
   });
 
   it('permite cambiar la casilla de un campo y llama onChange', async () => {

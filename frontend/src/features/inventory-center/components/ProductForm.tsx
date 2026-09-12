@@ -13,7 +13,7 @@
  *  6. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
  */
 import { type UseFormReturn } from 'react-hook-form';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link2, Tag as TagIcon, Tags as TagsIcon } from 'lucide-react';
 
 import { Input } from '@/components/ui/Input';
@@ -88,7 +88,7 @@ export function ProductForm({
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const activeVisibility = useMemo<ProductFormVisibility>(() => {
-    const base = { ...FULL_PRODUCT_FORM_VISIBILITY, ...visibility };
+    const base = { ...FULL_PRODUCT_FORM_VISIBILITY, ...visibility } as ProductFormVisibility;
     if (showAdvanced) {
       return FULL_PRODUCT_FORM_VISIBILITY;
     }
@@ -112,6 +112,16 @@ export function ProductForm({
   const margin = Number(form.watch('profit_margin'));
   const calculatedSalePrice =
     Number.isFinite(cost) && Number.isFinite(margin) ? (cost * (1 + margin / 100)).toFixed(2) : '';
+
+  useEffect(() => {
+    if (pricingMode === 'automatic' && calculatedSalePrice && Number(calculatedSalePrice) > 0) {
+      const current = form.getValues('base_price');
+      const next = Number(calculatedSalePrice);
+      if (current !== next) {
+        form.setValue('base_price', next, { shouldValidate: true });
+      }
+    }
+  }, [pricingMode, calculatedSalePrice, form]);
 
   // Convertir brand/warranty/rate a options.
   const brandOptions = useMemo(

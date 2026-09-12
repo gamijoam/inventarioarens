@@ -67,6 +67,13 @@ class TenantSettingController extends Controller
             'settings.company.show_on.guide' => ['sometimes', 'boolean'],
             'settings.company.show_on.report_z' => ['sometimes', 'boolean'],
             'settings.company.show_on.quotation' => ['sometimes', 'boolean'],
+            'settings.ui_preferences' => ['sometimes', 'array'],
+            'settings.ui_preferences.product_form_visibility' => ['sometimes', 'array'],
+            'settings.ui_preferences.product_form_visibility.*' => ['boolean'],
+            'settings.ui_preferences.simple_mode' => ['sometimes', 'array'],
+            'settings.ui_preferences.simple_mode.is_simple_mode' => ['sometimes', 'boolean'],
+            'settings.ui_preferences.simple_mode.visible_routes' => ['sometimes', 'array'],
+            'settings.ui_preferences.simple_mode.visible_routes.*' => ['string'],
         ]);
 
         $setting = $tenant->setting

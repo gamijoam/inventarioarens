@@ -639,4 +639,51 @@ class ProductCatalogApiTest extends TestCase
         $product = Product::where('sku', 'AUTO-EXPLICITO-001')->first();
         $this->assertSame(Product::PRICING_AUTOMATIC, $product->pricing_mode);
     }
+
+    public function test_create_product_in_automatic_mode_fails_validation_if_base_price_and_cost_margin_missing(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+
+        // Caso: cliente oculto base_price, puso pricing_mode automatico pero solo ingreso costo sin margen
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Producto Sin Precio Calculable',
+                'sku' => 'SIN-PRECIO-001',
+                'tracking_type' => 'quantity',
+                'pricing_mode' => Product::PRICING_AUTOMATIC,
+                'last_purchase_cost' => 50.00,
+                // sin base_price y sin profit_margin
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['base_price']);
+    }
+
+    public function test_create_product_in_automatic_mode_calculates_base_price_from_cost_and_margin(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+
+        // Caso: cliente ingreso costo 50 y margen 20% en modo automatico sin especificar base_price
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Producto Con Margen Calculado',
+                'sku' => 'CON-PRECIO-AUTO-001',
+                'tracking_type' => 'quantity',
+                'pricing_mode' => Product::PRICING_AUTOMATIC,
+                'last_purchase_cost' => 50.00,
+                'profit_margin' => 20.00,
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.base_price', 60);
+
+        $product = Product::where('sku', 'CON-PRECIO-AUTO-001')->first();
+        $this->assertEquals(60.00, (float) $product->base_price);
+    }
 }

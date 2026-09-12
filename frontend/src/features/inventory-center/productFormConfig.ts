@@ -172,7 +172,12 @@ export const PRODUCT_FORM_SECTIONS: FormSectionItem[] = [
     id: 'pricing',
     title: '4. Precios',
     fields: [
-      { key: 'base_price', label: 'Precio de venta' },
+      {
+        key: 'base_price',
+        label: 'Precio de venta',
+        required: true,
+        description: 'Obligatorio para facturar y vender en POS/caja',
+      },
       { key: 'pricing_mode', label: 'Modo de precio (Automático vs Manual)' },
       { key: 'last_purchase_cost', label: 'Costo unitario' },
       { key: 'profit_margin', label: 'Recargo sobre costo (%)' },
@@ -204,7 +209,7 @@ export function getStoredProductFormVisibility(tenantId?: number | string | null
     const raw = window.localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...CREATE_PRODUCT_FORM_VISIBILITY, ...parsed, name: true };
+      return { ...CREATE_PRODUCT_FORM_VISIBILITY, ...parsed, name: true, base_price: true };
     }
   } catch {
     // Si falla o está en modo privado, usar defaults
@@ -222,7 +227,7 @@ export function saveStoredProductFormVisibility(
   if (typeof window === 'undefined') return;
   try {
     const key = tenantId ? `${STORAGE_PREFIX}_${tenantId}` : STORAGE_PREFIX;
-    window.localStorage.setItem(key, JSON.stringify({ ...visibility, name: true }));
+    window.localStorage.setItem(key, JSON.stringify({ ...visibility, name: true, base_price: true }));
   } catch {
     // ignorar errores de cuota o modo privado
   }

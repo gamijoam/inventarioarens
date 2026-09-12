@@ -110,7 +110,19 @@ export function useProductForm({
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       // StoreProductSchema ya hace el .transform que limpia vacios.
-      const payload = values;
+      const payload = { ...values } as typeof values & { base_price?: number };
+      if (
+        payload.pricing_mode === 'automatic' &&
+        (payload.base_price === undefined || payload.base_price === null) &&
+        payload.last_purchase_cost !== undefined &&
+        payload.last_purchase_cost !== null
+      ) {
+        const c = Number(payload.last_purchase_cost);
+        const m = Number(payload.profit_margin ?? 25);
+        if (Number.isFinite(c) && Number.isFinite(m)) {
+          payload.base_price = Number((c * (1 + m / 100)).toFixed(2));
+        }
+      }
       let result: unknown;
       if (mode === 'create') {
         result = await create.mutateAsync(payload);
