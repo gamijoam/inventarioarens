@@ -28,10 +28,12 @@ export const CompanySettingsSchema = z.object({
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
 import { type ProductFormVisibility } from '@/features/inventory-center/productFormConfig';
+import { type InventoryTableColumnsVisibility } from '@/features/inventory-center/inventoryColumnsConfig';
 
 export const UiPreferencesSchema = z
   .object({
     product_form_visibility: z.record(z.boolean()).optional(),
+    inventory_table_columns: z.record(z.boolean()).optional(),
     simple_mode: z
       .object({
         is_simple_mode: z.boolean().optional(),
@@ -43,6 +45,7 @@ export const UiPreferencesSchema = z
 
 export type UiPreferences = {
   product_form_visibility?: Partial<ProductFormVisibility> | Record<string, boolean>;
+  inventory_table_columns?: Partial<InventoryTableColumnsVisibility> | Record<string, boolean>;
   simple_mode?: {
     is_simple_mode?: boolean;
     visible_routes?: string[];

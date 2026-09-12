@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, Package, Search, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, Package, Search, SlidersHorizontal, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -32,7 +32,16 @@ import { usePriceLists, useProducts } from '@/features/inventory-center/api';
 import { useWarehouses } from '@/features/inventory-center/api';
 import { useAlertsSummary } from '@/features/inventory-center/api';
 import { useCurrentExchangeRatesForPos } from '@/features/pos/api';
+import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
+import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
+import {
+  DEFAULT_INVENTORY_TABLE_COLUMNS,
+  getStoredInventoryColumnsVisibility,
+  resetStoredInventoryColumnsVisibility,
+  saveStoredInventoryColumnsVisibility,
+  type InventoryTableColumnsVisibility,
+} from '@/features/inventory-center/inventoryColumnsConfig';
 import { BulkActionsMenu } from '@/features/inventory-center/bulk-actions/BulkActionsMenu';
 import { useExportProducts } from '@/features/inventory-center/useExportProducts';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
@@ -159,6 +168,44 @@ function InventoryListPage() {
     void navigate({ search: { ...search, page } });
   };
 
+  const tenantId = useSessionStore((state) => state.tenant?.id);
+  const { data: uiPreferences } = useUiPreferences();
+  const updateUiPreferences = useUpdateUiPreferences();
+  const [columnsVisibility, setColumnsVisibility] = useState<InventoryTableColumnsVisibility>(() =>
+    getStoredInventoryColumnsVisibility(tenantId),
+  );
+  const [customizeColumnsOpen, setCustomizeColumnsOpen] = useState(false);
+
+  useEffect(() => {
+    if (uiPreferences?.inventory_table_columns) {
+      const merged = {
+        ...DEFAULT_INVENTORY_TABLE_COLUMNS,
+        ...uiPreferences.inventory_table_columns,
+        name: true,
+      };
+      saveStoredInventoryColumnsVisibility(merged, tenantId);
+      setColumnsVisibility(merged);
+    }
+  }, [uiPreferences?.inventory_table_columns, tenantId]);
+
+  const handleColumnsVisibilityChange = (newVisibility: InventoryTableColumnsVisibility) => {
+    setColumnsVisibility(newVisibility);
+    saveStoredInventoryColumnsVisibility(newVisibility, tenantId);
+    updateUiPreferences.mutate({
+      ...uiPreferences,
+      inventory_table_columns: newVisibility,
+    });
+  };
+
+  const handleResetColumnsVisibility = () => {
+    const reset = resetStoredInventoryColumnsVisibility(tenantId);
+    setColumnsVisibility(reset);
+    updateUiPreferences.mutate({
+      ...uiPreferences,
+      inventory_table_columns: reset,
+    });
+  };
+
   const columns = useColumns(
     selectedIds,
     setSelectedIds,
@@ -166,6 +213,7 @@ function InventoryListPage() {
     search,
     activeRate?.rate ?? null,
     priceLists,
+    columnsVisibility,
   );
 
   const table = useReactTable({
@@ -185,6 +233,15 @@ function InventoryListPage() {
       description="Listado de productos con stock, precios y estado."
       actions={
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<SlidersHorizontal className="size-4" />}
+            onClick={() => setCustomizeColumnsOpen(true)}
+            data-testid="customize-columns-btn"
+          >
+            Columnas
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -385,6 +442,13 @@ function InventoryListPage() {
       )}
 
       <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CustomizeInventoryColumnsDialog
+        open={customizeColumnsOpen}
+        onOpenChange={setCustomizeColumnsOpen}
+        visibility={columnsVisibility}
+        onChange={handleColumnsVisibilityChange}
+        onReset={handleResetColumnsVisibility}
+      />
     </PageLayout>
   );
 }
@@ -401,199 +465,282 @@ function useColumns(
   search: InventorySearch,
   activeRate: number | null,
   priceLists: PriceList[],
+  columnsVisibility: InventoryTableColumnsVisibility,
 ) {
   const columnHelper = createColumnHelper<Product>();
 
-  return useMemo(
-    () => [
-      columnHelper.display({
-        id: 'select',
-        header: () => (
-          <Checkbox
-            checked={selectedIds.size > 0 && selectedIds.size === data.length}
-            onCheckedChange={(checked) => {
-              if (checked) {
-                setSelectedIds(new Set(data.map((p: Product) => p.id)));
-              } else {
-                setSelectedIds(new Set());
-              }
-            }}
-            aria-label="Seleccionar todo"
-          />
-        ),
-        cell: (info) => (
-          <Checkbox
-            checked={selectedIds.has(info.row.original.id)}
-            onCheckedChange={(checked) => {
-              setSelectedIds((prev) => {
-                const next = new Set(prev);
-                if (checked) next.add(info.row.original.id);
-                else next.delete(info.row.original.id);
-                return next;
-              });
-            }}
-            aria-label={`Seleccionar ${info.row.original.name}`}
-            data-testid={`select-${info.row.original.id}`}
-          />
-        ),
-      }),
-      columnHelper.display({
-        id: 'image',
-        header: () => null,
-        cell: (info) => {
-          const row = info.row.original;
-          const src = row.primary_image_url ?? row.images?.[0]?.thumb_url ?? row.image_url;
-          if (!src) {
-            return (
-              <div className="flex size-10 items-center justify-center rounded border border-border bg-bg text-[10px] text-text-muted">
-                —
-              </div>
-            );
-          }
-          return (
-            <div className="size-10 overflow-hidden rounded border border-border bg-bg">
-              <img
-                src={src}
-                alt={row.name}
-                className="size-full object-cover"
-                loading="lazy"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            </div>
-          );
-        },
-      }),
-      columnHelper.accessor('sku', {
-        header: 'SKU',
-        cell: (info) => (
-          <code className="bg-bg rounded px-1.5 py-0.5 text-xs">{info.getValue()}</code>
-        ),
-      }),
-      columnHelper.accessor('name', {
-        header: 'Nombre',
-        cell: (info) => {
-          const row = info.row.original;
-          const isCopy = !row.is_catalog_master && row.catalog_product_id != null;
-          const masterActive = row.is_catalog_active !== false;
-          return (
-            <div className="flex items-center gap-2">
-              <span className="text-text-primary font-medium">{info.getValue()}</span>
-              {isCopy && (
-                <Badge
-                  variant="info"
-                  className="font-normal"
-                  data-testid={`shared-badge-${row.id}`}
-                >
-                  Compartido
-                </Badge>
-              )}
-              {row.is_catalog_master && (
-                <Badge
-                  variant="warning"
-                  className="font-normal"
-                  data-testid={`master-badge-${row.id}`}
-                >
-                  Maestro
-                </Badge>
-              )}
-              {!masterActive && (
-                <Badge variant="default" className="font-normal">
-                  Inactivo en grupo
-                </Badge>
-              )}
-            </div>
-          );
-        },
-      }),
-      columnHelper.accessor('tracking_type', {
-        header: 'Tipo',
-        cell: (info) => {
-          const t = info.getValue();
-          return (
-            <Badge variant={t === 'serialized' ? 'info' : 'default'}>
-              {t === 'serialized' ? 'Serializado' : 'Cantidad'}
-            </Badge>
-          );
-        },
-      }),
-      columnHelper.accessor(
-        (row) => {
-          // Suma de stock_balances.quantity_available. Si el listado
-          // se filtro por warehouse_id, este campo refleja SOLO ese
-          // almacen. Si el producto no tiene stock en ningun almacen,
-          // el backend retorna 0 y mostramos "Sin stock".
-          const v = row.available_stock;
-          if (v == null) return '0';
-          const n = typeof v === 'string' ? parseFloat(v) : v;
-          return Number.isNaN(n) ? '0' : String(n);
-        },
-        {
-          id: 'stock',
-          header: () => (
-            <span>
-              Stock
-              {search.warehouse_id && (
-                <span className="text-text-muted ml-1 text-[10px] font-normal">(filtrado)</span>
-              )}
-            </span>
-          ),
-          cell: (info) => {
-            const v = info.row.original.available_stock;
-            const n = v == null ? 0 : typeof v === 'string' ? parseFloat(v) : v;
-            return (
-              <span className={cn('tabular-nums', n <= 0 && 'text-text-muted')}>
-                {Number.isFinite(n) ? n.toFixed(0) : '0'}
-              </span>
-            );
-          },
-        },
+  return useMemo(() => {
+    const selectCol = columnHelper.display({
+      id: 'select',
+      header: () => (
+        <Checkbox
+          checked={selectedIds.size > 0 && selectedIds.size === data.length}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              setSelectedIds(new Set(data.map((p: Product) => p.id)));
+            } else {
+              setSelectedIds(new Set());
+            }
+          }}
+          aria-label="Seleccionar todo"
+        />
       ),
-      columnHelper.accessor('base_price', {
-        header: 'Precio base',
-        cell: (info) => formatMoney(info.getValue()),
-      }),
-      columnHelper.display({
-        id: 'price_list',
-        header: 'Lista predeterminada',
-        cell: (info) => (
-          <PriceListCell
-            product={info.row.original}
-            activeRate={activeRate}
-            priceLists={priceLists}
-          />
-        ),
-      }),
-      columnHelper.accessor('is_active', {
-        header: 'Estado',
-        cell: (info) => (
-          <Badge variant={info.getValue() ? 'success' : 'default'}>
-            {info.getValue() ? 'Activo' : 'Inactivo'}
+      cell: (info) => (
+        <Checkbox
+          checked={selectedIds.has(info.row.original.id)}
+          onCheckedChange={(checked) => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              if (checked) next.add(info.row.original.id);
+              else next.delete(info.row.original.id);
+              return next;
+            });
+          }}
+          aria-label={`Seleccionar ${info.row.original.name}`}
+          data-testid={`select-${info.row.original.id}`}
+        />
+      ),
+    });
+
+    const imageCol = columnHelper.display({
+      id: 'image',
+      header: () => null,
+      cell: (info) => {
+        const row = info.row.original;
+        const src = row.primary_image_url ?? row.images?.[0]?.thumb_url ?? row.image_url;
+        if (!src) {
+          return (
+            <div className="flex size-10 items-center justify-center rounded border border-border bg-bg text-[10px] text-text-muted">
+              —
+            </div>
+          );
+        }
+        return (
+          <div className="size-10 overflow-hidden rounded border border-border bg-bg">
+            <img
+              src={src}
+              alt={row.name}
+              className="size-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </div>
+        );
+      },
+    });
+
+    const skuCol = columnHelper.accessor('sku', {
+      id: 'sku',
+      header: 'SKU',
+      cell: (info) => (
+        <code className="bg-bg rounded px-1.5 py-0.5 text-xs">{info.getValue() || '—'}</code>
+      ),
+    });
+
+    const barcodeCol = columnHelper.accessor('barcode', {
+      id: 'barcode',
+      header: 'Código de barras',
+      cell: (info) => {
+        const val = info.getValue();
+        return val ? (
+          <code className="bg-bg rounded px-1.5 py-0.5 text-xs font-mono text-text-primary">
+            {val}
+          </code>
+        ) : (
+          <span className="text-text-muted text-xs">—</span>
+        );
+      },
+    });
+
+    const nameCol = columnHelper.accessor('name', {
+      id: 'name',
+      header: 'Nombre',
+      cell: (info) => {
+        const row = info.row.original;
+        const isCopy = !row.is_catalog_master && row.catalog_product_id != null;
+        const masterActive = row.is_catalog_active !== false;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-text-primary font-medium">{info.getValue()}</span>
+            {isCopy && (
+              <Badge
+                variant="info"
+                className="font-normal"
+                data-testid={`shared-badge-${row.id}`}
+              >
+                Compartido
+              </Badge>
+            )}
+            {row.is_catalog_master && (
+              <Badge
+                variant="warning"
+                className="font-normal"
+                data-testid={`master-badge-${row.id}`}
+              >
+                Maestro
+              </Badge>
+            )}
+            {!masterActive && (
+              <Badge variant="default" className="font-normal">
+                Inactivo en grupo
+              </Badge>
+            )}
+          </div>
+        );
+      },
+    });
+
+    const brandCol = columnHelper.accessor((row) => row.brand?.name ?? '', {
+      id: 'brand',
+      header: 'Marca',
+      cell: (info) => {
+        const val = info.getValue();
+        return val ? (
+          <span className="text-text-primary text-xs">{val}</span>
+        ) : (
+          <span className="text-text-muted text-xs">—</span>
+        );
+      },
+    });
+
+    const categoriesCol = columnHelper.accessor(
+      (row) => row.categories?.map((c) => c.name).join(', ') ?? '',
+      {
+        id: 'categories',
+        header: 'Categorías',
+        cell: (info) => {
+          const val = info.getValue();
+          return val ? (
+            <span
+              className="text-text-primary text-xs truncate max-w-[150px] inline-block"
+              title={val}
+            >
+              {val}
+            </span>
+          ) : (
+            <span className="text-text-muted text-xs">—</span>
+          );
+        },
+      },
+    );
+
+    const trackingTypeCol = columnHelper.accessor('tracking_type', {
+      id: 'tracking_type',
+      header: 'Tipo',
+      cell: (info) => {
+        const t = info.getValue();
+        return (
+          <Badge variant={t === 'serialized' ? 'info' : 'default'}>
+            {t === 'serialized' ? 'Serializado' : 'Cantidad'}
           </Badge>
+        );
+      },
+    });
+
+    const stockCol = columnHelper.accessor(
+      (row) => {
+        // Suma de stock_balances.quantity_available. Si el listado
+        // se filtro por warehouse_id, este campo refleja SOLO ese
+        // almacen. Si el producto no tiene stock en ningun almacen,
+        // el backend retorna 0 y mostramos "Sin stock".
+        const v = row.available_stock;
+        if (v == null) return '0';
+        const n = typeof v === 'string' ? parseFloat(v) : v;
+        return Number.isNaN(n) ? '0' : String(n);
+      },
+      {
+        id: 'stock',
+        header: () => (
+          <span>
+            Stock
+            {search.warehouse_id && (
+              <span className="text-text-muted ml-1 text-[10px] font-normal">(filtrado)</span>
+            )}
+          </span>
         ),
-      }),
-      columnHelper.display({
-        id: 'actions',
-        header: '',
-        cell: (info) => (
-          <Link
-            to="/inventory/$productId"
-            params={{ productId: String(info.row.original.id) }}
-            className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
-            data-testid={`inventory-view-${info.row.original.id}`}
-          >
-            <Eye className="size-3.5" aria-hidden="true" />
-            Ver
-          </Link>
-        ),
-      }),
-    ],
-    // selectedIds y setSelectedIds se incluyen como deps intencionalmente:
-    // cambian cuando el user selecciona/deselecciona filas y la tabla
-    // debe re-renderizar los checkboxes de cada fila.
-    [columnHelper, selectedIds, setSelectedIds, data, search.warehouse_id, activeRate, priceLists],
-  );
+        cell: (info) => {
+          const v = info.row.original.available_stock;
+          const n = v == null ? 0 : typeof v === 'string' ? parseFloat(v) : v;
+          return (
+            <span className={cn('tabular-nums', n <= 0 && 'text-text-muted')}>
+              {Number.isFinite(n) ? n.toFixed(0) : '0'}
+            </span>
+          );
+        },
+      },
+    );
+
+    const basePriceCol = columnHelper.accessor('base_price', {
+      id: 'base_price',
+      header: 'Precio base',
+      cell: (info) => formatMoney(info.getValue()),
+    });
+
+    const priceListCol = columnHelper.display({
+      id: 'price_list',
+      header: 'Lista predeterminada',
+      cell: (info) => (
+        <PriceListCell
+          product={info.row.original}
+          activeRate={activeRate}
+          priceLists={priceLists}
+        />
+      ),
+    });
+
+    const isActiveCol = columnHelper.accessor('is_active', {
+      id: 'is_active',
+      header: 'Estado',
+      cell: (info) => (
+        <Badge variant={info.getValue() ? 'success' : 'default'}>
+          {info.getValue() ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    });
+
+    const actionsCol = columnHelper.display({
+      id: 'actions',
+      header: '',
+      cell: (info) => (
+        <Link
+          to="/inventory/$productId"
+          params={{ productId: String(info.row.original.id) }}
+          className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
+          data-testid={`inventory-view-${info.row.original.id}`}
+        >
+          <Eye className="size-3.5" aria-hidden="true" />
+          Ver
+        </Link>
+      ),
+    });
+
+    return [
+      selectCol,
+      ...(columnsVisibility.image ? [imageCol] : []),
+      ...(columnsVisibility.sku ? [skuCol] : []),
+      ...(columnsVisibility.barcode ? [barcodeCol] : []),
+      nameCol,
+      ...(columnsVisibility.brand ? [brandCol] : []),
+      ...(columnsVisibility.categories ? [categoriesCol] : []),
+      ...(columnsVisibility.tracking_type ? [trackingTypeCol] : []),
+      ...(columnsVisibility.stock ? [stockCol] : []),
+      ...(columnsVisibility.base_price ? [basePriceCol] : []),
+      ...(columnsVisibility.price_list ? [priceListCol] : []),
+      ...(columnsVisibility.is_active ? [isActiveCol] : []),
+      actionsCol,
+    ];
+  }, [
+    columnHelper,
+    selectedIds,
+    setSelectedIds,
+    data,
+    search.warehouse_id,
+    activeRate,
+    priceLists,
+    columnsVisibility,
+  ]);
 }
 
 function InventoryKpis({

@@ -70,6 +70,8 @@ class TenantSettingController extends Controller
             'settings.ui_preferences' => ['sometimes', 'array'],
             'settings.ui_preferences.product_form_visibility' => ['sometimes', 'array'],
             'settings.ui_preferences.product_form_visibility.*' => ['boolean'],
+            'settings.ui_preferences.inventory_table_columns' => ['sometimes', 'array'],
+            'settings.ui_preferences.inventory_table_columns.*' => ['boolean'],
             'settings.ui_preferences.simple_mode' => ['sometimes', 'array'],
             'settings.ui_preferences.simple_mode.is_simple_mode' => ['sometimes', 'boolean'],
             'settings.ui_preferences.simple_mode.visible_routes' => ['sometimes', 'array'],
