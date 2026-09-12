@@ -199,6 +199,43 @@ class TenantSettingApiTest extends TestCase
             ->assertJsonPath('data.settings.ui_preferences.simple_mode.visible_routes', ['/dashboard', '/inventory']);
     }
 
+    public function test_member_can_update_and_persist_inventory_table_columns(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Repuestos', 'slug' => 'empresa-repuestos']);
+        $user = $this->member($tenant);
+
+        $tableColumns = [
+            'image' => false,
+            'name' => true,
+            'sku' => false,
+            'barcode' => true,
+            'stock' => true,
+            'base_price' => true,
+            'price_list' => false,
+            'is_active' => true,
+        ];
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson('/api/tenant-settings', [
+                'settings' => [
+                    'ui_preferences' => [
+                        'inventory_table_columns' => $tableColumns,
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.ui_preferences.inventory_table_columns.barcode', true)
+            ->assertJsonPath('data.settings.ui_preferences.inventory_table_columns.sku', false)
+            ->assertJsonPath('data.settings.ui_preferences.inventory_table_columns.image', false);
+
+        $stored = json_decode((string) DB::table('tenant_settings')->where('tenant_id', $tenant->id)->value('settings'), true);
+        $this->assertArrayHasKey('inventory_table_columns', $stored['ui_preferences']);
+        $this->assertSame(false, $stored['ui_preferences']['inventory_table_columns']['sku']);
+        $this->assertSame(true, $stored['ui_preferences']['inventory_table_columns']['barcode']);
+    }
+
     private function member(Tenant $tenant): User
     {
         $user = User::factory()->create();
