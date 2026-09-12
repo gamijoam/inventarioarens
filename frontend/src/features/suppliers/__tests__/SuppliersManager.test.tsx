@@ -119,4 +119,22 @@ describe('SuppliersManager', () => {
       expect(screen.getByText('Sin resultados')).toBeInTheDocument();
     });
   });
+
+  it('muestra el placeholder "Distribuidora" en el campo nombre al abrir el diálogo de nuevo proveedor', async () => {
+    const user = userEvent.setup();
+    mockUseSuppliers.mockReturnValue({
+      data: fakeSuppliers,
+      isLoading: false,
+      isFetching: false,
+    });
+
+    render(<SuppliersManager />, { wrapper: makeWrapper() });
+
+    const newBtn = screen.getByRole('button', { name: /nuevo proveedor/i });
+    await user.click(newBtn);
+
+    const nameInput = screen.getByPlaceholderText('Distribuidora');
+    expect(nameInput).toBeInTheDocument();
+  });
 });
+
