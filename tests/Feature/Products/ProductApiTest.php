@@ -912,6 +912,40 @@ class ProductApiTest extends TestCase
         ]);
     }
 
+    public function test_product_index_supports_compound_word_search(): void
+    {
+        $tenant = Tenant::create(['name' => 'Repuestos Demo', 'slug' => 'repuestos-demo']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Catalog Manager', ['products.view']);
+
+        Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Bieleta de carro corsa',
+            'sku' => 'BIE-CORSA-01',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'is_active' => true,
+        ]);
+
+        Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Amortiguador delantero spark',
+            'sku' => 'AMO-SPARK-01',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'is_active' => true,
+        ]);
+
+        // Busqueda compuesta "bieleta corsa" debe encontrar "Bieleta de carro corsa"
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?search=bieleta+corsa')
+            ->assertOk();
+
+        $names = collect($response->json('data'))->pluck('name');
+        $this->assertContains('Bieleta de carro corsa', $names);
+        $this->assertNotContains('Amortiguador delantero spark', $names);
+    }
+
     private function userInTenant(Tenant $tenant): User
     {
         $user = User::factory()->create();
