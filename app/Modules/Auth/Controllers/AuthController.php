@@ -319,13 +319,6 @@ class AuthController extends Controller
                 ->first();
         }
 
-        $host = $request->getHost();
-        if ($host && ! in_array($host, ['localhost', '127.0.0.1'], true)) {
-            return Tenant::query()
-                ->where('domain', $host)
-                ->first();
-        }
-
         return null;
     }
 }
