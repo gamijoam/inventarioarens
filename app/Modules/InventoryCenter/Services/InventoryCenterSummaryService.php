@@ -66,24 +66,30 @@ class InventoryCenterSummaryService
         }
     }
 
+    public const DEFAULT_EXPORT_COLUMNS = [
+        'name',
+        'sku',
+        'tracking_type',
+        'sale_currency',
+        'base_price',
+        'stock_available',
+        'stock_reserved',
+        'stock_damaged',
+        'stock_status',
+    ];
+
     public function exportCsv(array $filters): string
     {
         $startedAt = microtime(true);
         $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
         $handle = fopen('php://temp', 'r+');
 
+        $selectedColumns = $this->resolveExportColumns($filters['columns'] ?? null);
+        $definitions = $this->exportColumnDefinitions();
+
         fwrite($handle, "\xEF\xBB\xBF");
-        fputcsv($handle, [
-            'Producto',
-            'SKU',
-            'Tipo de control',
-            'Moneda',
-            'Precio base',
-            'Disponible',
-            'Reservado',
-            'Dañado',
-            'Estado de stock',
-        ], ';');
+        $headers = array_map(fn (string $col): string => $definitions[$col]['header'], $selectedColumns);
+        fputcsv($handle, $headers, ';');
 
         $rows = PerformanceProbe::measure(
             'InventoryCenter exportar filas',
@@ -93,22 +99,8 @@ class InventoryCenterSummaryService
         );
 
         foreach ($rows as $product) {
-            fputcsv($handle, [
-                $product['name'],
-                $product['sku'],
-                $product['tracking_type'] === Product::TRACKING_SERIALIZED ? 'Serializado / IMEI' : 'Por cantidad',
-                $product['sale_currency'],
-                $product['base_price'] ?? '',
-                $product['stock']['available'],
-                $product['stock']['reserved'],
-                $product['stock']['damaged'],
-                match ($product['stock']['status']) {
-                    'available' => 'Disponible',
-                    'low' => 'Stock bajo',
-                    'out' => 'Sin stock',
-                    default => $product['stock']['status'],
-                },
-            ], ';');
+            $line = array_map(fn (string $col): string => $definitions[$col]['value']($product), $selectedColumns);
+            fputcsv($handle, $line, ';');
         }
 
         rewind($handle);
@@ -117,10 +109,105 @@ class InventoryCenterSummaryService
 
         PerformanceProbe::log('InventoryCenter exportar CSV', $startedAt, 1200, [
             'search' => $filters['search'] ?? null,
+            'columns' => implode(',', $selectedColumns),
             'rows' => count($rows),
         ]);
 
         return $csv === false ? '' : $csv;
+    }
+
+    private function resolveExportColumns(mixed $columnsParam): array
+    {
+        $definitions = $this->exportColumnDefinitions();
+
+        if (empty($columnsParam)) {
+            return self::DEFAULT_EXPORT_COLUMNS;
+        }
+
+        $rawKeys = is_array($columnsParam)
+            ? $columnsParam
+            : explode(',', (string) $columnsParam);
+
+        $selected = [];
+        foreach ($rawKeys as $key) {
+            $cleaned = trim((string) $key);
+            if (isset($definitions[$cleaned]) && ! in_array($cleaned, $selected, true)) {
+                $selected[] = $cleaned;
+            }
+        }
+
+        return ! empty($selected) ? $selected : self::DEFAULT_EXPORT_COLUMNS;
+    }
+
+    private function exportColumnDefinitions(): array
+    {
+        return [
+            'name' => [
+                'header' => 'Producto',
+                'value' => fn (array $p): string => (string) ($p['name'] ?? ''),
+            ],
+            'sku' => [
+                'header' => 'SKU',
+                'value' => fn (array $p): string => (string) ($p['sku'] ?? ''),
+            ],
+            'barcode' => [
+                'header' => 'Código de barras',
+                'value' => fn (array $p): string => (string) ($p['barcode'] ?? ''),
+            ],
+            'tracking_type' => [
+                'header' => 'Tipo de control',
+                'value' => fn (array $p): string => ($p['tracking_type'] ?? '') === Product::TRACKING_SERIALIZED
+                    ? 'Serializado / IMEI'
+                    : 'Por cantidad',
+            ],
+            'sale_currency' => [
+                'header' => 'Moneda',
+                'value' => fn (array $p): string => (string) ($p['sale_currency'] ?? 'USD'),
+            ],
+            'base_price' => [
+                'header' => 'Precio base',
+                'value' => fn (array $p): string => $p['base_price'] !== null ? (string) $p['base_price'] : '',
+            ],
+            'stock_available' => [
+                'header' => 'Disponible',
+                'value' => fn (array $p): string => (string) ($p['stock']['available'] ?? 0),
+            ],
+            'stock_reserved' => [
+                'header' => 'Reservado',
+                'value' => fn (array $p): string => (string) ($p['stock']['reserved'] ?? 0),
+            ],
+            'stock_damaged' => [
+                'header' => 'Dañado',
+                'value' => fn (array $p): string => (string) ($p['stock']['damaged'] ?? 0),
+            ],
+            'stock_status' => [
+                'header' => 'Estado de stock',
+                'value' => fn (array $p): string => match ($p['stock']['status'] ?? '') {
+                    'available' => 'Disponible',
+                    'low' => 'Stock bajo',
+                    'out' => 'Sin stock',
+                    'overstock' => 'Sobrestock',
+                    'critical' => 'Stock crítico',
+                    default => (string) ($p['stock']['status'] ?? ''),
+                },
+            ],
+            'min_stock' => [
+                'header' => 'Stock mínimo',
+                'value' => fn (array $p): string => $p['min_stock'] !== null ? (string) $p['min_stock'] : '',
+            ],
+            'max_stock' => [
+                'header' => 'Stock máximo',
+                'value' => fn (array $p): string => $p['max_stock'] !== null ? (string) $p['max_stock'] : '',
+            ],
+            'average_cost' => [
+                'header' => 'Costo promedio',
+                'value' => fn (array $p): string => $p['average_cost'] !== null ? (string) $p['average_cost'] : '',
+            ],
+            'is_active' => [
+                'header' => 'Estado',
+                'value' => fn (array $p): string => ! empty($p['is_active']) ? 'Activo' : 'Inactivo',
+            ],
+        ];
     }
 
     private function metrics(float $threshold): array
@@ -234,6 +321,8 @@ class InventoryCenterSummaryService
                 'products.id',
                 'products.name',
                 'products.sku',
+                'products.barcode',
+                'products.average_cost',
                 'products.tracking_type',
                 'products.base_price',
                 'products.sale_currency',
@@ -294,6 +383,8 @@ class InventoryCenterSummaryService
             'id' => $product->id,
             'name' => $product->name,
             'sku' => $product->sku,
+            'barcode' => $product->barcode,
+            'average_cost' => $product->average_cost === null ? null : (float) $product->average_cost,
             'tracking_type' => $product->tracking_type,
             'base_price' => $product->base_price === null ? null : (float) $product->base_price,
             'sale_currency' => $product->sale_currency,

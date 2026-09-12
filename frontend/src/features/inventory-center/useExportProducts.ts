@@ -16,13 +16,16 @@ export function useExportProducts() {
   const [isExporting, setIsExporting] = useState(false);
   const qc = useQueryClient();
 
-  const exportCsv = async (filters: InventoryFilters) => {
+  const exportCsv = async (filters: InventoryFilters, columns?: string[]) => {
     setIsExporting(true);
     try {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(filters)) {
         if (value == null || value === '' || value === 'all') continue;
         params.set(key, String(value));
+      }
+      if (columns && columns.length > 0) {
+        params.set('columns', columns.join(','));
       }
       const query = params.toString();
       const url = `/api/inventory-center/export${query ? `?${query}` : ''}`;

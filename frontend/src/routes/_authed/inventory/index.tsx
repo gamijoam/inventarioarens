@@ -35,6 +35,7 @@ import { useCurrentExchangeRatesForPos } from '@/features/pos/api';
 import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
+import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/ExportInventoryDialog';
 import {
   DEFAULT_INVENTORY_TABLE_COLUMNS,
   getStoredInventoryColumnsVisibility,
@@ -175,6 +176,7 @@ function InventoryListPage() {
     getStoredInventoryColumnsVisibility(tenantId),
   );
   const [customizeColumnsOpen, setCustomizeColumnsOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   useEffect(() => {
     if (uiPreferences?.inventory_table_columns) {
@@ -246,7 +248,7 @@ function InventoryListPage() {
             variant="outline"
             size="sm"
             leftIcon={<Download className="size-4" />}
-            onClick={() => exportProducts.exportCsv(filters)}
+            onClick={() => setExportDialogOpen(true)}
             loading={exportProducts.isExporting}
             data-testid="export-csv"
           >
@@ -448,6 +450,12 @@ function InventoryListPage() {
         visibility={columnsVisibility}
         onChange={handleColumnsVisibilityChange}
         onReset={handleResetColumnsVisibility}
+      />
+      <ExportInventoryDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        filters={filters}
+        exportProducts={exportProducts}
       />
     </PageLayout>
   );
