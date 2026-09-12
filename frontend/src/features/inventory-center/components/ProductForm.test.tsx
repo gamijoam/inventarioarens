@@ -171,9 +171,9 @@ describe('<ProductForm>', () => {
 
     // Esenciales visibles
     expect(screen.getByText(/Nombre/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('iPhone 15')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('IPH15-128')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('0194253714750')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Ej. Nombre del producto')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Ej. SKU-001')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Ej. 7501234567890')).toBeInTheDocument();
     expect(screen.getByText('Marca')).toBeInTheDocument();
     expect(screen.getByText('Categorías')).toBeInTheDocument();
     expect(screen.getByText('Precio de venta manual')).toBeInTheDocument();

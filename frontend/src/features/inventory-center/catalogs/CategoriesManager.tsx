@@ -245,7 +245,7 @@ function CategoryFormDialog({
               name="name"
               required
               defaultValue={category?.name ?? ''}
-              placeholder="Electronica"
+              placeholder="Ej. Repuestos, Alimentos, etc."
             />
           </div>
           <div className="space-y-1.5">
@@ -255,7 +255,7 @@ function CategoryFormDialog({
               name="slug"
               required
               defaultValue={category?.slug ?? ''}
-              placeholder="electronica"
+              placeholder="ej. repuestos"
               pattern="[-a-z0-9]+"
             />
           </div>

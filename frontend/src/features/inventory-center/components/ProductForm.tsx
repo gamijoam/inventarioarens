@@ -174,16 +174,16 @@ export function ProductForm({
         <SectionLegend>Identificacion</SectionLegend>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field name="name" label="Nombre" required error={form.formState.errors.name?.message}>
-            <Input {...form.register('name')} placeholder="iPhone 15" />
+            <Input {...form.register('name')} placeholder="Ej. Nombre del producto" />
           </Field>
           {activeVisibility.sku && (
             <Field name="sku" label="SKU" hint="Opcional, único por empresa" error={form.formState.errors.sku?.message}>
-              <Input {...form.register('sku')} placeholder="IPH15-128" />
+              <Input {...form.register('sku')} placeholder="Ej. SKU-001" />
             </Field>
           )}
           {activeVisibility.barcode && (
             <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
-              <Input {...form.register('barcode')} placeholder="0194253714750" />
+              <Input {...form.register('barcode')} placeholder="Ej. 7501234567890" />
             </Field>
           )}
           {activeVisibility.image_url && (
@@ -212,12 +212,12 @@ export function ProductForm({
 
         {activeVisibility.description && (
           <Field name="description" label="Descripción corta" error={form.formState.errors.description?.message}>
-            <Textarea {...form.register('description')} rows={2} placeholder="Smartphone Apple" />
+            <Textarea {...form.register('description')} rows={2} placeholder="Ej. Breve descripción o características principales..." />
           </Field>
         )}
         {!compact && activeVisibility.long_description && (
           <Field name="long_description" label="Descripción larga" hint="Hasta 50000 caracteres (HTML permitido)">
-            <Textarea {...form.register('long_description')} rows={4} placeholder="<p>Flagship 2023</p>" />
+            <Textarea {...form.register('long_description')} rows={4} placeholder="Descripción detallada, ficha técnica o especificaciones del producto..." />
           </Field>
         )}
       </fieldset>
