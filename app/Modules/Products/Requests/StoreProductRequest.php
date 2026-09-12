@@ -99,9 +99,17 @@ class StoreProductRequest extends FormRequest
     protected function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
-            if ($this->input('pricing_mode', Product::PRICING_MANUAL) === Product::PRICING_MANUAL
-                && $this->input('base_price') === null) {
+            $pricingMode = $this->input('pricing_mode', Product::PRICING_MANUAL);
+            $basePrice = $this->input('base_price');
+            $cost = $this->input('last_purchase_cost');
+            $margin = $this->input('profit_margin');
+
+            if ($pricingMode === Product::PRICING_MANUAL && $basePrice === null) {
                 $validator->errors()->add('base_price', 'El precio de venta es obligatorio en modo manual.');
+            }
+
+            if ($pricingMode === Product::PRICING_AUTOMATIC && $cost !== null && $basePrice === null && $margin === null) {
+                $validator->errors()->add('base_price', 'El precio de venta es obligatorio si no se especifica costo y margen de ganancia.');
             }
         });
     }

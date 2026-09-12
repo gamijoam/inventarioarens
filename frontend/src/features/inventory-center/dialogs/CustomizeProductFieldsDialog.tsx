@@ -45,7 +45,7 @@ export function CustomizeProductFieldsDialog({
   }, [visibility]);
 
   const handleToggle = (key: keyof ProductFormVisibility, checked: boolean) => {
-    if (key === 'name') return; // El nombre siempre es obligatorio
+    if (key === 'name' || key === 'base_price') return; // Nombre y Precio de venta siempre son obligatorios
     onChange({
       ...visibility,
       [key]: checked,
@@ -107,7 +107,7 @@ export function CustomizeProductFieldsDialog({
                             Obligatorio
                           </Badge>
                         )}
-                        {field.description && !field.required && (
+                        {field.description && (
                           <p className="text-xs text-text-muted">{field.description}</p>
                         )}
                       </div>

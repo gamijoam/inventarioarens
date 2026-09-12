@@ -27,11 +27,34 @@ export const CompanySettingsSchema = z.object({
 
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
+import { type ProductFormVisibility } from '@/features/inventory-center/productFormConfig';
+
+export const UiPreferencesSchema = z
+  .object({
+    product_form_visibility: z.record(z.boolean()).optional(),
+    simple_mode: z
+      .object({
+        is_simple_mode: z.boolean().optional(),
+        visible_routes: z.array(z.string()).optional(),
+      })
+      .optional(),
+  })
+  .optional();
+
+export type UiPreferences = {
+  product_form_visibility?: Partial<ProductFormVisibility> | Record<string, boolean>;
+  simple_mode?: {
+    is_simple_mode?: boolean;
+    visible_routes?: string[];
+  };
+};
+
 export const TenantSettingsSchema = z.object({
   tenant_id: z.number().int(),
   settings: z
     .object({
       company: CompanySettingsSchema.optional(),
+      ui_preferences: UiPreferencesSchema,
     })
     .passthrough(),
 });
@@ -40,6 +63,7 @@ export type TenantSettings = z.infer<typeof TenantSettingsSchema>;
 
 const settingsKeys = {
   all: ['tenant-settings'] as const,
+  uiPreferences: ['tenant-settings', 'ui-preferences'] as const,
 };
 
 export function useCompanySettings() {
@@ -54,6 +78,43 @@ export function useCompanySettings() {
       return parsed.data.settings?.company ?? {};
     },
     staleTime: 30_000,
+  });
+}
+
+export function useUiPreferences() {
+  return useQuery({
+    queryKey: settingsKeys.uiPreferences,
+    queryFn: async () => {
+      const data = await getOne<{ data: unknown }>('/tenant-settings');
+      const parsed = TenantSettingsSchema.safeParse(data?.data ?? data);
+      if (!parsed.success) {
+        return {};
+      }
+      return parsed.data.settings?.ui_preferences ?? {};
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useUpdateUiPreferences() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (uiPreferences: UiPreferences) => {
+      const data = await patchOne<{ settings: { ui_preferences: UiPreferences } }, { data: unknown }>(
+        '/tenant-settings',
+        { settings: { ui_preferences: uiPreferences } },
+      );
+      const parsed = TenantSettingsSchema.safeParse(data?.data ?? data);
+      if (!parsed.success) {
+        throw new Error('Respuesta de configuración inválida');
+      }
+      return parsed.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      queryClient.invalidateQueries({ queryKey: settingsKeys.uiPreferences });
+    },
   });
 }
 

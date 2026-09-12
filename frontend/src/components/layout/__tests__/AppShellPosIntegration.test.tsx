@@ -42,6 +42,10 @@ vi.mock('@/permissions/PermissionContext', () => ({
   }),
 }));
 
+vi.mock('@/features/company-settings/api', () => ({
+  useUiPreferences: () => ({ data: undefined }),
+}));
+
 import { AppShell } from '../AppShell';
 
 describe('<AppShell> POS integration', () => {

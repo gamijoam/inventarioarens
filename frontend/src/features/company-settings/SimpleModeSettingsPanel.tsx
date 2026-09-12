@@ -9,8 +9,10 @@ import { Badge } from '@/components/ui/Badge';
 import {
   useUiModeStore,
   AVAILABLE_SIMPLE_MODE_ITEMS,
+  DEFAULT_VISIBLE_ROUTES,
   type SimpleModeItemConfig,
 } from '@/stores/uiMode';
+import { useUpdateUiPreferences } from './api';
 
 export function SimpleModeSettingsPanel() {
   const isSimpleMode = useUiModeStore((s) => s.isSimpleMode);
@@ -20,17 +22,35 @@ export function SimpleModeSettingsPanel() {
   const toggleModuleGroup = useUiModeStore((s) => s.toggleModuleGroup);
   const setVisibleRoutes = useUiModeStore((s) => s.setVisibleRoutes);
   const resetToDefaults = useUiModeStore((s) => s.resetToDefaults);
+  const updateUiPreferences = useUpdateUiPreferences();
 
   const handleToggleMode = () => {
+    const nextMode = !isSimpleMode;
     toggleSimpleMode();
+    updateUiPreferences.mutate({
+      simple_mode: {
+        is_simple_mode: nextMode,
+        visible_routes: visibleRoutes,
+      },
+    });
     toast.success(
-      !isSimpleMode ? 'Modo Fácil activado' : 'Modo Completo activado (todas las opciones visibles)',
+      nextMode ? 'Modo Fácil activado' : 'Modo Completo activado (todas las opciones visibles)',
     );
   };
 
   const handleToggleRoute = (route: string, label: string) => {
     toggleRoute(route);
     const willBeVisible = !visibleRoutes.includes(route);
+    const nextRoutes = willBeVisible
+      ? [...visibleRoutes, route]
+      : visibleRoutes.filter((r) => r !== route);
+
+    updateUiPreferences.mutate({
+      simple_mode: {
+        is_simple_mode: isSimpleMode,
+        visible_routes: nextRoutes,
+      },
+    });
     toast.info(`${label}: ${willBeVisible ? 'visible en menú' : 'oculto del menú'}`);
   };
 
@@ -40,6 +60,13 @@ export function SimpleModeSettingsPanel() {
       Boolean(item.children?.some((c) => visibleRoutes.includes(c.to)));
 
     toggleModuleGroup(item.to, !isAnyActive);
+    const updatedRoutes = useUiModeStore.getState().visibleRoutes;
+    updateUiPreferences.mutate({
+      simple_mode: {
+        is_simple_mode: isSimpleMode,
+        visible_routes: updatedRoutes,
+      },
+    });
     toast.info(
       !isAnyActive
         ? `Módulo ${item.label} y sus submódulos activados`
@@ -58,11 +85,23 @@ export function SimpleModeSettingsPanel() {
       }
     });
     setVisibleRoutes(allRoutes);
+    updateUiPreferences.mutate({
+      simple_mode: {
+        is_simple_mode: isSimpleMode,
+        visible_routes: allRoutes,
+      },
+    });
     toast.success('Todos los módulos y submódulos seleccionados');
   };
 
   const handleResetDefaults = () => {
     resetToDefaults();
+    updateUiPreferences.mutate({
+      simple_mode: {
+        is_simple_mode: true,
+        visible_routes: DEFAULT_VISIBLE_ROUTES,
+      },
+    });
     toast.success('Configuración recomendada para repuestos restablecida');
   };
 

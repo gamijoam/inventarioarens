@@ -133,6 +133,72 @@ class TenantSettingApiTest extends TestCase
         $this->assertArrayNotHasKey('whitelist', $stored['telegram'] ?? []);
     }
 
+    public function test_member_can_update_and_persist_ui_preferences(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Repuestos', 'slug' => 'empresa-repuestos']);
+        $user = $this->member($tenant);
+
+        $uiPreferences = [
+            'product_form_visibility' => [
+                'name' => true,
+                'sku' => true,
+                'barcode' => false,
+                'base_price' => true,
+                'last_purchase_cost' => false,
+            ],
+            'simple_mode' => [
+                'is_simple_mode' => true,
+                'visible_routes' => ['/dashboard', '/pos', '/inventory'],
+            ],
+        ];
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson('/api/tenant-settings', [
+                'settings' => [
+                    'ui_preferences' => $uiPreferences,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.settings.ui_preferences.product_form_visibility.name', true)
+            ->assertJsonPath('data.settings.ui_preferences.product_form_visibility.barcode', false)
+            ->assertJsonPath('data.settings.ui_preferences.simple_mode.is_simple_mode', true)
+            ->assertJsonPath('data.settings.ui_preferences.simple_mode.visible_routes', ['/dashboard', '/pos', '/inventory']);
+
+        $stored = json_decode((string) DB::table('tenant_settings')->where('tenant_id', $tenant->id)->value('settings'), true);
+        $this->assertArrayHasKey('ui_preferences', $stored);
+        $this->assertSame(false, $stored['ui_preferences']['product_form_visibility']['barcode']);
+        $this->assertSame(true, $stored['ui_preferences']['simple_mode']['is_simple_mode']);
+        $this->assertSame(['/dashboard', '/pos', '/inventory'], $stored['ui_preferences']['simple_mode']['visible_routes']);
+    }
+
+    public function test_reading_tenant_settings_includes_ui_preferences(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Repuestos', 'slug' => 'empresa-repuestos']);
+        $user = $this->member($tenant);
+
+        DB::table('tenant_settings')->updateOrInsert(
+            ['tenant_id' => $tenant->id],
+            ['settings' => json_encode([
+                'ui_preferences' => [
+                    'simple_mode' => [
+                        'is_simple_mode' => true,
+                        'visible_routes' => ['/dashboard', '/inventory'],
+                    ],
+                ],
+            ])]
+        );
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/tenant-settings')
+            ->assertOk()
+            ->assertJsonPath('data.settings.ui_preferences.simple_mode.is_simple_mode', true)
+            ->assertJsonPath('data.settings.ui_preferences.simple_mode.visible_routes', ['/dashboard', '/inventory']);
+    }
+
     private function member(Tenant $tenant): User
     {
         $user = User::factory()->create();

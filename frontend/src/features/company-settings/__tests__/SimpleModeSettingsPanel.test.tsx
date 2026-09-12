@@ -1,8 +1,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { useUiModeStore, DEFAULT_VISIBLE_ROUTES } from '@/stores/uiMode';
 import { SimpleModeSettingsPanel } from '../SimpleModeSettingsPanel';
+
+function renderWithClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 describe('<SimpleModeSettingsPanel>', () => {
   beforeEach(() => {
@@ -11,7 +22,7 @@ describe('<SimpleModeSettingsPanel>', () => {
   });
 
   it('muestra el interruptor principal y su estado actual', () => {
-    render(<SimpleModeSettingsPanel />);
+    renderWithClient(<SimpleModeSettingsPanel />);
 
     const switchEl = screen.getByRole('switch', { name: /activar modo fácil/i });
     expect(switchEl).toBeInTheDocument();
@@ -19,7 +30,7 @@ describe('<SimpleModeSettingsPanel>', () => {
   });
 
   it('permite activar y desactivar el modo fácil mediante el interruptor', () => {
-    render(<SimpleModeSettingsPanel />);
+    renderWithClient(<SimpleModeSettingsPanel />);
 
     const switchEl = screen.getByRole('switch', { name: /activar modo fácil/i });
     fireEvent.click(switchEl);
@@ -31,7 +42,7 @@ describe('<SimpleModeSettingsPanel>', () => {
   });
 
   it('renderiza la lista de módulos y permite marcar y desmarcar', () => {
-    render(<SimpleModeSettingsPanel />);
+    renderWithClient(<SimpleModeSettingsPanel />);
 
     // El checkbox de Proveedores arranca desmarcado por defecto
     const suppliersCheckbox = screen.getByRole('checkbox', { name: /proveedores/i });
@@ -51,7 +62,7 @@ describe('<SimpleModeSettingsPanel>', () => {
   });
 
   it('renderiza submódulos de Inventario incluyendo Tipos de tasa y Catálogos', () => {
-    render(<SimpleModeSettingsPanel />);
+    renderWithClient(<SimpleModeSettingsPanel />);
 
     // Verifica que existan los submódulos específicos de inventario
     expect(screen.getByRole('checkbox', { name: /tipos de tasa/i })).toBeInTheDocument();
@@ -80,7 +91,7 @@ describe('<SimpleModeSettingsPanel>', () => {
   });
 
   it('permite activar y desactivar un grupo completo (ej: Inventario) con sus submódulos', () => {
-    render(<SimpleModeSettingsPanel />);
+    renderWithClient(<SimpleModeSettingsPanel />);
 
     // El checkbox padre de Inventario
     const inventoryParentCheckbox = screen.getByRole('checkbox', { name: /^inventario$/i });
@@ -100,7 +111,7 @@ describe('<SimpleModeSettingsPanel>', () => {
 
   it('botón de restablecer restaura la configuración recomendada', () => {
     useUiModeStore.getState().setVisibleRoutes(['/dashboard']);
-    render(<SimpleModeSettingsPanel />);
+    renderWithClient(<SimpleModeSettingsPanel />);
 
     const resetBtn = screen.getByRole('button', { name: /restablecer recomendados/i });
     fireEvent.click(resetBtn);

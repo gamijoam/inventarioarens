@@ -310,6 +310,7 @@ interface UiModeState {
   toggleModuleGroup: (parentTo: string, enabled: boolean) => void;
   setVisibleRoutes: (routes: string[]) => void;
   resetToDefaults: () => void;
+  syncFromPreferences: (prefs: { is_simple_mode?: boolean; visible_routes?: string[] }) => void;
 }
 
 export const useUiModeStore = create<UiModeState>()(
@@ -319,6 +320,14 @@ export const useUiModeStore = create<UiModeState>()(
       visibleRoutes: DEFAULT_VISIBLE_ROUTES,
       toggleSimpleMode: () => set((state) => ({ isSimpleMode: !state.isSimpleMode })),
       setSimpleMode: (simple: boolean) => set({ isSimpleMode: simple }),
+      syncFromPreferences: (prefs) =>
+        set((state) => ({
+          isSimpleMode: prefs.is_simple_mode !== undefined ? prefs.is_simple_mode : state.isSimpleMode,
+          visibleRoutes:
+            Array.isArray(prefs.visible_routes) && prefs.visible_routes.length > 0
+              ? prefs.visible_routes
+              : state.visibleRoutes,
+        })),
       toggleRoute: (route: string) =>
         set((state) => {
           const exists = state.visibleRoutes.includes(route);

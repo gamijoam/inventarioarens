@@ -72,4 +72,14 @@ describe('useUiModeStore (Modo Fácil personalizado)', () => {
     useUiModeStore.getState().resetToDefaults();
     expect(useUiModeStore.getState().visibleRoutes).toEqual(DEFAULT_VISIBLE_ROUTES);
   });
+
+  it('sincroniza el estado desde preferencias de la base de datos (syncFromPreferences)', () => {
+    useUiModeStore.getState().syncFromPreferences({
+      is_simple_mode: false,
+      visible_routes: ['/dashboard', '/pos'],
+    });
+
+    expect(useUiModeStore.getState().isSimpleMode).toBe(false);
+    expect(useUiModeStore.getState().visibleRoutes).toEqual(['/dashboard', '/pos']);
+  });
 });
