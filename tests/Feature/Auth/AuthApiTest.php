@@ -588,4 +588,27 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('data.tenant.slug', 'beta-corp')
             ->assertJsonPath('data.user.email', 'legacy@example.test');
     }
+
+    public function test_login_does_not_infer_tenant_from_request_host_domain(): void
+    {
+        $tenantA = Tenant::create(['name' => 'Balanza Pro', 'slug' => 'balanzapro', 'domain' => 'app.balanzapro.com']);
+        $tenantB = Tenant::create(['name' => 'Demo', 'slug' => 'demo']);
+        $user = User::factory()->create([
+            'email' => 'admin@balanzapro.com',
+            'password' => 'secret123',
+        ]);
+        $user->tenants()->attach($tenantA, ['status' => 'active']);
+        $user->tenants()->attach($tenantB, ['status' => 'active']);
+
+        $this
+            ->withServerVariables(['HTTP_HOST' => 'app.balanzapro.com'])
+            ->postJson('http://app.balanzapro.com/api/auth/login', [
+                'email' => 'admin@balanzapro.com',
+                'password' => 'secret123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.requires_tenant_selection', true)
+            ->assertJsonCount(2, 'data.tenants');
+    }
 }
+
