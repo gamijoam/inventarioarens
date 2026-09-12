@@ -202,10 +202,10 @@ function BrandFormDialog({
           className="space-y-3"
         >
           <Field label="Nombre" required error={form.formState.errors.name?.message}>
-            <Input {...form.register('name')} placeholder="Apple" />
+            <Input {...form.register('name')} placeholder="Ej. Bosch, Toyota, Samsung..." />
           </Field>
           <Field label="Slug" required hint="Identificador URL-safe" error={form.formState.errors.slug?.message}>
-            <Input {...form.register('slug')} placeholder="apple" />
+            <Input {...form.register('slug')} placeholder="ej. mi-marca" />
           </Field>
           <Field label="Descripcion" error={form.formState.errors.description?.message}>
             <Textarea {...form.register('description')} rows={2} />
