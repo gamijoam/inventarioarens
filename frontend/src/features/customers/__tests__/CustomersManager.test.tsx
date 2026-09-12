@@ -116,4 +116,21 @@ describe('CustomersManager', () => {
       expect(screen.getByText('Sin resultados')).toBeInTheDocument();
     });
   });
+
+  it('muestra el placeholder "Nombre del cliente" en el campo nombre al abrir el diálogo de nuevo cliente', async () => {
+    const user = userEvent.setup();
+    mockUseCustomers.mockReturnValue({
+      data: fakeCustomers,
+      isLoading: false,
+      isFetching: false,
+    });
+
+    render(<CustomersManager />, { wrapper: makeWrapper() });
+
+    const newBtn = screen.getByRole('button', { name: /nuevo cliente/i });
+    await user.click(newBtn);
+
+    const nameInput = screen.getByPlaceholderText('Nombre del cliente');
+    expect(nameInput).toBeInTheDocument();
+  });
 });
