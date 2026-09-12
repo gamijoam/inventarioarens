@@ -77,8 +77,8 @@ export function PaymentMethodsSetup() {
         </Button>
       }
     >
-      <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        <Card>
+      <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)] min-w-0">
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Plus className="size-4" /> Nuevo metodo
@@ -248,7 +248,7 @@ export function PaymentMethodsSetup() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="size-4" /> Disponibles en POS
@@ -257,7 +257,7 @@ export function PaymentMethodsSetup() {
               Estos botones aparecen en F2 dentro del POS, ordenados por prioridad.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0 p-3 sm:p-4">
             {isLoading ? (
               <div className="border-border text-text-muted flex items-center gap-2 rounded border p-3 text-sm">
                 <Loader2 className="size-4 animate-spin" /> Cargando metodos
@@ -268,7 +268,7 @@ export function PaymentMethodsSetup() {
                 vas a cobrar en bolivares.
               </div>
             ) : (
-              <div className="divide-border border-border divide-y rounded border">
+              <div className="divide-border border-border divide-y rounded-lg border bg-surface min-w-0">
                 {sortedMethods.map((method) => (
                   <PaymentMethodRow
                     key={method.id}
@@ -299,69 +299,87 @@ function PaymentMethodRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="grid gap-3 p-3 lg:grid-cols-[minmax(160px,1fr)_150px_150px_minmax(180px,1fr)_120px_40px] lg:items-center">
-      <div className="min-w-0">
-        <p className="truncate font-medium">{method.name}</p>
-        <p className="text-text-muted font-mono text-xs">{method.code}</p>
+    <div className="p-3.5 space-y-2.5 transition-colors hover:bg-bg/40 min-w-0">
+      {/* Fila principal: Nombre, Código, Badges y Acciones */}
+      <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="font-semibold text-text text-sm sm:text-base tracking-tight">
+            {method.name}
+          </span>
+          <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-bg text-text-muted border border-border">
+            {method.code}
+          </span>
+          <Badge variant={method.is_active === false ? 'default' : 'success'}>
+            {method.is_active === false ? 'inactivo' : methodLabel(method.method)}
+          </Badge>
+          <Badge variant="info">{currencyLabel(method.currency_mode)}</Badge>
+        </div>
+
+        <Can I={PERMISSIONS.PAYMENT_METHODS_UPDATE} fallback={null}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="text-text-muted hover:text-danger hover:bg-danger/10 shrink-0 ml-auto"
+            disabled={busy}
+            onClick={onDelete}
+            aria-label={`Eliminar metodo ${method.name}`}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </Can>
       </div>
-      <Badge variant={method.is_active === false ? 'default' : 'success'}>
-        {method.is_active === false ? 'inactivo' : methodLabel(method.method)}
-      </Badge>
-      <Badge variant="info">{currencyLabel(method.currency_mode)}</Badge>
-      <div className="space-y-1">
-        <Input
-          defaultValue={method.report_label ?? ''}
-          onBlur={(event) => onPatch({ report_label: event.target.value || null })}
-          placeholder="Etiqueta reporte"
-          aria-label={`Etiqueta de reporte para ${method.name}`}
-        />
-        <div className="flex gap-1">
+
+      {/* Fila secundaria: Configuración de reporte y Toggles */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-border/40 min-w-0">
+        {/* Entradas de reporte */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 min-w-[240px]">
+          <Input
+            defaultValue={method.report_label ?? ''}
+            onBlur={(event) => onPatch({ report_label: event.target.value || null })}
+            placeholder="Etiqueta reporte"
+            aria-label={`Etiqueta de reporte para ${method.name}`}
+            className="h-8 text-xs flex-1 min-w-[110px]"
+          />
           <Input
             defaultValue={method.report_code ?? ''}
             onBlur={(event) => onPatch({ report_code: event.target.value.toUpperCase() || null })}
-            placeholder="Codigo"
+            placeholder="Código"
             aria-label={`Codigo de reporte para ${method.name}`}
+            className="h-8 text-xs w-24 font-mono shrink-0"
           />
           <Input
             type="number"
             min="0"
             defaultValue={method.report_sort_order ?? 0}
             onBlur={(event) => onPatch({ report_sort_order: Number(event.target.value || 0) })}
+            placeholder="Orden"
             aria-label={`Orden de reporte para ${method.name}`}
+            className="h-8 text-xs w-16 shrink-0"
+          />
+        </div>
+
+        {/* Toggles */}
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <ToggleLine
+            small
+            label="Ref."
+            checked={Boolean(method.requires_reference)}
+            onChange={(checked) => onPatch({ requires_reference: checked })}
+          />
+          <ToggleLine
+            small
+            label="Activo"
+            checked={method.is_active !== false}
+            onChange={(checked) => onPatch({ is_active: checked })}
+          />
+          <ToggleLine
+            small
+            label="Reporte"
+            checked={method.report_visible !== false}
+            onChange={(checked) => onPatch({ report_visible: checked })}
           />
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <ToggleLine
-          small
-          label="Ref."
-          checked={Boolean(method.requires_reference)}
-          onChange={(checked) => onPatch({ requires_reference: checked })}
-        />
-        <ToggleLine
-          small
-          label="Activo"
-          checked={method.is_active !== false}
-          onChange={(checked) => onPatch({ is_active: checked })}
-        />
-        <ToggleLine
-          small
-          label="Reporte"
-          checked={method.report_visible !== false}
-          onChange={(checked) => onPatch({ report_visible: checked })}
-        />
-      </div>
-      <Can I={PERMISSIONS.PAYMENT_METHODS_UPDATE} fallback={null}>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={onDelete}
-          aria-label="Eliminar metodo"
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      </Can>
     </div>
   );
 }
@@ -378,9 +396,15 @@ function ToggleLine({
   small?: boolean;
 }) {
   return (
-    <label className="border-border flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm">
-      <span className={small ? 'text-text-muted text-xs' : ''}>{label}</span>
-      <Switch checked={checked} onCheckedChange={onChange} />
+    <label
+      className={`border-border flex items-center justify-between rounded border cursor-pointer select-none transition-colors ${
+        small
+          ? 'bg-bg/40 hover:bg-bg gap-2 px-2.5 py-1 text-xs'
+          : 'px-3 py-2 text-sm gap-3'
+      }`}
+    >
+      <span className={small ? 'text-text-muted text-xs whitespace-nowrap' : ''}>{label}</span>
+      <Switch checked={checked} onCheckedChange={onChange} className={small ? 'scale-90 origin-right' : ''} />
     </label>
   );
 }
