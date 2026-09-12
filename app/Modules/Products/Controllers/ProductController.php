@@ -76,10 +76,31 @@ class ProductController extends Controller
         }
 
         if ($search !== '') {
-            $query->where(function ($q) use ($normalizedSearch): void {
-                $q->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
-                    ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"])
-                    ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$normalizedSearch}%"]);
+            $tokens = array_values(array_filter(
+                preg_split('/\s+/', $normalizedSearch),
+                fn ($token) => mb_strlen($token) > 0
+            ));
+
+            $query->where(function ($q) use ($normalizedSearch, $tokens): void {
+                $q->where(function ($sub) use ($normalizedSearch): void {
+                    $sub->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
+                        ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"])
+                        ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$normalizedSearch}%"])
+                        ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ["%{$normalizedSearch}%"]);
+                });
+
+                if (count($tokens) > 1) {
+                    $q->orWhere(function ($sub) use ($tokens): void {
+                        foreach ($tokens as $token) {
+                            $sub->where(function ($tokenQuery) use ($token): void {
+                                $tokenQuery->whereRaw('LOWER(name) LIKE ?', ["%{$token}%"])
+                                    ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$token}%"])
+                                    ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$token}%"])
+                                    ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ["%{$token}%"]);
+                            });
+                        }
+                    });
+                }
             });
 
             $query->orderByRaw(

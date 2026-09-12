@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, Package, Search } from 'lucide-react';
+import { ChevronDown, Download, Eye, Package, Search, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -115,6 +115,18 @@ function InventoryListPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
+  useEffect(() => {
+    setSearchInput(search.search);
+  }, [search.search]);
+
+  useEffect(() => {
+    if (searchInput === search.search) return;
+    const timer = setTimeout(() => {
+      void navigate({ search: { ...search, search: searchInput, page: 1 } });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchInput, search, navigate]);
+
   const filters = useMemo(
     () => ({
       search: search.search,
@@ -140,7 +152,7 @@ function InventoryListPage() {
   const exportProducts = useExportProducts();
 
   const updateSearch = (patch: Partial<InventorySearch>) => {
-    void navigate({ search: { ...search, ...patch, page: 1 } });
+    void navigate({ search: { ...search, search: searchInput, ...patch, page: 1 } });
   };
 
   const goToPage = (page: number) => {
@@ -214,9 +226,22 @@ function InventoryListPage() {
                 if (e.key === 'Enter') updateSearch({ search: searchInput });
               }}
               placeholder="Buscar por SKU o nombre..."
-              className="pl-8"
+              className={cn('pl-8', searchInput && 'pr-8')}
               data-testid="inventory-search"
             />
+            {searchInput ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput('');
+                  void navigate({ search: { ...search, search: '', page: 1 } });
+                }}
+                className="text-text-muted hover:text-text-primary absolute top-1/2 right-2.5 -translate-y-1/2 rounded p-0.5 transition-colors"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="size-4" />
+              </button>
+            ) : null}
           </div>
           <select
             className={selectClass}
