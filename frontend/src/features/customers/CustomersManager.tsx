@@ -3,11 +3,11 @@
  * y paginacion. Patron consistente con los otros managers (Brands,
  * Warehouses, etc.).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -46,9 +46,22 @@ type FormValues = z.input<typeof StoreCustomerSchema>;
 
 export function CustomersManager() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeOnly, setActiveOnly] = useState(true);
-  const { data: customers = [], isLoading } = useCustomers({
-    search: search || undefined,
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const {
+    data: customers = [],
+    isLoading,
+    isFetching,
+  } = useCustomers({
+    search: debouncedSearch || undefined,
     active_only: activeOnly,
   });
   const create = useCreateCustomer();
@@ -57,8 +70,6 @@ export function CustomersManager() {
   const [editing, setEditing] = useState<Customer | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Customer | null>(null);
-
-  if (isLoading) return <Skeleton className="h-32 w-full" />;
 
   return (
     <>
@@ -69,8 +80,18 @@ export function CustomersManager() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o documento..."
-            className="pl-9"
+            className="pl-9 pr-8"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text cursor-pointer p-0.5 rounded"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Switch
@@ -85,17 +106,19 @@ export function CustomersManager() {
         </Button>
       </div>
 
-      {customers.length === 0 ? (
+      {isLoading && customers.length === 0 ? (
+        <Skeleton className="h-32 w-full" />
+      ) : customers.length === 0 ? (
         <EmptyState
-          title={search ? 'Sin resultados' : 'Sin clientes'}
+          title={debouncedSearch ? 'Sin resultados' : 'Sin clientes'}
           description={
-            search
+            debouncedSearch
               ? 'Ningun cliente coincide con la busqueda.'
               : 'Crea el primer cliente para poder registrarlo en ventas y CxC.'
           }
         />
       ) : (
-        <div className="rounded-lg border border-border bg-surface">
+        <div className={`rounded-lg border border-border bg-surface ${isFetching ? 'opacity-70 transition-opacity' : ''}`}>
           <table className="w-full table-dense">
             <thead className="border-b border-border bg-bg/60 text-left">
               <tr>
