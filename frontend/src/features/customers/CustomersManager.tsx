@@ -265,7 +265,7 @@ function FormDialog({
         </DialogHeader>
         <form onSubmit={form.handleSubmit((values) => void onSubmit(values))} className="space-y-3">
           <Field label="Nombre" required error={form.formState.errors.name?.message}>
-            <Input {...form.register('name')} placeholder="Juan Perez" />
+            <Input {...form.register('name')} placeholder="Nombre del cliente" />
           </Field>
           <div className="grid grid-cols-3 gap-2">
             <Field label="Tipo" required error={form.formState.errors.document_type?.message}>
