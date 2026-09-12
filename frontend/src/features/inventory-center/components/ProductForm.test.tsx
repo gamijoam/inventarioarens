@@ -6,6 +6,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 
 import { ProductForm } from './ProductForm';
 import { type StoreProductInput, type StoreProductValues } from '../schemas';
+import { CREATE_PRODUCT_FORM_VISIBILITY } from '../productFormConfig';
 
 vi.mock('@/features/inventory-center/lookups', () => ({
   useBrands: () => ({ data: [] }),
@@ -150,5 +151,74 @@ describe('<ProductForm>', () => {
     );
     // El Button en estado loading muestra un Spinner (svg con class animate-spin).
     expect(container.querySelector('svg.animate-spin')).toBeInTheDocument();
+  });
+
+  it('respeta CREATE_PRODUCT_FORM_VISIBILITY ocultando campos no esenciales', () => {
+    const form = makeForm();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductForm
+          form={form}
+          tagOptions={[]}
+          onSubmit={() => undefined}
+          isSubmitting={false}
+          submitLabel="Crear producto"
+          visibility={CREATE_PRODUCT_FORM_VISIBILITY}
+          showAdvancedToggle
+        />
+      </QueryClientProvider>,
+    );
+
+    // Esenciales visibles
+    expect(screen.getByText(/Nombre/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('iPhone 15')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('IPH15-128')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('0194253714750')).toBeInTheDocument();
+    expect(screen.getByText('Marca')).toBeInTheDocument();
+    expect(screen.getByText('Categorías')).toBeInTheDocument();
+    expect(screen.getByText('Precio de venta manual')).toBeInTheDocument();
+
+    // No esenciales ocultos
+    expect(screen.queryByText('Tags')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Descripción larga/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Stock mínimo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Garantía y estado')).not.toBeInTheDocument();
+
+    // Botón de toggle presente
+    expect(screen.getByTestId('toggle-advanced-product-fields')).toBeInTheDocument();
+    expect(screen.getByText('+ Mostrar más campos (avanzado)')).toBeInTheDocument();
+  });
+
+  it('permite desplegar y volver a ocultar los campos avanzados con el toggle', async () => {
+    const user = userEvent.setup();
+    const form = makeForm();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductForm
+          form={form}
+          tagOptions={[]}
+          onSubmit={() => undefined}
+          isSubmitting={false}
+          submitLabel="Crear producto"
+          visibility={CREATE_PRODUCT_FORM_VISIBILITY}
+          showAdvancedToggle
+        />
+      </QueryClientProvider>,
+    );
+
+    const toggleBtn = screen.getByTestId('toggle-advanced-product-fields');
+    expect(screen.queryByText('Tags')).not.toBeInTheDocument();
+
+    // Desplegar campos avanzados
+    await user.click(toggleBtn);
+    expect(screen.getByText('Tags')).toBeInTheDocument();
+    expect(screen.getByText('Garantía y estado')).toBeInTheDocument();
+    expect(screen.getByText('− Ocultar campos adicionales')).toBeInTheDocument();
+
+    // Volver a ocultar
+    await user.click(toggleBtn);
+    expect(screen.queryByText('Tags')).not.toBeInTheDocument();
+    expect(screen.queryByText('Garantía y estado')).not.toBeInTheDocument();
+    expect(screen.getByText('+ Mostrar más campos (avanzado)')).toBeInTheDocument();
   });
 });

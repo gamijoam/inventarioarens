@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ProductForm: formulario completo de producto (create + edit).
  * Renderiza todos los campos del backend (ver docs/INVENTORY_CATALOG_API.md,
  * docs/PRODUCT_IMAGES.md).
@@ -42,6 +42,10 @@ import {
   useProductImages,
   useWarrantyPolicies,
 } from '@/features/inventory-center/lookups';
+import {
+  type ProductFormVisibility,
+  FULL_PRODUCT_FORM_VISIBILITY,
+} from '../productFormConfig';
 import { InlineCatalogCreate } from './InlineCatalogCreate';
 import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
 import { InlineWarrantyPolicyCreate } from './InlineWarrantyPolicyCreate';
@@ -63,6 +67,10 @@ export interface ProductFormProps {
    * sentido antes de que el producto exista en el backend).
    */
   productId?: number;
+  /** Configuración de visibilidad para ocultar campos no deseados. */
+  visibility?: Partial<ProductFormVisibility>;
+  /** Si es true, muestra un botón para desplegar u ocultar campos adicionales. */
+  showAdvancedToggle?: boolean;
 }
 
 export function ProductForm({
@@ -74,7 +82,24 @@ export function ProductForm({
   onSubmit,
   isSubmitting,
   productId,
+  visibility,
+  showAdvancedToggle = false,
 }: ProductFormProps) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const activeVisibility = useMemo<ProductFormVisibility>(() => {
+    const base = { ...FULL_PRODUCT_FORM_VISIBILITY, ...visibility };
+    if (showAdvanced) {
+      return FULL_PRODUCT_FORM_VISIBILITY;
+    }
+    return base;
+  }, [visibility, showAdvanced]);
+
+  const hasHiddenFields = useMemo(() => {
+    const base = { ...FULL_PRODUCT_FORM_VISIBILITY, ...visibility };
+    return Object.values(base).some((v) => !v);
+  }, [visibility]);
+
   const { data: brands = [] } = useBrands();
   const { data: categoryTree = [] } = useCategoriesTree();
   const { data: warrantyPolicies = [] } = useWarrantyPolicies();
@@ -141,15 +166,21 @@ export function ProductForm({
           <Field name="name" label="Nombre" required error={form.formState.errors.name?.message}>
             <Input {...form.register('name')} placeholder="iPhone 15" />
           </Field>
-          <Field name="sku" label="SKU" hint="Opcional, único por empresa" error={form.formState.errors.sku?.message}>
-            <Input {...form.register('sku')} placeholder="IPH15-128" />
-          </Field>
-          <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
-            <Input {...form.register('barcode')} placeholder="0194253714750" />
-          </Field>
-          <Field name="image_url" label="URL externa (opcional)" hint="Imagen del fabricante o proveedor. Para tus propias fotos, usa la galeria de abajo." error={form.formState.errors.image_url?.message}>
-            <Input {...form.register('image_url')} placeholder="https://..." />
-          </Field>
+          {activeVisibility.sku && (
+            <Field name="sku" label="SKU" hint="Opcional, único por empresa" error={form.formState.errors.sku?.message}>
+              <Input {...form.register('sku')} placeholder="IPH15-128" />
+            </Field>
+          )}
+          {activeVisibility.barcode && (
+            <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
+              <Input {...form.register('barcode')} placeholder="0194253714750" />
+            </Field>
+          )}
+          {activeVisibility.image_url && (
+            <Field name="image_url" label="URL externa (opcional)" hint="Imagen del fabricante o proveedor. Para tus propias fotos, usa la galeria de abajo." error={form.formState.errors.image_url?.message}>
+              <Input {...form.register('image_url')} placeholder="https://..." />
+            </Field>
+          )}
         </div>
 
         {/* Galeria multi-imagen (Sprint de imagenes Nivel 2). Solo visible
@@ -169,10 +200,12 @@ export function ProductForm({
           </div>
         )}
 
-        <Field name="description" label="Descripción corta" error={form.formState.errors.description?.message}>
-          <Textarea {...form.register('description')} rows={2} placeholder="Smartphone Apple" />
-        </Field>
-        {!compact && (
+        {activeVisibility.description && (
+          <Field name="description" label="Descripción corta" error={form.formState.errors.description?.message}>
+            <Textarea {...form.register('description')} rows={2} placeholder="Smartphone Apple" />
+          </Field>
+        )}
+        {!compact && activeVisibility.long_description && (
           <Field name="long_description" label="Descripción larga" hint="Hasta 50000 caracteres (HTML permitido)">
             <Textarea {...form.register('long_description')} rows={4} placeholder="<p>Flagship 2023</p>" />
           </Field>
@@ -182,261 +215,331 @@ export function ProductForm({
       {/* ============================================================ */}
       {/* 2. Catalogos (con inline create)                             */}
       {/* ============================================================ */}
-      <fieldset className="space-y-3">
-        <SectionLegend>Catálogos</SectionLegend>
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="brand_id">Marca</Label>
-            <InlineCatalogCreate
-              kind="brand"
-              onCreated={(id) => form.setValue('brand_id', id, { shouldValidate: true })}
-            />
-          </div>
-          <Select
-            id="brand_id"
-            value={form.watch('brand_id') ? String(form.watch('brand_id')) : ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              form.setValue('brand_id', v === '' ? undefined : Number(v), {
-                shouldValidate: true,
-              });
-            }}
-          >
-            {brandOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
-          {form.formState.errors.brand_id?.message && (
-            <p className="text-xs text-danger">{form.formState.errors.brand_id.message}</p>
-          )}
-        </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label>Categorías</Label>
-            <InlineCatalogCreate
-              kind="category"
-              onCreated={() => {
-                // Para categorias, append al array. El usuario tendra que
-                // seleccionarla manualmente en el tree (siguiente iteracion
-                // mejorar el auto-select en TreeSelect).
-              }}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Input
-              value={categorySearch}
-              onChange={(e) => setCategorySearch(e.target.value)}
-              placeholder="Buscar categoría por nombre..."
-            />
-            {categorySearch.trim() && (
-              <p className="text-xs text-text-muted">
-                Mostrando coincidencias para “{categorySearch.trim()}”.
-              </p>
-            )}
-          </div>
-          <Controller
-            control={form.control}
-            name="category_ids"
-            render={({ field }) => {
-              return (
-                <TreeSelect
-                  nodes={filteredCategoryTree.map(toNode)}
-                  value={field.value ?? []}
-                  onChange={(v) => field.onChange(v)}
-                  emptyMessage={categorySearch.trim() ? 'No hay categorías que coincidan' : 'Sin categorías'}
-                />
-              );
-            }}
-          />
-          <p className="text-xs text-text-muted">Jerárquicas: selecciona las hojas o ramas que apliquen</p>
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label>Tags</Label>
-            <InlineCatalogCreate
-              kind="tag"
-              onCreated={() => {
-                // Auto-select requeriria que el Combobox soporte un nuevo value.
-                // Por ahora el usuario debe volver a seleccionarlo.
-              }}
-            />
-          </div>
-          <Controller
-            control={form.control}
-            name="tag_ids"
-            render={({ field }) => (
-              <Combobox
-                options={tagSelectOptions}
-                value={field.value ?? []}
-                onChange={field.onChange}
-                placeholder="Buscar tags..."
-              />
-            )}
-          />
-          <p className="text-xs text-text-muted">Selecciona varios (typeahead arriba)</p>
-        </div>
-      </fieldset>
-
-      {/* ============================================================ */}
-      {/* 3. Control de stock                                           */}
-      {/* ============================================================ */}
-      <fieldset className="space-y-3">
-        <SectionLegend>Control de stock</SectionLegend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field name="tracking_type" label="Tipo de control" required>
-            <Select {...form.register('tracking_type')}>
-              {TRACKING_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'quantity' ? 'Por cantidad' : 'Serializado (IMEI/serial)'}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field name="unit_of_measure" label="Unidad de medida">
-            <Select {...form.register('unit_of_measure')}>
-              {UNITS_OF_MEASURE.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-        <SwitchField form={form} name="track_stock" label="Trackear stock de este producto" />
-        <div className="grid grid-cols-3 gap-3">
-          <Field name="min_stock" label="Stock mínimo" error={form.formState.errors.min_stock?.message}>
-            <Input type="number" min="0" {...form.register('min_stock', { valueAsNumber: true })} />
-          </Field>
-          <Field name="max_stock" label="Stock máximo" error={form.formState.errors.max_stock?.message}>
-            <Input type="number" min="0" {...form.register('max_stock', { valueAsNumber: true })} />
-          </Field>
-          <Field name="reorder_quantity" label="Cantidad a reordenar" error={form.formState.errors.reorder_quantity?.message}>
-            <Input type="number" min="0" {...form.register('reorder_quantity', { valueAsNumber: true })} />
-          </Field>
-        </div>
-      </fieldset>
-
-      {/* ============================================================ */}
-      {/* 4. Precios                                                    */}
-      {/* ============================================================ */}
-      <fieldset className="space-y-3">
-        <SectionLegend>Precios</SectionLegend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field name="pricing_mode" label="Modo de precio">
-            <Select {...form.register('pricing_mode')}>
-              <option value={PRICING_MODES[0]}>Automático por costo</option>
-              <option value={PRICING_MODES[1]}>Precio manual</option>
-            </Select>
-          </Field>
-          <Field
-            name="last_purchase_cost"
-            label="Costo unitario"
-            error={form.formState.errors.last_purchase_cost?.message}
-          >
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              {...form.register('last_purchase_cost', { valueAsNumber: true })}
-            />
-          </Field>
-          <Field name="profit_margin" label="Recargo sobre costo (%)" error={form.formState.errors.profit_margin?.message}>
-            <Input type="number" min="0" max="999.99" step="0.01" {...form.register('profit_margin', { valueAsNumber: true })} />
-          </Field>
-          <Field
-            name="base_price"
-            label={pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'}
-            error={form.formState.errors.base_price?.message}
-          >
-            {pricingMode === 'automatic' ? (
-              <Input value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''} readOnly />
-            ) : (
-              <Input type="number" min="0" step="0.01" {...form.register('base_price', { valueAsNumber: true })} />
-            )}
-          </Field>
-          <Field name="sale_currency" label="Moneda de venta">
-            <Select {...form.register('sale_currency')}>
-              {SALE_CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            name="sale_exchange_rate_type_id"
-            label="Tipo de tasa"
-            error={form.formState.errors.sale_exchange_rate_type_id?.message}
-          >
+      {(activeVisibility.brand || activeVisibility.categories || activeVisibility.tags) && (
+        <fieldset className="space-y-3">
+          <SectionLegend>Catálogos</SectionLegend>
+          {activeVisibility.brand && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-text-muted">
-                  Asignar a este producto
-                </span>
-                <InlineExchangeRateTypeCreate
-                  onCreated={(id) =>
-                    form.setValue('sale_exchange_rate_type_id', id, { shouldValidate: true })
-                  }
+                <Label htmlFor="brand_id">Marca</Label>
+                <InlineCatalogCreate
+                  kind="brand"
+                  onCreated={(id) => form.setValue('brand_id', id, { shouldValidate: true })}
                 />
               </div>
               <Select
-                value={form.watch('sale_exchange_rate_type_id') ? String(form.watch('sale_exchange_rate_type_id')) : ''}
+                id="brand_id"
+                value={form.watch('brand_id') ? String(form.watch('brand_id')) : ''}
                 onChange={(e) => {
                   const v = e.target.value;
-                  form.setValue('sale_exchange_rate_type_id', v === '' ? undefined : Number(v), {
+                  form.setValue('brand_id', v === '' ? undefined : Number(v), {
                     shouldValidate: true,
                   });
                 }}
               >
-                {rateTypeOptions.map((o) => (
+                {brandOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
                 ))}
               </Select>
+              {form.formState.errors.brand_id?.message && (
+                <p className="text-xs text-danger">{form.formState.errors.brand_id.message}</p>
+              )}
             </div>
-          </Field>
-        </div>
-      </fieldset>
+          )}
+          {activeVisibility.categories && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Categorías</Label>
+                <InlineCatalogCreate
+                  kind="category"
+                  onCreated={() => {
+                    // Para categorias, append al array. El usuario tendra que
+                    // seleccionarla manualmente en el tree (siguiente iteracion
+                    // mejorar el auto-select en TreeSelect).
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Input
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  placeholder="Buscar categoría por nombre..."
+                />
+                {categorySearch.trim() && (
+                  <p className="text-xs text-text-muted">
+                    Mostrando coincidencias para “{categorySearch.trim()}”.
+                  </p>
+                )}
+              </div>
+              <Controller
+                control={form.control}
+                name="category_ids"
+                render={({ field }) => (
+                  <TreeSelect
+                    nodes={filteredCategoryTree.map(toNode)}
+                    value={field.value ?? []}
+                    onChange={(v) => field.onChange(v)}
+                    emptyMessage={categorySearch.trim() ? 'No hay categorías que coincidan' : 'Sin categorías'}
+                  />
+                )}
+              />
+              <p className="text-xs text-text-muted">Jerárquicas: selecciona las hojas o ramas que apliquen</p>
+            </div>
+          )}
+          {activeVisibility.tags && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Tags</Label>
+                <InlineCatalogCreate
+                  kind="tag"
+                  onCreated={() => {
+                    // Auto-select requeriria que el Combobox soporte un nuevo value.
+                    // Por ahora el usuario debe volver a seleccionarlo.
+                  }}
+                />
+              </div>
+              <Controller
+                control={form.control}
+                name="tag_ids"
+                render={({ field }) => (
+                  <Combobox
+                    options={tagSelectOptions}
+                    value={field.value ?? []}
+                    onChange={field.onChange}
+                    placeholder="Buscar tags..."
+                  />
+                )}
+              />
+              <p className="text-xs text-text-muted">Selecciona varios (typeahead arriba)</p>
+            </div>
+          )}
+        </fieldset>
+      )}
+
+      {/* ============================================================ */}
+      {/* 3. Control de stock                                           */}
+      {/* ============================================================ */}
+      {(activeVisibility.tracking_type ||
+        activeVisibility.unit_of_measure ||
+        activeVisibility.track_stock ||
+        activeVisibility.min_stock ||
+        activeVisibility.max_stock ||
+        activeVisibility.reorder_quantity) && (
+        <fieldset className="space-y-3">
+          <SectionLegend>Control de stock</SectionLegend>
+          {(activeVisibility.tracking_type || activeVisibility.unit_of_measure) && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {activeVisibility.tracking_type && (
+                <Field name="tracking_type" label="Tipo de control" required>
+                  <Select {...form.register('tracking_type')}>
+                    {TRACKING_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t === 'quantity' ? 'Por cantidad' : 'Serializado (IMEI/serial)'}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+              {activeVisibility.unit_of_measure && (
+                <Field name="unit_of_measure" label="Unidad de medida">
+                  <Select {...form.register('unit_of_measure')}>
+                    {UNITS_OF_MEASURE.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+            </div>
+          )}
+          {activeVisibility.track_stock && (
+            <SwitchField form={form} name="track_stock" label="Trackear stock de este producto" />
+          )}
+          {(activeVisibility.min_stock || activeVisibility.max_stock || activeVisibility.reorder_quantity) && (
+            <div className="grid grid-cols-3 gap-3">
+              {activeVisibility.min_stock && (
+                <Field name="min_stock" label="Stock mínimo" error={form.formState.errors.min_stock?.message}>
+                  <Input type="number" min="0" {...form.register('min_stock', { valueAsNumber: true })} />
+                </Field>
+              )}
+              {activeVisibility.max_stock && (
+                <Field name="max_stock" label="Stock máximo" error={form.formState.errors.max_stock?.message}>
+                  <Input type="number" min="0" {...form.register('max_stock', { valueAsNumber: true })} />
+                </Field>
+              )}
+              {activeVisibility.reorder_quantity && (
+                <Field name="reorder_quantity" label="Cantidad a reordenar" error={form.formState.errors.reorder_quantity?.message}>
+                  <Input type="number" min="0" {...form.register('reorder_quantity', { valueAsNumber: true })} />
+                </Field>
+              )}
+            </div>
+          )}
+        </fieldset>
+      )}
+
+      {/* ============================================================ */}
+      {/* 4. Precios                                                    */}
+      {/* ============================================================ */}
+      {(activeVisibility.pricing_mode ||
+        activeVisibility.last_purchase_cost ||
+        activeVisibility.profit_margin ||
+        activeVisibility.base_price ||
+        activeVisibility.sale_currency ||
+        activeVisibility.sale_exchange_rate_type_id) && (
+        <fieldset className="space-y-3">
+          <SectionLegend>Precios</SectionLegend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {activeVisibility.pricing_mode && (
+              <Field name="pricing_mode" label="Modo de precio">
+                <Select {...form.register('pricing_mode')}>
+                  <option value={PRICING_MODES[0]}>Automático por costo</option>
+                  <option value={PRICING_MODES[1]}>Precio manual</option>
+                </Select>
+              </Field>
+            )}
+            {activeVisibility.last_purchase_cost && (
+              <Field
+                name="last_purchase_cost"
+                label="Costo unitario"
+                error={form.formState.errors.last_purchase_cost?.message}
+              >
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  {...form.register('last_purchase_cost', { valueAsNumber: true })}
+                />
+              </Field>
+            )}
+            {activeVisibility.profit_margin && (
+              <Field name="profit_margin" label="Recargo sobre costo (%)" error={form.formState.errors.profit_margin?.message}>
+                <Input type="number" min="0" max="999.99" step="0.01" {...form.register('profit_margin', { valueAsNumber: true })} />
+              </Field>
+            )}
+            {activeVisibility.base_price && (
+              <Field
+                name="base_price"
+                label={pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'}
+                error={form.formState.errors.base_price?.message}
+              >
+                {pricingMode === 'automatic' ? (
+                  <Input value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''} readOnly />
+                ) : (
+                  <Input type="number" min="0" step="0.01" {...form.register('base_price', { valueAsNumber: true })} />
+                )}
+              </Field>
+            )}
+            {activeVisibility.sale_currency && (
+              <Field name="sale_currency" label="Moneda de venta">
+                <Select {...form.register('sale_currency')}>
+                  {SALE_CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+            {activeVisibility.sale_exchange_rate_type_id && (
+              <Field
+                name="sale_exchange_rate_type_id"
+                label="Tipo de tasa"
+                error={form.formState.errors.sale_exchange_rate_type_id?.message}
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text-muted">
+                      Asignar a este producto
+                    </span>
+                    <InlineExchangeRateTypeCreate
+                      onCreated={(id) =>
+                        form.setValue('sale_exchange_rate_type_id', id, { shouldValidate: true })
+                      }
+                    />
+                  </div>
+                  <Select
+                    value={form.watch('sale_exchange_rate_type_id') ? String(form.watch('sale_exchange_rate_type_id')) : ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      form.setValue('sale_exchange_rate_type_id', v === '' ? undefined : Number(v), {
+                        shouldValidate: true,
+                      });
+                    }}
+                  >
+                    {rateTypeOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </Field>
+            )}
+          </div>
+        </fieldset>
+      )}
 
       {/* ============================================================ */}
       {/* 5. Garantia + Estado                                          */}
       {/* ============================================================ */}
-      <fieldset className="space-y-3">
-        <SectionLegend>Garantía y estado</SectionLegend>
-        <Field
-          name="warranty_policy_id"
-          label="Política de garantía"
-          error={form.formState.errors.warranty_policy_id?.message}
-        >
-          <div className="flex items-start gap-2">
-            <Select
-              value={form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                form.setValue('warranty_policy_id', v === '' ? undefined : Number(v), {
-                  shouldValidate: true,
-                });
-              }}
-              className="flex-1"
+      {(activeVisibility.warranty_policy_id || activeVisibility.is_active) && (
+        <fieldset className="space-y-3">
+          <SectionLegend>Garantía y estado</SectionLegend>
+          {activeVisibility.warranty_policy_id && (
+            <Field
+              name="warranty_policy_id"
+              label="Política de garantía"
+              error={form.formState.errors.warranty_policy_id?.message}
             >
-              {warrantyOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-            <InlineWarrantyPolicyCreate
-              onCreated={(id) =>
-                form.setValue('warranty_policy_id', id, { shouldValidate: true })
-              }
-            />
-          </div>
-        </Field>
-        <SwitchField form={form} name="is_active" label="Producto activo (visible en ventas)" />
-      </fieldset>
+              <div className="flex items-start gap-2">
+                <Select
+                  value={form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    form.setValue('warranty_policy_id', v === '' ? undefined : Number(v), {
+                      shouldValidate: true,
+                    });
+                  }}
+                  className="flex-1"
+                >
+                  {warrantyOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+                <InlineWarrantyPolicyCreate
+                  onCreated={(id) =>
+                    form.setValue('warranty_policy_id', id, { shouldValidate: true })
+                  }
+                />
+              </div>
+            </Field>
+          )}
+          {activeVisibility.is_active && (
+            <SwitchField form={form} name="is_active" label="Producto activo (visible en ventas)" />
+          )}
+        </fieldset>
+      )}
+
+      {/* Botón para desplegar campos adicionales */}
+      {showAdvancedToggle && hasHiddenFields && (
+        <div className="flex justify-center border-t border-dashed border-border pt-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAdvanced((prev) => !prev)}
+            className="text-xs text-text-muted hover:text-text-primary"
+            data-testid="toggle-advanced-product-fields"
+          >
+            {showAdvanced ? '− Ocultar campos adicionales' : '+ Mostrar más campos (avanzado)'}
+          </Button>
+        </div>
+      )}
 
       {/* Botones de accion */}
       <div className="flex items-center justify-end gap-2 border-t border-border pt-4">

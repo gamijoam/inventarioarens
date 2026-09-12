@@ -18,6 +18,7 @@ import {
 import { useProductForm } from '../forms';
 import { ProductForm } from '../components/ProductForm';
 import { useTags } from '../api';
+import { CREATE_PRODUCT_FORM_VISIBILITY } from '../productFormConfig';
 
 export interface CreateProductDialogProps {
   open: boolean;
@@ -62,6 +63,8 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
           isSubmitting={isSubmitting}
           onCancel={() => onOpenChange(false)}
           submitLabel="Crear producto"
+          visibility={CREATE_PRODUCT_FORM_VISIBILITY}
+          showAdvancedToggle={true}
         />
       </DialogContent>
     </Dialog>
