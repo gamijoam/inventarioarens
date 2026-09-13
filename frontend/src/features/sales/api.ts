@@ -22,9 +22,6 @@ function toQueryString(filters: SaleListFilters): string {
   if (filters.promotion_scope && filters.promotion_scope !== 'all') {
     params.set('promotion_scope', filters.promotion_scope);
   }
-  if (filters.promotion_scope && filters.promotion_scope !== 'all') {
-    params.set('promotion_scope', filters.promotion_scope);
-  }
   if (filters.page) params.set('page', String(filters.page));
   if (filters.per_page) params.set('per_page', String(filters.per_page));
   const q = params.toString();
@@ -45,6 +42,7 @@ export function useSales(filters: SaleListFilters = {}) {
         data: z.array(SaleSchema).parse(response.data),
       } satisfies Paginated<Sale>;
     },
+    placeholderData: (prev) => prev,
   });
 }
 

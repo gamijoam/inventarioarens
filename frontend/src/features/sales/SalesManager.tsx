@@ -1,5 +1,5 @@
-﻿import { useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, RotateCcw, Search, ShieldCheck, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, RotateCcw, Search, ShieldCheck, X, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -161,14 +161,32 @@ function returnStatusLabel(sale: Sale): string | null {
 }
 
 export function SalesManager() {
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState<SaleListFilters>({
-    search: '',
     status: 'all',
     page: 1,
     per_page: 25,
   });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setFilters((current) => (current.page === 1 ? current : { ...current, page: 1 }));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const queryFilters: SaleListFilters = useMemo(
+    () => ({
+      ...filters,
+      search: debouncedSearch.trim() || undefined,
+    }),
+    [filters, debouncedSearch]
+  );
+
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const { data, isLoading, isError, refetch } = useSales(filters);
+  const { data, isLoading, isFetching, isError, refetch } = useSales(queryFilters);
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
   const { data: cashSessions = [] } = useCashSessions();
   const activeRate = activeUsdVesRate(rates);
@@ -204,8 +222,6 @@ export function SalesManager() {
     toast.success('Venta cancelada.');
   }
 
-  if (isLoading && !data) return <Skeleton className="h-64 w-full" />;
-
   return (
     <div className="space-y-3">
       <Card>
@@ -216,11 +232,21 @@ export function SalesManager() {
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
               <Input
                 id="sales-search"
-                value={filters.search ?? ''}
-                onChange={(e) => updateFilters({ search: e.target.value })}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder="Cliente, documento, producto, SKU o venta #"
-                className="pl-9"
+                className="pl-9 pr-8"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text cursor-pointer p-0.5 rounded"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
           </div>
           <div className="w-44">
@@ -289,14 +315,20 @@ export function SalesManager() {
           description="Revisa tu conexión o intenta actualizar el listado."
           action={<Button onClick={() => void refetch()}>Reintentar</Button>}
         />
+      ) : isLoading && sales.length === 0 ? (
+        <Skeleton className="h-64 w-full" />
       ) : sales.length === 0 ? (
         <EmptyState
           icon={<FileText className="size-8" aria-hidden="true" />}
-          title="Sin ventas"
-          description="Cuando POS o ventas manuales generen documentos, aparecerán aquí para auditoría."
+          title={debouncedSearch ? 'Sin resultados' : 'Sin ventas'}
+          description={
+            debouncedSearch
+              ? 'Ninguna venta coincide con el criterio de búsqueda.'
+              : 'Cuando POS o ventas manuales generen documentos, aparecerán aquí para auditoría.'
+          }
         />
       ) : (
-        <Card>
+        <Card className={isFetching ? 'opacity-70 transition-opacity' : ''}>
           <div className="overflow-x-auto">
             <table className="w-full table-dense">
               <thead className="border-b border-border bg-bg/60 text-left">
@@ -612,7 +644,7 @@ function SaleDetail({
               leftIcon={<XCircle className="size-4" />}
               onClick={() => setShowReverseForm(true)}
             >
-              Anular / revertir
+              Anular
             </Button>
           )}
           {canReturnCurrentSale && (

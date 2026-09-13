@@ -434,6 +434,14 @@ class SalesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $saleB);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=' . urlencode("#{$saleB}"))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $saleB);
     }
 
     public function test_sales_index_filters_and_exposes_promotion_applications(): void
