@@ -101,6 +101,7 @@ function DashboardPage() {
     period,
     dateFrom,
     dateTo,
+    enabled: isGroupOwner && scope === 'organization',
   });
 
   const isOrganization = scope === 'organization';

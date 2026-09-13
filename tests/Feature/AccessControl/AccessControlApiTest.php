@@ -708,6 +708,35 @@ class AccessControlApiTest extends TestCase
         }
     }
 
+    public function test_roles_endpoint_is_idempotent_and_does_not_reseed_when_base_roles_exist(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Roles', 'slug' => 'empresa-roles']);
+        $admin = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $admin, 'Owner', BasePermissions::PERMISSIONS);
+
+        // Primera llamada: siembra roles base si faltan
+        $response1 = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/roles')
+            ->assertOk();
+
+        $rolesCount = Role::where('tenant_id', $tenant->id)->count();
+        $this->assertGreaterThanOrEqual(count(BasePermissions::ROLE_PERMISSIONS), $rolesCount);
+
+        // Segunda llamada consecutiva: debe ser idempotente y responder OK sin colisiones ni reseed destructivo
+        $response2 = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/roles')
+            ->assertOk();
+
+        $this->assertSame(
+            collect($response1->json('data'))->pluck('id')->all(),
+            collect($response2->json('data'))->pluck('id')->all(),
+        );
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
