@@ -79,12 +79,14 @@ class SaleController extends Controller
 
         if ($search = $request->string('search')->trim()->toString()) {
             $query->where(function ($q) use ($search): void {
-                if (is_numeric($search)) {
-                    $q->orWhere('id', (int) $search);
+                $cleanNumeric = ltrim($search, '#');
+                if (is_numeric($cleanNumeric)) {
+                    $q->orWhere('id', (int) $cleanNumeric);
                 }
 
-                $q->orWhereHas('customer', function ($customerQuery) use ($search): void {
-                    $like = "%{$search}%";
+                $like = "%{$search}%";
+
+                $q->orWhereHas('customer', function ($customerQuery) use ($like): void {
                     $customerQuery
                         ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
                         ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
@@ -92,8 +94,15 @@ class SaleController extends Controller
                         ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$like]);
                 });
 
-                $q->orWhereHas('items.product', function ($productQuery) use ($search): void {
-                    $like = "%{$search}%";
+                $q->orWhereHas('posOrder', function ($posQuery) use ($like): void {
+                    $posQuery->whereRaw('LOWER(COALESCE(customer_name, \'\')) LIKE LOWER(?)', [$like]);
+                });
+
+                $q->orWhereHas('receivable', function ($rQuery) use ($like): void {
+                    $rQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
+                });
+
+                $q->orWhereHas('items.product', function ($productQuery) use ($like): void {
                     $productQuery
                         ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
                         ->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE LOWER(?)', [$like])
