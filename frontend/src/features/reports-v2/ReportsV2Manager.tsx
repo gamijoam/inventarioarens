@@ -28,7 +28,7 @@ import { cn } from '@/lib/cn';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import { useSessionStore } from '@/stores/session';
-import { useGroupSpinoffs } from '@/features/access/tenantGroupsApi';
+import { useGroupSpinoffs, useTenantGroups } from '@/features/access/tenantGroupsApi';
 
 import { useReportV2, useReportV2Catalog, downloadReportV2, type ReportV2Params } from './api';
 import {
@@ -45,9 +45,11 @@ type Scope = 'tenant' | 'organization';
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6'];
 
 export function ReportsV2Manager() {
-  const canViewOrganization = useCan(PERMISSIONS.REPORTS_ORGANIZATION_VIEW);
   const tenant = useSessionStore((s) => s.tenant);
+  const roles = useSessionStore((s) => s.roles);
+  const canViewOrganization = useCan(PERMISSIONS.REPORTS_ORGANIZATION_VIEW);
   const isOnGroup = Boolean(tenant?.is_group);
+  const isOwner = roles?.includes('Owner') ?? false;
 
   const { data: catalog = [], isLoading: catalogLoading, isError: catalogError } =
     useReportV2Catalog(true);
@@ -63,7 +65,18 @@ export function ReportsV2Manager() {
   const [chartKind, setChartKind] = useState<ChartKind>('bar');
 
   const groupId = isOnGroup ? tenant?.id : null;
-  const { data: spinoffs = [] } = useGroupSpinoffs(groupId ?? 0, Boolean(groupId));
+  const { data: tenantGroups = [] } = useTenantGroups();
+  const currentGroup = tenantGroups.find((g) => g.id === tenant?.id);
+  const knownChildrenCount = currentGroup?.children_count;
+
+  const { data: spinoffs = [] } = useGroupSpinoffs(
+    groupId ?? 0,
+    Boolean(groupId && isOwner && canViewOrganization && (knownChildrenCount === undefined || knownChildrenCount > 0)),
+  );
+
+  const hasMultipleCompanies =
+    (knownChildrenCount !== undefined ? knownChildrenCount > 0 : false) || spinoffs.length > 0;
+  const canShowOrganization = isOnGroup && isOwner && canViewOrganization && hasMultipleCompanies;
 
   const selected = catalog.find((item) => item.code === selectedCode) ?? null;
 
@@ -71,7 +84,7 @@ export function ReportsV2Manager() {
     setSelectedCode(item.code);
     setDimension(item.default_dimension);
     setChartKind(item.dimensions.includes('day') || item.dimensions.includes('month') ? 'line' : 'bar');
-    if (item.org_supported && canViewOrganization && isOnGroup) {
+    if (item.org_supported && canShowOrganization) {
       setScope('organization');
     } else {
       setScope('tenant');
@@ -79,16 +92,17 @@ export function ReportsV2Manager() {
     setCompanyId('');
   }
 
+  const effectiveScope: Scope = canShowOrganization ? scope : 'tenant';
   const params = useMemo<ReportV2Params>(() => {
-    const p: ReportV2Params = { scope };
+    const p: ReportV2Params = { scope: effectiveScope };
     if (dimension) p.dimension = dimension;
     if (dateFrom) p.dateFrom = dateFrom;
     if (dateTo) p.dateTo = dateTo;
     if (warehouseId) p.warehouseId = Number(warehouseId);
     if (lowStockOnly) p.lowStockOnly = true;
-    if (companyId) p.companyId = Number(companyId);
+    if (effectiveScope === 'organization' && companyId) p.companyId = Number(companyId);
     return p;
-  }, [scope, dimension, dateFrom, dateTo, warehouseId, lowStockOnly, companyId]);
+  }, [effectiveScope, dimension, dateFrom, dateTo, warehouseId, lowStockOnly, companyId]);
 
   const { data, isLoading, isError, refetch } = useReportV2(
     selected?.code ?? '',
@@ -240,15 +254,15 @@ export function ReportsV2Manager() {
                     Solo bajo stock
                   </label>
                 )}
-                {selected.org_supported && canViewOrganization && (
+                {selected.org_supported && canShowOrganization && (
                   <Field label="Ámbito">
                     <Select value={scope} onChange={(e) => setScope(e.target.value as Scope)}>
-                      <option value="tenant">Esta empresa</option>
                       <option value="organization">Todo el grupo</option>
+                      <option value="tenant">Esta empresa</option>
                     </Select>
                   </Field>
                 )}
-                {selected.org_supported && canViewOrganization && scope === 'organization' && (
+                {selected.org_supported && canShowOrganization && scope === 'organization' && (
                   <Field label="Empresa">
                     <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
                       <option value="">Todas</option>

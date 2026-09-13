@@ -25,6 +25,7 @@ import { useCan } from '@/permissions/useCan';
 import { useSessionStore } from '@/stores/session';
 import { OrganizationDashboardView } from '@/features/dashboard/OrganizationDashboardView';
 import { useOrganizationDashboard } from '@/features/dashboard/organizationApi';
+import { useGroupSpinoffs, useTenantGroups } from '@/features/access/tenantGroupsApi';
 
 export const Route = createFileRoute('/_authed/dashboard')({
   component: DashboardPage,
@@ -78,9 +79,25 @@ function DashboardPage() {
   const tenant = useSessionStore((s) => s.tenant);
   const roles = useSessionStore((s) => s.roles);
   const canViewOrganization = useCan(PERMISSIONS.REPORTS_ORGANIZATION_VIEW);
-  const isGroupOwner = Boolean(tenant?.is_group) && roles.includes('Owner') && canViewOrganization;
+  const isOwner = roles?.includes('Owner') ?? false;
+  const isGroup = Boolean(tenant?.is_group);
 
-  const [scope, setScope] = useState<DashboardScope>(isGroupOwner ? 'organization' : 'tenant');
+  const groupId = isGroup ? tenant?.id : null;
+  const { data: tenantGroups = [] } = useTenantGroups();
+  const currentGroup = tenantGroups.find((g) => g.id === tenant?.id);
+  const knownChildrenCount = currentGroup?.children_count;
+
+  const { data: spinoffs = [] } = useGroupSpinoffs(
+    groupId ?? 0,
+    Boolean(groupId && isOwner && canViewOrganization && (knownChildrenCount === undefined || knownChildrenCount > 0)),
+  );
+
+  const hasMultipleCompanies =
+    (knownChildrenCount !== undefined ? knownChildrenCount > 0 : false) || spinoffs.length > 0;
+  const canShowOrganization = isGroup && isOwner && canViewOrganization && hasMultipleCompanies;
+
+  const [userSelectedScope, setUserSelectedScope] = useState<DashboardScope | null>(null);
+  const scope: DashboardScope = userSelectedScope ?? (canShowOrganization ? 'organization' : 'tenant');
 
   const query = new URLSearchParams();
   if (period !== 'custom') query.set('period', period);
@@ -100,10 +117,10 @@ function DashboardPage() {
     period,
     dateFrom,
     dateTo,
-    enabled: isGroupOwner && scope === 'organization',
+    enabled: canShowOrganization && scope === 'organization',
   });
 
-  const isOrganization = scope === 'organization';
+  const isOrganization = canShowOrganization && scope === 'organization';
   const tenantData = isOrganization ? null : tenantSummary.data;
   const orgData = isOrganization ? organizationSummary.data : null;
   const data = orgData ?? tenantData;
@@ -145,23 +162,15 @@ function DashboardPage() {
               </Field>
             </>
           )}
-          {isGroupOwner && (
+          {canShowOrganization && (
             <Field label="Ámbito">
               <Select
                 value={scope}
-                onChange={(event) => setScope(event.target.value as DashboardScope)}
+                onChange={(event) => setUserSelectedScope(event.target.value as DashboardScope)}
                 className="rounded-xl"
               >
-                {tenant?.is_group ? (
-                  <option value="organization">Todo el grupo</option>
-                ) : (
-                  <option value="tenant">Esta empresa</option>
-                )}
-                {tenant?.is_group ? (
-                  <option value="tenant">Esta empresa</option>
-                ) : (
-                  <option value="organization">Todo el grupo</option>
-                )}
+                <option value="organization">Todo el grupo</option>
+                <option value="tenant">Esta empresa</option>
               </Select>
             </Field>
           )}

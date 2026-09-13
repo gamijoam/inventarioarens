@@ -97,6 +97,7 @@ const reportFixture = {
 const mockUseCatalog = vi.fn<(enabled: boolean) => unknown>();
 const mockUseReport = vi.fn<(code: string, params: unknown, enabled: boolean) => unknown>();
 const mockUseGroupSpinoffs = vi.fn<(id: number, enabled: boolean) => unknown>();
+const mockUseTenantGroups = vi.fn<() => unknown>();
 
 vi.mock('../api', () => ({
   useReportV2Catalog: (enabled: boolean) => mockUseCatalog(enabled),
@@ -106,11 +107,12 @@ vi.mock('../api', () => ({
 
 vi.mock('@/features/access/tenantGroupsApi', () => ({
   useGroupSpinoffs: (id: number, enabled: boolean) => mockUseGroupSpinoffs(id, enabled),
+  useTenantGroups: () => mockUseTenantGroups(),
 }));
 
 vi.mock('@/stores/session', () => ({
-  useSessionStore: <T,>(selector: (state: { tenant: { id: number; is_group: boolean } | null }) => T): T =>
-    selector({ tenant: { id: 1, is_group: true } }),
+  useSessionStore: <T,>(selector: (state: { tenant: { id: number; is_group: boolean } | null; roles: string[] }) => T): T =>
+    selector({ tenant: { id: 1, is_group: true }, roles: ['Owner'] }),
 }));
 
 function makeWrapper() {
@@ -158,6 +160,7 @@ describe('ReportsV2Manager', () => {
     mockUseCatalog.mockReset();
     mockUseReport.mockReset();
     mockUseGroupSpinoffs.mockReset();
+    mockUseTenantGroups.mockReset();
     mockUseCatalog.mockReturnValue({ data: catalogFixture, isLoading: false, isError: false });
     mockUseReport.mockReturnValue({
       data: reportFixture,
@@ -167,6 +170,11 @@ describe('ReportsV2Manager', () => {
     });
     mockUseGroupSpinoffs.mockReturnValue({
       data: [{ id: 4, name: 'OscarCell Yaracall', slug: 'oscarcell-yaracall' }],
+      isLoading: false,
+      isError: false,
+    });
+    mockUseTenantGroups.mockReturnValue({
+      data: [{ id: 1, name: 'OscarCell', children_count: 1 }],
       isLoading: false,
       isError: false,
     });
@@ -221,5 +229,30 @@ describe('ReportsV2Manager', () => {
     const lastCall = mockUseReport.mock.calls.at(-1);
     expect(lastCall?.[0]).toBe('sales_overview');
     expect(lastCall?.[1]).toMatchObject({ scope: 'organization', companyId: 4 });
+  });
+
+  it('no muestra selector de ambito ni empresa cuando el grupo no tiene empresas hijas', async () => {
+    mockUseGroupSpinoffs.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
+    mockUseTenantGroups.mockReturnValue({
+      data: [{ id: 1, name: 'OscarCell', children_count: 0 }],
+      isLoading: false,
+      isError: false,
+    });
+
+    const user = userEvent.setup();
+    render(<ReportsV2Manager />, { wrapper: makeWrapper() });
+
+    await user.click(screen.getByText('Ventas por período'));
+
+    expect(screen.queryByLabelText('Ámbito')).toBeNull();
+    expect(screen.queryByLabelText('Empresa')).toBeNull();
+
+    const lastCall = mockUseReport.mock.calls.at(-1);
+    expect(lastCall?.[0]).toBe('sales_overview');
+    expect(lastCall?.[1]).toMatchObject({ scope: 'tenant' });
   });
 });
