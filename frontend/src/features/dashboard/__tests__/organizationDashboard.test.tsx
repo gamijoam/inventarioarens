@@ -145,3 +145,27 @@ describe('OrganizationDashboardView', () => {
     });
   });
 });
+
+describe('useOrganizationDashboard hook', () => {
+  it('respeta enabled=false y no dispara la peticion', async () => {
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+    const { renderHook } = await import('@testing-library/react');
+    const { useOrganizationDashboard } = await import('../organizationApi');
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(
+      () => useOrganizationDashboard({ period: 'today', enabled: false }),
+      { wrapper },
+    );
+
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(result.current.isLoading).toBe(false);
+  });
+});

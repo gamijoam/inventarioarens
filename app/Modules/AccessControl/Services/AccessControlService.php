@@ -350,9 +350,18 @@ class AccessControlService
     {
         $tenant ??= app(TenantManager::class)->require();
 
+        $teamColumn = $this->teamColumn();
+        $baseRoleNames = array_keys(BasePermissions::ROLE_PERMISSIONS);
+        $existingCount = Role::query()
+            ->where($teamColumn, $tenant->id)
+            ->whereIn('name', $baseRoleNames)
+            ->count();
+
         // Every tenant, including groups, needs the base role catalog so user
         // management and role assignment behave consistently across tenants.
-        app(TenantSpinoffService::class)->seedBaseRoles($tenant);
+        if ($existingCount < count($baseRoleNames)) {
+            app(TenantSpinoffService::class)->seedBaseRoles($tenant);
+        }
 
         return Role::query()
             ->where($this->teamColumn(), $tenant->id)

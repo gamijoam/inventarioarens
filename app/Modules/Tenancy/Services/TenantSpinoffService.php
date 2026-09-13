@@ -228,20 +228,24 @@ class TenantSpinoffService
                 ->where($teamColumn, $tenant->id)
                 ->first();
 
+            $isNew = false;
             if (! $role) {
                 $role = Role::create([
                     'name' => $roleName,
                     'guard_name' => 'web',
                     $teamColumn => $tenant->id,
                 ]);
+                $isNew = true;
             }
 
-            $role->syncPermissions(
-                Permission::query()
-                    ->whereIn('name', $permissions)
-                    ->where('guard_name', 'web')
-                    ->get()
-            );
+            if ($isNew || $role->permissions()->count() === 0) {
+                $role->syncPermissions(
+                    Permission::query()
+                        ->whereIn('name', $permissions)
+                        ->where('guard_name', 'web')
+                        ->get()
+                );
+            }
         }
     }
 

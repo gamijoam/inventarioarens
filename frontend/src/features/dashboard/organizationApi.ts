@@ -58,12 +58,14 @@ export interface OrganizationDashboardParams {
   period: 'today' | 'week' | 'month' | 'custom';
   dateFrom?: string;
   dateTo?: string;
+  enabled?: boolean;
 }
 
 export function useOrganizationDashboard({
   period,
   dateFrom,
   dateTo,
+  enabled = true,
 }: OrganizationDashboardParams) {
   const query = new URLSearchParams();
   query.set('scope', 'organization');
@@ -80,5 +82,6 @@ export function useOrganizationDashboard({
       return OrganizationDashboardSchema.parse(raw);
     },
     refetchInterval: 30_000,
+    enabled,
   });
 }
