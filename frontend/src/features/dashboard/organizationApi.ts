@@ -20,6 +20,9 @@ export const OrganizationCompanySchema = z.object({
   }),
   inventory: z.object({
     low_stock_count: z.number().int(),
+    stock_cost_value: z.number().optional(),
+    stock_retail_value: z.number().optional(),
+    stock_total_units: z.number().optional(),
   }),
   finance: z.object({
     accounts_receivable_balance_base_amount: z.number(),
@@ -47,6 +50,9 @@ export const OrganizationDashboardSchema = z.object({
     receivable_balance_base_amount: z.number(),
     payable_balance_base_amount: z.number(),
     low_stock_count: z.number().int(),
+    stock_cost_value: z.number().optional(),
+    stock_retail_value: z.number().optional(),
+    stock_total_units: z.number().optional(),
   }),
   companies: z.array(OrganizationCompanySchema),
 });

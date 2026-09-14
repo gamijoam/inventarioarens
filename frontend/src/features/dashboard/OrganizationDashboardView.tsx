@@ -1,4 +1,4 @@
-import { Boxes, Landmark, PieChart, Receipt, ShoppingCart, Wallet } from 'lucide-react';
+import { Boxes, CircleDollarSign, Landmark, PieChart, Receipt, ShoppingCart, Wallet } from 'lucide-react';
 import { useState } from 'react';
 
 import { useAuth } from '@/auth/useAuth';
@@ -28,10 +28,17 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
   }
 
   const balance = data.totals.receivable_balance_base_amount - data.totals.payable_balance_base_amount;
+  const orgCostVal = data.totals.stock_cost_value ?? 0;
+  const orgRetailVal = data.totals.stock_retail_value ?? 0;
+  const orgUnits = data.totals.stock_total_units ?? 0;
+  const orgInventoryValue = orgCostVal > 0 ? orgCostVal : orgRetailVal;
+  const orgInventoryHelper = orgCostVal > 0
+    ? `${orgUnits} unid. · PVP: ${formatMoney(orgRetailVal)}`
+    : `${orgUnits} unid. en el grupo`;
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
         <MetricCard
           title="Ventas del grupo"
           icon={ShoppingCart}
@@ -52,6 +59,13 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={String(data.totals.open_cash_sessions)}
           helper="En todas las sucursales"
           tone="info"
+        />
+        <MetricCard
+          title="Valor inventario"
+          icon={CircleDollarSign}
+          value={formatMoney(orgInventoryValue)}
+          helper={orgInventoryHelper}
+          tone="success"
         />
         <MetricCard
           title="Bajo stock"

@@ -42,6 +42,9 @@ class DashboardSummaryService
                 'low_stock_count' => $lowStockCount,
                 'low_stock_threshold' => $threshold,
                 'low_stock_items' => $this->lowStockItems($threshold),
+                'stock_cost_value' => round((float) ($metrics['stock_cost_value'] ?? 0), 4),
+                'stock_retail_value' => round((float) ($metrics['stock_retail_value'] ?? 0), 4),
+                'stock_total_units' => round((float) ($metrics['stock_total_units'] ?? 0), 4),
             ],
             'finance' => [
                 'accounts_receivable_balance_base_amount' => round((float) ($metrics['receivable_balance'] ?? 0), 4),
@@ -55,7 +58,7 @@ class DashboardSummaryService
     /**
      * Ejecuta una sola query SQL con UNION ALL para obtener todas las
      * metricas agregadas (counts, sums, balances) en un solo round-trip.
-     * Reduce 7 queries a 1.
+     * Reduce 10 queries a 1.
      */
     private function aggregatedMetrics(Carbon $dateFrom, Carbon $dateTo, float $threshold): array
     {
@@ -89,6 +92,12 @@ class DashboardSummaryService
             select 'payable_count' as metric, cast(count(*) as text) as val_num from accounts_payables where tenant_id = ? and status in ({$apActive})
             union all
             select 'payable_balance' as metric, cast(coalesce(sum(balance_base_amount), 0) as text) as val_num from accounts_payables where tenant_id = ? and status in ({$apActive})
+            union all
+            select 'stock_cost_value' as metric, cast(coalesce(sum(sb.quantity_available * coalesce(p.last_purchase_cost, p.average_cost, 0)), 0) as text) as val_num from stock_balances sb join products p on p.id = sb.product_id and p.tenant_id = sb.tenant_id where sb.tenant_id = ?
+            union all
+            select 'stock_retail_value' as metric, cast(coalesce(sum(sb.quantity_available * coalesce(p.base_price, 0)), 0) as text) as val_num from stock_balances sb join products p on p.id = sb.product_id and p.tenant_id = sb.tenant_id where sb.tenant_id = ?
+            union all
+            select 'stock_total_units' as metric, cast(coalesce(sum(sb.quantity_available), 0) as text) as val_num from stock_balances sb where sb.tenant_id = ?
         ";
 
         $bindings = [
@@ -98,6 +107,9 @@ class DashboardSummaryService
             $tenantId, $posPaid, $dateFromStr, $dateToStr,
             $tenantId, $cashOpen,
             $tenantId, $thresholdStr,
+            $tenantId,
+            $tenantId,
+            $tenantId,
             $tenantId,
             $tenantId,
             $tenantId,
