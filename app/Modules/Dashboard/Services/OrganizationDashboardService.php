@@ -68,6 +68,9 @@ class OrganizationDashboardService
                 ],
                 'inventory' => [
                     'low_stock_count' => (int) $row['low_stock_count'],
+                    'stock_cost_value' => round((float) $row['stock_cost_value'], 4),
+                    'stock_retail_value' => round((float) $row['stock_retail_value'], 4),
+                    'stock_total_units' => round((float) $row['stock_total_units'], 4),
                 ],
                 'finance' => [
                     'accounts_receivable_balance_base_amount' => round((float) $row['receivable_balance'], 4),
@@ -116,7 +119,10 @@ class OrganizationDashboardService
                 coalesce(ar.receivable_balance, 0) as receivable_balance,
                 coalesce(ap.payable_count, 0) as payable_count,
                 coalesce(ap.payable_balance, 0) as payable_balance,
-                coalesce(sb.low_stock_count, 0) as low_stock_count
+                coalesce(sb.low_stock_count, 0) as low_stock_count,
+                coalesce(sv.stock_cost_value, 0) as stock_cost_value,
+                coalesce(sv.stock_retail_value, 0) as stock_retail_value,
+                coalesce(sv.stock_total_units, 0) as stock_total_units
             from tenants t
             left join (
                 select tenant_id, count(*) as sales_count, coalesce(sum(total_base_amount), 0) as sales_total
@@ -154,6 +160,16 @@ class OrganizationDashboardService
                 where tenant_id in ({$placeholders}) and quantity_available <= ?
                 group by tenant_id
             ) sb on sb.tenant_id = t.id
+            left join (
+                select sb.tenant_id,
+                       coalesce(sum(sb.quantity_available * coalesce(p.last_purchase_cost, p.average_cost, 0)), 0) as stock_cost_value,
+                       coalesce(sum(sb.quantity_available * coalesce(p.base_price, 0)), 0) as stock_retail_value,
+                       coalesce(sum(sb.quantity_available), 0) as stock_total_units
+                from stock_balances sb
+                join products p on p.id = sb.product_id and p.tenant_id = sb.tenant_id
+                where sb.tenant_id in ({$placeholders})
+                group by sb.tenant_id
+            ) sv on sv.tenant_id = t.id
             where t.id in ({$placeholders})
             order by sales_total desc nulls last
         ";
@@ -188,6 +204,9 @@ class OrganizationDashboardService
         foreach ($tenantIds as $id) {
             $bindings[] = $id;
         }
+        foreach ($tenantIds as $id) {
+            $bindings[] = $id;
+        }
 
         $rows = DB::select($sql, $bindings);
 
@@ -204,6 +223,9 @@ class OrganizationDashboardService
                 'payable_count' => (int) $row->payable_count,
                 'payable_balance' => (float) $row->payable_balance,
                 'low_stock_count' => (int) $row->low_stock_count,
+                'stock_cost_value' => (float) $row->stock_cost_value,
+                'stock_retail_value' => (float) $row->stock_retail_value,
+                'stock_total_units' => (float) $row->stock_total_units,
             ];
         }
 
@@ -223,6 +245,9 @@ class OrganizationDashboardService
             $totals['receivable_balance_base_amount'] += $company['finance']['accounts_receivable_balance_base_amount'];
             $totals['payable_balance_base_amount'] += $company['finance']['accounts_payable_balance_base_amount'];
             $totals['low_stock_count'] += $company['inventory']['low_stock_count'];
+            $totals['stock_cost_value'] += $company['inventory']['stock_cost_value'];
+            $totals['stock_retail_value'] += $company['inventory']['stock_retail_value'];
+            $totals['stock_total_units'] += $company['inventory']['stock_total_units'];
         }
 
         return $totals;
@@ -239,6 +264,9 @@ class OrganizationDashboardService
             'receivable_balance_base_amount' => 0,
             'payable_balance_base_amount' => 0,
             'low_stock_count' => 0,
+            'stock_cost_value' => 0,
+            'stock_retail_value' => 0,
+            'stock_total_units' => 0,
         ];
     }
 
@@ -255,6 +283,9 @@ class OrganizationDashboardService
             'payable_count' => 0,
             'payable_balance' => 0,
             'low_stock_count' => 0,
+            'stock_cost_value' => 0,
+            'stock_retail_value' => 0,
+            'stock_total_units' => 0,
         ];
     }
 }

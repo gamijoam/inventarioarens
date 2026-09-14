@@ -105,6 +105,7 @@ describe('OrganizationDashboardView', () => {
     render(<OrganizationDashboardView data={OrganizationDashboardSchema.parse(realApiPayload)} />);
 
     expect(screen.getByText('Ventas del grupo')).toBeInTheDocument();
+    expect(screen.getByText('Valor inventario')).toBeInTheDocument();
     expect(screen.getByText('Boca de Aroa')).toBeInTheDocument();
     expect(screen.getByText('Tucacas')).toBeInTheDocument();
     expect(screen.getByText('Empresas del grupo')).toBeInTheDocument();

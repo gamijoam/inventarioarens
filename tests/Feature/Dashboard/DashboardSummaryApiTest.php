@@ -45,6 +45,8 @@ class DashboardSummaryApiTest extends TestCase
             ->assertJsonPath('data.pos.paid_base_amount', 95)
             ->assertJsonPath('data.cash_register.open_sessions_count', 1)
             ->assertJsonPath('data.inventory.low_stock_count', 1)
+            ->assertJsonPath('data.inventory.stock_retail_value', 480)
+            ->assertJsonPath('data.inventory.stock_total_units', 14)
             ->assertJsonPath('data.inventory.low_stock_items.0.product_name', 'Samsung A06')
             ->assertJsonPath('data.finance.accounts_receivable_balance_base_amount', 120)
             ->assertJsonPath('data.finance.accounts_payable_balance_base_amount', 45);
