@@ -155,7 +155,7 @@ import {
   type PrintJob,
   downloadTicketPdf,
   openTicketPdf,
-  sendJobToLocalAgent,
+  printTicketViaBrowser,
   useCreatePosPrintJob,
   usePrinterStations,
   useUpdatePrintJobStatus,
@@ -3273,9 +3273,12 @@ export function PosTerminal() {
       return;
     }
 
+    // Para Repuestos Avilacar con impresora térmica instalada:
+    // Salida por defecto para ventas / cobro es 'thermal', invocando el diálogo de impresión del navegador.
+    // Solo se usa 'digital' si el usuario hizo clic expresamente en el botón "PDF digital".
     const requestedOutput =
-      output ?? activePrinterStation?.output_mode ?? (canDigital ? 'digital' : 'thermal');
-    if ((requestedOutput === 'digital' || requestedOutput === 'both') && !canDigital) {
+      output ?? activePrinterStation?.output_mode ?? (canPrint ? 'thermal' : 'digital');
+    if (requestedOutput === 'digital' && !canDigital) {
       toast.error('No tienes permiso para generar tickets digitales.');
       return;
     }
@@ -3292,10 +3295,11 @@ export function PosTerminal() {
       await Promise.all(
         jobs.map(async (job) => {
           try {
-            if (job.output === 'digital') {
+            // Si el usuario solicitó expresamente un PDF virtual (botón "PDF digital")
+            if (output === 'digital' && job.output === 'digital') {
               await downloadTicketPdf(job);
               await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'generated' });
-              toast.success('Ticket virtual descargado. Puedes guardarlo o imprimirlo desde el navegador.');
+              toast.success('Ticket virtual descargado.');
               return;
             }
 
@@ -3304,28 +3308,23 @@ export function PosTerminal() {
               return;
             }
 
+            // Flujo directo al diálogo de impresión del navegador para la impresora térmica instalada
             await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'sent' });
-            const result = await sendJobToLocalAgent(job);
+            await printTicketViaBrowser(job.id);
             await updatePrintJobStatus.mutateAsync({
               jobId: job.id,
               status: 'printed',
-              message: result.message ?? null,
-              digitalPdfPath: result.pdf_path ?? null,
-              digitalHtmlPath: result.html_path ?? null,
             });
-            if (job.output === 'thermal') toast.success('Ticket enviado a impresora.');
+            toast.success(copy ? 'Copia enviada a impresión.' : 'Ticket enviado a impresión.');
           } catch (error) {
             await updatePrintJobStatus.mutateAsync({
               jobId: job.id,
               status: 'failed',
               message: error instanceof Error ? error.message : 'No se pudo imprimir.',
             });
-            if (job.output === 'digital') {
-              await openTicketPdf(job);
-              toast.warning('Agente no disponible. Abrimos el PDF en el navegador.');
-              return;
-            }
-            toast.error('Agente local no disponible. Puedes reintentar desde F9.');
+            toast.error(
+              error instanceof Error ? error.message : 'Error al abrir diálogo de impresión.',
+            );
           }
         }),
       );

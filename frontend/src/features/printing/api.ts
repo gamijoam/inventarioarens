@@ -353,6 +353,80 @@ export async function downloadTicketPdf(job: PrintJob): Promise<void> {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/**
+ * Abre el diálogo de impresión nativo del navegador cargando el HTML del ticket generado
+ * por el backend en un iframe oculto.
+ *
+ * Permite que las impresoras térmicas instaladas directamente en la computadora
+ * impriman inmediatamente sin requerir descargar un archivo PDF ni ejecutar el conector .exe.
+ */
+export async function printTicketViaBrowser(jobId: number): Promise<void> {
+  const response = await api.get<string>(`/printing/jobs/${jobId}/ticket.html`, {
+    responseType: 'text',
+  });
+  const html = typeof response.data === 'string' ? response.data : String(response.data);
+  await printHtmlContent(html);
+}
+
+export function printHtmlContent(html: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof document === 'undefined') {
+      resolve();
+      return;
+    }
+
+    const existing = document.getElementById('pos-ticket-print-frame');
+    if (existing) {
+      existing.remove();
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'pos-ticket-print-frame';
+    // Posicionamiento fuera de pantalla pero manteniendo dimensiones visibles en DOM
+    // para que Chromium / Firefox apliquen @page y rendericen el documento térmico.
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '350px';
+    iframe.style.height = '600px';
+    iframe.style.border = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.setAttribute('tabindex', '-1');
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      iframe.remove();
+      resolve();
+      return;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const triggerPrint = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print?.();
+      } catch (err) {
+        console.error('Error invoking native print dialog:', err);
+      } finally {
+        setTimeout(() => {
+          try {
+            iframe.remove();
+          } catch {
+            // ignore
+          }
+          resolve();
+        }, 1500);
+      }
+    };
+
+    setTimeout(triggerPrint, 250);
+  });
+}
+
 export async function downloadVirtualTicket(profile: PrintProfilePayload | PrintProfile): Promise<void> {
   const response = await api.post<Blob>('/printing/profiles/preview.pdf', profile, {
     responseType: 'blob',
