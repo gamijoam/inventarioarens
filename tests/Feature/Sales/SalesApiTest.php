@@ -606,6 +606,91 @@ class SalesApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_sales_index_returns_accurate_summary_metrics_excluding_cancelled_and_deducting_refunds(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Metrics', 'slug' => 'empresa-metrics']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'BCV', 500);
+        $customer = $this->customer($tenant, 'Cliente Metrics', Customer::DOCUMENT_V, '777');
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Admin', ['sales.view', 'sales.create']);
+
+        // Sale 1: Confirmed ($100 base)
+        $sale1 = Sale::create([
+            'tenant_id' => $tenant->id,
+            'status' => Sale::STATUS_CONFIRMED,
+            'customer_id' => $customer->id,
+            'total_base_amount' => 100,
+            'total_local_amount' => 50000,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+
+        // Sale 2: Confirmed ($200 base)
+        $sale2 = Sale::create([
+            'tenant_id' => $tenant->id,
+            'status' => Sale::STATUS_CONFIRMED,
+            'customer_id' => $customer->id,
+            'total_base_amount' => 200,
+            'total_local_amount' => 100000,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+
+        // Sale 3: Cancelled ($300 base) - MUST NOT BE COUNTED IN TOTALS
+        Sale::create([
+            'tenant_id' => $tenant->id,
+            'status' => Sale::STATUS_CANCELLED,
+            'customer_id' => $customer->id,
+            'total_base_amount' => 300,
+            'total_local_amount' => 150000,
+            'created_by' => $user->id,
+            'cancelled_at' => now(),
+        ]);
+
+        // Sale 4: Draft ($50 base) - MUST NOT BE COUNTED IN MONETARY TOTALS
+        Sale::create([
+            'tenant_id' => $tenant->id,
+            'status' => Sale::STATUS_DRAFT,
+            'customer_id' => $customer->id,
+            'total_base_amount' => 50,
+            'total_local_amount' => 25000,
+            'created_by' => $user->id,
+        ]);
+
+        // Processed return of $40 on sale 1
+        \Illuminate\Support\Facades\DB::table('sales_returns')->insert([
+            'tenant_id' => $tenant->id,
+            'sale_id' => $sale1->id,
+            'status' => 'processed',
+            'reason' => 'Defectuoso',
+            'refund_amount_base' => 40,
+            'refund_amount_local' => 20000,
+            'created_by' => $user->id,
+            'processed_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales')
+            ->assertOk();
+
+        $response->assertJsonPath('summary.total_count', 4);
+        $response->assertJsonPath('summary.confirmed_count', 2);
+        $response->assertJsonPath('summary.cancelled_count', 1);
+        $response->assertJsonPath('summary.draft_count', 1);
+        $response->assertJsonPath('summary.confirmed_base_total', 300);
+        $response->assertJsonPath('summary.confirmed_local_total', 150000);
+        $response->assertJsonPath('summary.refund_base_total', 40);
+        $response->assertJsonPath('summary.refund_local_total', 20000);
+        $response->assertJsonPath('summary.refund_count', 1);
+        $response->assertJsonPath('summary.net_base_total', 260);
+        $response->assertJsonPath('summary.net_local_total', 130000);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

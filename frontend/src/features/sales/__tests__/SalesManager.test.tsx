@@ -186,4 +186,43 @@ describe('SalesManager', () => {
     // Assert that "Anular / revertir" does NOT exist anywhere
     expect(screen.queryByRole('button', { name: /anular \/ revertir/i })).not.toBeInTheDocument();
   });
+
+  it('renderiza correctamente las tarjetas de resumen métrico con venta neta, bruta y exclusión de canceladas', () => {
+    mockUseSales.mockReturnValue({
+      data: {
+        data: fakeSales,
+        meta: { current_page: 1, last_page: 1, total: 10 },
+        summary: {
+          total_count: 10,
+          confirmed_base_total: 500,
+          confirmed_local_total: 30000,
+          net_base_total: 450,
+          net_local_total: 27000,
+          refund_base_total: 50,
+          refund_local_total: 3000,
+          refund_count: 1,
+          confirmed_count: 7,
+          draft_count: 1,
+          cancelled_count: 2,
+          pos_count: 8,
+        },
+      },
+      isLoading: false,
+      isFetching: false,
+    });
+
+    render(<SalesManager />, { wrapper: makeWrapper() });
+
+    expect(screen.getByText('Venta Neta (período)')).toBeInTheDocument();
+    expect(screen.getByText('$450,00')).toBeInTheDocument();
+    expect(screen.getByText('Venta Bruta Confirmada')).toBeInTheDocument();
+    expect(screen.getByText('$500,00')).toBeInTheDocument();
+    expect(screen.getByText('Ventas Confirmadas')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('Borrador / Canceladas')).toBeInTheDocument();
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('Origen POS')).toBeInTheDocument();
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText(/Devuelto: -\$50,00 \(1\)/i)).toBeInTheDocument();
+  });
 });

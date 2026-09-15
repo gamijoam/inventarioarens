@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
 import { useRouterState } from '@tanstack/react-router';
-import { cn } from '@/lib/cn';
 import { useSessionStore } from '@/stores/session';
 import { useTenantFavicon } from '@/lib/useTenantFavicon';
 import { useUiPreferences } from '@/features/company-settings/api';
@@ -36,7 +35,6 @@ export function AppShell({ children }: AppShellProps) {
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isFullBleed = pathname === '/pos' || pathname.startsWith('/pos/');
-  const isWide = pathname === '/commissions';
 
   if (isFullBleed) {
     return <>{children}</>;

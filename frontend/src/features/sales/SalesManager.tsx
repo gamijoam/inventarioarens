@@ -198,18 +198,65 @@ export function SalesManager() {
   const cancelSale = useCancelSale();
   const sales = data?.data ?? [];
   const meta = data?.meta;
-  const pageTotals = sales.reduce(
-    (acc, sale) => {
-      acc.base += sale.total_base_amount;
-      acc.local += sale.total_local_amount;
-      acc.confirmed += sale.status === 'confirmed' ? 1 : 0;
-      acc.draft += sale.status === 'draft' ? 1 : 0;
-      acc.cancelled += sale.status === 'cancelled' ? 1 : 0;
-      acc.pos += sale.pos_order ? 1 : 0;
-      return acc;
-    },
-    { base: 0, local: 0, confirmed: 0, draft: 0, cancelled: 0, pos: 0 },
-  );
+  const summary = data?.summary;
+  const fallbackTotals = useMemo(() => {
+    return sales.reduce(
+      (acc, sale) => {
+        const isConfirmed = sale.status === 'confirmed';
+        if (isConfirmed) {
+          acc.confirmed_base_total += sale.total_base_amount;
+          acc.confirmed_local_total += sale.total_local_amount;
+          acc.confirmed_count += 1;
+        } else if (sale.status === 'draft') {
+          acc.draft_count += 1;
+        } else if (sale.status === 'cancelled' || sale.status === 'voided') {
+          acc.cancelled_count += 1;
+        }
+
+        if (isConfirmed && sale.sales_returns?.length) {
+          for (const ret of sale.sales_returns) {
+            if (ret.status === 'processed') {
+              const retBase = Number(ret.refund_amount_base ?? sale.receivable?.returned_base_amount ?? 0);
+              const retLocal = Number(ret.refund_amount_local ?? sale.receivable?.returned_local_amount ?? 0);
+              acc.refund_base_total += retBase;
+              acc.refund_local_total += retLocal;
+              acc.refund_count += 1;
+            }
+          }
+        }
+
+        if (sale.pos_order) {
+          acc.pos_count += 1;
+        }
+        return acc;
+      },
+      {
+        total_count: meta?.total ?? sales.length,
+        confirmed_base_total: 0,
+        confirmed_local_total: 0,
+        refund_base_total: 0,
+        refund_local_total: 0,
+        refund_count: 0,
+        confirmed_count: 0,
+        draft_count: 0,
+        cancelled_count: 0,
+        pos_count: 0,
+      },
+    );
+  }, [sales, meta?.total]);
+
+  const metrics = useMemo(() => {
+    if (summary) {
+      return summary;
+    }
+    const netBase = Math.max(0, fallbackTotals.confirmed_base_total - fallbackTotals.refund_base_total);
+    const netLocal = Math.max(0, fallbackTotals.confirmed_local_total - fallbackTotals.refund_local_total);
+    return {
+      ...fallbackTotals,
+      net_base_total: netBase,
+      net_local_total: netLocal,
+    };
+  }, [summary, fallbackTotals]);
 
   function updateFilters(next: Partial<SaleListFilters>) {
     setFilters((current) => ({ ...current, ...next, page: 1 }));
@@ -301,12 +348,45 @@ export function SalesManager() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-5">
-        <InfoTile label="Ventas visibles" value={String(meta?.total ?? sales.length)} />
-        <InfoTile label="Total página" value={`${formatMoney(pageTotals.base)} · ${formatMoney(pageTotals.local, 'Bs ')}`} />
-        <InfoTile label="Confirmadas" value={String(pageTotals.confirmed)} />
-        <InfoTile label="Borradores/Canceladas" value={`${pageTotals.draft} / ${pageTotals.cancelled}`} />
-        <InfoTile label="Origen POS" value={String(pageTotals.pos)} />
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+        <InfoTile
+          label="Venta Neta (período)"
+          value={formatMoney(metrics.net_base_total)}
+          subvalue={formatMoney(metrics.net_local_total, 'Bs ')}
+          helper={
+            metrics.refund_count > 0 || metrics.refund_base_total > 0
+              ? `Devuelto: -${formatMoney(metrics.refund_base_total)} (${metrics.refund_count})`
+              : 'Sin devoluciones deducidas'
+          }
+          tone="success"
+        />
+        <InfoTile
+          label="Venta Bruta Confirmada"
+          value={formatMoney(metrics.confirmed_base_total)}
+          subvalue={formatMoney(metrics.confirmed_local_total, 'Bs ')}
+          helper="Total ventas confirmadas"
+          tone="default"
+        />
+        <InfoTile
+          label="Ventas Confirmadas"
+          value={String(metrics.confirmed_count)}
+          subvalue={`de ${metrics.total_count} registradas`}
+          helper="Efectivas de caja"
+          tone="info"
+        />
+        <InfoTile
+          label="Borrador / Canceladas"
+          value={`${metrics.draft_count} / ${metrics.cancelled_count}`}
+          helper="No suman al total monetario"
+          tone={metrics.cancelled_count > 0 ? 'warning' : 'default'}
+        />
+        <InfoTile
+          label="Origen POS"
+          value={String(metrics.pos_count)}
+          subvalue={metrics.total_count > 0 ? `${Math.round((metrics.pos_count / metrics.total_count) * 100)}% del total` : undefined}
+          helper="Facturadas en caja POS"
+          tone="default"
+        />
       </div>
 
       {isError ? (
@@ -1074,11 +1154,45 @@ function WarrantyClaimForm({
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+function InfoTile({
+  label,
+  value,
+  subvalue,
+  helper,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  subvalue?: string;
+  helper?: string;
+  tone?: 'default' | 'success' | 'warning' | 'danger' | 'info';
+}) {
+  const toneClasses = {
+    default: 'text-slate-900',
+    success: 'text-emerald-700',
+    warning: 'text-amber-700',
+    danger: 'text-rose-700',
+    info: 'text-sky-700',
+  }[tone];
+
   return (
-    <div className="rounded border border-border bg-surface px-3 py-2">
-      <div className="text-xs uppercase text-text-muted">{label}</div>
-      <div className="mt-1 text-sm font-medium">{value}</div>
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all hover:shadow-md flex flex-col justify-between">
+      <div>
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</div>
+        <div className={`mt-1.5 text-xl sm:text-2xl font-black font-mono tabular-nums ${toneClasses}`}>
+          {value}
+        </div>
+        {subvalue && (
+          <div className="mt-0.5 text-xs font-medium font-mono tabular-nums text-slate-500">
+            {subvalue}
+          </div>
+        )}
+      </div>
+      {helper && (
+        <div className="mt-2 text-[11px] font-medium text-slate-400 border-t border-slate-100 pt-1.5">
+          {helper}
+        </div>
+      )}
     </div>
   );
 }

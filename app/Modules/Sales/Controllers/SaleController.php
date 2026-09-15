@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class SaleController extends Controller
@@ -23,23 +24,7 @@ class SaleController extends Controller
         Gate::authorize('viewAny', Sale::class);
 
         $request = request();
-        $query = Sale::query()
-            ->with([
-                'customer',
-                'creator',
-                'receivable',
-                'posOrder.cashier',
-                'posOrder.cashRegisterSession.branch',
-                'posOrder.cashRegisterSession.cashRegister',
-                'posOrder.payments.paymentMethod',
-                'items.product',
-                'items.variant',
-                'items.warehouse',
-                'salesReturns.items',
-                'promotionApplications.items',
-            ])
-            ->withCount('items')
-            ->latest();
+        $query = Sale::query();
 
         if ($status = $request->string('status')->trim()->toString()) {
             if (in_array($status, [Sale::STATUS_DRAFT, Sale::STATUS_CONFIRMED, Sale::STATUS_CANCELLED], true)) {
@@ -116,9 +101,82 @@ class SaleController extends Controller
         }
 
         $query = $this->scopes->applyVendorScope($query, $request->user(), 'created_by');
+
+        $summaryRow = (clone $query)
+            ->selectRaw("
+                COUNT(*) as total_sales_count,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN total_base_amount ELSE 0 END), 0) as confirmed_base_total,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN total_local_amount ELSE 0 END), 0) as confirmed_local_total,
+                COALESCE(COUNT(CASE WHEN status = 'confirmed' THEN 1 END), 0) as confirmed_count,
+                COALESCE(COUNT(CASE WHEN status = 'draft' THEN 1 END), 0) as draft_count,
+                COALESCE(COUNT(CASE WHEN status = 'cancelled' THEN 1 END), 0) as cancelled_count
+            ")
+            ->first();
+
+        $matchingSaleIds = (clone $query)
+            ->where('status', Sale::STATUS_CONFIRMED)
+            ->select('sales.id');
+
+        $refundRow = DB::table('sales_returns')
+            ->whereIn('sale_id', $matchingSaleIds)
+            ->where('status', 'processed')
+            ->selectRaw('
+                COALESCE(SUM(refund_amount_base), 0) as refund_base_total,
+                COALESCE(SUM(refund_amount_local), 0) as refund_local_total,
+                COUNT(*) as refund_count
+            ')
+            ->first();
+
+        $posCount = DB::table('pos_orders')
+            ->whereIn('sale_id', (clone $query)->select('sales.id'))
+            ->count();
+
+        $confirmedBaseTotal = (float) ($summaryRow->confirmed_base_total ?? 0);
+        $confirmedLocalTotal = (float) ($summaryRow->confirmed_local_total ?? 0);
+        $refundBaseTotal = (float) ($refundRow->refund_base_total ?? 0);
+        $refundLocalTotal = (float) ($refundRow->refund_local_total ?? 0);
+        $refundCount = (int) ($refundRow->refund_count ?? 0);
+
+        $netBaseTotal = max(0, $confirmedBaseTotal - $refundBaseTotal);
+        $netLocalTotal = max(0, $confirmedLocalTotal - $refundLocalTotal);
+
         $perPage = min(max($request->integer('per_page', 25), 1), 100);
 
-        return SaleResource::collection($query->paginate($perPage));
+        $paginated = (clone $query)
+            ->with([
+                'customer',
+                'creator',
+                'receivable',
+                'posOrder.cashier',
+                'posOrder.cashRegisterSession.branch',
+                'posOrder.cashRegisterSession.cashRegister',
+                'posOrder.payments.paymentMethod',
+                'items.product',
+                'items.variant',
+                'items.warehouse',
+                'salesReturns.items',
+                'promotionApplications.items',
+            ])
+            ->withCount('items')
+            ->latest()
+            ->paginate($perPage);
+
+        return SaleResource::collection($paginated)->additional([
+            'summary' => [
+                'total_count' => (int) ($summaryRow->total_sales_count ?? 0),
+                'confirmed_base_total' => round($confirmedBaseTotal, 4),
+                'confirmed_local_total' => round($confirmedLocalTotal, 4),
+                'net_base_total' => round($netBaseTotal, 4),
+                'net_local_total' => round($netLocalTotal, 4),
+                'refund_base_total' => round($refundBaseTotal, 4),
+                'refund_local_total' => round($refundLocalTotal, 4),
+                'refund_count' => $refundCount,
+                'confirmed_count' => (int) ($summaryRow->confirmed_count ?? 0),
+                'draft_count' => (int) ($summaryRow->draft_count ?? 0),
+                'cancelled_count' => (int) ($summaryRow->cancelled_count ?? 0),
+                'pos_count' => $posCount,
+            ],
+        ]);
     }
 
     public function store(StoreSaleRequest $request, SaleService $sales): JsonResponse
