@@ -36,14 +36,11 @@ function ReportsPage() {
       title="Reportes"
       description="Centro ejecutivo para inventario, movimientos, finanzas, caja y POS."
     >
-      <Tabs defaultValue="v2" className="space-y-4">
+      <Tabs defaultValue="clasicos" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="v2">Reportes V2</TabsTrigger>
           <TabsTrigger value="clasicos">Clásicos</TabsTrigger>
+          <TabsTrigger value="v2">Reportes V2</TabsTrigger>
         </TabsList>
-        <TabsContent value="v2">
-          <ReportsV2Manager />
-        </TabsContent>
         <TabsContent value="clasicos">
           <ReportsManager
             search={search}
@@ -51,6 +48,9 @@ function ReportsPage() {
               void navigate({ search: cleanSearch(next) });
             }}
           />
+        </TabsContent>
+        <TabsContent value="v2">
+          <ReportsV2Manager />
         </TabsContent>
       </Tabs>
     </PageLayout>
