@@ -117,7 +117,7 @@ export function ReceivablesManager() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <InfoTile label="Saldo abierto" value={money(totals.balance)} />
         <InfoTile label="Vencidas" value={String(totals.overdue)} />
         <InfoTile label="Pendientes" value={String(totals.pending)} />
@@ -404,9 +404,9 @@ function CollectPanel({ receivable, activeRate, onClose }: { receivable: Receiva
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-border bg-surface px-3 py-2">
-      <div className="text-xs uppercase text-text-muted">{label}</div>
-      <div className="mt-1 text-sm font-medium">{value}</div>
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all hover:shadow-md">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</div>
+      <div className="mt-1.5 text-xl sm:text-2xl font-black font-mono tabular-nums text-slate-900">{value}</div>
     </div>
   );
 }

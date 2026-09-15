@@ -24,17 +24,17 @@ export function PageLayout({
   return (
     <div className={cn('flex flex-col gap-6', className)}>
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           {breadcrumb}
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
+          <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             {icon}
             {title}
           </h1>
-          {description && <p className="text-sm text-text-muted">{description}</p>}
+          {description && <p className="text-sm text-text-muted sm:text-base">{description}</p>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2.5">{actions}</div>}
       </header>
-      <div>{children}</div>
+      <div className="w-full">{children}</div>
     </div>
   );
 }

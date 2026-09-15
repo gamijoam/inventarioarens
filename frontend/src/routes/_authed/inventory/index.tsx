@@ -814,7 +814,7 @@ function InventoryKpis({
   alerts?: { out_count: number; low_count: number };
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
       <KpiCard label="Productos encontrados" value={total.toLocaleString('es-VE')} />
       <KpiCard label="Sin stock" value={String(alerts?.out_count ?? '-')} tone="danger" />
       <KpiCard label="Stock bajo" value={String(alerts?.low_count ?? '-')} tone="warning" />
@@ -832,18 +832,21 @@ function KpiCard({
   tone?: 'default' | 'danger' | 'warning';
 }) {
   return (
-    <Card>
-      <CardContent className="flex items-center justify-between p-3">
-        <span className="text-text-muted text-xs font-medium tracking-wide uppercase">{label}</span>
-        <strong
-          className={cn(
-            'text-xl tabular-nums',
-            tone === 'danger' && 'text-danger',
-            tone === 'warning' && 'text-warning',
-          )}
-        >
-          {value}
-        </strong>
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="flex items-center justify-between p-4 sm:p-5">
+        <div>
+          <span className="text-slate-400 text-xs font-bold tracking-wider uppercase block">{label}</span>
+          <strong
+            className={cn(
+              'text-2xl sm:text-3xl font-black font-mono tabular-nums tracking-tight mt-1 block',
+              tone === 'danger' && 'text-rose-600',
+              tone === 'warning' && 'text-amber-600',
+              tone === 'default' && 'text-slate-900',
+            )}
+          >
+            {value}
+          </strong>
+        </div>
       </CardContent>
     </Card>
   );

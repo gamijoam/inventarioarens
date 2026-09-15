@@ -96,8 +96,8 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-end gap-2">
-        <div className="relative max-w-sm min-w-[200px] flex-1">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="relative min-w-[240px] flex-1">
           <Search className="text-text-muted pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input
             value={filters.search ?? ''}

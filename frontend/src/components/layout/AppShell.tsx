@@ -45,7 +45,6 @@ export function AppShell({ children }: AppShellProps) {
   const isPosArmar = pathname === '/pos/armar' || pathname.startsWith('/pos/armar/');
   const isFullBleed = isPosArmar;
   const isPos = pathname === '/pos';
-  const isWide = pathname === '/commissions' || isPos || pathname === '/dashboard';
 
   if (isFullBleed) {
     return <>{children}</>;
@@ -62,9 +61,7 @@ export function AppShell({ children }: AppShellProps) {
               'mx-auto w-full',
               isPos
                 ? 'max-w-none p-2 sm:p-4 lg:p-5 flex flex-col flex-1'
-                : isWide
-                  ? 'max-w-none px-4 py-6 sm:px-6 lg:px-8 2xl:px-10'
-                  : 'max-w-7xl px-4 py-6 sm:px-6 lg:px-8',
+                : 'max-w-none px-4 py-6 sm:px-6 lg:px-8 2xl:px-10',
             )}
           >
             {children}
