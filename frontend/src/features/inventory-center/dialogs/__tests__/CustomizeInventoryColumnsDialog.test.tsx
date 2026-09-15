@@ -24,7 +24,7 @@ describe('<CustomizeInventoryColumnsDialog>', () => {
     expect(screen.getByText('Personalizar columnas del inventario')).toBeInTheDocument();
     expect(screen.getByText(/columnas visibles/i)).toBeInTheDocument();
     expect(screen.getByText('Solo Producto y Stock')).toBeInTheDocument();
-    expect(screen.getByText('Mostrador / Código de barras')).toBeInTheDocument();
+    expect(screen.getByText('Mostrador / Código')).toBeInTheDocument();
     expect(screen.getByText('Estándar')).toBeInTheDocument();
     expect(screen.getByText('Completo')).toBeInTheDocument();
   });
@@ -65,7 +65,7 @@ describe('<CustomizeInventoryColumnsDialog>', () => {
     expect(onChange).toHaveBeenCalledWith(PRODUCT_AND_STOCK_COLUMNS);
   });
 
-  it('permite seleccionar el preset "Mostrador / Código de barras" para ocultar SKU y mostrar Barcode', async () => {
+  it('permite seleccionar el preset "Mostrador / Código" para ocultar SKU y mostrar Código', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
@@ -106,6 +106,32 @@ describe('<CustomizeInventoryColumnsDialog>', () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         barcode: true,
+      }),
+    );
+  });
+
+  it('permite alternar la columna de Precio costo', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <CustomizeInventoryColumnsDialog
+        open={true}
+        onOpenChange={() => {}}
+        visibility={DEFAULT_INVENTORY_TABLE_COLUMNS}
+        onChange={onChange}
+        onReset={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('Precio costo')).toBeInTheDocument();
+    const costCheckbox = screen.getByTestId('checkbox-col-cost_price');
+    expect(costCheckbox).not.toBeDisabled();
+    await user.click(costCheckbox);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cost_price: true,
       }),
     );
   });

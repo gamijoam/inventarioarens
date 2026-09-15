@@ -25,7 +25,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useSessionStore } from '@/stores/session';
-import { formatMoney } from '@/lib/money';
+import { formatMoney, formatCost } from '@/lib/money';
 import { cn } from '@/lib/cn';
 
 import { usePriceLists, useProducts } from '@/features/inventory-center/api';
@@ -549,7 +549,7 @@ function useColumns(
 
     const barcodeCol = columnHelper.accessor('barcode', {
       id: 'barcode',
-      header: 'Código de barras',
+      header: 'Código',
       cell: (info) => {
         const val = info.getValue();
         return val ? (
@@ -680,6 +680,24 @@ function useColumns(
       },
     );
 
+    const costPriceCol = columnHelper.accessor(
+      (row) => row.last_purchase_cost ?? row.average_cost ?? null,
+      {
+        id: 'cost_price',
+        header: 'Precio costo',
+        cell: (info) => {
+          const val = info.getValue();
+          return val != null ? (
+            <span className="text-text-primary text-xs font-mono font-medium">
+              {formatCost(val)}
+            </span>
+          ) : (
+            <span className="text-text-muted text-xs">—</span>
+          );
+        },
+      },
+    );
+
     const basePriceCol = columnHelper.accessor('base_price', {
       id: 'base_price',
       header: 'Precio base',
@@ -734,6 +752,7 @@ function useColumns(
       ...(columnsVisibility.categories ? [categoriesCol] : []),
       ...(columnsVisibility.tracking_type ? [trackingTypeCol] : []),
       ...(columnsVisibility.stock ? [stockCol] : []),
+      ...(columnsVisibility.cost_price ? [costPriceCol] : []),
       ...(columnsVisibility.base_price ? [basePriceCol] : []),
       ...(columnsVisibility.price_list ? [priceListCol] : []),
       ...(columnsVisibility.is_active ? [isActiveCol] : []),

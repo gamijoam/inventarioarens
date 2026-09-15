@@ -15,6 +15,7 @@ export interface InventoryTableColumnsVisibility {
   categories: boolean;
   tracking_type: boolean;
   stock: boolean;
+  cost_price: boolean;
   base_price: boolean;
   price_list: boolean;
   is_active: boolean;
@@ -22,7 +23,7 @@ export interface InventoryTableColumnsVisibility {
 
 /**
  * Configuración estándar predeterminada:
- * SKU visible, código de barras oculto, nombre, tipo, stock, precio base y listas de precios activas.
+ * SKU visible, código oculto, nombre, tipo, stock, precio base y listas de precios activas.
  */
 export const DEFAULT_INVENTORY_TABLE_COLUMNS: InventoryTableColumnsVisibility = {
   image: true,
@@ -33,6 +34,7 @@ export const DEFAULT_INVENTORY_TABLE_COLUMNS: InventoryTableColumnsVisibility = 
   categories: false,
   tracking_type: true,
   stock: true,
+  cost_price: false,
   base_price: true,
   price_list: true,
   is_active: true,
@@ -51,14 +53,15 @@ export const PRODUCT_AND_STOCK_COLUMNS: InventoryTableColumnsVisibility = {
   categories: false,
   tracking_type: false,
   stock: true,
+  cost_price: false,
   base_price: false,
   price_list: false,
   is_active: false,
 };
 
 /**
- * Preset "Mostrador / Código de barras":
- * Oculta el SKU interno y prioriza el Código de barras escaneable junto al precio de venta.
+ * Preset "Mostrador / Código":
+ * Oculta el SKU interno y prioriza el Código escaneable junto al precio de venta.
  */
 export const BARCODE_COUNTER_COLUMNS: InventoryTableColumnsVisibility = {
   image: false,
@@ -69,6 +72,7 @@ export const BARCODE_COUNTER_COLUMNS: InventoryTableColumnsVisibility = {
   categories: false,
   tracking_type: false,
   stock: true,
+  cost_price: false,
   base_price: true,
   price_list: false,
   is_active: true,
@@ -87,6 +91,7 @@ export const SINGLE_PRICE_LIST_COLUMNS: InventoryTableColumnsVisibility = {
   categories: false,
   tracking_type: false,
   stock: true,
+  cost_price: false,
   base_price: false,
   price_list: true,
   is_active: true,
@@ -105,6 +110,7 @@ export const ALL_INVENTORY_TABLE_COLUMNS: InventoryTableColumnsVisibility = {
   categories: true,
   tracking_type: true,
   stock: true,
+  cost_price: true,
   base_price: true,
   price_list: true,
   is_active: true,
@@ -132,8 +138,8 @@ export const INVENTORY_COLUMN_PRESETS: ColumnPreset[] = [
   },
   {
     id: 'barcode-counter',
-    name: 'Mostrador / Código de barras',
-    description: 'Oculta SKU y muestra Código de barras + precio de venta.',
+    name: 'Mostrador / Código',
+    description: 'Oculta SKU y muestra Código + precio de venta.',
     columns: BARCODE_COUNTER_COLUMNS,
   },
   {
@@ -171,8 +177,8 @@ export const INVENTORY_COLUMN_DEFINITIONS: ColumnDefinitionItem[] = [
   },
   {
     key: 'barcode',
-    label: 'Código de barras',
-    description: 'Código de barras escaneable del producto',
+    label: 'Código',
+    description: 'Código de barras o referencia escaneable',
   },
   {
     key: 'image',
@@ -198,6 +204,11 @@ export const INVENTORY_COLUMN_DEFINITIONS: ColumnDefinitionItem[] = [
     key: 'stock',
     label: 'Stock disponible',
     description: 'Existencia total o por almacén seleccionado',
+  },
+  {
+    key: 'cost_price',
+    label: 'Precio costo',
+    description: 'Costo unitario o promedio de adquisición del producto',
   },
   {
     key: 'base_price',
