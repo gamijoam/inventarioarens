@@ -1692,7 +1692,6 @@ export function PosTerminal() {
                     <CartLineRow
                       key={line.id}
                       line={line}
-                      canDiscount={canDiscount}
                       onChange={(patch) => updateLine(line.id, patch)}
                       onSerials={() => {
                         setSerialLineId(line.id);
@@ -3180,6 +3179,7 @@ export function PosTerminal() {
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
+        unit_price: line.unit_price,
         quantity: line.quantity,
         combo_instance_uuid: line.combo_instance_uuid ?? null,
         discount_type: canDiscount ? (line.discount_type ?? null) : null,
@@ -3220,6 +3220,7 @@ export function PosTerminal() {
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
+        unit_price: line.unit_price,
         quantity: line.quantity,
         combo_instance_uuid: line.combo_instance_uuid ?? null,
         discount_type: canDiscount ? (line.discount_type ?? null) : null,
@@ -3338,13 +3339,11 @@ export function PosTerminal() {
 
 function CartLineRow({
   line,
-  canDiscount,
   onChange,
   onSerials,
   onRemove,
 }: {
   line: PosCartLine;
-  canDiscount: boolean;
   onChange: (patch: Partial<PosCartLine>) => void;
   onSerials: () => void;
   onRemove: () => void;
@@ -3355,7 +3354,7 @@ function CartLineRow({
   return (
     <div
       className={cn(
-        'bg-surface grid gap-3 rounded-xl border border-transparent p-3 shadow-sm transition-colors xl:grid-cols-[minmax(220px,1fr)_440px_120px_40px] xl:items-center',
+        'bg-surface grid gap-3 rounded-xl border border-transparent p-3 shadow-sm transition-colors xl:grid-cols-[minmax(220px,1fr)_auto_120px_40px] xl:items-center',
         (stockIssue || serialIssue) && 'border-warning/40 bg-warning/10',
       )}
     >
@@ -3414,26 +3413,21 @@ function CartLineRow({
           </p>
         )}
       </div>
-      <div
-        className={cn(
-          'grid gap-2',
-          canDiscount ? 'sm:grid-cols-[124px_1fr]' : 'sm:grid-cols-[124px]',
-        )}
-      >
+      <div className="grid gap-2 sm:grid-cols-[124px_140px] items-center">
         <div className="flex items-center gap-1">
           <Button
             size="icon-sm"
             variant="outline"
-            onClick={() => onChange({ quantity: line.quantity - 1 })}
+            onClick={() => onChange({ quantity: Math.max(1, line.quantity - 1) })}
           >
             <Minus className="size-3" />
           </Button>
           <Input
-            className="h-9 text-center"
+            className="h-9 text-center font-semibold"
             type="number"
             min="1"
             value={line.quantity}
-            onChange={(event) => onChange({ quantity: Number(event.target.value) })}
+            onChange={(event) => onChange({ quantity: Math.max(1, Number(event.target.value) || 1) })}
           />
           <Button
             size="icon-sm"
@@ -3443,26 +3437,22 @@ function CartLineRow({
             <Plus className="size-3" />
           </Button>
         </div>
-        {canDiscount && (
-          <div className="grid grid-cols-[minmax(100px,1fr)_92px] gap-2">
-            <Select
-              value={line.discount_type ?? ''}
-              onChange={(event) =>
-                onChange({ discount_type: (event.target.value || null) as DiscountType | null })
-              }
-            >
-              <option value="">Sin descuento</option>
-              <option value="percent">Porcentaje</option>
-              <option value="fixed">Monto</option>
-            </Select>
-            <Input
-              type="number"
-              min="0"
-              value={line.discount_value ?? ''}
-              onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })}
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          <span className="text-text-muted text-xs font-semibold shrink-0">Precio $</span>
+          <Input
+            type="number"
+            step="any"
+            min="0"
+            value={line.unit_price}
+            onChange={(event) => {
+              const val = event.target.value;
+              onChange({ unit_price: val === '' ? 0 : Math.max(0, Number(val)) });
+            }}
+            className="h-9 w-full rounded-lg font-mono font-bold text-sm"
+            aria-label="Precio unitario"
+            data-testid={`pos-line-price-${line.id}`}
+          />
+        </div>
         {line.tracking_type === 'serialized' && (
           <Button
             className="sm:col-span-2"

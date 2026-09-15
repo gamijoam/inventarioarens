@@ -732,6 +732,39 @@ describe('pos api', () => {
     expect(calls[0]?.[2]).toEqual(calls[1]?.[2]);
   });
 
+  it('envia unit_price personalizado en items al hacer checkout y al armar orden', async () => {
+    mockPostOne.mockResolvedValue({ id: 99, status: 'paid', sale_id: 199 });
+
+    const { result: checkoutHook } = renderHook(() => useCheckout(), { wrapper });
+    checkoutHook.current.mutate({
+      cash_register_session_id: 3,
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 2, unit_price: 40 }],
+      payments: [],
+    });
+
+    await waitFor(() => expect(checkoutHook.current.isSuccess).toBe(true));
+    expect(mockPostOne).toHaveBeenCalledWith(
+      '/pos/checkouts',
+      expect.objectContaining({
+        items: [{ warehouse_id: 1, product_id: 2, quantity: 2, unit_price: 40 }],
+      }),
+      expect.any(Object),
+    );
+
+    const { result: holdHook } = renderHook(() => useHoldOrder(), { wrapper });
+    holdHook.current.mutate({
+      items: [{ warehouse_id: 1, product_id: 2, quantity: 1, unit_price: 35 }],
+    });
+
+    await waitFor(() => expect(holdHook.current.isSuccess).toBe(true));
+    expect(mockPostOne).toHaveBeenCalledWith(
+      '/pos/orders',
+      expect.objectContaining({
+        items: [{ warehouse_id: 1, product_id: 2, quantity: 1, unit_price: 35 }],
+      }),
+    );
+  });
+
   it('arma una orden pendiente (hold) SIN sesion de caja ni pagos', async () => {
     mockPostOne.mockResolvedValue({ id: 21, status: 'open', sale_id: 31, seller_id: 7 });
 

@@ -35,6 +35,16 @@ describe('POS cart logic', () => {
     expect(lineTotal({ ...baseLine, discount_type: 'fixed', discount_value: 5 })).toBe(35);
   });
 
+  it('recalcula subtotal y total de linea cuando se modifica el precio unitario en esa venta', () => {
+    const originalLine: PosCartLine = { ...baseLine, unit_price: 50, quantity: 2 };
+    expect(lineTotal(originalLine)).toBe(100);
+    expect(calculateCartTotals([originalLine]).total).toBe(100);
+
+    const editedLine: PosCartLine = { ...originalLine, unit_price: 40 };
+    expect(lineTotal(editedLine)).toBe(80);
+    expect(calculateCartTotals([editedLine]).total).toBe(80);
+  });
+
   it('no exige seleccionar una variante fantasma unica sin color', () => {
     expect(requiresPosVariantSelection([{ color: null }])).toBe(false);
     expect(requiresPosVariantSelection([{ color: 'Negra' }])).toBe(true);

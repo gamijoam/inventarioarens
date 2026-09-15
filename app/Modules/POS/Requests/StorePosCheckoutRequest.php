@@ -81,6 +81,7 @@ class StorePosCheckoutRequest extends FormRequest
                 Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'items.*.price_source' => ['nullable', 'string', Rule::in(['base', 'price_list', 'list'])],
+            'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.combo_instance_uuid' => ['nullable', 'string', 'max:100'],
             'items.*.product_variant_id' => [

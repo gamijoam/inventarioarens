@@ -50,11 +50,25 @@ class SaleService
                     $item['price_list_id'] ?? null,
                     $item['price_source'] ?? null,
                 );
-                $baseUnitPrice = (float) $quote['base_price_usd'];
-                $normalBaseTotal = round($baseUnitPrice * $quantity, 4);
-                $normalUnitPrice = (float) $quote['sale_price'];
-                $normalTotalAmount = round($normalUnitPrice * $quantity, 4);
-                $normalLocalTotal = $quote['price_ves'] === null ? 0.0 : round((float) $quote['price_ves'] * $quantity, 4);
+                $hasCustomUnitPrice = array_key_exists('unit_price', $item) && $item['unit_price'] !== null && is_numeric($item['unit_price']);
+                if ($hasCustomUnitPrice) {
+                    $customPrice = round((float) $item['unit_price'], 4);
+                    $baseUnitPrice = $quote['sale_currency'] === Product::CURRENCY_VES && ! empty($quote['exchange_rate'])
+                        ? round($customPrice / (float) $quote['exchange_rate'], 4)
+                        : $customPrice;
+                    $normalBaseTotal = round($baseUnitPrice * $quantity, 4);
+                    $normalUnitPrice = $customPrice;
+                    $normalTotalAmount = round($normalUnitPrice * $quantity, 4);
+                    $normalLocalTotal = ! empty($quote['exchange_rate'])
+                        ? round($normalBaseTotal * (float) $quote['exchange_rate'], 4)
+                        : 0.0;
+                } else {
+                    $baseUnitPrice = (float) $quote['base_price_usd'];
+                    $normalBaseTotal = round($baseUnitPrice * $quantity, 4);
+                    $normalUnitPrice = (float) $quote['sale_price'];
+                    $normalTotalAmount = round($normalUnitPrice * $quantity, 4);
+                    $normalLocalTotal = $quote['price_ves'] === null ? 0.0 : round((float) $quote['price_ves'] * $quantity, 4);
+                }
                 $promotionApplied = array_key_exists('promotion_base_total_amount', $item);
                 $baseTotal = $promotionApplied ? (float) $item['promotion_base_total_amount'] : $normalBaseTotal;
                 $totalAmount = $promotionApplied ? (float) $item['promotion_total_amount'] : $normalTotalAmount;

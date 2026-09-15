@@ -805,6 +805,40 @@ class PosHoldOrderApiTest extends TestCase
         ]);
     }
 
+    public function test_pos_hold_order_allows_custom_unit_price_without_modifying_product_catalog(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 50);
+        \App\Modules\Inventory\Models\StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 10,
+        ]);
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor', ['pos.orders.hold', 'pos.view']);
+
+        $response = $this
+            ->actingAs($seller)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 3,
+                    'unit_price' => 35,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_OPEN)
+            ->assertJsonPath('data.total_base_amount', '105.0000')
+            ->assertJsonPath('data.sale.items.0.unit_price', 35)
+            ->assertJsonPath('data.sale.items.0.total_amount', 105);
+
+        // Product catalog base price remains 100
+        $freshProduct = Product::find($product->id);
+        $this->assertEquals(100, (float) $freshProduct->base_price);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

@@ -396,6 +396,7 @@ export interface CheckoutPayload {
     product_variant_id?: number | null;
     price_list_id?: number | null;
     price_source?: 'base' | 'price_list';
+    unit_price?: number | null;
     quantity: number;
     combo_instance_uuid?: string | null;
     discount_type?: 'percent' | 'fixed' | null;

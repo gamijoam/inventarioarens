@@ -2195,4 +2195,47 @@ class PosCheckoutApiTest extends TestCase
             ])
             ->assertStatus(409);
     }
+
+    public function test_pos_checkout_allows_custom_unit_price_without_modifying_product_catalog(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 50);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 10,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Precio', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_price' => 40,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 80,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.total_base_amount', '80.0000')
+            ->assertJsonPath('data.paid_base_amount', '80.0000')
+            ->assertJsonPath('data.sale.items.0.unit_price', 40)
+            ->assertJsonPath('data.sale.items.0.total_amount', 80);
+
+        // Verify product catalog base price was NOT altered (remains 100)
+        $freshProduct = Product::find($product->id);
+        $this->assertEquals(100, (float) $freshProduct->base_price);
+    }
 }
+
