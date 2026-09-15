@@ -48,12 +48,7 @@ export function AppShell({ children }: AppShellProps) {
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
         <main className="flex-1 overflow-auto">
-          <div
-            className={cn(
-              'mx-auto w-full px-4 py-6 sm:px-6 lg:px-8',
-              isWide ? 'max-w-none' : 'max-w-7xl',
-            )}
-          >
+          <div className="mx-auto w-full max-w-none px-4 py-6 sm:px-6 lg:px-8 2xl:px-10">
             {children}
           </div>
         </main>

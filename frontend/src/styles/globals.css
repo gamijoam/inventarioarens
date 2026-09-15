@@ -241,12 +241,23 @@
  * ============================================================================ */
 @layer utilities {
   .table-dense {
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  @media (min-width: 640px) {
+    .table-dense {
+      font-size: 14px;
+    }
   }
   .table-dense th,
   .table-dense td {
-    padding: 6px 10px;
+    padding: 8px 12px;
+  }
+  @media (min-width: 640px) {
+    .table-dense th,
+    .table-dense td {
+      padding: 10px 14px;
+    }
   }
 
   .truncate-2 {
