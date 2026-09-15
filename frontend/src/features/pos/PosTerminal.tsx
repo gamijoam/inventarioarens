@@ -1492,6 +1492,47 @@ export function PosTerminal() {
             >
               <FileText className="size-4" /> Ver cotizaciones
             </Button>
+            {!sellerOnlyMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPanel('cash')}
+                data-testid="pos-action-cash"
+                className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs h-10 shadow-xs"
+              >
+                <Wallet className="size-4" /> Caja
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPanel('receipt')}
+              data-testid="pos-action-receipt"
+              className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs h-10 shadow-xs"
+            >
+              <Receipt className="size-4" /> Recibo
+            </Button>
+            {!sellerOnlyMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPanel('hold')}
+                data-testid="pos-action-pending"
+                className={cn(
+                  'relative rounded-xl font-semibold text-xs h-10 shadow-xs transition-colors',
+                  hasPendingAlert
+                    ? 'border-orange-500 bg-orange-50 text-orange-700 hover:bg-orange-100'
+                    : 'border-orange-200 text-orange-700 hover:bg-orange-50',
+                )}
+              >
+                <ClipboardList className="size-4" /> Pendientes
+                {pendingCount > 0 && (
+                  <span className="bg-orange-600 text-white absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-xs">
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                )}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"

@@ -46,6 +46,7 @@ interface PosShellProps {
   onExit?: () => void | Promise<void>;
   exitDisabled?: boolean;
   embedded?: boolean;
+  showHeader?: boolean;
 }
 
 function hasRequiredPermission(
@@ -84,12 +85,16 @@ export function PosShell({
   onExit,
   exitDisabled = false,
   embedded = false,
+  showHeader,
 }: PosShellProps) {
   const { permissions } = usePermissionContext();
   const visibleActions = actions.filter((action) =>
     hasRequiredPermission(permissions, action.permission),
   );
-  const showHeader = Boolean(context) || visibleActions.length > 0;
+  const shouldShowHeader =
+    showHeader !== undefined
+      ? showHeader
+      : !embedded && (Boolean(context) || visibleActions.length > 0);
 
   return (
     <div
@@ -107,7 +112,7 @@ export function PosShell({
           Salir del POS
         </button>
       )}
-      {showHeader &&
+      {shouldShowHeader &&
         (embedded ? (
           <header
             aria-label="POS"

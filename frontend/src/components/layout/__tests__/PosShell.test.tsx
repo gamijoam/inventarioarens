@@ -272,7 +272,7 @@ describe('<PosShell>', () => {
     expect(badge).toHaveTextContent('3');
   });
 
-  it('en modo embedded se integra sin botón de salir y con encabezado integrado', () => {
+  it('en modo embedded omite el encabezado redundante por defecto para maximizar el área de trabajo', () => {
     render(
       <PosShell
         embedded
@@ -295,6 +295,32 @@ describe('<PosShell>', () => {
     expect(shell).toHaveAttribute('data-shell', 'pos');
     expect(shell.className).not.toContain('min-h-screen');
     expect(shell.className).toContain('flex-1');
+    expect(screen.queryByRole('button', { name: 'Salir del POS' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Punto de Venta')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sucursal Principal')).not.toBeInTheDocument();
+    expect(screen.getByText('Terminal POS embebido')).toBeInTheDocument();
+  });
+
+  it('en modo embedded permite mostrar el encabezado integrado si showHeader es true', () => {
+    render(
+      <PosShell
+        embedded
+        showHeader
+        onExit={vi.fn()}
+        context={{
+          tenantName: 'Repuestos Avilacar',
+          branchName: 'Sucursal Principal',
+          warehouseName: 'Almacén Central',
+          cashRegisterName: 'Caja #1',
+          sessionStatus: 'open',
+          syncStatus: 'online',
+          rateLabel: 'BCV: 36.50',
+        }}
+      >
+        <p>Terminal POS embebido</p>
+      </PosShell>,
+    );
+
     expect(screen.queryByRole('button', { name: 'Salir del POS' })).not.toBeInTheDocument();
     expect(screen.getByText('Punto de Venta')).toBeInTheDocument();
     expect(screen.getByText('Sucursal Principal')).toBeInTheDocument();

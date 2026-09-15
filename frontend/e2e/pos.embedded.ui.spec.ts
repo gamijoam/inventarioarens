@@ -24,9 +24,8 @@ test.describe('POS Embedded Shell UI', () => {
     const topbar = page.getByTestId('admin-topbar');
     await expect(topbar).toBeVisible();
 
-    // El POS está embebido dentro del layout
-    const posHeader = page.getByRole('header', { name: 'POS' });
-    await expect(posHeader).toBeVisible();
+    // El terminal POS carga directamente optimizando el espacio vertical
+    await expect(page.getByTestId('pos-search')).toBeVisible();
 
     // No debe existir el botón flotante de escape que cierra sesión
     await expect(page.getByRole('button', { name: 'Salir del POS' })).toHaveCount(0);
