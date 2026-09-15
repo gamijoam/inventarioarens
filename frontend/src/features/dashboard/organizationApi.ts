@@ -28,6 +28,11 @@ export const OrganizationCompanySchema = z.object({
     accounts_receivable_balance_base_amount: z.number(),
     accounts_payable_balance_base_amount: z.number(),
   }),
+  profit: z.object({
+    gross_profit_base_amount: z.number(),
+    profit_margin_percent: z.number(),
+    sales_cost_base_amount: z.number(),
+  }).optional(),
 });
 
 export const OrganizationDashboardSchema = z.object({
@@ -53,6 +58,11 @@ export const OrganizationDashboardSchema = z.object({
     stock_cost_value: z.number().optional(),
     stock_retail_value: z.number().optional(),
     stock_total_units: z.number().optional(),
+    profit: z.object({
+      gross_profit_base_amount: z.number(),
+      profit_margin_percent: z.number(),
+      sales_cost_base_amount: z.number(),
+    }).optional(),
   }),
   companies: z.array(OrganizationCompanySchema),
 });

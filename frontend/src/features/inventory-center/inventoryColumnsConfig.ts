@@ -17,6 +17,7 @@ export interface InventoryTableColumnsVisibility {
   stock: boolean;
   cost_price: boolean;
   base_price: boolean;
+  profit: boolean;
   price_list: boolean;
   is_active: boolean;
 }
@@ -36,6 +37,7 @@ export const DEFAULT_INVENTORY_TABLE_COLUMNS: InventoryTableColumnsVisibility = 
   stock: true,
   cost_price: false,
   base_price: true,
+  profit: false,
   price_list: true,
   is_active: true,
 };
@@ -55,6 +57,7 @@ export const PRODUCT_AND_STOCK_COLUMNS: InventoryTableColumnsVisibility = {
   stock: true,
   cost_price: false,
   base_price: false,
+  profit: false,
   price_list: false,
   is_active: false,
 };
@@ -74,6 +77,7 @@ export const BARCODE_COUNTER_COLUMNS: InventoryTableColumnsVisibility = {
   stock: true,
   cost_price: false,
   base_price: true,
+  profit: false,
   price_list: false,
   is_active: true,
 };
@@ -93,6 +97,7 @@ export const SINGLE_PRICE_LIST_COLUMNS: InventoryTableColumnsVisibility = {
   stock: true,
   cost_price: false,
   base_price: false,
+  profit: false,
   price_list: true,
   is_active: true,
 };
@@ -112,6 +117,7 @@ export const ALL_INVENTORY_TABLE_COLUMNS: InventoryTableColumnsVisibility = {
   stock: true,
   cost_price: true,
   base_price: true,
+  profit: true,
   price_list: true,
   is_active: true,
 };
@@ -214,6 +220,11 @@ export const INVENTORY_COLUMN_DEFINITIONS: ColumnDefinitionItem[] = [
     key: 'base_price',
     label: 'Precio base',
     description: 'Precio de venta base en USD/VES',
+  },
+  {
+    key: 'profit',
+    label: 'Ganancia',
+    description: 'Margen de ganancia estimado (Precio venta - Precio costo)',
   },
   {
     key: 'price_list',

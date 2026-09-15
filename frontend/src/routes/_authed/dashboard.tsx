@@ -13,6 +13,7 @@ import {
   Receipt,
   ShoppingCart,
   SlidersHorizontal,
+  TrendingUp,
   Wallet,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -62,6 +63,11 @@ interface DashboardSummary {
   sales: {
     confirmed_count: number;
     total_base_amount: number;
+  };
+  profit?: {
+    gross_profit_base_amount: number;
+    profit_margin_percent: number;
+    sales_cost_base_amount: number;
   };
   pos: {
     paid_orders_count: number;
@@ -388,6 +394,7 @@ function TenantDashboardSummary({
 
   const visibleKpis = [
     visibility.sales,
+    visibility.profit,
     visibility.pos,
     visibility.cash_register,
     visibility.inventory_value,
@@ -414,6 +421,17 @@ function TenantDashboardSummary({
               value={formatMoney(data.sales.total_base_amount)}
               helper={`${data.sales.confirmed_count} confirmadas`}
               tone="primary"
+              cardCount={kpiCount}
+              isMasked={isMasked}
+            />
+          )}
+          {visibility.profit && (
+            <MetricCard
+              title="Ganancia estimada"
+              icon={TrendingUp}
+              value={formatMoney(data.profit?.gross_profit_base_amount ?? 0)}
+              helper={`Margen: ${(data.profit?.profit_margin_percent ?? 0).toFixed(1)}%`}
+              tone="success"
               cardCount={kpiCount}
               isMasked={isMasked}
             />

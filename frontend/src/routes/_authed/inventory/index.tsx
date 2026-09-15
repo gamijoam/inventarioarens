@@ -704,6 +704,41 @@ function useColumns(
       cell: (info) => formatMoney(info.getValue()),
     });
 
+    const profitCol = columnHelper.accessor(
+      (row) => {
+        const cost = row.last_purchase_cost ?? row.average_cost ?? null;
+        const price = Number(row.base_price ?? 0);
+        if (cost == null || isNaN(Number(cost)) || price <= 0) return null;
+        const profit = price - Number(cost);
+        const marginPct = (profit / price) * 100;
+        return { profit, marginPct };
+      },
+      {
+        id: 'profit',
+        header: 'Ganancia',
+        cell: (info) => {
+          const val = info.getValue();
+          if (!val) return <span className="text-text-muted text-xs">—</span>;
+          const isPositive = val.profit >= 0;
+          return (
+            <div className="flex flex-col">
+              <span
+                className={cn(
+                  'text-xs font-mono font-bold',
+                  isPositive ? 'text-emerald-600' : 'text-rose-600',
+                )}
+              >
+                {formatMoney(val.profit)}
+              </span>
+              <span className="text-[10px] text-text-muted font-mono">
+                {val.marginPct.toFixed(1)}%
+              </span>
+            </div>
+          );
+        },
+      },
+    );
+
     const priceListCol = columnHelper.display({
       id: 'price_list',
       header: 'Lista predeterminada',
@@ -754,6 +789,7 @@ function useColumns(
       ...(columnsVisibility.stock ? [stockCol] : []),
       ...(columnsVisibility.cost_price ? [costPriceCol] : []),
       ...(columnsVisibility.base_price ? [basePriceCol] : []),
+      ...(columnsVisibility.profit ? [profitCol] : []),
       ...(columnsVisibility.price_list ? [priceListCol] : []),
       ...(columnsVisibility.is_active ? [isActiveCol] : []),
       actionsCol,

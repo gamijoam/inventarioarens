@@ -1,4 +1,4 @@
-import { Boxes, CircleDollarSign, Landmark, PieChart, Receipt, ShoppingCart, Wallet } from 'lucide-react';
+import { Boxes, CircleDollarSign, Landmark, PieChart, Receipt, ShoppingCart, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 
 import { useAuth } from '@/auth/useAuth';
@@ -49,6 +49,16 @@ export function OrganizationDashboardView({ data, isMasked = false }: Organizati
           tone="primary"
           isMasked={isMasked}
         />
+        {data.totals.profit && (
+          <MetricCard
+            title="Ganancia del grupo"
+            icon={TrendingUp}
+            value={formatMoney(data.totals.profit.gross_profit_base_amount)}
+            helper={`Margen: ${data.totals.profit.profit_margin_percent.toFixed(1)}%`}
+            tone="success"
+            isMasked={isMasked}
+          />
+        )}
         <MetricCard
           title="POS cobrado"
           icon={Wallet}

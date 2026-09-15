@@ -21,6 +21,11 @@ class DashboardSummaryService
 
         $lowStockCount = (int) ($metrics['low_stock_count'] ?? 0);
 
+        $salesTotal = (float) ($metrics['sales_total'] ?? 0);
+        $salesCost = (float) ($metrics['sales_cost'] ?? 0);
+        $grossProfit = $salesTotal - $salesCost;
+        $profitMargin = $salesTotal > 0 ? round(($grossProfit / $salesTotal) * 100, 2) : 0.0;
+
         return [
             'currency' => 'USD',
             'period' => [
@@ -29,11 +34,16 @@ class DashboardSummaryService
             ],
             'sales' => [
                 'confirmed_count' => (int) ($metrics['sales_count'] ?? 0),
-                'total_base_amount' => round((float) ($metrics['sales_total'] ?? 0), 4),
+                'total_base_amount' => round($salesTotal, 4),
             ],
             'pos' => [
                 'paid_orders_count' => (int) ($metrics['pos_count'] ?? 0),
                 'paid_base_amount' => round((float) ($metrics['pos_total'] ?? 0), 4),
+            ],
+            'profit' => [
+                'gross_profit_base_amount' => round($grossProfit, 4),
+                'profit_margin_percent' => $profitMargin,
+                'sales_cost_base_amount' => round($salesCost, 4),
             ],
             'cash_register' => [
                 'open_sessions_count' => (int) ($metrics['cash_open_sessions'] ?? 0),
@@ -77,6 +87,8 @@ class DashboardSummaryService
             union all
             select 'sales_total' as metric, cast(coalesce(sum(total_base_amount), 0) as text) as val_num from sales where tenant_id = ? and status = ? and confirmed_at between ? and ?
             union all
+            select 'sales_cost' as metric, cast(coalesce(sum(si.quantity * coalesce(nullif(si.base_unit_cost, 0), p.last_purchase_cost, p.average_cost, 0)), 0) as text) as val_num from sale_items si join sales s on s.id = si.sale_id left join products p on p.id = si.product_id and p.tenant_id = s.tenant_id where s.tenant_id = ? and s.status = ? and s.confirmed_at between ? and ?
+            union all
             select 'pos_count' as metric, cast(count(*) as text) as val_num from pos_orders where tenant_id = ? and status = ? and paid_at between ? and ?
             union all
             select 'pos_total' as metric, cast(coalesce(sum(paid_base_amount), 0) as text) as val_num from pos_orders where tenant_id = ? and status = ? and paid_at between ? and ?
@@ -101,6 +113,7 @@ class DashboardSummaryService
         ";
 
         $bindings = [
+            $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
             $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
             $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
             $tenantId, $posPaid, $dateFromStr, $dateToStr,

@@ -18,11 +18,12 @@ describe('inventoryColumnsConfig', () => {
   });
 
   describe('Presets', () => {
-    it('DEFAULT preset shows essential columns with SKU and hides Barcode and Cost price', () => {
+    it('DEFAULT preset shows essential columns with SKU and hides Barcode, Cost price and Profit', () => {
       expect(DEFAULT_INVENTORY_TABLE_COLUMNS.name).toBe(true);
       expect(DEFAULT_INVENTORY_TABLE_COLUMNS.sku).toBe(true);
       expect(DEFAULT_INVENTORY_TABLE_COLUMNS.barcode).toBe(false);
       expect(DEFAULT_INVENTORY_TABLE_COLUMNS.cost_price).toBe(false);
+      expect(DEFAULT_INVENTORY_TABLE_COLUMNS.profit).toBe(false);
       expect(DEFAULT_INVENTORY_TABLE_COLUMNS.stock).toBe(true);
       expect(DEFAULT_INVENTORY_TABLE_COLUMNS.base_price).toBe(true);
       expect(DEFAULT_INVENTORY_TABLE_COLUMNS.price_list).toBe(true);
@@ -34,6 +35,7 @@ describe('inventoryColumnsConfig', () => {
       expect(PRODUCT_AND_STOCK_COLUMNS.sku).toBe(false);
       expect(PRODUCT_AND_STOCK_COLUMNS.barcode).toBe(false);
       expect(PRODUCT_AND_STOCK_COLUMNS.cost_price).toBe(false);
+      expect(PRODUCT_AND_STOCK_COLUMNS.profit).toBe(false);
       expect(PRODUCT_AND_STOCK_COLUMNS.base_price).toBe(false);
       expect(PRODUCT_AND_STOCK_COLUMNS.price_list).toBe(false);
       expect(PRODUCT_AND_STOCK_COLUMNS.image).toBe(false);
@@ -44,22 +46,25 @@ describe('inventoryColumnsConfig', () => {
       expect(BARCODE_COUNTER_COLUMNS.sku).toBe(false);
       expect(BARCODE_COUNTER_COLUMNS.barcode).toBe(true);
       expect(BARCODE_COUNTER_COLUMNS.cost_price).toBe(false);
+      expect(BARCODE_COUNTER_COLUMNS.profit).toBe(false);
       expect(BARCODE_COUNTER_COLUMNS.name).toBe(true);
       expect(BARCODE_COUNTER_COLUMNS.stock).toBe(true);
       expect(BARCODE_COUNTER_COLUMNS.base_price).toBe(true);
       expect(BARCODE_COUNTER_COLUMNS.price_list).toBe(false);
     });
 
-    it('SINGLE_PRICE_LIST_COLUMNS shows price_list and hides base_price and cost_price', () => {
+    it('SINGLE_PRICE_LIST_COLUMNS shows price_list and hides base_price, cost_price and profit', () => {
       expect(SINGLE_PRICE_LIST_COLUMNS.name).toBe(true);
       expect(SINGLE_PRICE_LIST_COLUMNS.stock).toBe(true);
       expect(SINGLE_PRICE_LIST_COLUMNS.cost_price).toBe(false);
+      expect(SINGLE_PRICE_LIST_COLUMNS.profit).toBe(false);
       expect(SINGLE_PRICE_LIST_COLUMNS.base_price).toBe(false);
       expect(SINGLE_PRICE_LIST_COLUMNS.price_list).toBe(true);
     });
 
-    it('ALL_INVENTORY_TABLE_COLUMNS enables all columns including cost_price', () => {
+    it('ALL_INVENTORY_TABLE_COLUMNS enables all columns including cost_price and profit', () => {
       expect(ALL_INVENTORY_TABLE_COLUMNS.cost_price).toBe(true);
+      expect(ALL_INVENTORY_TABLE_COLUMNS.profit).toBe(true);
       Object.values(ALL_INVENTORY_TABLE_COLUMNS).forEach((val) => {
         expect(val).toBe(true);
       });
@@ -78,7 +83,7 @@ describe('inventoryColumnsConfig', () => {
       expect(barcodePreset?.name).toBe('Mostrador / Código');
     });
 
-    it('INVENTORY_COLUMN_DEFINITIONS marks name as required and has barcode as Código', () => {
+    it('INVENTORY_COLUMN_DEFINITIONS marks name as required and has barcode as Código and profit as Ganancia', () => {
       const nameDef = INVENTORY_COLUMN_DEFINITIONS.find((d) => d.key === 'name');
       expect(nameDef).toBeDefined();
       expect(nameDef?.required).toBe(true);
@@ -90,6 +95,10 @@ describe('inventoryColumnsConfig', () => {
       const costDef = INVENTORY_COLUMN_DEFINITIONS.find((d) => d.key === 'cost_price');
       expect(costDef).toBeDefined();
       expect(costDef?.label).toBe('Precio costo');
+
+      const profitDef = INVENTORY_COLUMN_DEFINITIONS.find((d) => d.key === 'profit');
+      expect(profitDef).toBeDefined();
+      expect(profitDef?.label).toBe('Ganancia');
     });
   });
 

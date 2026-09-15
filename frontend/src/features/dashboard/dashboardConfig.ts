@@ -8,6 +8,7 @@
 export interface DashboardVisibility {
   // Métricas principales (tarjetas KPI)
   sales: boolean;
+  profit: boolean;
   pos: boolean;
   cash_register: boolean;
   inventory_value: boolean;
@@ -23,6 +24,7 @@ export interface DashboardVisibility {
 
 export const DEFAULT_DASHBOARD_VISIBILITY: DashboardVisibility = {
   sales: true,
+  profit: true,
   pos: true,
   cash_register: true,
   inventory_value: true,
@@ -55,6 +57,11 @@ export const DASHBOARD_SECTIONS: DashboardSection[] = [
         key: 'sales',
         label: 'Ventas confirmadas',
         description: 'Monto total y cantidad de ventas confirmadas en el periodo',
+      },
+      {
+        key: 'profit',
+        label: 'Ganancia estimada ($)',
+        description: 'Utilidad bruta (Ventas confirmadas menos Costo de la mercancía)',
       },
       {
         key: 'pos',

@@ -51,17 +51,27 @@ class OrganizationDashboardService
         $companiesPayload = $companies->map(function (Tenant $company) use ($metrics): array {
             $row = $metrics[$company->id] ?? $this->emptyRow();
 
+            $compSalesTotal = (float) $row['sales_total'];
+            $compSalesCost = (float) $row['sales_cost'];
+            $compGrossProfit = $compSalesTotal - $compSalesCost;
+            $compProfitMargin = $compSalesTotal > 0 ? round(($compGrossProfit / $compSalesTotal) * 100, 2) : 0.0;
+
             return [
                 'tenant_id' => $company->id,
                 'name' => $company->name,
                 'slug' => $company->slug,
                 'sales' => [
                     'confirmed_count' => (int) $row['sales_count'],
-                    'total_base_amount' => round((float) $row['sales_total'], 4),
+                    'total_base_amount' => round($compSalesTotal, 4),
                 ],
                 'pos' => [
                     'paid_orders_count' => (int) $row['pos_count'],
                     'paid_base_amount' => round((float) $row['pos_total'], 4),
+                ],
+                'profit' => [
+                    'gross_profit_base_amount' => round($compGrossProfit, 4),
+                    'profit_margin_percent' => $compProfitMargin,
+                    'sales_cost_base_amount' => round($compSalesCost, 4),
                 ],
                 'cash_register' => [
                     'open_sessions_count' => (int) $row['open_sessions'],
@@ -112,6 +122,7 @@ class OrganizationDashboardService
                 t.id as tenant_id,
                 coalesce(s.sales_count, 0) as sales_count,
                 coalesce(s.sales_total, 0) as sales_total,
+                coalesce(sc.sales_cost, 0) as sales_cost,
                 coalesce(p.pos_count, 0) as pos_count,
                 coalesce(p.pos_total, 0) as pos_total,
                 coalesce(c.open_sessions, 0) as open_sessions,
@@ -130,6 +141,15 @@ class OrganizationDashboardService
                 where tenant_id in ({$placeholders}) and status = ? and confirmed_at between ? and ?
                 group by tenant_id
             ) s on s.tenant_id = t.id
+            left join (
+                select s.tenant_id,
+                       coalesce(sum(si.quantity * coalesce(nullif(si.base_unit_cost, 0), p.last_purchase_cost, p.average_cost, 0)), 0) as sales_cost
+                from sale_items si
+                join sales s on s.id = si.sale_id
+                left join products p on p.id = si.product_id and p.tenant_id = s.tenant_id
+                where s.tenant_id in ({$placeholders}) and s.status = ? and s.confirmed_at between ? and ?
+                group by s.tenant_id
+            ) sc on sc.tenant_id = t.id
             left join (
                 select tenant_id, count(*) as pos_count, coalesce(sum(paid_base_amount), 0) as pos_total
                 from pos_orders
@@ -184,6 +204,12 @@ class OrganizationDashboardService
         foreach ($tenantIds as $id) {
             $bindings[] = $id;
         }
+        $bindings[] = $salesConfirmed;
+        $bindings[] = $dateFromStr;
+        $bindings[] = $dateToStr;
+        foreach ($tenantIds as $id) {
+            $bindings[] = $id;
+        }
         $bindings[] = $posPaid;
         $bindings[] = $dateFromStr;
         $bindings[] = $dateToStr;
@@ -215,6 +241,7 @@ class OrganizationDashboardService
             $result[(int) $row->tenant_id] = [
                 'sales_count' => (int) $row->sales_count,
                 'sales_total' => (float) $row->sales_total,
+                'sales_cost' => (float) $row->sales_cost,
                 'pos_count' => (int) $row->pos_count,
                 'pos_total' => (float) $row->pos_total,
                 'open_sessions' => (int) $row->open_sessions,
@@ -239,6 +266,8 @@ class OrganizationDashboardService
         foreach ($companies as $company) {
             $totals['sales_count'] += $company['sales']['confirmed_count'];
             $totals['sales_total_base_amount'] += $company['sales']['total_base_amount'];
+            $totals['sales_cost_base_amount'] += $company['profit']['sales_cost_base_amount'];
+            $totals['gross_profit_base_amount'] += $company['profit']['gross_profit_base_amount'];
             $totals['pos_orders_count'] += $company['pos']['paid_orders_count'];
             $totals['pos_paid_base_amount'] += $company['pos']['paid_base_amount'];
             $totals['open_cash_sessions'] += $company['cash_register']['open_sessions_count'];
@@ -250,6 +279,10 @@ class OrganizationDashboardService
             $totals['stock_total_units'] += $company['inventory']['stock_total_units'];
         }
 
+        $totals['profit_margin_percent'] = $totals['sales_total_base_amount'] > 0
+            ? round(($totals['gross_profit_base_amount'] / $totals['sales_total_base_amount']) * 100, 2)
+            : 0.0;
+
         return $totals;
     }
 
@@ -258,6 +291,9 @@ class OrganizationDashboardService
         return [
             'sales_count' => 0,
             'sales_total_base_amount' => 0,
+            'sales_cost_base_amount' => 0,
+            'gross_profit_base_amount' => 0,
+            'profit_margin_percent' => 0,
             'pos_orders_count' => 0,
             'pos_paid_base_amount' => 0,
             'open_cash_sessions' => 0,
@@ -275,6 +311,7 @@ class OrganizationDashboardService
         return [
             'sales_count' => 0,
             'sales_total' => 0,
+            'sales_cost' => 0,
             'pos_count' => 0,
             'pos_total' => 0,
             'open_sessions' => 0,
