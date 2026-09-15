@@ -163,3 +163,87 @@ export function resetStoredDashboardVisibility(tenantId?: number | string | null
   }
   return DEFAULT_DASHBOARD_VISIBILITY;
 }
+
+/**
+ * Retorna las clases de Tailwind de la cuadrícula en función del número de tarjetas KPI visibles,
+ * permitiendo que las tarjetas se expandan y llenen proporcionalmente la pantalla.
+ */
+export function getKpiGridClasses(count: number): string {
+  switch (count) {
+    case 1:
+      return 'grid grid-cols-1 gap-6';
+    case 2:
+      return 'grid grid-cols-1 md:grid-cols-2 gap-6';
+    case 3:
+      return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6';
+    case 4:
+      return 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5';
+    case 5:
+      return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4';
+    case 6:
+      return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4';
+    default:
+      // 7 u 8 tarjetas -> 4 columnas en pantallas amplias para 2 filas balanceadas
+      return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4';
+  }
+}
+
+export interface MetricCardSizeConfig {
+  card: string;
+  title: string;
+  value: string;
+  iconBox: string;
+  icon: string;
+  helper: string;
+  stripe: string;
+}
+
+/**
+ * Escala visualmente los elementos internos de la tarjeta métrica (padding, tamaño de fuente,
+ * caja de ícono) cuando hay menos tarjetas en pantalla, haciéndolas mucho más prominentes y legibles.
+ */
+export function getMetricCardSizeClass(count: number): MetricCardSizeConfig {
+  if (count <= 2) {
+    return {
+      card: 'p-6 sm:p-8 rounded-3xl min-h-[170px] sm:min-h-[195px] flex flex-col justify-between shadow-sm hover:shadow-lg',
+      title: 'text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider block',
+      value: 'mt-2 text-4xl sm:text-5xl lg:text-6xl font-black tabular-nums font-mono tracking-tight block leading-tight',
+      iconBox: 'size-14 sm:size-16 rounded-2xl border flex items-center justify-center shrink-0',
+      icon: 'size-7 sm:size-8',
+      helper: 'mt-4 flex items-center text-xs sm:text-sm text-slate-500 font-medium',
+      stripe: 'h-2',
+    };
+  }
+  if (count <= 4) {
+    return {
+      card: 'p-5 sm:p-6 rounded-2xl min-h-[145px] sm:min-h-[160px] flex flex-col justify-between shadow-sm hover:shadow-md',
+      title: 'text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider block',
+      value: 'mt-1.5 text-3xl sm:text-4xl font-black tabular-nums font-mono tracking-tight block leading-snug',
+      iconBox: 'size-12 sm:size-14 rounded-xl border flex items-center justify-center shrink-0',
+      icon: 'size-6 sm:size-7',
+      helper: 'mt-3 flex items-center text-xs sm:text-sm text-slate-500 font-medium',
+      stripe: 'h-1.5',
+    };
+  }
+  if (count <= 6) {
+    return {
+      card: 'p-4 sm:p-5 rounded-2xl min-h-[130px] sm:min-h-[145px] flex flex-col justify-between shadow-sm hover:shadow-md',
+      title: 'text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider block',
+      value: 'mt-1 text-2xl sm:text-3xl font-black tabular-nums font-mono tracking-tight block',
+      iconBox: 'size-11 sm:size-12 rounded-xl border flex items-center justify-center shrink-0',
+      icon: 'size-5 sm:size-6',
+      helper: 'mt-2.5 flex items-center text-xs text-slate-500 font-medium',
+      stripe: 'h-1',
+    };
+  }
+  return {
+    card: 'p-4 rounded-2xl min-h-[125px] flex flex-col justify-between shadow-sm hover:shadow-md',
+    title: 'text-[11px] font-bold text-slate-400 uppercase tracking-wider block',
+    value: 'mt-1 text-2xl font-black tabular-nums font-mono tracking-tight block',
+    iconBox: 'size-10 rounded-xl border flex items-center justify-center shrink-0',
+    icon: 'size-5',
+    helper: 'mt-2 flex items-center text-xs text-slate-500 font-medium',
+    stripe: 'h-1',
+  };
+}
+

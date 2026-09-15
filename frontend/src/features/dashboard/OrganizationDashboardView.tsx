@@ -8,6 +8,7 @@ import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
 
 import type { OrganizationDashboard } from './organizationApi';
+import { getMetricCardSizeClass } from './dashboardConfig';
 
 interface OrganizationDashboardViewProps {
   data: OrganizationDashboard;
@@ -38,7 +39,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
         <MetricCard
           title="Ventas del grupo"
           icon={ShoppingCart}
@@ -257,25 +258,26 @@ function MetricCard({ title, icon: Icon, value, helper, tone }: MetricCardProps)
   } as const;
 
   const config = toneConfig[tone] ?? toneConfig.default;
+  const size = getMetricCardSizeClass(7);
 
   return (
-    <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+    <div className={cn('bg-white border border-slate-200/90 relative overflow-hidden group transition-all', size.card)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">{title}</span>
-          <span className={cn('mt-1 text-2xl font-black tabular-nums font-mono tracking-tight block', config.value)}>
+          <span className={size.title}>{title}</span>
+          <span className={cn(size.value, config.value)}>
             {value}
           </span>
         </div>
-        <div className={cn('size-10 rounded-xl border flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform', config.box)}>
-          <Icon className="size-5" aria-hidden="true" />
+        <div className={cn(size.iconBox, 'group-hover:scale-110 transition-transform', config.box)}>
+          <Icon className={size.icon} aria-hidden="true" />
         </div>
       </div>
-      <div className="mt-3 flex items-center text-xs text-slate-500 font-medium">
-        <span className="size-2 rounded-full bg-slate-300 mr-1.5 shrink-0" />
+      <div className={size.helper}>
+        <span className="size-2 rounded-full bg-slate-300 mr-2 shrink-0" />
         <span className="truncate">{helper}</span>
       </div>
-      <div className={cn('absolute bottom-0 left-0 right-0 h-1', config.stripe)} />
+      <div className={cn('absolute bottom-0 left-0 right-0', size.stripe, config.stripe)} />
     </div>
   );
 }

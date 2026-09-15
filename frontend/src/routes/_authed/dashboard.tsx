@@ -28,11 +28,14 @@ import { useSessionStore } from '@/stores/session';
 import { OrganizationDashboardView } from '@/features/dashboard/OrganizationDashboardView';
 import { useOrganizationDashboard } from '@/features/dashboard/organizationApi';
 import { useGroupSpinoffs, useTenantGroups } from '@/features/access/tenantGroupsApi';
+import { cn } from '@/lib/cn';
 import {
   type DashboardVisibility,
   getStoredDashboardVisibility,
   saveStoredDashboardVisibility,
   resetStoredDashboardVisibility,
+  getKpiGridClasses,
+  getMetricCardSizeClass,
 } from '@/features/dashboard/dashboardConfig';
 import { CustomizeDashboardDialog } from '@/features/dashboard/dialogs/CustomizeDashboardDialog';
 
@@ -268,20 +271,27 @@ function TenantDashboardSummary({
     ? `${totalUnits} unid. · PVP: ${formatMoney(retailVal)}`
     : `${totalUnits} unid. en stock`;
 
-  const anyKpiVisible =
-    visibility.sales ||
-    visibility.pos ||
-    visibility.cash_register ||
-    visibility.inventory_value ||
-    visibility.inventory_retail_value ||
-    visibility.low_stock ||
-    visibility.receivables ||
-    visibility.payables;
+  const visibleKpis = [
+    visibility.sales,
+    visibility.pos,
+    visibility.cash_register,
+    visibility.inventory_value,
+    visibility.inventory_retail_value,
+    visibility.low_stock,
+    visibility.receivables,
+    visibility.payables,
+  ];
+  const kpiCount = visibleKpis.filter(Boolean).length;
+  const anyKpiVisible = kpiCount > 0;
+  const gridClasses = getKpiGridClasses(kpiCount);
+
+  const lowerCount = (visibility.low_stock_table ? 1 : 0) + (visibility.executive_reading ? 1 : 0);
+  const lowerGridClasses = lowerCount === 1 ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 xl:grid-cols-2 gap-6';
 
   return (
     <>
       {anyKpiVisible && (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+        <section className={gridClasses}>
           {visibility.sales && (
             <MetricCard
               title="Ventas"
@@ -289,6 +299,7 @@ function TenantDashboardSummary({
               value={formatMoney(data.sales.total_base_amount)}
               helper={`${data.sales.confirmed_count} confirmadas`}
               tone="primary"
+              cardCount={kpiCount}
             />
           )}
           {visibility.pos && (
@@ -298,6 +309,7 @@ function TenantDashboardSummary({
               value={formatMoney(data.pos.paid_base_amount)}
               helper={`${data.pos.paid_orders_count} tickets pagados`}
               tone="success"
+              cardCount={kpiCount}
             />
           )}
           {visibility.cash_register && (
@@ -307,6 +319,7 @@ function TenantDashboardSummary({
               value={String(data.cash_register.open_sessions_count)}
               helper="Turnos activos"
               tone="info"
+              cardCount={kpiCount}
             />
           )}
           {visibility.inventory_value && (
@@ -316,6 +329,7 @@ function TenantDashboardSummary({
               value={formatMoney(inventoryDisplayValue)}
               helper={inventoryHelper}
               tone="success"
+              cardCount={kpiCount}
             />
           )}
           {visibility.inventory_retail_value && (
@@ -325,6 +339,7 @@ function TenantDashboardSummary({
               value={formatMoney(retailVal)}
               helper={`${totalUnits} unid. a precio venta`}
               tone="info"
+              cardCount={kpiCount}
             />
           )}
           {visibility.low_stock && (
@@ -334,6 +349,7 @@ function TenantDashboardSummary({
               value={String(data.inventory.low_stock_count)}
               helper={`Umbral ${data.inventory.low_stock_threshold}`}
               tone={data.inventory.low_stock_count > 0 ? 'danger' : 'default'}
+              cardCount={kpiCount}
             />
           )}
           {visibility.receivables && (
@@ -343,6 +359,7 @@ function TenantDashboardSummary({
               value={formatMoney(data.finance.accounts_receivable_balance_base_amount)}
               helper={`${data.finance.accounts_receivable_count} cuentas`}
               tone="warning"
+              cardCount={kpiCount}
             />
           )}
           {visibility.payables && (
@@ -352,13 +369,14 @@ function TenantDashboardSummary({
               value={formatMoney(data.finance.accounts_payable_balance_base_amount)}
               helper={`${data.finance.accounts_payable_count} cuentas`}
               tone="danger"
+              cardCount={kpiCount}
             />
           )}
         </section>
       )}
 
       {(visibility.low_stock_table || visibility.executive_reading) && (
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className={lowerGridClasses}>
           {visibility.low_stock_table && (
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50/40 to-transparent">
@@ -459,9 +477,10 @@ interface MetricCardProps {
   value: string;
   helper: string;
   tone: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'default';
+  cardCount?: number;
 }
 
-function MetricCard({ title, icon: Icon, value, helper, tone }: MetricCardProps) {
+function MetricCard({ title, icon: Icon, value, helper, tone, cardCount = 8 }: MetricCardProps) {
   const toneConfig = {
     primary: {
       value: 'text-slate-900',
@@ -496,25 +515,26 @@ function MetricCard({ title, icon: Icon, value, helper, tone }: MetricCardProps)
   } as const;
 
   const config = toneConfig[tone] ?? toneConfig.default;
+  const size = getMetricCardSizeClass(cardCount);
 
   return (
-    <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+    <div className={cn('bg-white border border-slate-200/90 relative overflow-hidden group transition-all', size.card)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">{title}</span>
-          <span className={`mt-1 text-2xl font-black tabular-nums font-mono tracking-tight block ${config.value}`}>
+          <span className={size.title}>{title}</span>
+          <span className={cn(size.value, config.value)}>
             {value}
           </span>
         </div>
-        <div className={`size-10 rounded-xl border flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${config.box}`}>
-          <Icon className="size-5" aria-hidden="true" />
+        <div className={cn(size.iconBox, 'group-hover:scale-110 transition-transform', config.box)}>
+          <Icon className={size.icon} aria-hidden="true" />
         </div>
       </div>
-      <div className="mt-3 flex items-center text-xs text-slate-500 font-medium">
-        <span className="size-2 rounded-full bg-slate-300 mr-1.5 shrink-0" />
+      <div className={size.helper}>
+        <span className="size-2 rounded-full bg-slate-300 mr-2 shrink-0" />
         <span className="truncate">{helper}</span>
       </div>
-      <div className={`absolute bottom-0 left-0 right-0 h-1 ${config.stripe}`} />
+      <div className={cn('absolute bottom-0 left-0 right-0', size.stripe, config.stripe)} />
     </div>
   );
 }
@@ -531,14 +551,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-28" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-32 rounded-2xl" />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Skeleton className="h-72" />
-        <Skeleton className="h-72" />
+        <Skeleton className="h-72 rounded-2xl" />
+        <Skeleton className="h-72 rounded-2xl" />
       </div>
     </div>
   );
