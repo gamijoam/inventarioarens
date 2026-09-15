@@ -12,9 +12,10 @@ import { getMetricCardSizeClass } from './dashboardConfig';
 
 interface OrganizationDashboardViewProps {
   data: OrganizationDashboard;
+  isMasked?: boolean;
 }
 
-export function OrganizationDashboardView({ data }: OrganizationDashboardViewProps) {
+export function OrganizationDashboardView({ data, isMasked = false }: OrganizationDashboardViewProps) {
   const { switchTo } = useAuth();
   const [switching, setSwitching] = useState<string | null>(null);
 
@@ -46,6 +47,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={formatMoney(data.totals.sales_total_base_amount)}
           helper={`${data.totals.sales_count} confirmadas`}
           tone="primary"
+          isMasked={isMasked}
         />
         <MetricCard
           title="POS cobrado"
@@ -53,6 +55,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={formatMoney(data.totals.pos_paid_base_amount)}
           helper={`${data.totals.pos_orders_count} tickets`}
           tone="success"
+          isMasked={isMasked}
         />
         <MetricCard
           title="Cajas abiertas"
@@ -60,6 +63,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={String(data.totals.open_cash_sessions)}
           helper="En todas las sucursales"
           tone="info"
+          isMasked={isMasked}
         />
         <MetricCard
           title="Valor inventario"
@@ -67,6 +71,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={formatMoney(orgInventoryValue)}
           helper={orgInventoryHelper}
           tone="success"
+          isMasked={isMasked}
         />
         <MetricCard
           title="Bajo stock"
@@ -74,6 +79,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={String(data.totals.low_stock_count)}
           helper="En todas las sucursales"
           tone={data.totals.low_stock_count > 0 ? 'danger' : 'default'}
+          isMasked={isMasked}
         />
         <MetricCard
           title="CxC abierta"
@@ -81,6 +87,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={formatMoney(data.totals.receivable_balance_base_amount)}
           helper="Total de cuentas por cobrar"
           tone="warning"
+          isMasked={isMasked}
         />
         <MetricCard
           title="CxP abierta"
@@ -88,6 +95,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           value={formatMoney(data.totals.payable_balance_base_amount)}
           helper="Total de cuentas por pagar"
           tone="danger"
+          isMasked={isMasked}
         />
       </section>
 
@@ -97,7 +105,7 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Balance operativo del grupo</p>
             <h3 className={cn('text-2xl font-black font-mono mt-1', balance >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-              {formatMoney(balance)}
+              {isMasked ? <span className="tracking-widest text-slate-300 select-none">••••••</span> : formatMoney(balance)}
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">Ingresos operacionales netos tras deducción de egresos.</p>
           </div>
@@ -109,10 +117,14 @@ export function OrganizationDashboardView({ data }: OrganizationDashboardViewPro
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Ventas promedio por ticket</p>
             <h3 className="text-2xl font-black text-slate-900 font-mono mt-1">
-              {formatMoney(
-                data.totals.pos_orders_count > 0
-                  ? data.totals.pos_paid_base_amount / data.totals.pos_orders_count
-                  : 0,
+              {isMasked ? (
+                <span className="tracking-widest text-slate-300 select-none">••••••</span>
+              ) : (
+                formatMoney(
+                  data.totals.pos_orders_count > 0
+                    ? data.totals.pos_paid_base_amount / data.totals.pos_orders_count
+                    : 0,
+                )
               )}
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">Ticket medio facturado en el rango de fecha seleccionado.</p>
@@ -221,9 +233,10 @@ interface MetricCardProps {
   value: string;
   helper: string;
   tone: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'default';
+  isMasked?: boolean;
 }
 
-function MetricCard({ title, icon: Icon, value, helper, tone }: MetricCardProps) {
+function MetricCard({ title, icon: Icon, value, helper, tone, isMasked = false }: MetricCardProps) {
   const toneConfig = {
     primary: {
       value: 'text-slate-900',
@@ -266,7 +279,11 @@ function MetricCard({ title, icon: Icon, value, helper, tone }: MetricCardProps)
         <div className="min-w-0">
           <span className={size.title}>{title}</span>
           <span className={cn(size.value, config.value)}>
-            {value}
+            {isMasked ? (
+              <span className="tracking-widest font-mono text-slate-300 select-none">••••••</span>
+            ) : (
+              value
+            )}
           </span>
         </div>
         <div className={cn(size.iconBox, 'group-hover:scale-110 transition-transform', config.box)}>
@@ -275,7 +292,13 @@ function MetricCard({ title, icon: Icon, value, helper, tone }: MetricCardProps)
       </div>
       <div className={size.helper}>
         <span className="size-2 rounded-full bg-slate-300 mr-2 shrink-0" />
-        <span className="truncate">{helper}</span>
+        <span className="truncate">
+          {isMasked ? (
+            <span className="tracking-widest font-mono text-slate-300 select-none">••••••</span>
+          ) : (
+            helper
+          )}
+        </span>
       </div>
       <div className={cn('absolute bottom-0 left-0 right-0', size.stripe, config.stripe)} />
     </div>

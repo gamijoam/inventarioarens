@@ -6,7 +6,10 @@ import {
   Building2,
   CalendarDays,
   CircleDollarSign,
+  Eye,
+  EyeOff,
   Landmark,
+  Lock,
   Receipt,
   ShoppingCart,
   SlidersHorizontal,
@@ -37,7 +40,14 @@ import {
   getKpiGridClasses,
   getMetricCardSizeClass,
 } from '@/features/dashboard/dashboardConfig';
+import {
+  hasDashboardPin,
+  getStoredDashboardMasked,
+  saveStoredDashboardMasked,
+} from '@/features/dashboard/dashboardSecurity';
 import { CustomizeDashboardDialog } from '@/features/dashboard/dialogs/CustomizeDashboardDialog';
+import { UnlockDashboardPinDialog } from '@/features/dashboard/dialogs/UnlockDashboardPinDialog';
+import { ManageDashboardPinDialog } from '@/features/dashboard/dialogs/ManageDashboardPinDialog';
 
 export const Route = createFileRoute('/_authed/dashboard')({
   component: DashboardPage,
@@ -115,13 +125,60 @@ function DashboardPage() {
   const scope: DashboardScope = userSelectedScope ?? (canShowOrganization ? 'organization' : 'tenant');
 
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [unlockPinOpen, setUnlockPinOpen] = useState(false);
+  const [managePinOpen, setManagePinOpen] = useState(false);
+
   const [visibility, setVisibility] = useState<DashboardVisibility>(() =>
     getStoredDashboardVisibility(tenant?.id),
   );
 
+  const [isMasked, setIsMasked] = useState<boolean>(() =>
+    getStoredDashboardMasked(tenant?.id),
+  );
+  const [hasPin, setHasPin] = useState<boolean>(() =>
+    hasDashboardPin(tenant?.id),
+  );
+
   useEffect(() => {
     setVisibility(getStoredDashboardVisibility(tenant?.id));
+    setIsMasked(getStoredDashboardMasked(tenant?.id));
+    setHasPin(hasDashboardPin(tenant?.id));
   }, [tenant?.id]);
+
+  const handleToggleEye = () => {
+    if (isMasked) {
+      if (hasPin) {
+        setUnlockPinOpen(true);
+      } else {
+        setIsMasked(false);
+        saveStoredDashboardMasked(false, tenant?.id);
+      }
+    } else {
+      if (hasPin) {
+        setIsMasked(true);
+        saveStoredDashboardMasked(true, tenant?.id);
+      } else {
+        setManagePinOpen(true);
+      }
+    }
+  };
+
+  const handlePinSaved = () => {
+    setHasPin(true);
+    setIsMasked(true);
+    saveStoredDashboardMasked(true, tenant?.id);
+  };
+
+  const handlePinRemoved = () => {
+    setHasPin(false);
+    setIsMasked(false);
+    saveStoredDashboardMasked(false, tenant?.id);
+  };
+
+  const handleUnlockSuccess = () => {
+    setIsMasked(false);
+    saveStoredDashboardMasked(false, tenant?.id);
+  };
 
   const handleVisibilityChange = (newVisibility: DashboardVisibility) => {
     setVisibility(newVisibility);
@@ -221,6 +278,40 @@ function DashboardPage() {
             )}
             <button
               type="button"
+              onClick={handleToggleEye}
+              data-testid="toggle-privacy-btn"
+              title={isMasked ? 'Mostrar cifras (requiere PIN)' : 'Ocultar cifras con PIN'}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs transition-colors',
+                isMasked
+                  ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 ring-2 ring-amber-400/20'
+                  : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700',
+              )}
+            >
+              {isMasked ? (
+                <>
+                  <EyeOff className="size-3.5 text-amber-600" />
+                  <span>Oculto</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="size-3.5 text-slate-500" />
+                  <span>Ocultar</span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setManagePinOpen(true)}
+              data-testid="manage-pin-btn"
+              title={hasPin ? 'Cambiar PIN de seguridad' : 'Configurar PIN de seguridad'}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition-colors"
+            >
+              <Lock className="size-3.5 text-slate-500" />
+              <span>{hasPin ? 'Cambiar PIN' : 'Configurar PIN'}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setCustomizeOpen(true)}
               data-testid="customize-dashboard-btn"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-orange-200 bg-white hover:bg-orange-50 text-orange-700 text-xs font-semibold shadow-xs transition-colors"
@@ -241,9 +332,15 @@ function DashboardPage() {
         />
       )}
 
-      {orgData && <OrganizationDashboardView data={orgData} />}
+      {orgData && <OrganizationDashboardView data={orgData} isMasked={isMasked} />}
 
-      {tenantData && <TenantDashboardSummary data={tenantData} visibility={visibility} />}
+      {tenantData && (
+        <TenantDashboardSummary
+          data={tenantData}
+          visibility={visibility}
+          isMasked={isMasked}
+        />
+      )}
 
       <CustomizeDashboardDialog
         open={customizeOpen}
@@ -252,6 +349,22 @@ function DashboardPage() {
         onChange={handleVisibilityChange}
         onReset={handleVisibilityReset}
       />
+
+      <UnlockDashboardPinDialog
+        open={unlockPinOpen}
+        onOpenChange={setUnlockPinOpen}
+        tenantId={tenant?.id}
+        onSuccess={handleUnlockSuccess}
+      />
+
+      <ManageDashboardPinDialog
+        open={managePinOpen}
+        onOpenChange={setManagePinOpen}
+        tenantId={tenant?.id}
+        hasPin={hasPin}
+        onPinSaved={handlePinSaved}
+        onPinRemoved={handlePinRemoved}
+      />
     </PageLayout>
   );
 }
@@ -259,9 +372,11 @@ function DashboardPage() {
 function TenantDashboardSummary({
   data,
   visibility,
+  isMasked = false,
 }: {
   data: DashboardSummary;
   visibility: DashboardVisibility;
+  isMasked?: boolean;
 }) {
   const costVal = data.inventory.stock_cost_value ?? 0;
   const retailVal = data.inventory.stock_retail_value ?? 0;
@@ -300,6 +415,7 @@ function TenantDashboardSummary({
               helper={`${data.sales.confirmed_count} confirmadas`}
               tone="primary"
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
           {visibility.pos && (
@@ -310,6 +426,7 @@ function TenantDashboardSummary({
               helper={`${data.pos.paid_orders_count} tickets pagados`}
               tone="success"
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
           {visibility.cash_register && (
@@ -320,6 +437,7 @@ function TenantDashboardSummary({
               helper="Turnos activos"
               tone="info"
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
           {visibility.inventory_value && (
@@ -330,6 +448,7 @@ function TenantDashboardSummary({
               helper={inventoryHelper}
               tone="success"
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
           {visibility.inventory_retail_value && (
@@ -340,6 +459,7 @@ function TenantDashboardSummary({
               helper={`${totalUnits} unid. a precio venta`}
               tone="info"
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
           {visibility.low_stock && (
@@ -350,6 +470,7 @@ function TenantDashboardSummary({
               helper={`Umbral ${data.inventory.low_stock_threshold}`}
               tone={data.inventory.low_stock_count > 0 ? 'danger' : 'default'}
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
           {visibility.receivables && (
@@ -360,6 +481,7 @@ function TenantDashboardSummary({
               helper={`${data.finance.accounts_receivable_count} cuentas`}
               tone="warning"
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
           {visibility.payables && (
@@ -370,6 +492,7 @@ function TenantDashboardSummary({
               helper={`${data.finance.accounts_payable_count} cuentas`}
               tone="danger"
               cardCount={kpiCount}
+              isMasked={isMasked}
             />
           )}
         </section>
@@ -418,7 +541,11 @@ function TenantDashboardSummary({
                               {item.warehouse_name ?? `Almacén #${item.warehouse_id}`}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600 tabular-nums">
-                              {item.quantity_available}
+                              {isMasked ? (
+                                <span className="tracking-widest text-slate-300 select-none">•••</span>
+                              ) : (
+                                item.quantity_available
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -443,9 +570,13 @@ function TenantDashboardSummary({
                   <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Balance operativo</div>
                     <div className="text-2xl font-black font-mono mt-1 text-emerald-600">
-                      {formatMoney(
-                        data.finance.accounts_receivable_balance_base_amount -
-                          data.finance.accounts_payable_balance_base_amount,
+                      {isMasked ? (
+                        <span className="tracking-widest text-slate-300 select-none">••••••</span>
+                      ) : (
+                        formatMoney(
+                          data.finance.accounts_receivable_balance_base_amount -
+                            data.finance.accounts_payable_balance_base_amount,
+                        )
                       )}
                     </div>
                     <p className="text-[10px] text-slate-400 mt-1">CxC neta menos CxP acumuladas</p>
@@ -453,10 +584,14 @@ function TenantDashboardSummary({
                   <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ventas promedio</div>
                     <div className="text-2xl font-black font-mono mt-1 text-slate-900">
-                      {formatMoney(
-                        data.sales.confirmed_count > 0
-                          ? data.sales.total_base_amount / data.sales.confirmed_count
-                          : 0,
+                      {isMasked ? (
+                        <span className="tracking-widest text-slate-300 select-none">••••••</span>
+                      ) : (
+                        formatMoney(
+                          data.sales.confirmed_count > 0
+                            ? data.sales.total_base_amount / data.sales.confirmed_count
+                            : 0,
+                        )
                       )}
                     </div>
                     <p className="text-[10px] text-slate-400 mt-1">Por venta confirmada en periodo</p>
@@ -478,9 +613,10 @@ interface MetricCardProps {
   helper: string;
   tone: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'default';
   cardCount?: number;
+  isMasked?: boolean;
 }
 
-function MetricCard({ title, icon: Icon, value, helper, tone, cardCount = 8 }: MetricCardProps) {
+function MetricCard({ title, icon: Icon, value, helper, tone, cardCount = 8, isMasked = false }: MetricCardProps) {
   const toneConfig = {
     primary: {
       value: 'text-slate-900',
@@ -523,7 +659,11 @@ function MetricCard({ title, icon: Icon, value, helper, tone, cardCount = 8 }: M
         <div className="min-w-0">
           <span className={size.title}>{title}</span>
           <span className={cn(size.value, config.value)}>
-            {value}
+            {isMasked ? (
+              <span className="tracking-widest font-mono text-slate-300 select-none">••••••</span>
+            ) : (
+              value
+            )}
           </span>
         </div>
         <div className={cn(size.iconBox, 'group-hover:scale-110 transition-transform', config.box)}>
@@ -532,7 +672,13 @@ function MetricCard({ title, icon: Icon, value, helper, tone, cardCount = 8 }: M
       </div>
       <div className={size.helper}>
         <span className="size-2 rounded-full bg-slate-300 mr-2 shrink-0" />
-        <span className="truncate">{helper}</span>
+        <span className="truncate">
+          {isMasked ? (
+            <span className="tracking-widest font-mono text-slate-300 select-none">••••••</span>
+          ) : (
+            helper
+          )}
+        </span>
       </div>
       <div className={cn('absolute bottom-0 left-0 right-0', size.stripe, config.stripe)} />
     </div>
