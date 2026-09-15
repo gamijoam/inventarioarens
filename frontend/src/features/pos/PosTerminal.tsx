@@ -1356,10 +1356,14 @@ export function PosTerminal() {
                             <TapButton
                               key={product.id}
                               onPress={() => {
-                                openSearchFromSuggestion(query, {
-                                  setProductSearch,
-                                  setPanel: (panel) => setPanel(panel),
+                                void addProduct(product).then((added) => {
+                                  if (added) {
+                                    setQuery('');
+                                    setQuickSearchIndex(0);
+                                  }
                                 });
+                                setQuery('');
+                                setQuickSearchIndex(0);
                               }}
                               onMouseEnter={() => setQuickSearchIndex(index)}
                               className={cn(

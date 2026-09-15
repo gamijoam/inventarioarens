@@ -112,4 +112,29 @@ describe('usePosTap (tap tactil con respaldo pointerdown)', () => {
 
     expect(onTap).toHaveBeenCalledTimes(1);
   });
+
+  it('deduplica la secuencia de click de mouse (gesture de useDrag + click nativo de DOM)', () => {
+    const onTap = vi.fn();
+    let result!: ReturnType<typeof usePosTap>;
+
+    function Probe() {
+      result = usePosTap(onTap);
+      return <button type="button" data-testid="target" {...result.bind()} />;
+    }
+
+    render(<Probe />);
+
+    const handlers = result?.bind() ?? {};
+    // Mouse down no dispara pointerdown inmediato
+    handlers.onPointerDown?.({ pointerType: 'mouse', preventDefault: vi.fn() });
+    expect(onTap).not.toHaveBeenCalled();
+
+    // use-gesture detecta tap y llama a fire('gesture')
+    result.fire('gesture');
+    expect(onTap).toHaveBeenCalledTimes(1);
+
+    // Inmediatamente después el navegador emite el evento click nativo
+    result.fire('click');
+    expect(onTap).toHaveBeenCalledTimes(1);
+  });
 });

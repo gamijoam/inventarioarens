@@ -41,18 +41,22 @@ export interface UsePosTapResult {
 export function usePosTap(onTap: () => void, enabled = true): UsePosTapResult {
   const lastTouchFiredAt = useRef(0);
   const lastGestureFiredAt = useRef(0);
-  const DEDUP_MS = 400;
+  const TOUCH_DEDUP_MS = 400;
+  const GESTURE_CLICK_DEDUP_MS = 150;
+
   const fire = (source: 'touch' | 'click' | 'gesture' = 'gesture'): void => {
     const now = Date.now();
     if (source === 'click') {
-      // Android can emit a native click after the immediate touch action.
-      if (now - lastTouchFiredAt.current < DEDUP_MS) return;
+      // Deduplica si este click es la continuación de un toque táctil (Android emula click ~300ms después)
+      if (now - lastTouchFiredAt.current < TOUCH_DEDUP_MS) return;
+      // Deduplica si este click es el evento nativo del DOM tras el tap de use-gesture (mouse en desktop)
+      if (now - lastGestureFiredAt.current < GESTURE_CLICK_DEDUP_MS) return;
     } else if (source === 'touch') {
-      if (now - lastTouchFiredAt.current < DEDUP_MS) return;
+      if (now - lastTouchFiredAt.current < TOUCH_DEDUP_MS) return;
       lastTouchFiredAt.current = now;
     } else {
-      if (now - lastTouchFiredAt.current < DEDUP_MS) return;
-      if (now - lastGestureFiredAt.current < DEDUP_MS) return;
+      if (now - lastTouchFiredAt.current < TOUCH_DEDUP_MS) return;
+      if (now - lastGestureFiredAt.current < GESTURE_CLICK_DEDUP_MS) return;
       lastGestureFiredAt.current = now;
     }
     if (enabled) onTap();
