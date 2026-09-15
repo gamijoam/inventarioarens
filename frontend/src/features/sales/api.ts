@@ -32,15 +32,37 @@ export function buildSalesQuery(filters: SaleListFilters = {}): string {
   return `/sales${toQueryString(filters)}`;
 }
 
+export interface SalesSummaryTotals {
+  total_count: number;
+  confirmed_base_total: number;
+  confirmed_local_total: number;
+  net_base_total: number;
+  net_local_total: number;
+  refund_base_total: number;
+  refund_local_total: number;
+  refund_count: number;
+  confirmed_count: number;
+  draft_count: number;
+  cancelled_count: number;
+  pos_count: number;
+}
+
+export interface PaginatedSales extends Paginated<Sale> {
+  summary?: SalesSummaryTotals;
+}
+
 export function useSales(filters: SaleListFilters = {}) {
   return useQuery({
     queryKey: saleKeys.list(filters),
     queryFn: async () => {
-      const response = await getPaginated<unknown>(buildSalesQuery(filters));
+      const response = (await getPaginated<unknown>(buildSalesQuery(filters))) as Paginated<unknown> & {
+        summary?: SalesSummaryTotals;
+      };
       return {
         ...response,
         data: z.array(SaleSchema).parse(response.data),
-      } satisfies Paginated<Sale>;
+        summary: response.summary,
+      } satisfies PaginatedSales;
     },
     placeholderData: (prev) => prev,
   });

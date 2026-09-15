@@ -161,6 +161,8 @@ const SaleReturnSummarySchema = z.object({
   sale_id: z.number().int().positive(),
   status: z.string(),
   reason: z.string().nullable().optional(),
+  refund_amount_base: moneyValue,
+  refund_amount_local: moneyValue,
   processed_at: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
   items: z.array(SaleReturnItemSummarySchema).optional(),
