@@ -27,6 +27,7 @@ import {
   Receipt,
   RotateCcw,
   Search,
+  ShoppingCart,
   SlidersHorizontal,
   Tag,
   Trash2,
@@ -1187,6 +1188,7 @@ export function PosTerminal() {
         actions={shellActions}
         onExit={exitPos}
         exitDisabled={exitingPos}
+        embedded
       >
         <div className="bg-bg flex min-h-[70vh] items-center justify-center">
           <div className="border-border bg-surface max-w-md rounded border p-6 text-center shadow-sm">
@@ -1216,6 +1218,7 @@ export function PosTerminal() {
         actions={shellActions}
         onExit={exitPos}
         exitDisabled={exitingPos}
+        embedded
       >
         <OpenCashScreen
           canOpenCash={canOpenCash}
@@ -1273,16 +1276,17 @@ export function PosTerminal() {
       actions={shellActions}
       onExit={exitPos}
       exitDisabled={exitingPos}
+      embedded
     >
-      <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
-        <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3 shadow-sm backdrop-blur">
-          <div className="order-3 grid w-full min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
+      <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME}`}>
+        <header className="bg-white/95 rounded-2xl border border-orange-100 shadow-sm backdrop-blur-sm p-4 mb-3 flex shrink-0 flex-wrap items-center gap-3">
+          <div className="order-3 grid w-full min-w-0 gap-2.5 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
             <div className="space-y-1">
-              <label className="text-text-muted block text-[10px] font-semibold uppercase">
+              <label className="text-slate-600 block text-[11px] font-bold uppercase tracking-wider">
                 Buscar / escanear
               </label>
               <div className="relative">
-                <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                <Search className="text-orange-500 pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                 <Input
                   ref={searchRef}
                   value={query}
@@ -1317,23 +1321,23 @@ export function PosTerminal() {
                       void handleProductSearchEnter();
                     }
                   }}
-                  className="h-10 pl-9 text-base"
-                  placeholder="Escanea codigo, SKU o escribe producto"
+                  className="h-11 pl-10 text-base rounded-xl border-slate-200 focus:border-orange-500 focus:ring-orange-500 bg-slate-50/50"
+                  placeholder="Escanea código, SKU o escribe repuesto..."
                   data-pos-search-input="true"
                   data-testid="pos-search"
                 />
                 {!panel &&
                   query.trim().length >= 2 &&
                   (loadingProducts || quickSearchResults.length > 0) && (
-                    <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
-                      <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
-                        <span>Resultados rapidos</span>
+                    <div className="border-slate-200 bg-white absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
+                      <div className="border-slate-100 text-slate-500 bg-slate-50 flex items-center justify-between border-b px-3 py-2 text-[10px] font-bold tracking-wide uppercase">
+                        <span>Resultados rápidos</span>
                         <TapButton
                           onPress={() => {
                             setProductSearch(query);
                             setPanel('product-search');
                           }}
-                          className="text-primary font-semibold hover:underline"
+                          className="text-orange-600 font-bold hover:underline"
                         >
                           Ver todos
                         </TapButton>
@@ -1352,11 +1356,6 @@ export function PosTerminal() {
                             <TapButton
                               key={product.id}
                               onPress={() => {
-                                // La sugerencia abre el panel de busqueda (mismo
-                                // flujo que F3 / "Ver todos"): asi los productos
-                                // con variantes/color muestran el VariantPicker de
-                                // forma fiable. Agregar directo desde el dropdown
-                                // fallaba en tablets.
                                 openSearchFromSuggestion(query, {
                                   setProductSearch,
                                   setPanel: (panel) => setPanel(panel),
@@ -1364,8 +1363,8 @@ export function PosTerminal() {
                               }}
                               onMouseEnter={() => setQuickSearchIndex(index)}
                               className={cn(
-                                'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                                index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
+                                'hover:bg-amber-50/50 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                                index === quickSearchIndex && 'bg-orange-50/80 ring-orange-400/30 ring-1',
                               )}
                             >
                               <ProductImageView
@@ -1373,19 +1372,19 @@ export function PosTerminal() {
                                 src={productImageSrc(product) ?? undefined}
                                 alt={product.name}
                                 variant="thumb"
-                                className="border-border bg-bg size-12 shrink-0 rounded-lg border"
+                                className="border-slate-200 bg-white size-12 shrink-0 rounded-xl border"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold">{product.name}</p>
-                                <p className="text-text-muted truncate text-xs">
-                                  {product.sku ?? product.barcode ?? 'Sin codigo'}
+                                <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
+                                <p className="text-slate-400 truncate text-xs font-mono">
+                                  {product.sku ?? product.barcode ?? 'Sin código'}
                                 </p>
                               </div>
                               <Badge
                                 variant={
                                   Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'
                                 }
-                                className="text-[10px]"
+                                className="text-[10px] rounded-lg"
                               >
                                 {Number(product.available_stock ?? 0) > 0
                                   ? `Stock ${Number(product.available_stock)}`
@@ -1400,14 +1399,15 @@ export function PosTerminal() {
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-text-muted block text-[10px] font-semibold uppercase">
-                Almacen
+              <label className="text-slate-600 block text-[11px] font-bold uppercase tracking-wider">
+                Almacén
               </label>
               <Select
                 value={warehouseId ?? ''}
                 onChange={(event) =>
                   setWarehouseId(event.target.value ? Number(event.target.value) : null)
                 }
+                className="rounded-xl border-slate-200 bg-slate-50/50 text-slate-800 font-medium h-11"
               >
                 {warehouses.map((warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>
@@ -1417,7 +1417,7 @@ export function PosTerminal() {
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-text-muted block text-[10px] font-semibold uppercase">
+              <label className="text-slate-600 block text-[11px] font-bold uppercase tracking-wider">
                 Lista de precio
               </label>
               <Select
@@ -1429,6 +1429,7 @@ export function PosTerminal() {
                 }
                 disabled={repricing || selectedPending !== null}
                 data-testid="pos-price-list"
+                className="rounded-xl border-slate-200 bg-slate-50/50 text-slate-800 font-medium h-11"
               >
                 <option value="base">{BASE_PRICE_LIST_LABEL}</option>
                 {priceLists.map((list) => (
@@ -1445,7 +1446,7 @@ export function PosTerminal() {
                 size="sm"
                 onClick={() => void holdSale()}
                 disabled={cart.length === 0 || holdOrder.isPending}
-                className="shadow-sm"
+                className="rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold shadow-sm h-10 px-4"
               >
                 {holdOrder.isPending ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -1462,7 +1463,7 @@ export function PosTerminal() {
                   void confirmPaidSale();
                 }}
                 disabled={Boolean(checkoutBlockReason) || checkout.isPending}
-                className="shadow-sm"
+                className="rounded-xl bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold shadow-md shadow-orange-500/20 h-10 px-4"
               >
                 {checkout.isPending ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -1478,14 +1479,16 @@ export function PosTerminal() {
               onClick={() => setQuotationOpen(true)}
               disabled={cart.length === 0}
               data-testid="pos-create-quotation"
+              className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs h-10 shadow-xs"
             >
-              <FileText className="size-4" /> Cotizacion
+              <FileText className="size-4" /> Cotización
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setQuotationsOpen(true)}
               data-testid="pos-view-quotations"
+              className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs h-10 shadow-xs"
             >
               <FileText className="size-4" /> Ver cotizaciones
             </Button>
@@ -1496,6 +1499,7 @@ export function PosTerminal() {
                 setProductSearch(query);
                 setPanel('product-search');
               }}
+              className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs h-10 shadow-xs"
             >
               <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
             </Button>
@@ -1508,6 +1512,7 @@ export function PosTerminal() {
                   setPanel('pay');
                 }}
                 disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+                className="rounded-xl border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs h-10 shadow-xs"
               >
                 <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
               </Button>
@@ -1522,6 +1527,7 @@ export function PosTerminal() {
                     setPanel('promotions');
                   }}
                   disabled={!selectedWarehouse}
+                  className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs h-10 shadow-xs"
                 >
                   <Tag className="size-4" /> Promoción factura
                 </Button>
@@ -1533,6 +1539,7 @@ export function PosTerminal() {
                     setPanel('promotions');
                   }}
                   disabled={!selectedWarehouse}
+                  className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs h-10 shadow-xs"
                 >
                   <Gift className="size-4" /> Combos
                 </Button>
@@ -1544,12 +1551,18 @@ export function PosTerminal() {
                     setPanel('promotions');
                   }}
                   disabled={!selectedWarehouse}
+                  className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs h-10 shadow-xs"
                 >
                   <Tag className="size-4" /> Ofertas
                 </Button>
               </>
             )}
-            <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPanel('customer')}
+              className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs h-10 shadow-xs"
+            >
               <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
             </Button>
             {!sellerOnlyMode && (
@@ -1558,6 +1571,7 @@ export function PosTerminal() {
                 size="sm"
                 disabled={cart.length === 0 || !canCheckout || checkout.isPending}
                 onClick={() => void holdSale()}
+                className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs h-10 shadow-xs"
               >
                 <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
               </Button>
@@ -1568,34 +1582,35 @@ export function PosTerminal() {
               onClick={clearPos}
               disabled={cart.length === 0 && payments.length === 0}
               title="Vaciar el ticket actual y sus promociones"
+              className="rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 font-semibold text-xs h-10 shadow-xs"
             >
               <Trash2 className="size-4" /> Limpiar POS
             </Button>
           </div>
         </header>
 
-        <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
-          <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div className="border-border from-surface to-bg/70 flex items-center justify-between border-b bg-gradient-to-r p-4">
+        <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4 overflow-hidden xl:grid-cols-[minmax(640px,1fr)_430px]">
+          <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex min-h-0 flex-col overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-50/50 to-transparent flex items-center justify-between border-b border-slate-100 p-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="font-semibold">Ticket actual</h2>
-                  {exchangeReturnId && <Badge variant="info">Canje #{exchangeReturnId}</Badge>}
+                  <h2 className="font-bold text-slate-900 text-base">Ticket actual</h2>
+                  {exchangeReturnId && <Badge variant="info" className="rounded-lg">Canje #{exchangeReturnId}</Badge>}
                 </div>
-                <p className="text-text-muted text-xs">
+                <p className="text-slate-500 text-xs">
                   {selectedCustomer ? 'Cliente asignado' : customerName}
                 </p>
                 {exchangeReturnId && (
-                  <p className="text-primary mt-1 text-xs">
+                  <p className="text-orange-600 font-semibold mt-1 text-xs">
                     Confirma el pago aquí para completar la devolución.
                   </p>
                 )}
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
+                <Button variant="outline" size="sm" onClick={() => setPanel('customer')} className="rounded-xl border-orange-200 text-orange-700 hover:bg-orange-50 font-semibold text-xs shadow-xs">
                   <UserRound className="size-4" /> Cliente
                 </Button>
-                <Button variant="outline" size="sm" onClick={clearPos}>
+                <Button variant="outline" size="sm" onClick={clearPos} className="rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 font-semibold text-xs shadow-xs">
                   <Trash2 className="size-4" /> Limpiar POS
                 </Button>
               </div>
@@ -1613,14 +1628,16 @@ export function PosTerminal() {
                 setCustomerName('Consumidor Final');
               }}
             />
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/40 p-3">
               {cart.length === 0 ? (
-                <div className="border-border bg-surface text-text-muted flex h-full items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm">
+                <div className="border-2 border-dashed border-slate-200 bg-white text-slate-500 flex h-full items-center justify-center rounded-2xl p-6 text-center text-sm">
                   <div>
-                    <Search className="text-primary/50 mx-auto mb-3 size-8" />
-                    <p className="text-text-secondary font-semibold">Ticket listo para vender</p>
-                    <p className="mt-1">
-                      Agrega productos con el buscador o escanea un codigo de barras.
+                    <div className="size-14 rounded-2xl bg-orange-50 border border-orange-200 text-orange-600 flex items-center justify-center mx-auto mb-3">
+                      <ShoppingCart className="size-7" />
+                    </div>
+                    <p className="text-slate-900 font-bold text-base">Ticket listo para vender</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Agrega productos con el buscador superior o escanea un código de barras.
                     </p>
                   </div>
                 </div>
@@ -1644,16 +1661,22 @@ export function PosTerminal() {
             </div>
           </section>
 
-          <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
+          <aside className="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex min-h-0 flex-col overflow-hidden">
+            <div className="bg-gradient-to-br from-navy-900 via-[#142642] to-navy-950 p-5 text-white border-b border-slate-800 shadow-inner">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
-                  <p className="mt-1 text-4xl font-bold tracking-normal">
+                  <p className="text-[11px] font-bold tracking-wider text-amber-400 uppercase">Total a cobrar</p>
+                  <p className="mt-1 text-4xl sm:text-5xl font-black font-mono tracking-tight text-white">
                     {money(cartTotals.total)}
                   </p>
+                  {activeRate && (
+                    <p className="text-xs font-bold font-mono text-amber-300 mt-1.5 flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Equiv. Bs. {formatLocalNumber(cartTotals.total * Number(activeRate.rate))} · Tasa {activeRate.code}
+                    </p>
+                  )}
                 </div>
-                <div className="min-w-28 space-y-1 text-right text-xs text-white/70">
+                <div className="min-w-28 space-y-1 text-right text-xs text-slate-300">
                   <AmountRow label="Subtotal" value={cartTotals.subtotal} />
                   {cartTotals.discount > 0 && (
                     <AmountRow label="Desc." value={cartTotals.discount} muted />
@@ -1664,22 +1687,22 @@ export function PosTerminal() {
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
               {activePaymentMethods.length === 0 ? (
-                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
-                  Configura metodos de pago para cobrar rapido.
-                  <Button asChild className="mt-3 w-full" variant="outline">
-                    <Link to="/payment-methods">Configurar metodos</Link>
+                <div className="border-amber-200 bg-amber-50 text-amber-900 mb-3 rounded-xl border p-3 text-sm">
+                  Configura métodos de pago para cobrar rápido.
+                  <Button asChild className="mt-3 w-full rounded-xl" variant="outline">
+                    <Link to="/payment-methods">Configurar métodos</Link>
                   </Button>
                 </div>
               ) : null}
               {priceListNotice ? (
-                <p className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                <p className="border-amber-200 bg-amber-50 text-amber-900 mb-3 rounded-xl border p-3 text-sm">
                   {priceListNotice}
                 </p>
               ) : null}
               {priceListPaymentIssue && activePaymentMethods.length > 0 ? (
-                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                <div className="border-amber-200 bg-amber-50 text-amber-900 mb-3 rounded-xl border p-3 text-sm">
                   {priceListPaymentIssue}
-                  <Button asChild className="mt-3 w-full" variant="outline">
+                  <Button asChild className="mt-3 w-full rounded-xl" variant="outline">
                     <Link to="/inventory/admin">Configurar lista</Link>
                   </Button>
                 </div>
@@ -1694,13 +1717,13 @@ export function PosTerminal() {
                 )}
                 <AmountRow label="Pagado" value={paymentTotals.paid} />
                 {payments.length > 0 && (
-                  <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
+                  <div className="text-slate-500 flex shrink-0 items-center justify-between px-1 text-xs font-bold tracking-wide uppercase">
                     <span>Pagos aplicados</span>
-                    <span>{payments.length}</span>
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[11px] font-bold">{payments.length}</span>
                   </div>
                 )}
                 {payments.length > 0 && (
-                  <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border p-2 pr-1">
+                  <div className="border-slate-200 bg-slate-50/50 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-xl border p-2 pr-1 custom-scrollbar">
                     {payments.map((payment) => (
                       <PaymentChip
                         key={payment.id}
@@ -1722,7 +1745,7 @@ export function PosTerminal() {
                   paymentTotals.remaining > 0 &&
                   !payments.some((payment) => payment.method === 'customer_credit') && (
                     <Button
-                      className="w-full"
+                      className="w-full rounded-xl border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 font-semibold"
                       variant="outline"
                       onClick={() => applyCustomerCredit()}
                     >
@@ -1740,17 +1763,17 @@ export function PosTerminal() {
                     type="button"
                     onClick={() => setPanel('pay')}
                     disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-                    className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    className="border-2 border-dashed border-slate-200 text-slate-500 hover:border-orange-500 hover:text-orange-600 hover:bg-orange-50/30 w-full rounded-xl px-3 py-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Agregar pago con F2
                   </button>
                 )}
               </div>
-              <div className="border-border bg-bg/50 mt-4 shrink-0 space-y-2 rounded border p-3">
+              <div className="border-slate-200 bg-slate-50 mt-4 shrink-0 space-y-2 rounded-xl border p-3.5">
                 <AmountRow label="Restante USD" value={paymentTotals.remaining} />
                 {activeRate && (
                   <AmountRow
-                    label={`Restante en bolivares · ${activeRate.name}`}
+                    label={`Restante en bolívares · ${activeRate.name}`}
                     value={paymentAmountForCurrency(
                       paymentTotals.remaining,
                       'VES',
@@ -1759,11 +1782,11 @@ export function PosTerminal() {
                     currency="VES"
                   />
                 )}
-                <div className="bg-success/10 mt-2 rounded p-3">
-                  <p className="text-text-muted text-xs">Vuelto</p>
-                  <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
+                <div className="bg-emerald-50 border border-emerald-200 mt-2 rounded-xl p-3">
+                  <p className="text-emerald-700 text-xs font-semibold uppercase tracking-wider">Vuelto</p>
+                  <p className="text-emerald-700 text-3xl font-black font-mono mt-0.5">{money(paymentTotals.change)}</p>
                   {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
-                    <p className="text-success mt-1 text-sm font-semibold">
+                    <p className="text-emerald-800 mt-1 text-sm font-bold font-mono">
                       Bs {formatLocalNumber(paymentTotals.change_amount ?? 0)}
                       {paymentTotals.change_rate
                         ? ` · ${exchangeRateTypes.find((type) => type.id === paymentTotals.change_rate_type_id)?.code ?? 'Tasa'} @ ${formatLocalNumber(paymentTotals.change_rate)}`
@@ -1774,15 +1797,15 @@ export function PosTerminal() {
               </div>
             </div>
 
-            <div className="border-border shrink-0 space-y-2 border-t p-3">
+            <div className="border-slate-200 shrink-0 space-y-2 border-t p-4 bg-slate-50/50">
               {checkoutBlockReason && (
-                <p className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-xs">
+                <p className="border-rose-200 bg-rose-50 text-rose-800 rounded-xl border px-3 py-2 text-xs font-semibold">
                   {checkoutBlockReason}
                 </p>
               )}
               {sellerOnlyMode ? (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-14 w-full text-base font-bold shadow-md rounded-xl bg-orange-600 hover:bg-orange-700 text-white"
                   disabled={cart.length === 0 || holdOrder.isPending}
                   onClick={() => void holdSale()}
                 >
@@ -1795,12 +1818,12 @@ export function PosTerminal() {
                 </Button>
               ) : (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-14 w-full text-base font-black shadow-lg rounded-xl bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white shadow-orange-500/25 tracking-wide flex items-center justify-center gap-2 transition-all"
                   disabled={Boolean(checkoutBlockReason) || checkout.isPending}
                   onClick={() => void confirmPaidSale()}
                 >
                   {checkout.isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
+                    <Loader2 className="size-5 animate-spin" />
                   ) : (
                     <CreditCard className="size-5" />
                   )}
@@ -1809,8 +1832,8 @@ export function PosTerminal() {
               )}
               {!sellerOnlyMode && (
                 <Button
-                  className="h-10 w-full"
-                  variant="secondary"
+                  className="h-11 w-full rounded-xl font-bold border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-colors shadow-xs"
+                  variant="outline"
                   disabled={
                     !canCheckout ||
                     !canCollectReceivables ||
@@ -3532,41 +3555,41 @@ function OpenCashScreen(props: {
   onOpen: () => void;
 }) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#eef2ff] p-4">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.14),transparent_32%)]" />
-      <div className="bg-surface relative grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/70 shadow-2xl shadow-slate-900/10 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="flex min-h-[520px] flex-col justify-between bg-gradient-to-br from-[#17112f] via-[#241761] to-[#4338ca] p-8 text-white">
+    <div className="relative flex min-h-[calc(100vh-10rem)] items-center justify-center overflow-hidden bg-slate-50/60 p-4 sm:p-6">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.12),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(20,38,66,0.10),transparent_32%)]" />
+      <div className="bg-surface relative grid w-full max-w-5xl overflow-hidden rounded-2xl sm:rounded-[2rem] border border-slate-200/90 shadow-2xl shadow-slate-900/10 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="flex min-h-[480px] flex-col justify-between bg-gradient-to-br from-navy-900 via-[#142642] to-navy-950 p-8 text-white">
           <div>
-            <div className="flex size-14 items-center justify-center rounded-2xl bg-white/15 shadow-lg shadow-black/10 backdrop-blur">
-              <Receipt className="size-7" />
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-white/10 shadow-lg border border-white/15 backdrop-blur">
+              <Receipt className="size-7 text-amber-400" />
             </div>
-            <p className="mt-8 text-sm font-semibold tracking-[0.25em] text-white/55 uppercase">
+            <p className="mt-8 text-sm font-semibold tracking-[0.25em] text-orange-400 uppercase">
               Punto de venta
             </p>
-            <h1 className="mt-3 max-w-sm text-4xl font-bold tracking-tight">Abrir turno POS</h1>
-            <p className="mt-4 max-w-md text-sm leading-6 text-white/70">
-              Selecciona sucursal, caja fisica y fondo inicial para comenzar a vender con
+            <h1 className="mt-3 max-w-sm text-3xl sm:text-4xl font-black tracking-tight">Abrir turno POS</h1>
+            <p className="mt-4 max-w-md text-sm leading-6 text-slate-300">
+              Selecciona sucursal, caja física y fondo inicial para comenzar a vender con
               trazabilidad de caja.
             </p>
           </div>
           <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-1">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-              <p className="text-white/55">Tasa activa</p>
-              <p className="mt-1 font-semibold">{props.rateLabel ?? 'Sin tasa USD/VES'}</p>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+              <p className="text-slate-400">Tasa activa</p>
+              <p className="mt-1 font-semibold text-white">{props.rateLabel ?? 'Sin tasa USD/VES'}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-              <p className="text-white/55">Cajas disponibles</p>
-              <p className="mt-1 font-semibold">{props.cashRegisters.length}</p>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+              <p className="text-slate-400">Cajas disponibles</p>
+              <p className="mt-1 font-semibold text-white">{props.cashRegisters.length}</p>
             </div>
           </div>
         </div>
-        <div className="p-6 sm:p-8">
+        <div className="p-6 sm:p-8 bg-white">
           <div>
-            <p className="text-primary text-xs font-semibold tracking-wide uppercase">
+            <p className="text-orange-600 text-xs font-semibold tracking-wide uppercase">
               Inicio de turno
             </p>
-            <h2 className="mt-2 text-2xl font-bold">Datos de apertura</h2>
-            <p className="text-text-muted mt-2 text-sm">
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">Datos de apertura</h2>
+            <p className="text-slate-500 mt-2 text-sm">
               La venta queda bloqueada hasta que exista una caja abierta para tu usuario.
             </p>
           </div>
@@ -3640,13 +3663,13 @@ function OpenCashScreen(props: {
                   />
                 </LabeledControl>
               </div>
-              <p className="border-border bg-bg/50 text-text-muted rounded-2xl border px-4 py-3 text-xs">
+              <p className="border-slate-200 bg-slate-50 text-slate-600 rounded-2xl border px-4 py-3 text-xs">
                 {props.rateLabel
                   ? `VES se convierte con ${props.rateLabel}.`
                   : 'Sin tasa activa USD/VES para convertir fondo VES.'}
               </p>
               <Button
-                className="h-12 w-full text-base"
+                className="h-12 w-full text-base font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-md shadow-orange-500/20"
                 onClick={props.onOpen}
                 data-testid="pos-cash-open-submit"
                 disabled={
@@ -3683,19 +3706,19 @@ function PanelShell({
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         className={cn(
-          'flex h-full w-full flex-col overflow-hidden border-l border-white/40 bg-[#f5f7fb] p-0 shadow-2xl',
+          'flex h-full w-full flex-col overflow-hidden border-l border-white/40 bg-[#f8fafc] p-0 shadow-2xl',
           wide ? 'sm:max-w-5xl' : 'sm:max-w-xl',
         )}
       >
-        <SheetHeader className="border-border bg-surface relative overflow-hidden border-b px-5 py-4 pr-12">
-          <div className="from-primary absolute inset-x-0 top-0 h-1 bg-gradient-to-r via-[#2f238f] to-sky-400" />
+        <SheetHeader className="border-slate-200 bg-white relative overflow-hidden border-b px-5 py-4 pr-12">
+          <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-orange-600 via-amber-500 to-orange-400" />
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-primary text-[10px] font-semibold tracking-[0.22em] uppercase">
-                POS
+              <p className="text-orange-600 text-[10px] font-bold tracking-[0.22em] uppercase">
+                POS Repuestos Avilacar
               </p>
-              <SheetTitle className="mt-1 text-xl">{title}</SheetTitle>
-              <SheetDescription>Operación rápida del punto de venta.</SheetDescription>
+              <SheetTitle className="mt-1 text-xl font-black text-slate-900">{title}</SheetTitle>
+              <SheetDescription className="text-slate-500 text-xs">Operación rápida del punto de venta.</SheetDescription>
             </div>
           </div>
           {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
@@ -3822,11 +3845,11 @@ function QuickPaymentPanel({
   const remaining = calculatePaymentTotals(payments, cartTotal).remaining;
   return (
     <div className="space-y-4">
-      <div className="border-border rounded-2xl border bg-gradient-to-br from-[#17112f] to-[#2f238f] p-5 text-white shadow-md">
+      <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-navy-900 via-[#142642] to-navy-950 p-5 text-white shadow-lg">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-sm text-white/70">Restante</p>
-            <p className="text-4xl font-bold">{money(remaining)}</p>
+            <p className="text-sm text-slate-400 font-medium">Restante</p>
+            <p className="text-4xl font-black font-mono text-white">{money(remaining)}</p>
           </div>
           {rate ? (
             <div className="text-right">
@@ -4386,15 +4409,15 @@ export function CashPanel(props: {
   return (
     <div className="space-y-4">
       {/* Hero: turno activo */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#17112f] via-[#241761] to-[#4338ca] p-5 text-white shadow-lg">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.22),transparent_45%)]" />
+      <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-navy-900 via-[#142642] to-navy-950 p-5 text-white shadow-lg">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(249,115,22,0.18),transparent_45%)]" />
         <div className="relative flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-lg backdrop-blur">
-              <Wallet className="size-6" aria-hidden="true" />
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 border border-white/15 shadow-lg backdrop-blur">
+              <Wallet className="size-6 text-amber-400" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-400">
                 Turno activo
               </p>
               <h3 className="text-lg leading-tight font-bold">
@@ -4835,20 +4858,20 @@ function CreditPanel(props: {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="border-border rounded-[1.75rem] border bg-gradient-to-br from-[#17112f] to-[#2f238f] p-6 text-white shadow-lg shadow-slate-900/10">
-        <p className="text-sm font-semibold tracking-wide text-white/60 uppercase">Saldo a CxC</p>
-        <p className="mt-2 text-5xl font-bold tracking-tight">{money(balance)}</p>
+      <div className="rounded-[1.75rem] border border-slate-800 bg-gradient-to-br from-navy-900 via-[#142642] to-navy-950 p-6 text-white shadow-lg shadow-slate-900/10">
+        <p className="text-sm font-semibold tracking-wide text-orange-400 uppercase">Saldo a CxC</p>
+        <p className="mt-2 text-5xl font-black font-mono tracking-tight text-white">{money(balance)}</p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-            <p className="text-xs text-white/55">Total venta</p>
-            <p className="mt-1 text-xl font-semibold">{money(props.total)}</p>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <p className="text-xs text-slate-400">Total venta</p>
+            <p className="mt-1 text-xl font-bold font-mono">{money(props.total)}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-            <p className="text-xs text-white/55">Pagado ahora</p>
-            <p className="mt-1 text-xl font-semibold">{money(props.paid)}</p>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <p className="text-xs text-slate-400">Pagado ahora</p>
+            <p className="mt-1 text-xl font-bold font-mono text-emerald-400">{money(props.paid)}</p>
           </div>
         </div>
-        <p className="mt-5 text-sm leading-6 text-white/70">
+        <p className="mt-5 text-sm leading-6 text-slate-300">
           Lo pagado ahora entra a caja; el saldo queda pendiente para cobranza.
         </p>
       </div>

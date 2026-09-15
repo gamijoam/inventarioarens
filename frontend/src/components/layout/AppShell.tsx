@@ -42,8 +42,10 @@ export function AppShell({ children }: AppShellProps) {
   }, [uiPreferences, tenant?.id]);
 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isFullBleed = pathname === '/pos' || pathname.startsWith('/pos/');
-  const isWide = pathname === '/commissions';
+  const isPosArmar = pathname === '/pos/armar' || pathname.startsWith('/pos/armar/');
+  const isFullBleed = isPosArmar;
+  const isPos = pathname === '/pos';
+  const isWide = pathname === '/commissions' || isPos;
 
   if (isFullBleed) {
     return <>{children}</>;
@@ -54,11 +56,15 @@ export function AppShell({ children }: AppShellProps) {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-auto bg-warm-ambient custom-scrollbar">
+        <main className={cn('flex-1 overflow-auto bg-warm-ambient custom-scrollbar', isPos && 'p-0')}>
           <div
             className={cn(
-              'mx-auto w-full px-4 py-6 sm:px-6 lg:px-8',
-              isWide ? 'max-w-none' : 'max-w-7xl',
+              'mx-auto w-full',
+              isPos
+                ? 'max-w-none p-2 sm:p-4 lg:p-5 flex flex-col flex-1'
+                : isWide
+                  ? 'max-w-none px-4 py-6 sm:px-6 lg:px-8'
+                  : 'max-w-7xl px-4 py-6 sm:px-6 lg:px-8',
             )}
           >
             {children}

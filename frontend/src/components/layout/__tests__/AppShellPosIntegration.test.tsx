@@ -53,13 +53,12 @@ describe('<AppShell> POS integration', () => {
     routerState.pathname = '/pos';
   });
 
-  it('delega /pos al contenido POS sin envolverlo en otro shell', () => {
+  it('mantiene /pos dentro de la app con su sidebar y topbar administrativos', () => {
     render(<AppShell>Terminal POS</AppShell>);
 
     expect(screen.getByText('Terminal POS')).toBeInTheDocument();
-    expect(screen.queryByTestId('pos-shell')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('admin-sidebar')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('admin-topbar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('admin-topbar')).toBeInTheDocument();
   });
 
   it('delega /pos/armar al contenido tactil sin sidebar ni topbar administrativos', () => {

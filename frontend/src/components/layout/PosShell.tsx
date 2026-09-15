@@ -45,6 +45,7 @@ interface PosShellProps {
   actions?: readonly PosShellAction[];
   onExit?: () => void | Promise<void>;
   exitDisabled?: boolean;
+  embedded?: boolean;
 }
 
 function hasRequiredPermission(
@@ -82,6 +83,7 @@ export function PosShell({
   actions = [],
   onExit,
   exitDisabled = false,
+  embedded = false,
 }: PosShellProps) {
   const { permissions } = usePermissionContext();
   const visibleActions = actions.filter((action) =>
@@ -90,87 +92,195 @@ export function PosShell({
   const showHeader = Boolean(context) || visibleActions.length > 0;
 
   return (
-    <div data-testid="pos-shell" data-shell="pos" className="bg-bg relative min-h-screen w-full">
-      <button
-        type="button"
-        onClick={() => void onExit?.()}
-        disabled={exitDisabled}
-        className="bg-surface text-text-secondary hover:text-text-primary absolute top-3 right-3 z-50 rounded-md border px-3 py-2 text-xs font-medium shadow-sm transition-colors"
-      >
-        Salir del POS
-      </button>
-      {showHeader && (
-        <header
-          aria-label="POS"
-          className="border-border bg-surface flex min-h-14 flex-wrap items-center gap-3 border-b px-4 py-3 pr-32"
+    <div
+      data-testid="pos-shell"
+      data-shell="pos"
+      className={embedded ? 'relative flex min-h-0 w-full flex-1 flex-col' : 'bg-bg relative min-h-screen w-full'}
+    >
+      {!embedded && onExit && (
+        <button
+          type="button"
+          onClick={() => void onExit?.()}
+          disabled={exitDisabled}
+          className="bg-surface text-text-secondary hover:text-text-primary absolute top-3 right-3 z-50 rounded-md border px-3 py-2 text-xs font-medium shadow-sm transition-colors"
         >
-          <div className="min-w-44">
-            <h1 className="text-text-primary text-lg leading-tight font-semibold">POS</h1>
-            {context && <p className="text-text-muted text-xs">{context.tenantName}</p>}
-          </div>
-          <AppVersionBadge className="ml-1" />
-          {context && (
-            <>
-              <div className="text-text-secondary flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          Salir del POS
+        </button>
+      )}
+      {showHeader &&
+        (embedded ? (
+          <header
+            aria-label="POS"
+            className="bg-white/95 rounded-2xl border border-orange-100 shadow-sm backdrop-blur-sm p-4 mb-3 flex flex-wrap items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-9 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white font-black flex items-center justify-center shadow-xs text-sm">
+                RA
+              </div>
+              <div>
+                <h1 className="text-slate-900 text-base font-bold leading-tight">POS</h1>
+                <p className="text-slate-500 text-xs">
+                  {context?.tenantName ? `${context.tenantName} · ` : ''}
+                  <span>Punto de Venta</span>
+                </p>
+              </div>
+              <AppVersionBadge className="ml-1" />
+            </div>
+            {context && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 {context.branchName && (
-                  <span data-testid="pos-branch-context">{context.branchName}</span>
+                  <span
+                    data-testid="pos-branch-context"
+                    className="bg-slate-50 text-slate-700 font-semibold px-2.5 py-1 rounded-xl border border-slate-200"
+                  >
+                    {context.branchName}
+                  </span>
                 )}
                 {context.warehouseName && (
-                  <span data-testid="pos-warehouse-context">{context.warehouseName}</span>
+                  <span
+                    data-testid="pos-warehouse-context"
+                    className="bg-slate-50 text-slate-700 font-semibold px-2.5 py-1 rounded-xl border border-slate-200"
+                  >
+                    {context.warehouseName}
+                  </span>
                 )}
                 {context.cashRegisterName && (
-                  <span data-testid="pos-register-context">{context.cashRegisterName}</span>
+                  <span
+                    data-testid="pos-register-context"
+                    className="bg-orange-50 text-orange-800 font-semibold px-2.5 py-1 rounded-xl border border-orange-200"
+                  >
+                    {context.cashRegisterName}
+                  </span>
                 )}
-              </div>
-              <div
-                className="text-text-muted ml-auto flex flex-wrap items-center gap-2 text-xs"
-                aria-live="polite"
-              >
-                <span>{sessionStatusLabel(context.sessionStatus)}</span>
-                <span aria-hidden="true">·</span>
-                <span>{syncStatusLabel(context.syncStatus)}</span>
-                {context.rateLabel && (
-                  <span data-testid="pos-rate-context">{context.rateLabel}</span>
-                )}
-              </div>
-            </>
-          )}
-          {visibleActions.length > 0 && (
-            <div className="flex items-center gap-2" role="group" aria-label="Acciones POS">
-              {visibleActions.map((action) => (
-                <button
-                  key={action.id}
-                  type="button"
-                  className={cnAction(
-                    action.alert,
-                    action.disabled,
-                  )}
-                  onClick={action.onClick}
-                  disabled={action.disabled}
+                <span
+                  className={
+                    context.sessionStatus === 'open'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 px-2.5 py-1 rounded-xl border font-bold text-xs flex items-center gap-1.5'
+                      : 'bg-amber-50 text-amber-700 border-amber-200 px-2.5 py-1 rounded-xl border font-bold text-xs flex items-center gap-1.5'
+                  }
                 >
-                  {action.alert && (
-                    <span
-                      aria-hidden="true"
-                      className="bg-danger absolute -top-1 -left-1 size-2.5 animate-pulse rounded-full"
-                    />
-                  )}
-                  {action.icon}
-                  {action.label}
-                  {typeof action.badge === 'number' && action.badge > 0 && (
-                    <span
-                      data-testid={`pos-action-badge-${action.id}`}
-                      className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm"
-                    >
-                      {action.badge > 99 ? '99+' : action.badge}
-                    </span>
-                  )}
-                </button>
-              ))}
+                  <span
+                    className={
+                      context.sessionStatus === 'open'
+                        ? 'size-1.5 rounded-full bg-emerald-500 animate-pulse'
+                        : 'size-1.5 rounded-full bg-amber-500'
+                    }
+                  />
+                  {sessionStatusLabel(context.sessionStatus)}
+                </span>
+                {context.rateLabel && (
+                  <span
+                    data-testid="pos-rate-context"
+                    className="bg-amber-50 text-amber-800 font-mono font-bold px-2.5 py-1 rounded-xl border border-amber-200"
+                  >
+                    {context.rateLabel}
+                  </span>
+                )}
+              </div>
+            )}
+            {visibleActions.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="Acciones POS">
+                {visibleActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className={
+                      action.disabled
+                        ? 'relative inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors shadow-xs cursor-not-allowed opacity-50 border-slate-200 bg-slate-50 text-slate-400'
+                        : action.alert
+                          ? 'relative inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors shadow-xs border-orange-500 bg-orange-50 text-orange-700 hover:bg-orange-100'
+                          : 'relative inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors shadow-xs border-orange-200 bg-white hover:bg-orange-50 text-orange-700'
+                    }
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                  >
+                    {action.icon}
+                    {action.label}
+                    {typeof action.badge === 'number' && action.badge > 0 && (
+                      <span
+                        data-testid={`pos-action-badge-${action.id}`}
+                        className="bg-orange-600 text-white absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-xs"
+                      >
+                        {action.badge > 99 ? '99+' : action.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </header>
+        ) : (
+          <header
+            aria-label="POS"
+            className="border-border bg-surface flex min-h-14 flex-wrap items-center gap-3 border-b px-4 py-3 pr-32"
+          >
+            <div className="min-w-44">
+              <h1 className="text-text-primary text-lg leading-tight font-semibold">POS</h1>
+              {context && <p className="text-text-muted text-xs">{context.tenantName}</p>}
             </div>
-          )}
-        </header>
-      )}
-      <main className="min-h-screen">{children}</main>
+            <AppVersionBadge className="ml-1" />
+            {context && (
+              <>
+                <div className="text-text-secondary flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  {context.branchName && (
+                    <span data-testid="pos-branch-context">{context.branchName}</span>
+                  )}
+                  {context.warehouseName && (
+                    <span data-testid="pos-warehouse-context">{context.warehouseName}</span>
+                  )}
+                  {context.cashRegisterName && (
+                    <span data-testid="pos-register-context">{context.cashRegisterName}</span>
+                  )}
+                </div>
+                <div
+                  className="text-text-muted ml-auto flex flex-wrap items-center gap-2 text-xs"
+                  aria-live="polite"
+                >
+                  <span>{sessionStatusLabel(context.sessionStatus)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{syncStatusLabel(context.syncStatus)}</span>
+                  {context.rateLabel && (
+                    <span data-testid="pos-rate-context">{context.rateLabel}</span>
+                  )}
+                </div>
+              </>
+            )}
+            {visibleActions.length > 0 && (
+              <div className="flex items-center gap-2" role="group" aria-label="Acciones POS">
+                {visibleActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className={cnAction(
+                      action.alert,
+                      action.disabled,
+                    )}
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                  >
+                    {action.alert && (
+                      <span
+                        aria-hidden="true"
+                        className="bg-danger absolute -top-1 -left-1 size-2.5 animate-pulse rounded-full"
+                      />
+                    )}
+                    {action.icon}
+                    {action.label}
+                    {typeof action.badge === 'number' && action.badge > 0 && (
+                      <span
+                        data-testid={`pos-action-badge-${action.id}`}
+                        className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm"
+                      >
+                        {action.badge > 99 ? '99+' : action.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </header>
+        ))}
+      <main className={embedded ? 'min-h-0 flex-1 flex flex-col' : 'min-h-screen'}>{children}</main>
     </div>
   );
 }
