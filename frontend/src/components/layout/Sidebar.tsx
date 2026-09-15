@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   LayoutDashboard,
@@ -360,7 +360,23 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  const [collapsed, setCollapsed] = useState(() => currentPath.startsWith('/pos'));
+  const prevPathRef = useRef(currentPath);
+
+  useEffect(() => {
+    const prevPath = prevPathRef.current;
+    prevPathRef.current = currentPath;
+
+    if (currentPath.startsWith('/pos') && !prevPath.startsWith('/pos')) {
+      setCollapsed(true);
+    } else if (!currentPath.startsWith('/pos') && prevPath.startsWith('/pos')) {
+      setCollapsed(false);
+    }
+  }, [currentPath]);
+
   const isSimpleMode = useUiModeStore((s) => s.isSimpleMode);
   const visibleRoutes = useUiModeStore((s) => s.visibleRoutes);
   // Cargamos los grupos donde soy Owner para que el item "Organizaciones"
@@ -369,13 +385,10 @@ export function Sidebar() {
   // con CTA para crear la primera organizacion).
   const { data: tenantGroups, isError, isLoading } = useTenantGroups();
   const ownedGroupIds = new Set((tenantGroups ?? []).map((g) => g.id));
-  const routerState = useRouterState();
   const permissionCtx = useContext(PermissionContext);
   const permissions = permissionCtx?.permissions;
   const capabilities = useSessionStore((state) => state.capabilities);
   const tenant = useSessionStore((state) => state.tenant);
-
-  const currentPath = routerState.location.pathname;
 
   // El item "Organizaciones" aparece si:
   //   - El query completo Y tengo grupos -> mostrar.

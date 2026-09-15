@@ -3337,6 +3337,59 @@ export function PosTerminal() {
   }
 }
 
+export function CartLinePriceInput({
+  value,
+  lineId,
+  onChange,
+}: {
+  value: number;
+  lineId: string;
+  onChange: (unit_price: number) => void;
+}) {
+  const [localVal, setLocalVal] = useState<string>(value === 0 ? '' : String(value));
+
+  useEffect(() => {
+    if (localVal === '' && value === 0) return;
+    if (Number(localVal) !== value) {
+      setLocalVal(value === 0 ? '' : String(value));
+    }
+  }, [value]);
+
+  return (
+    <Input
+      type="number"
+      step="any"
+      min="0"
+      placeholder="0.00"
+      value={localVal}
+      onFocus={(e) => e.target.select()}
+      onChange={(event) => {
+        const val = event.target.value;
+        setLocalVal(val);
+        if (val !== '') {
+          const num = Number(val);
+          if (!isNaN(num) && num >= 0) {
+            onChange(num);
+          }
+        }
+      }}
+      onBlur={() => {
+        if (localVal === '' || isNaN(Number(localVal))) {
+          setLocalVal('');
+          onChange(0);
+        } else {
+          const num = Math.max(0, Number(localVal));
+          setLocalVal(String(num));
+          onChange(num);
+        }
+      }}
+      className="h-9 w-full rounded-lg font-mono font-bold text-sm"
+      aria-label="Precio unitario"
+      data-testid={`pos-line-price-${lineId}`}
+    />
+  );
+}
+
 function CartLineRow({
   line,
   onChange,
@@ -3439,18 +3492,10 @@ function CartLineRow({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-text-muted text-xs font-semibold shrink-0">Precio $</span>
-          <Input
-            type="number"
-            step="any"
-            min="0"
+          <CartLinePriceInput
             value={line.unit_price}
-            onChange={(event) => {
-              const val = event.target.value;
-              onChange({ unit_price: val === '' ? 0 : Math.max(0, Number(val)) });
-            }}
-            className="h-9 w-full rounded-lg font-mono font-bold text-sm"
-            aria-label="Precio unitario"
-            data-testid={`pos-line-price-${line.id}`}
+            lineId={line.id}
+            onChange={(unit_price) => onChange({ unit_price })}
           />
         </div>
         {line.tracking_type === 'serialized' && (

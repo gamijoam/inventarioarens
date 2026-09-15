@@ -12,6 +12,8 @@ const mockSessionState = {
   capabilities: new Set<string>(),
 };
 
+let mockPathname = '/dashboard';
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, search, className, title, children, ...props }: any) => (
     <a href={typeof to === 'string' ? to : '#'} className={className} title={title} {...props}>
@@ -19,7 +21,7 @@ vi.mock('@tanstack/react-router', () => ({
       {search ? null : null}
     </a>
   ),
-  useRouterState: () => ({ location: { pathname: '/dashboard' } }),
+  useRouterState: () => ({ location: { pathname: mockPathname } }),
   useNavigate: () => vi.fn(),
 }));
 
@@ -62,6 +64,7 @@ function makeWrapper(perms: string[]) {
 }
 
 beforeEach(() => {
+  mockPathname = '/dashboard';
   useUiModeStore.setState({ isSimpleMode: false });
   mockSessionState.capabilities = new Set();
   mockUseTenantGroups.mockReset();
@@ -280,5 +283,16 @@ describe('<Sidebar>', () => {
 
     // Reset
     mockSessionState.tenant = { id: 1 } as any;
+  });
+
+  it('colapsa el menu automaticamente cuando se ingresa al POS', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+    mockPathname = '/pos';
+
+    const { container } = render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    const aside = container.querySelector('aside');
+    expect(aside?.className).toContain('w-16');
+    expect(screen.getByRole('button', { name: 'Expandir menú' })).toBeDefined();
   });
 });
