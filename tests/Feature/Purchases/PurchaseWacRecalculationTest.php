@@ -115,7 +115,7 @@ class PurchaseWacRecalculationTest extends TestCase
         app(PurchaseOrderService::class)->receive($po1->fresh(), $user);
         $this->assertEquals(10.0, (float) $product->fresh()->average_cost);
 
-        // Compra 2: 6 unidades a $20.00 -> nuevo WAC = (4*10 + 6*20) / 10 = $16.00.
+        // Compra 2: 6 unidades a $20.00 -> costo de reposicion directo = $20.00 (sin dilucion WAC).
         $po2 = PurchaseOrder::create([
             'tenant_id' => $tenant->id,
             'status' => PurchaseOrder::STATUS_DRAFT,
@@ -135,7 +135,8 @@ class PurchaseWacRecalculationTest extends TestCase
         ]);
         app(PurchaseOrderService::class)->receive($po2->fresh(), $user);
 
-        $this->assertEquals(16.0, (float) $product->fresh()->average_cost);
+        $this->assertEquals(20.0, (float) $product->fresh()->average_cost);
+        $this->assertEquals(20.0, (float) $product->fresh()->last_purchase_cost);
     }
 
     public function test_receive_updates_cost_reference_but_never_changes_manual_sale_price(): void
@@ -236,5 +237,75 @@ class PurchaseWacRecalculationTest extends TestCase
 
         $this->assertEquals(8.0, (float) $product->fresh()->last_purchase_cost);
         $this->assertEquals(15.00, (float) $product->fresh()->base_price);
+    }
+
+    public function test_receive_auto_updates_price_when_cost_rises_or_drops_preserving_margin(): void
+    {
+        [$tenant, , $warehouse, $user] = $this->setupTenant();
+
+        // Producto con costo 10 y PVP 15 (margen implicito 50%), sin profit_margin seteado
+        $product = $this->product($tenant->id, 'DINAMICO', 0.0, [
+            'name' => 'PRODUCTO DINAMICO',
+            'base_price' => 15.00,
+            'last_purchase_cost' => 10.00,
+            'profit_margin' => null,
+            'pricing_mode' => Product::PRICING_AUTOMATIC,
+        ]);
+
+        // 1. Nueva compra donde el costo SUBE a $20.00
+        $poRise = PurchaseOrder::create([
+            'tenant_id' => $tenant->id,
+            'status' => PurchaseOrder::STATUS_DRAFT,
+            'document_number' => 'PO-RISE',
+            'issued_at' => now()->toDateString(),
+            'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+            'created_by' => $user->id,
+        ]);
+        $poRise->items()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_cost' => 20.00,
+            'total_cost' => 20.00,
+            'base_unit_cost' => 20.00,
+            'base_total_cost' => 20.00,
+        ]);
+        app(PurchaseOrderService::class)->receive($poRise->fresh(), $user);
+
+        $fresh = $product->fresh();
+        // Costo sube a $20
+        $this->assertEquals(20.00, (float) $fresh->last_purchase_cost);
+        $this->assertEquals(20.00, (float) $fresh->average_cost);
+        // Margen se calculo y guardo en 50%
+        $this->assertEquals(50.00, (float) $fresh->profit_margin);
+        // PVP subio automaticamente a $30 ($20 * 1.50)
+        $this->assertEquals(30.00, (float) $fresh->base_price);
+
+        // 2. Nueva compra donde el costo BAJA a $8.00
+        $poDrop = PurchaseOrder::create([
+            'tenant_id' => $tenant->id,
+            'status' => PurchaseOrder::STATUS_DRAFT,
+            'document_number' => 'PO-DROP',
+            'issued_at' => now()->toDateString(),
+            'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+            'created_by' => $user->id,
+        ]);
+        $poDrop->items()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_cost' => 8.00,
+            'total_cost' => 8.00,
+            'base_unit_cost' => 8.00,
+            'base_total_cost' => 8.00,
+        ]);
+        app(PurchaseOrderService::class)->receive($poDrop->fresh(), $user);
+
+        $freshDrop = $product->fresh();
+        // Costo baja a $8
+        $this->assertEquals(8.00, (float) $freshDrop->last_purchase_cost);
+        $this->assertEquals(8.00, (float) $freshDrop->average_cost);
+        // PVP bajo automaticamente a $12 ($8 * 1.50)
+        $this->assertEquals(12.00, (float) $freshDrop->base_price);
     }
 }
