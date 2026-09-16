@@ -59,6 +59,7 @@ export const PurchaseItemSchema = z.object({
   total_cost: z.union([z.number(), z.string()]).nullable().optional(),
   base_unit_cost: z.union([z.number(), z.string()]).nullable().optional(),
   base_total_cost: z.union([z.number(), z.string()]).nullable().optional(),
+  new_sale_price: z.union([z.number(), z.string()]).nullable().optional(),
   // Relaciones opcionales (eager loaded en show).
   product: z.unknown().nullable().optional(),
   product_variant: z
@@ -181,6 +182,7 @@ export const PurchaseItemInputSchema = z.object({
   product_variant_id: z.coerce.number().int().positive().nullable().optional(),
   quantity: positiveNumber(),
   unit_cost: positiveNumber(),
+  new_sale_price: z.coerce.number().positive().nullable().optional(),
   serial_units: z
     .array(
       z.object({
@@ -225,6 +227,7 @@ export type StorePurchaseInput = z.input<typeof StorePurchaseSchema>;
 export const ReceivePurchaseItemSchema = z.object({
   purchase_item_id: positiveNumber(),
   quantity: positiveNumber(),
+  new_sale_price: z.coerce.number().positive().nullable().optional(),
   serial_units: z
     .array(
       z.object({

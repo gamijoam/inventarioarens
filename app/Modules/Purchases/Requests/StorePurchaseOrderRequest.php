@@ -36,6 +36,7 @@ class StorePurchaseOrderRequest extends FormRequest
             'items.*.product_variant_id' => ['nullable', 'integer', Rule::exists('product_variants', 'id')->whereIn('tenant_id', $tenantIds)],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_cost' => ['required', 'numeric', 'gt:0'],
+            'items.*.new_sale_price' => ['nullable', 'numeric', 'gt:0'],
             'items.*.serial_units' => ['sometimes', 'array'],
             'items.*.serial_units.*.serial_type' => ['required_with:items.*.serial_units', 'string', Rule::in(['imei', 'serial'])],
             'items.*.serial_units.*.serial_number' => ['required_with:items.*.serial_units', 'string', 'max:255'],

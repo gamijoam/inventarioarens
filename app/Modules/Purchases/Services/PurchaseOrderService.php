@@ -75,6 +75,7 @@ class PurchaseOrderService
                     'total_cost' => $totalCost,
                     'base_unit_cost' => $baseUnitCost,
                     'base_total_cost' => $baseTotalCost,
+                    'new_sale_price' => isset($item['new_sale_price']) && is_numeric($item['new_sale_price']) ? (float) $item['new_sale_price'] : null,
                     'serial_units' => $serialUnits ?: null,
                 ]);
 
@@ -144,7 +145,12 @@ class PurchaseOrderService
 
                 // Guardar el costo de esta compra como referencia operativa.
                 $item->product->last_purchase_cost = round((float) $item->base_unit_cost, 4);
-                if ($item->product->pricing_mode === Product::PRICING_AUTOMATIC) {
+
+                // Si se indico un nuevo precio de venta (en la recepcion o guardado en el item)
+                $newSalePrice = $receipt['new_sale_price'] ?? $item->new_sale_price;
+                if ($newSalePrice !== null && is_numeric($newSalePrice) && (float) $newSalePrice > 0) {
+                    $item->product->base_price = round((float) $newSalePrice, 2);
+                } elseif ($item->product->pricing_mode === Product::PRICING_AUTOMATIC) {
                     $calculatedPrice = $item->product->calculateSalePrice();
                     if ($calculatedPrice !== null) {
                         $item->product->base_price = $calculatedPrice;
@@ -310,6 +316,7 @@ class PurchaseOrderService
                 return [
                     'item' => $item,
                     'quantity' => (float) $receipt['quantity'],
+                    'new_sale_price' => isset($receipt['new_sale_price']) && is_numeric($receipt['new_sale_price']) ? (float) $receipt['new_sale_price'] : null,
                     'serial_units' => $receipt['serial_units'] ?? [],
                 ];
             })
