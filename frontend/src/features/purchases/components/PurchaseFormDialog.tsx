@@ -44,6 +44,8 @@ function emptyItem(): PurchaseItemRowValue {
     product_info: null,
     quantity: '',
     unit_cost: '',
+    new_sale_price: '',
+    update_sale_price: false,
     serial_units: [],
   };
 }
@@ -176,6 +178,10 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
         product_variant_id: it.product_variant_id ?? undefined,
         quantity: Number(it.quantity) || 0,
         unit_cost: Number(it.unit_cost) || 0,
+        new_sale_price:
+          it.update_sale_price && Number(it.new_sale_price) > 0
+            ? Number(it.new_sale_price)
+            : undefined,
         serial_units: serialUnits,
       };
     });

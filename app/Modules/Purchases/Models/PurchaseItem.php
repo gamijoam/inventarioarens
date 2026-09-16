@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'total_cost',
     'base_unit_cost',
     'base_total_cost',
+    'new_sale_price',
     'serial_units',
     'stock_movement_id',
 ])]
@@ -38,6 +39,7 @@ class PurchaseItem extends Model
             'total_cost' => 'decimal:4',
             'base_unit_cost' => 'decimal:4',
             'base_total_cost' => 'decimal:4',
+            'new_sale_price' => 'decimal:4',
             'serial_units' => 'array',
         ];
     }

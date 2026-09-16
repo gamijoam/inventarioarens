@@ -204,4 +204,37 @@ class PurchaseWacRecalculationTest extends TestCase
         $this->assertEquals(100.0, (float) $product->fresh()->last_purchase_cost);
         $this->assertEquals(125.00, (float) $product->fresh()->base_price);
     }
+
+    public function test_receive_updates_sale_price_when_explicit_new_sale_price_is_provided(): void
+    {
+        [$tenant, , $warehouse, $user] = $this->setupTenant();
+        $product = $this->product($tenant->id, 'MANUAL-WITH-NEW-PRICE', 0.0, [
+            'base_price' => 10.00,
+            'pricing_mode' => Product::PRICING_MANUAL,
+        ]);
+
+        $po = PurchaseOrder::create([
+            'tenant_id' => $tenant->id,
+            'status' => PurchaseOrder::STATUS_DRAFT,
+            'document_number' => 'PO-MANUAL-NEW-PRICE',
+            'issued_at' => now()->toDateString(),
+            'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+            'created_by' => $user->id,
+        ]);
+        $po->items()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 2,
+            'unit_cost' => 8.00,
+            'total_cost' => 16.00,
+            'base_unit_cost' => 8.00,
+            'base_total_cost' => 16.00,
+            'new_sale_price' => 15.00,
+        ]);
+
+        app(PurchaseOrderService::class)->receive($po->fresh(), $user);
+
+        $this->assertEquals(8.0, (float) $product->fresh()->last_purchase_cost);
+        $this->assertEquals(15.00, (float) $product->fresh()->base_price);
+    }
 }

@@ -14,6 +14,10 @@ export interface ProductAutocompleteOption {
   tracking_type?: string;
   unit_of_measure?: string;
   base_price?: number | string | null;
+  average_cost?: number | string | null;
+  last_purchase_cost?: number | string | null;
+  profit_margin?: number | string | null;
+  pricing_mode?: 'manual' | 'automatic' | null;
 }
 
 interface ProductAutocompleteProps {

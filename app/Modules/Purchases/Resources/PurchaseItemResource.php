@@ -25,6 +25,7 @@ class PurchaseItemResource extends JsonResource
             'total_cost' => $this->when($canSeeCosts, $this->total_cost),
             'base_unit_cost' => $this->when($canSeeCosts, $this->base_unit_cost),
             'base_total_cost' => $this->when($canSeeCosts, $this->base_total_cost),
+            'new_sale_price' => $this->new_sale_price === null ? null : (float) $this->new_sale_price,
             'serial_units' => $this->serial_units,
             'stock_movement_id' => $this->stock_movement_id,
             'product' => ProductResource::make($this->whenLoaded('product')),
