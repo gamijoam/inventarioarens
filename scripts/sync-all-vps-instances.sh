@@ -22,8 +22,8 @@ for target_entry in "${TARGETS[@]}"; do
     continue
   fi
 
-  # 1. Pull Git local Fast-Forward
-  git -C "$target_dir" pull "$SOURCE_DIR" main --ff-only
+  # 1. Pull Git local
+  git -C "$target_dir" pull "$SOURCE_DIR" main --no-rebase --no-edit
 
   # 2. Sincronizar frontend/dist
   if [ -d "$SOURCE_DIR/frontend/dist" ]; then
