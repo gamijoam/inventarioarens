@@ -200,6 +200,12 @@ function ProductDetailPage() {
                     </Badge>
                   </Field>
                   <Field label="Precio base">{formatMoney(product.base_price)}</Field>
+                  <Field label="Último costo de compra">
+                    {product.last_purchase_cost != null ? formatMoney(product.last_purchase_cost) : '—'}
+                  </Field>
+                  <Field label="Costo promedio (WAC)">
+                    {product.average_cost != null ? formatMoney(product.average_cost) : '—'}
+                  </Field>
                   <Field label="Moneda de venta preferida">{product.sale_currency ?? '—'}</Field>
                   <Field label="Vendible">
                     <Badge variant={product.is_active ? 'success' : 'default'}>

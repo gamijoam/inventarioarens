@@ -150,6 +150,10 @@ class PurchaseOrderService
                 $newSalePrice = $receipt['new_sale_price'] ?? $item->new_sale_price;
                 if ($newSalePrice !== null && is_numeric($newSalePrice) && (float) $newSalePrice > 0) {
                     $item->product->base_price = round((float) $newSalePrice, 2);
+                    if ($item->product->pricing_mode === Product::PRICING_AUTOMATIC && (float) $item->base_unit_cost > 0) {
+                        $calculatedMargin = (((float) $newSalePrice - (float) $item->base_unit_cost) / (float) $item->base_unit_cost) * 100;
+                        $item->product->profit_margin = round(max(0, $calculatedMargin), 2);
+                    }
                 } elseif ($item->product->pricing_mode === Product::PRICING_AUTOMATIC) {
                     $calculatedPrice = $item->product->calculateSalePrice();
                     if ($calculatedPrice !== null) {
