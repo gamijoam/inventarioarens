@@ -29,34 +29,14 @@ class InventoryValuationService
      */
     public function recalculate(Product $product): ?float
     {
-        $totals = DB::table('stock_movements')
-            ->where('tenant_id', $product->tenant_id)
-            ->where('product_id', $product->product_id ?? $product->id)
-            ->whereNotNull('unit_cost')
-            ->whereIn('type', self::COST_TYPES)
-            ->selectRaw('SUM(CASE WHEN type IN (?, ?, ?, ?) THEN quantity ELSE 0 END) as qty_in', [
-                'purchase', 'adjustment_in', 'return_in', 'transfer_in',
-            ])
-            ->selectRaw('SUM(CASE WHEN type IN (?, ?, ?, ?) THEN quantity ELSE 0 END) as qty_out', [
-                'purchase_return', 'adjustment_out', 'return_out', 'transfer_out',
-            ])
-            ->selectRaw('SUM(CASE WHEN type IN (?, ?, ?, ?) THEN quantity * unit_cost ELSE 0 END) - SUM(CASE WHEN type IN (?, ?, ?) THEN quantity * unit_cost ELSE 0 END) as net_value', [
-                'purchase', 'adjustment_in', 'return_in', 'transfer_in',
-                'purchase_return', 'return_out', 'transfer_out',
-            ])
-            ->first();
-
-        if (! $totals || (float) $totals->qty_in <= 0) {
-            $product->average_cost = null;
+        // El sistema utiliza costo de reposición directo (último costo de adquisición).
+        // Se evita la dilución histórica de WAC.
+        if ($product->last_purchase_cost !== null) {
+            $product->average_cost = $product->last_purchase_cost;
             $product->save();
 
-            return null;
+            return $product->average_cost;
         }
-
-        $wac = (float) $totals->net_value / (float) $totals->qty_in;
-
-        $product->average_cost = round($wac, 4);
-        $product->save();
 
         return $product->average_cost;
     }

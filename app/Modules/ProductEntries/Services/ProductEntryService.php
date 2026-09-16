@@ -72,9 +72,11 @@ class ProductEntryService
 
                 $this->createProductUnits($product, $warehouse, $movement->id, $item['serial_units'] ?? []);
 
-                // Recalcular WAC para mantener `products.average_cost` sincronizado
-                // con la nueva entrada. Ver PurchaseOrderService para la misma logica.
-                $this->valuation->recalculate($product);
+                if ($unitCost > 0) {
+                    $product->last_purchase_cost = round($unitCost, 4);
+                    $product->average_cost = round($unitCost, 4);
+                    $product->save();
+                }
             }
 
             $entry = $entry->refresh()->load(['items.product', 'items.warehouse']);
