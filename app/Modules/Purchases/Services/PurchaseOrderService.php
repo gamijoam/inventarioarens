@@ -143,30 +143,36 @@ class PurchaseOrderService
 
                 $this->createProductUnits($item, $movement->id, $serialUnits);
 
-                // Guardar el costo de esta compra como referencia operativa.
-                $item->product->last_purchase_cost = round((float) $item->base_unit_cost, 4);
+                // Actualizar costo del producto con el nuevo costo de compra directo (sin dilucion WAC)
+                $newCost = round((float) $item->base_unit_cost, 4);
+                $previousCost = (float) ($item->product->last_purchase_cost ?? $item->product->average_cost ?? 0);
+                $previousPrice = (float) ($item->product->base_price ?? 0);
 
-                // Si se indico un nuevo precio de venta (en la recepcion o guardado en el item)
+                $item->product->last_purchase_cost = $newCost;
+                $item->product->average_cost = $newCost; // Sin WAC: el costo contable y operativo es el costo de reposicion
+
+                // Si se indico un nuevo precio de venta explicito (en la recepcion o guardado en el item)
                 $newSalePrice = $receipt['new_sale_price'] ?? $item->new_sale_price;
                 if ($newSalePrice !== null && is_numeric($newSalePrice) && (float) $newSalePrice > 0) {
                     $item->product->base_price = round((float) $newSalePrice, 2);
-                    if ($item->product->pricing_mode === Product::PRICING_AUTOMATIC && (float) $item->base_unit_cost > 0) {
-                        $calculatedMargin = (((float) $newSalePrice - (float) $item->base_unit_cost) / (float) $item->base_unit_cost) * 100;
+                    if ($newCost > 0) {
+                        $calculatedMargin = (((float) $newSalePrice - $newCost) / $newCost) * 100;
                         $item->product->profit_margin = round(max(0, $calculatedMargin), 2);
                     }
                 } elseif ($item->product->pricing_mode === Product::PRICING_AUTOMATIC) {
-                    $calculatedPrice = $item->product->calculateSalePrice();
-                    if ($calculatedPrice !== null) {
+                    // Si el costo sube o baja, actualizar automaticamente el precio de venta segun el margen
+                    $margin = $item->product->profit_margin !== null
+                        ? (float) $item->product->profit_margin
+                        : ($previousCost > 0 && $previousPrice >= $previousCost ? (($previousPrice - $previousCost) / $previousCost) * 100 : 0);
+
+                    $item->product->profit_margin = round(max(0, $margin), 2);
+
+                    $calculatedPrice = round($newCost * (1 + ($margin / 100)), 2);
+                    if ($calculatedPrice > 0) {
                         $item->product->base_price = $calculatedPrice;
                     }
                 }
                 $item->product->save();
-
-                // Recalcular WAC del producto tras cada item recibido para que
-                // `products.average_cost` refleje el costo actualizado. Idempotente
-                // y O(N movimientos) por producto, suficiente para compras normales.
-                // Si el volumen crece, mover a un Job en cola.
-                $this->valuation->recalculate($item->product);
             }
 
             [$receivedBase, $receivedLocal] = $this->receivedTotals($purchaseOrder->refresh()->load('items'));

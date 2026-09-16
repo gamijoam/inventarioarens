@@ -23,16 +23,16 @@ export function WacDisplay({ product }: WacDisplayProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Calculator className="size-4" aria-hidden="true" />
-          Costo Promedio Ponderado (WAC)
+          Precio de Costo
         </CardTitle>
         <CardDescription>
-          Calculado automaticamente desde los movimientos de stock del producto.
+          Costo actual de adquisición del producto.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {visible ? (
           <p className="text-2xl font-semibold tabular-nums">
-            {formatMoney(product.average_cost ?? undefined)}
+            {formatMoney(product.last_purchase_cost ?? product.average_cost ?? undefined)}
           </p>
         ) : (
           <p className="flex items-center gap-2 text-text-muted">

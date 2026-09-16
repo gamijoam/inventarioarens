@@ -172,20 +172,31 @@ class Product extends Model
      */
     public function effectiveProfitMargin(): ?float
     {
-        if ($this->profit_margin === null) {
-            return null;
+        if ($this->profit_margin !== null) {
+            return (float) $this->profit_margin;
         }
 
-        return (float) $this->profit_margin;
+        $cost = (float) ($this->last_purchase_cost ?? $this->average_cost ?? 0);
+        $price = (float) ($this->base_price ?? 0);
+
+        if ($cost > 0 && $price >= $cost) {
+            return round((($price - $cost) / $cost) * 100, 2);
+        }
+
+        return null;
     }
 
     public function calculateSalePrice(?float $cost = null, ?float $margin = null): ?float
     {
-        $cost ??= $this->last_purchase_cost === null ? null : (float) $this->last_purchase_cost;
+        $cost ??= (float) ($this->last_purchase_cost ?? $this->average_cost ?? 0);
         $margin ??= $this->effectiveProfitMargin();
 
-        if ($cost === null || $margin === null) {
+        if ($cost <= 0) {
             return null;
+        }
+
+        if ($margin === null) {
+            return round($cost, 2);
         }
 
         return round($cost * (1 + ($margin / 100)), 2);

@@ -200,11 +200,15 @@ function ProductDetailPage() {
                     </Badge>
                   </Field>
                   <Field label="Precio base">{formatMoney(product.base_price)}</Field>
-                  <Field label="Último costo de compra">
-                    {product.last_purchase_cost != null ? formatMoney(product.last_purchase_cost) : '—'}
+                  <Field label="Precio de costo">
+                    {product.last_purchase_cost != null ? formatMoney(product.last_purchase_cost) : (product.average_cost != null ? formatMoney(product.average_cost) : '—')}
                   </Field>
-                  <Field label="Costo promedio (WAC)">
-                    {product.average_cost != null ? formatMoney(product.average_cost) : '—'}
+                  <Field label="Margen">
+                    {product.profit_margin != null ? (
+                      <span className="font-semibold text-primary">{Number(product.profit_margin).toFixed(1)}%</span>
+                    ) : (
+                      <span className="text-text-muted">Sin margen</span>
+                    )}
                   </Field>
                   <Field label="Moneda de venta preferida">{product.sale_currency ?? '—'}</Field>
                   <Field label="Vendible">
