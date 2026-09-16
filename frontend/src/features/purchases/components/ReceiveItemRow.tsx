@@ -22,6 +22,10 @@ export interface ReceiveItemRowValue {
   product_variant_name?: string | null;
   product_variant_sku?: string | null;
   product_tracking_type?: string;
+  product_base_price?: number | null;
+  product_profit_margin?: number | null;
+  product_pricing_mode?: 'manual' | 'automatic' | null;
+  new_sale_price?: number | string | null;
   warehouse_code: string;
   /** Cantidad pedida en el draft original */
   ordered_quantity: number;
@@ -115,8 +119,8 @@ export function ReceiveItemRow({ value, onChange, disabled }: ReceiveItemRowProp
         </div>
       </div>
 
-      {/* Row 2: Cantidad a recibir + subtotal preview */}
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* Row 2: Cantidad a recibir + costo + subtotal + PVP al recibir */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="space-y-1">
           <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase">
             Recibir
@@ -157,6 +161,43 @@ export function ReceiveItemRow({ value, onChange, disabled }: ReceiveItemRowProp
               ? formatMoney(value.receiving_quantity * value.unit_cost)
               : '-'}
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase flex items-center justify-between">
+            <span>PVP al recibir</span>
+            {value.product_pricing_mode === 'automatic' ? (
+              <Badge variant="info" className="text-[10px] py-0 font-normal">Auto</Badge>
+            ) : value.product_base_price != null ? (
+              <span className="text-[10px] text-text-muted font-normal">
+                Act: ${Number(value.product_base_price).toFixed(2)}
+              </span>
+            ) : null}
+          </label>
+          {value.product_pricing_mode === 'automatic' ? (
+            <div className="bg-bg/50 flex h-9 items-center rounded border border-transparent px-3 text-xs tabular-nums justify-between">
+              <span className="text-text-muted">Recalculará</span>
+              <span className="font-semibold text-text-primary">
+                {value.unit_cost != null
+                  ? `$${(value.unit_cost * (1 + (value.product_profit_margin ?? 30) / 100)).toFixed(2)}`
+                  : 'Auto'}
+              </span>
+            </div>
+          ) : (
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder={value.product_base_price != null ? String(value.product_base_price) : 'Nuevo PVP'}
+              value={value.new_sale_price ?? ''}
+              onChange={(e) => {
+                const cleaned = e.target.value.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+                if (cleaned.split('.').length > 2) return;
+                onChange({ ...value, new_sale_price: cleaned });
+              }}
+              disabled={disabled}
+              className="h-9 text-right tabular-nums text-xs font-semibold"
+            />
+          )}
         </div>
       </div>
 

@@ -40,6 +40,10 @@ const ProductLookupSchema = z.object({
   tracking_type: z.enum(['quantity', 'serialized']).optional(),
   unit_of_measure: z.string().optional(),
   base_price: z.union([z.number(), z.string()]).nullable().optional(),
+  average_cost: z.union([z.number(), z.string()]).nullable().optional(),
+  last_purchase_cost: z.union([z.number(), z.string()]).nullable().optional(),
+  profit_margin: z.union([z.number(), z.string()]).nullable().optional(),
+  pricing_mode: z.enum(['manual', 'automatic']).nullable().optional(),
   is_active: z.boolean().optional(),
 });
 

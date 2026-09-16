@@ -56,11 +56,20 @@ function buildInitialValues(purchase: Purchase): ReceiveItemRowValue[] {
       if (pending <= 0) return null;
 
       const product = it.product as
-        | { id: number; name: string; sku?: string | null; tracking_type?: string }
+        | {
+            id: number;
+            name: string;
+            sku?: string | null;
+            tracking_type?: string;
+            base_price?: number | string | null;
+            profit_margin?: number | string | null;
+            pricing_mode?: 'manual' | 'automatic' | null;
+          }
         | null
         | undefined;
       const warehouse = it.warehouse as { code: string } | null | undefined;
       const unitCost = it.base_unit_cost != null ? Number(it.base_unit_cost) : null;
+      const newSalePrice = it.new_sale_price != null ? Number(it.new_sale_price) : null;
       const allSerialUnits = Array.isArray(it.serial_units) ? (it.serial_units as never[]) : [];
       const serialStart = Math.max(0, Math.floor(received));
       const serialEnd = serialStart + Math.floor(pending);
@@ -74,6 +83,10 @@ function buildInitialValues(purchase: Purchase): ReceiveItemRowValue[] {
         product_variant_name: it.product_variant?.color ?? null,
         product_variant_sku: it.product_variant?.sku_variant ?? null,
         product_tracking_type: product?.tracking_type,
+        product_base_price: product?.base_price != null ? Number(product.base_price) : null,
+        product_profit_margin: product?.profit_margin != null ? Number(product.profit_margin) : null,
+        product_pricing_mode: product?.pricing_mode ?? 'automatic',
+        new_sale_price: newSalePrice != null && newSalePrice > 0 ? String(newSalePrice) : '',
         warehouse_code: warehouse?.code ?? `Almacen #${it.warehouse_id}`,
         ordered_quantity: ordered,
         received_quantity: received,
@@ -167,6 +180,10 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
         .map((it) => ({
           purchase_item_id: it.purchase_item_id,
           quantity: it.receiving_quantity,
+          new_sale_price:
+            it.new_sale_price && Number(it.new_sale_price) > 0
+              ? Number(it.new_sale_price)
+              : undefined,
           serial_units: it.serial_units,
         })),
     };

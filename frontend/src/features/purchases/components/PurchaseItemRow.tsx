@@ -1,5 +1,18 @@
 import { useEffect, useMemo } from 'react';
-import { Boxes, ChevronDown, ChevronUp, Package, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  Boxes,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+  Package,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +33,8 @@ export interface PurchaseItemRowValue {
   product_info: ProductAutocompleteOption | null;
   quantity: number | string;
   unit_cost: number | string;
+  new_sale_price?: number | string;
+  update_sale_price?: boolean;
   serial_units: ImeiInput[];
   error?: string;
 }
@@ -59,6 +74,58 @@ export function PurchaseItemRow({
     [value.quantity, value.unit_cost],
   );
   const isSerialized = value.product_info?.tracking_type === 'serialized';
+
+  const productInfo = value.product_info;
+
+  // Costo anterior de referencia (prioriza last_purchase_cost, luego average_cost)
+  const previousCost = useMemo(() => {
+    if (!productInfo) return null;
+    if (productInfo.last_purchase_cost != null && Number(productInfo.last_purchase_cost) > 0) {
+      return Number(productInfo.last_purchase_cost);
+    }
+    if (productInfo.average_cost != null && Number(productInfo.average_cost) > 0) {
+      return Number(productInfo.average_cost);
+    }
+    return null;
+  }, [productInfo]);
+
+  const currentPvp = useMemo(() => {
+    return productInfo?.base_price != null ? Number(productInfo.base_price) : null;
+  }, [productInfo]);
+
+  const configuredMargin = useMemo(() => {
+    return productInfo?.profit_margin != null ? Number(productInfo.profit_margin) : null;
+  }, [productInfo]);
+
+  const isAutomaticPricing = productInfo?.pricing_mode === 'automatic';
+
+  // Costo numerico ingresado en este item
+  const numericCost = Number(value.unit_cost);
+  const hasValidCost = Number.isFinite(numericCost) && numericCost > 0;
+
+  // Comparacion de costo (Variacion de costo nuevo vs costo anterior)
+  const costDiff = useMemo(() => {
+    if (!hasValidCost || previousCost == null || previousCost <= 0) return null;
+    const diff = numericCost - previousCost;
+    const diffPct = (diff / previousCost) * 100;
+    return { diff, diffPct };
+  }, [hasValidCost, numericCost, previousCost]);
+
+  // Margen proyectado con el PVP actual
+  const projectedAnalysis = useMemo(() => {
+    if (!hasValidCost || currentPvp == null || currentPvp <= 0) return null;
+    const profit = currentPvp - numericCost;
+    const marginPct = (profit / numericCost) * 100;
+    const isLoss = profit < 0;
+    return { profit, marginPct, isLoss };
+  }, [currentPvp, hasValidCost, numericCost]);
+
+  // PVP Sugerido para mantener el margen configurado (o un 30% por defecto si no tiene)
+  const effectiveMarginForSuggestion = configuredMargin ?? 30;
+  const suggestedPvp = useMemo(() => {
+    if (!hasValidCost) return null;
+    return Math.round(numericCost * (1 + effectiveMarginForSuggestion / 100) * 100) / 100;
+  }, [effectiveMarginForSuggestion, hasValidCost, numericCost]);
 
   /**
    * Acepta solo digitos y un separador decimal (punto o coma), sin forzar
@@ -153,27 +220,75 @@ export function PurchaseItemRow({
               value={value.product_id}
               selectedProduct={value.product_info}
               invalid={!value.product_id}
-              onChange={(id, product) =>
+              onChange={(id, product) => {
+                const prev = product?.last_purchase_cost != null && Number(product.last_purchase_cost) > 0
+                  ? Number(product.last_purchase_cost)
+                  : (product?.average_cost != null && Number(product.average_cost) > 0 ? Number(product.average_cost) : null);
+
+                // Si no había costo ingresado previamente, auto-sugerir el costo anterior
+                const nextCost = (value.unit_cost === '' || value.unit_cost == null) && prev != null
+                  ? String(prev)
+                  : value.unit_cost;
+
                 onChange({
                   ...value,
                   product_id: id,
                   product_variant_id: null,
                   product_info: product ?? null,
+                  unit_cost: nextCost,
                   serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
-                })
-              }
+                });
+              }}
             />
             {value.product_info && (
-              <div className="text-text-muted flex flex-wrap items-center gap-2 pt-1 text-xs">
-                <Package className="size-3.5" />
-                <span>Unidad: {value.product_info.unit_of_measure ?? 'unidad'}</span>
-                {value.product_info.base_price != null && (
-                  <span>
-                    Precio base:{' '}
-                    {Number(value.product_info.base_price).toLocaleString('es-VE', {
-                      minimumFractionDigits: 2,
-                    })}
-                  </span>
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                <div className="text-text-muted flex items-center gap-1.5">
+                  <Package className="size-3.5" />
+                  <span>Unidad: {value.product_info.unit_of_measure ?? 'unidad'}</span>
+                </div>
+
+                <span className="text-border">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-text-secondary font-medium">Último costo:</span>
+                  {previousCost != null ? (
+                    <code className="bg-bg text-text-primary rounded px-1.5 py-0.5 font-semibold">
+                      ${previousCost.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </code>
+                  ) : (
+                    <span className="text-text-muted italic">Sin costo previo</span>
+                  )}
+                </span>
+
+                <span className="text-border">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-text-secondary font-medium">PVP actual:</span>
+                  {currentPvp != null ? (
+                    <code className="bg-primary/10 text-primary rounded px-1.5 py-0.5 font-semibold">
+                      ${currentPvp.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </code>
+                  ) : (
+                    <span className="text-text-muted italic">Sin PVP</span>
+                  )}
+                </span>
+
+                <span className="text-border">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-text-secondary font-medium">Margen:</span>
+                  <Badge variant={isAutomaticPricing ? 'info' : 'default'} className="text-[11px] py-0">
+                    {configuredMargin != null ? `${configuredMargin.toFixed(1)}%` : 'Manual'}
+                    {isAutomaticPricing ? ' (Auto)' : ''}
+                  </Badge>
+                </span>
+
+                {previousCost != null && String(value.unit_cost) !== String(previousCost) && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...value, unit_cost: String(previousCost) })}
+                    className="text-primary hover:underline ml-auto flex items-center gap-1 text-[11px] font-medium cursor-pointer"
+                  >
+                    <RefreshCw className="size-3" />
+                    Cargar costo anterior (${previousCost.toFixed(2)})
+                  </button>
                 )}
               </div>
             )}
@@ -291,6 +406,128 @@ export function PurchaseItemRow({
             </div>
           </div>
         </div>
+
+        {value.product_info && hasValidCost && (
+          <div className="bg-bg/60 border-border/80 rounded-md border p-3 text-xs space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* 1. Variacion de costo */}
+              {costDiff && (
+                <div className="flex items-center gap-1.5">
+                  {costDiff.diff > 0.0001 ? (
+                    <Badge variant="warning" className="flex items-center gap-1 font-medium">
+                      <ArrowUpRight className="size-3.5 text-warning" />
+                      Costo aumentó +{costDiff.diffPct.toFixed(1)}% (+${costDiff.diff.toFixed(2)})
+                    </Badge>
+                  ) : costDiff.diff < -0.0001 ? (
+                    <Badge variant="success" className="flex items-center gap-1 font-medium">
+                      <ArrowDownRight className="size-3.5 text-success" />
+                      Costo disminuyó {costDiff.diffPct.toFixed(1)}% (-${Math.abs(costDiff.diff).toFixed(2)})
+                    </Badge>
+                  ) : (
+                    <Badge variant="default" className="flex items-center gap-1">
+                      <CheckCircle2 className="size-3.5 text-success" />
+                      Mismo costo anterior (${previousCost?.toFixed(2)})
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {/* 2. Margen proyectado con PVP actual */}
+              {projectedAnalysis && (
+                <div className="flex items-center gap-1.5">
+                  {projectedAnalysis.isLoss ? (
+                    <div className="text-danger flex items-center gap-1 font-semibold">
+                      <AlertTriangle className="size-3.5" />
+                      ¡Venta a pérdida con PVP actual (${currentPvp?.toFixed(2)})! Margen: {projectedAnalysis.marginPct.toFixed(1)}%
+                    </div>
+                  ) : (
+                    <div className="text-text-secondary flex items-center gap-1">
+                      <span>Margen con PVP actual:</span>
+                      <span className="text-text-primary font-semibold">
+                        {projectedAnalysis.marginPct.toFixed(1)}%
+                      </span>
+                      <span className="text-text-muted">
+                        (+${projectedAnalysis.profit.toFixed(2)}/ud)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Sugerencia y Actualizacion de PVP */}
+            <div className="border-border/60 flex flex-wrap items-center justify-between gap-3 border-t pt-2">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="text-warning size-4 shrink-0" />
+                <span className="text-text-secondary">
+                  PVP sugerido (margen {effectiveMarginForSuggestion}%):{' '}
+                  <strong className="text-text-primary text-sm font-bold">
+                    ${suggestedPvp?.toFixed(2)} USD
+                  </strong>
+                </span>
+                {isAutomaticPricing && (
+                  <Badge variant="info" className="text-[10px]">
+                    Modo auto: se actualizará al recibir
+                  </Badge>
+                )}
+              </div>
+
+              {!isAutomaticPricing && (
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(value.update_sale_price)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        onChange({
+                          ...value,
+                          update_sale_price: checked,
+                          new_sale_price: checked
+                            ? (value.new_sale_price || (suggestedPvp ? String(suggestedPvp) : ''))
+                            : '',
+                        });
+                      }}
+                      className="rounded border-border"
+                    />
+                    <span className="text-text-secondary font-medium">
+                      Actualizar PVP al recibir:
+                    </span>
+                  </label>
+
+                  {value.update_sale_price && (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={value.new_sale_price ?? ''}
+                        onChange={(e) =>
+                          onDecimalInput(e.target.value, (next) =>
+                            onChange({ ...value, new_sale_price: next }),
+                          )
+                        }
+                        placeholder={suggestedPvp ? String(suggestedPvp) : '0.00'}
+                        className="h-8 w-24 text-right text-xs font-semibold tabular-nums"
+                      />
+                      {suggestedPvp != null && String(value.new_sale_price) !== String(suggestedPvp) && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 px-2 text-[11px]"
+                          onClick={() => onChange({ ...value, new_sale_price: String(suggestedPvp) })}
+                        >
+                          <Sparkles className="size-3 mr-1 text-warning" />
+                          Usar sugerido
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {isSerialized && value.product_id && (
           <div className="border-info/30 bg-info/5 rounded-md border p-3">
