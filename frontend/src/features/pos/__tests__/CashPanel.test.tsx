@@ -111,6 +111,41 @@ describe('CashPanel', () => {
     expect(onCloseForm).toHaveBeenCalledWith(expect.objectContaining({ blind: false }));
   });
 
+  it('la diferencia de cierre usa el efectivo fisico y no el total con pagos electronicos', () => {
+    render(
+      <CashPanel
+        session={makeSession({
+          expected_base_amount: 200,
+          expected_cash_usd: 0,
+          difference_base_amount: -200,
+          difference_cash_usd: 0,
+          counted_base_amount: 0,
+        })}
+        {...makeProps({ closeForm: makeCloseForm({ blind: false }) })}
+      />,
+    );
+
+    // Todo se cobro por via electronica: el cajon fisico no tiene faltante.
+    const difference = screen.getByTestId('pos-cash-difference');
+    expect(difference).toHaveTextContent('$0.00');
+    expect(difference).not.toHaveTextContent('200.00');
+  });
+
+  it('el esperado del cierre refleja el efectivo fisico USD, no el total con tarjeta', () => {
+    render(
+      <CashPanel
+        session={makeSession({
+          expected_base_amount: 200,
+          expected_cash_usd: 40,
+        })}
+        {...makeProps({ closeForm: makeCloseForm({ blind: false }) })}
+      />,
+    );
+
+    expect(screen.getAllByText('$40.00').length).toBeGreaterThan(0);
+    expect(screen.queryByText('$200.00')).not.toBeInTheDocument();
+  });
+
   it('no muestra diferencia si aun no se conto (modo standard)', () => {
     render(
       <CashPanel

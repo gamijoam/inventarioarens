@@ -172,9 +172,12 @@ function CommandCenterContent({
   const review = useReviewCashSession();
   const canReview = useCan(PERMISSIONS.CASH_REGISTER_REVIEW);
   const [reviewNotes, setReviewNotes] = useState('');
-  const difference = data.summary.difference_base_amount;
+  const difference = data.summary.difference_cash_usd ?? data.summary.difference_base_amount;
   const attentionCount = data.rows.filter(
-    (row) => row.status === 'open' || Math.abs(row.difference_base_amount ?? 0) > 0.009,
+    (row) =>
+      row.status === 'open' ||
+      Math.abs(row.difference_cash_usd ?? row.difference_base_amount ?? 0) > 0.009 ||
+      Math.abs(row.difference_cash_ves ?? 0) > 0.009,
   ).length;
 
   return (
@@ -186,11 +189,14 @@ function CommandCenterContent({
           tone={data.summary.open_count ? 'warning' : 'default'}
         />
         <Metric label="Turnos cerrados" value={String(data.summary.closed_count)} />
-        <Metric label="Esperado USD" value={formatMoney(data.summary.expected_base_amount)} />
+        <Metric
+          label="Esperado USD"
+          value={formatMoney(data.summary.expected_cash_usd ?? data.summary.expected_base_amount)}
+        />
         <Metric
           label="Esperado VES"
           value={formatMoney({
-            amount: String(data.summary.expected_local_amount),
+            amount: String(data.summary.expected_cash_ves ?? data.summary.expected_local_amount),
             currency: 'VES',
           })}
         />

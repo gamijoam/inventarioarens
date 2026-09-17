@@ -272,7 +272,11 @@ export const CashSessionsSchema = z.object({
     closed_count: z.number(),
     expected_base_amount: z.number(),
     expected_local_amount: z.number(),
+    expected_cash_usd: z.number().optional(),
+    expected_cash_ves: z.number().optional(),
     difference_base_amount: z.number(),
+    difference_cash_usd: z.number().nullable().optional(),
+    difference_cash_ves: z.number().nullable().optional(),
   }),
   rows: z.array(
     z.object({

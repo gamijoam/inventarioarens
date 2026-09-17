@@ -4350,7 +4350,7 @@ export function CashPanel(props: {
   const session = props.session;
   const isOpen = session.status === 'open';
   const blind = props.closeForm.blind;
-  const difference = Number(session.difference_base_amount ?? 0);
+  const difference = Number(session.difference_cash_usd ?? session.difference_base_amount ?? 0);
   const hasCounted =
     session.counted_base_amount !== null && session.counted_base_amount !== undefined;
 
@@ -4410,7 +4410,7 @@ export function CashPanel(props: {
           <MetricCard
             icon={<CircleCheck className="size-4 text-success" aria-hidden="true" />}
             label="Esperado"
-            value={money(session.expected_base_amount ?? 0)}
+            value={money(session.expected_cash_usd ?? session.expected_base_amount ?? 0)}
             tone="success"
           />
         )}
