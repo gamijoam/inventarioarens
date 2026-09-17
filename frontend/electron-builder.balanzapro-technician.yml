@@ -1,0 +1,33 @@
+appId: com.balanzapro.technician
+productName: BalanzaPro Soporte Técnico
+executableName: BalanzaPro-Soporte-Tecnico
+artifactName: BalanzaPro-Soporte-Tecnico-${version}.${ext}
+asar: true
+directories:
+  output: release/balanzapro-technician
+publish:
+  provider: github
+  owner: gamijoam
+  repo: inventarioarens
+  channel: balanzapro-technician
+files:
+  - electron/**/*
+  - dist/technician/**/*
+  - package.json
+win:
+  icon: build/icons/balanzapro-technician/icon.ico
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: true
+  allowElevation: true
+  allowToChangeInstallationDirectory: false
+  shortcutName: BalanzaPro Soporte Técnico
+  uninstallDisplayName: BalanzaPro Soporte Técnico
+  include: build/nsis/separate-install-dir.nsh
+linux:
+  icon: build/icons/balanzapro-technician
+  target:
+    - AppImage
+  category: Office

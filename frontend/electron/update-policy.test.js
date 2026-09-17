@@ -13,6 +13,7 @@ describe('Electron update policy', () => {
     expect(resolveUpdateChannel('technician')).toBe('technician');
     expect(resolveUpdateChannel('balanzapro-pos')).toBe('balanzapro-pos');
     expect(resolveUpdateChannel('balanzapro-admin')).toBe('balanzapro-admin');
+    expect(resolveUpdateChannel('balanzapro-technician')).toBe('balanzapro-technician');
   });
 
   it('falls back to the administrative channel for unknown modes', () => {
@@ -31,7 +32,7 @@ describe('Electron update policy', () => {
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
     expect(workflow).toContain('GITHUB_REF_NAME');
-    expect(workflow).toContain('for candidate in balanzapro-pos balanzapro-admin technician admin pos');
-    expect(workflow).toContain('balanzapro-pos|balanzapro-admin');
+    expect(workflow).toContain('for candidate in balanzapro-pos balanzapro-admin balanzapro-technician technician admin pos');
+    expect(workflow).toContain('balanzapro-pos|balanzapro-admin|balanzapro-technician');
   });
 });

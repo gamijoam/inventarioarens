@@ -42,6 +42,14 @@ const APP_CONFIGS = Object.freeze({
     rendererPort: 8792,
     userDataSuffix: 'BalanzaPro-Administrativo',
   }),
+  'balanzapro-technician': Object.freeze({
+    mode: 'technician',
+    brand: 'balanzapro',
+    productName: 'BalanzaPro Soporte Técnico',
+    appId: 'com.balanzapro.technician',
+    rendererPort: 8793,
+    userDataSuffix: 'BalanzaPro-Soporte',
+  }),
 });
 
 function normalizeAppMode(mode) {

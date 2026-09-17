@@ -25,6 +25,7 @@ const APPS = [
   { id: 'technician', primary: [100, 116, 139], accent: [226, 232, 240] }, // gris pizarra
   { id: 'balanzapro-pos', primary: [124, 58, 237], accent: [250, 204, 21] }, // violeta + ambar
   { id: 'balanzapro-admin', primary: [79, 70, 229], accent: [56, 189, 248] }, // indigo + celeste
+  { id: 'balanzapro-technician', primary: [71, 85, 105], accent: [148, 163, 184] }, // gris
 ];
 
 const SIZES = [16, 24, 32, 48, 64, 128, 256];

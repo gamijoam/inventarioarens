@@ -14,6 +14,7 @@ const CLIENT_SMOKE = Object.freeze({
     technician: { artifact: "Soporte-Tecnico-Inventario", dir: "technician", mode: "technician", apiPort: 8807 },
     "balanzapro-pos": { artifact: "BalanzaPro-POS", dir: "balanzapro-pos", mode: "pos", apiPort: 8808 },
     "balanzapro-admin": { artifact: "BalanzaPro-Administrativo", dir: "balanzapro-admin", mode: "admin", apiPort: 8809 },
+    "balanzapro-technician": { artifact: "BalanzaPro-Soporte-Tecnico", dir: "balanzapro-technician", mode: "technician", apiPort: 8810 },
 });
 
 function getSmokeConfig(repoRoot, client, version = getFrontendVersion(repoRoot)) {

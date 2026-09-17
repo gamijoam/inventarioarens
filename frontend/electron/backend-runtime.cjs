@@ -21,11 +21,13 @@ const ELECTRON_RENDERER_ORIGINS = [
   'http://127.0.0.1:8790',
   'http://127.0.0.1:8791',
   'http://127.0.0.1:8792',
+  'http://127.0.0.1:8793',
   'http://localhost:8788',
   'http://localhost:8789',
   'http://localhost:8790',
   'http://localhost:8791',
   'http://localhost:8792',
+  'http://localhost:8793',
 ];
 const RUNTIME_SUPERVISOR_FLAG = '--inventario-runtime-supervisor';
 const RUNTIME_LEASE_TTL_MS = 10000;

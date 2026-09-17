@@ -47,5 +47,13 @@ describe('Linux AppImage smoke configuration', () => {
       apiPort: 8809,
       mode: 'admin',
     });
+
+    const configBalanzaProTech = linuxSmoke.getSmokeConfig('/repo', 'balanzapro-technician', version);
+    configBalanzaProTech.appImage = configBalanzaProTech.appImage.replace(/\\/g, '/');
+    expect(configBalanzaProTech).toEqual({
+      appImage: `/repo/frontend/release/balanzapro-technician/BalanzaPro-Soporte-Tecnico-${version}.AppImage`,
+      apiPort: 8810,
+      mode: 'technician',
+    });
   });
 });

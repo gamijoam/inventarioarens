@@ -10,7 +10,14 @@ import path from 'node:path';
 const iconsRoot = path.resolve(process.cwd(), 'build', 'icons');
 
 describe('generate-app-icons.cjs', () => {
-  const apps = ['admin', 'pos', 'technician', 'balanzapro-pos', 'balanzapro-admin'];
+  const apps = [
+    'admin',
+    'pos',
+    'technician',
+    'balanzapro-pos',
+    'balanzapro-admin',
+    'balanzapro-technician',
+  ];
 
   it.each(apps)('genera icon.ico y icon.png para %s', (app) => {
     const ico = fs.readFileSync(path.join(iconsRoot, app, 'icon.ico'));

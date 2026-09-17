@@ -14,6 +14,7 @@ on:
           - pos
           - balanzapro-pos
           - balanzapro-admin
+          - balanzapro-technician
   push:
     tags:
       - 'v*'
@@ -55,7 +56,7 @@ jobs:
             TAG_NAME="${GITHUB_REF_NAME:-}"
             # Los clientes con guion (balanzapro-pos) se resuelven primero para
             # no confundirlos con el sufijo simple (pos).
-            for candidate in balanzapro-pos balanzapro-admin technician admin pos; do
+            for candidate in balanzapro-pos balanzapro-admin balanzapro-technician technician admin pos; do
               if [[ "$TAG_NAME" == *"-$candidate" ]]; then
                 CLIENT="$candidate"
                 break
@@ -63,8 +64,8 @@ jobs:
             done
           fi
           case "$CLIENT" in
-            admin|pos|technician|balanzapro-pos|balanzapro-admin) ;;
-            *) echo "No se pudo resolver un cliente valido desde '$GITHUB_REF_NAME'. Usa un tag v<version>-admin|pos|technician|balanzapro-pos|balanzapro-admin."; exit 1 ;;
+            admin|pos|technician|balanzapro-pos|balanzapro-admin|balanzapro-technician) ;;
+            *) echo "No se pudo resolver un cliente valido desde '$GITHUB_REF_NAME'. Usa un tag v<version>-admin|pos|technician|balanzapro-pos|balanzapro-admin|balanzapro-technician."; exit 1 ;;
           esac
           echo "client=$CLIENT" >> "$GITHUB_OUTPUT"
           echo "CLIENT=$CLIENT" >> "$GITHUB_ENV"

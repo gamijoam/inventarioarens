@@ -45,6 +45,14 @@ describe('Electron app configuration', () => {
     expect(getAppConfig('balanzapro-admin').appId).toBe('com.balanzapro.admin');
     expect(getAppConfig('balanzapro-pos').rendererPort).toBe(8791);
     expect(getAppConfig('balanzapro-admin').rendererPort).toBe(8792);
+    expect(getAppConfig('balanzapro-technician').productName).toBe('BalanzaPro Soporte Técnico');
+    expect(getAppConfig('balanzapro-technician').rendererPort).toBe(8793);
+    expect(rendererDirectory('/bundle', 'balanzapro-technician').replace(/\\/g, '/')).toBe(
+      '/bundle/dist/technician',
+    );
+    expect(
+      userDataDirectory('/home/user/.config', 'balanzapro-technician').replace(/\\/g, '/'),
+    ).toBe('/home/user/.config/BalanzaPro-Soporte');
     expect(rendererDirectory('/bundle', 'balanzapro-pos').replace(/\\/g, '/')).toBe(
       '/bundle/dist/pos',
     );

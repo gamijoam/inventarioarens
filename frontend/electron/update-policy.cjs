@@ -4,6 +4,7 @@ const UPDATE_CHANNELS = Object.freeze([
   'technician',
   'balanzapro-pos',
   'balanzapro-admin',
+  'balanzapro-technician',
 ]);
 
 function resolveUpdateChannel(clientIdOrMode) {

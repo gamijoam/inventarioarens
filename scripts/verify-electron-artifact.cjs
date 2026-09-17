@@ -12,6 +12,7 @@ const CLIENT_RENDERERS = Object.freeze({
     technician: "technician",
     "balanzapro-pos": "pos",
     "balanzapro-admin": "admin",
+    "balanzapro-technician": "technician",
 });
 const CLIENTS = Object.keys(CLIENT_RENDERERS);
 const MOTOR_PAYLOAD_PATTERNS = [

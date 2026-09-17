@@ -51,7 +51,7 @@ function detectAppClient(options = {}) {
   const mode = detectAppMode(options);
   const brand = detectAppBrand(options);
 
-  if (brand === 'balanzapro' && mode !== 'technician') {
+  if (brand === 'balanzapro') {
     return `balanzapro-${mode}`;
   }
 

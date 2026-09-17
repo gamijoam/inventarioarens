@@ -121,6 +121,15 @@ describe('App mode detection', () => {
       expect(detectAppClient()).toBe('balanzapro-admin');
     });
 
+    it('detects the balanzapro technician client', () => {
+      Object.defineProperty(process, 'execPath', {
+        value: 'C:\\Apps\\BalanzaPro-Soporte-Tecnico.exe',
+        configurable: true,
+      });
+      expect(detectAppBrand()).toBe('balanzapro');
+      expect(detectAppClient()).toBe('balanzapro-technician');
+    });
+
     it('keeps the generic brand for the standard clients', () => {
       Object.defineProperty(process, 'execPath', {
         value: 'C:\\Apps\\Sistema-de-Inventario-POS.exe',

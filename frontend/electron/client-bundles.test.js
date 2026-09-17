@@ -11,6 +11,7 @@ describe('Electron client packaging', () => {
     ['technician', 'technician'],
     ['balanzapro-pos', 'pos'],
     ['balanzapro-admin', 'admin'],
+    ['balanzapro-technician', 'technician'],
   ])('packages only the %s renderer bundle', (client, renderer) => {
     const configPath = path.join(repositoryRoot, 'frontend', `electron-builder.${client}.yml`);
     const config = fs.readFileSync(configPath, 'utf8');
