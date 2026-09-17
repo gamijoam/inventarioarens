@@ -131,7 +131,7 @@ export function useConnectLocalTenant() {
 export function usePreviewPairingCode() {
   return useMutation({
     mutationFn: (code: string) =>
-      postOne<{ code: string }, PairingPreviewResult>('/sync/pairing-codes/preview', { code }),
+      postOne<{ code: string }, PairingPreviewResult>('/local-support/pairing-preview', { code }),
   });
 }
 

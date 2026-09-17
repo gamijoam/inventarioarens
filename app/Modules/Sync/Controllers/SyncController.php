@@ -196,8 +196,6 @@ class SyncController extends Controller
 
     public function redeemPairingCode(RedeemSyncPairingCodeRequest $request): JsonResponse
     {
-        $this->authorizeTransport($request);
-
         return response()->json([
             'data' => $this->pairing->redeem(
                 $request->validated(),
@@ -209,8 +207,6 @@ class SyncController extends Controller
 
     public function previewPairingCode(PreviewSyncPairingCodeRequest $request): JsonResponse
     {
-        $this->authorizeTransport($request);
-
         return response()->json([
             'data' => $this->pairing->preview($request->validated('code')),
         ]);
