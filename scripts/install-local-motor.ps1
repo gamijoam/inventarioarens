@@ -349,7 +349,7 @@ function Install-Motor {
         APP_URL = 'http://127.0.0.1:8787'; SYNC_CLOUD_URL = $CloudUrl
         LOCAL_TECHNICAL_CONSOLE_CLOUD_URL = $CloudUrl
         SYNC_PUBLIC_BASE = $CloudBase
-        APP_ALLOWED_ORIGINS_FOR_CSRF = 'http://127.0.0.1:8788,http://127.0.0.1:8789,http://127.0.0.1:8790,http://localhost:8788,http://localhost:8789,http://localhost:8790'
+        APP_ALLOWED_ORIGINS_FOR_CSRF = 'http://127.0.0.1:8788,http://127.0.0.1:8789,http://127.0.0.1:8790,http://127.0.0.1:8791,http://127.0.0.1:8792,http://localhost:8788,http://localhost:8789,http://localhost:8790,http://localhost:8791,http://localhost:8792'
         CORS_ALLOWED_ORIGINS_LOCAL = 'http://127.0.0.1:8788'
         DB_CONNECTION = 'sqlite'; DB_DATABASE = $database; DB_FOREIGN_KEYS = 'true'; DB_BUSY_TIMEOUT = '5000'
         DB_JOURNAL_MODE = 'WAL'; DB_SYNCHRONOUS = 'NORMAL'; DB_TRANSACTION_MODE = 'IMMEDIATE'

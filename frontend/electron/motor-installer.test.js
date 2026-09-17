@@ -64,6 +64,8 @@ describe('Motor Local packaging contracts', () => {
 
     expect(installer).toContain("[string]$CloudUrl = 'https://app.miinventariofacil.com/api'");
     expect(installer).toContain('$env:SYNC_CLOUD_URL = $CloudUrl');
+    expect(installer).toContain('http://127.0.0.1:8791');
+    expect(installer).toContain('http://127.0.0.1:8792');
     expect(inno).toContain('CloudUrl "{#CloudUrl}"');
     expect(build).toContain('/DCloudUrl=$CloudUrl');
     expect(workflow).toContain('https://app.balanzapro.com/api');
