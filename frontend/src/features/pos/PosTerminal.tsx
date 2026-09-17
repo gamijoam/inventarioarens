@@ -1136,6 +1136,23 @@ export function PosTerminal() {
         return;
       }
 
+      // F3 siempre debe anular el comportamiento nativo del navegador (evita abrir 'Buscar en la página')
+      // y hace focus de inmediato en el buscador principal del POS
+      if (event.key === 'F3') {
+        event.preventDefault();
+        if (panel !== null) {
+          setPanel(null);
+          setTimeout(() => {
+            searchRef.current?.focus();
+            searchRef.current?.select();
+          }, 50);
+        } else {
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        }
+        return;
+      }
+
       if (
         shouldTriggerPosCheckoutShortcut(event.key, {
           panel,
@@ -1167,8 +1184,16 @@ export function PosTerminal() {
             return;
           }
           case 'F3': {
-            setProductSearch(query);
-            setPanel('product-search');
+            if (panel !== null) {
+              setPanel(null);
+              setTimeout(() => {
+                searchRef.current?.focus();
+                searchRef.current?.select();
+              }, 50);
+            } else {
+              searchRef.current?.focus();
+              searchRef.current?.select();
+            }
             return;
           }
           case 'F4': {
@@ -1533,8 +1558,16 @@ export function PosTerminal() {
               variant="outline"
               size="sm"
               onClick={() => {
-                setProductSearch(query);
-                setPanel('product-search');
+                if (panel !== null) {
+                  setPanel(null);
+                  setTimeout(() => {
+                    searchRef.current?.focus();
+                    searchRef.current?.select();
+                  }, 50);
+                } else {
+                  searchRef.current?.focus();
+                  searchRef.current?.select();
+                }
               }}
             >
               <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
@@ -1900,8 +1933,16 @@ export function PosTerminal() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setProductSearch(query);
-                    setPanel('product-search');
+                    if (panel !== null) {
+                      setPanel(null);
+                      setTimeout(() => {
+                        searchRef.current?.focus();
+                        searchRef.current?.select();
+                      }, 50);
+                    } else {
+                      searchRef.current?.focus();
+                      searchRef.current?.select();
+                    }
                   }}
                 >
                   <Search className="size-4" /> F3 Buscar
