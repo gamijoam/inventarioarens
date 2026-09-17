@@ -480,7 +480,7 @@ export function ProductSearchDetailModal({
           {/* ============================================================== */}
           {/* COLUMNA IZQUIERDA: Búsqueda, Tabla de Resultados y Paginación */}
           {/* ============================================================== */}
-          <div className="flex h-full flex-col overflow-hidden bg-bg/25 p-3.5 gap-3 md:col-span-5">
+          <div className="flex h-full flex-col overflow-hidden bg-bg/25 p-3.5 gap-3 md:col-span-5 lg:col-span-4">
             {/* Controles de Búsqueda y Almacén */}
             <div className="flex flex-col gap-2.5">
               <div className="relative">
@@ -634,7 +634,7 @@ export function ProductSearchDetailModal({
           {/* ============================================================== */}
           {/* COLUMNA DERECHA: Detalle con Pestañas */}
           {/* ============================================================== */}
-          <div className="flex h-full flex-col overflow-hidden bg-surface p-4 md:col-span-7">
+          <div className="flex h-full flex-col overflow-hidden bg-surface p-4 md:col-span-7 lg:col-span-8">
             {!selectedProduct ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-text-muted">
                 <Package className="size-12 stroke-1 text-text-muted/40" />
@@ -643,15 +643,15 @@ export function ProductSearchDetailModal({
             ) : (
               <div className="flex h-full flex-col overflow-hidden">
                 {/* Cabecera del producto seleccionado */}
-                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border pb-3.5">
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border pb-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="truncate text-lg sm:text-2xl font-bold text-text-primary leading-tight">
+                      <h3 className="truncate text-base font-bold text-text-primary sm:text-lg">
                         {selectedProduct.name}
                       </h3>
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-sm sm:text-base text-text-muted">
-                      <span className="font-mono font-semibold text-text-primary">
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                      <span className="font-mono font-medium text-text-primary">
                         SKU: {selectedProduct.sku ?? 'N/A'}
                       </span>
                       <span>•</span>
@@ -667,7 +667,7 @@ export function ProductSearchDetailModal({
                       {selectedProduct.unit_of_measure && (
                         <>
                           <span>•</span>
-                          <span className="uppercase font-medium">
+                          <span className="uppercase">
                             Unidad: {selectedProduct.unit_of_measure}
                           </span>
                         </>
@@ -678,13 +678,13 @@ export function ProductSearchDetailModal({
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <Badge
                       variant={totalStockAllWarehouses > 0 ? 'success' : 'danger'}
-                      className="px-3.5 py-1.5 text-sm sm:text-base font-bold shadow-xs"
+                      className="px-2.5 py-1 text-xs font-semibold shadow-xs"
                     >
                       {totalStockAllWarehouses > 0
                         ? `Stock: ${totalStockAllWarehouses} ${selectedProduct.unit_of_measure ?? 'UND'}`
                         : 'Sin existencia'}
                     </Badge>
-                    <span className="text-xs sm:text-sm text-text-muted font-mono font-medium">
+                    <span className="text-[11px] text-text-muted font-mono">
                       Ref: {money(selectedProduct.base_price)}
                     </span>
                   </div>
@@ -696,20 +696,20 @@ export function ProductSearchDetailModal({
                   onValueChange={(v) => setActiveTab(v as TabKey)}
                   className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3"
                 >
-                  <TabsList className="grid w-full grid-cols-5 h-11 bg-bg/60 p-1 border border-border rounded-xl shrink-0">
-                    <TabsTrigger value="precios" className="text-sm sm:text-base font-semibold py-1.5 px-2 truncate">
+                  <TabsList className="grid w-full grid-cols-5 h-9 bg-bg/60 p-1 border border-border rounded-lg shrink-0">
+                    <TabsTrigger value="precios" className="text-xs py-1 px-1.5 truncate">
                       [F5] Precios
                     </TabsTrigger>
-                    <TabsTrigger value="existencia" className="text-sm sm:text-base font-semibold py-1.5 px-2 truncate">
+                    <TabsTrigger value="existencia" className="text-xs py-1 px-1.5 truncate">
                       [F6] Existencia
                     </TabsTrigger>
-                    <TabsTrigger value="datos" className="text-sm sm:text-base font-semibold py-1.5 px-2 truncate">
+                    <TabsTrigger value="datos" className="text-xs py-1 px-1.5 truncate">
                       [F8] Datos
                     </TabsTrigger>
-                    <TabsTrigger value="seriales" className="text-sm sm:text-base font-semibold py-1.5 px-2 truncate">
+                    <TabsTrigger value="seriales" className="text-xs py-1 px-1.5 truncate">
                       [F7] Seriales
                     </TabsTrigger>
-                    <TabsTrigger value="lotes" className="text-sm sm:text-base font-semibold py-1.5 px-2 truncate">
+                    <TabsTrigger value="lotes" className="text-xs py-1 px-1.5 truncate">
                       Lotes
                     </TabsTrigger>
                   </TabsList>
@@ -722,17 +722,17 @@ export function ProductSearchDetailModal({
                     className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3 space-y-3"
                   >
                     {/* Barra de Tasa, Factor de Empaque e IVA */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg/40 p-3 text-sm">
-                      <div className="flex items-center gap-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-bg/40 p-2.5 text-xs">
+                      <div className="flex items-center gap-2">
                         <span className="font-semibold text-text-primary">Tasa activa:</span>
-                        <Badge variant="outline" className="border-primary/40 bg-primary/5 px-2.5 py-1 font-mono text-sm font-bold text-primary">
+                        <Badge variant="outline" className="border-primary/40 bg-primary/5 font-mono text-primary">
                           {activeRate ? `1 USD = ${moneyVes(activeRate.rate)} (${activeRate.name})` : 'Sin tasa definida'}
                         </Badge>
-                        <span className="text-text-muted font-medium">• IVA 16%</span>
+                        <span className="text-text-muted">• IVA 16%</span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-text-muted font-medium">Empaque:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-text-muted">Empaque:</span>
                         <div className="flex items-center rounded-lg border border-border bg-surface p-0.5">
                           {[1, 6, 12, 24].map((factor) => (
                             <button
@@ -740,9 +740,9 @@ export function ProductSearchDetailModal({
                               type="button"
                               onClick={() => setPackageFactor(factor)}
                               className={cn(
-                                'rounded px-3 py-1 text-sm font-bold transition-colors',
+                                'rounded px-2 py-0.5 text-xs font-medium transition-colors',
                                 packageFactor === factor
-                                    ? 'bg-primary text-primary-foreground'
+                                  ? 'bg-primary text-primary-foreground'
                                   : 'text-text-muted hover:text-text-primary',
                               )}
                             >
@@ -755,17 +755,17 @@ export function ProductSearchDetailModal({
 
                     {/* Tabla Comparativa de Precios */}
                     <div className="flex-1 overflow-auto rounded-xl border border-border bg-surface shadow-xs">
-                      <table className="w-full text-left text-sm border-collapse">
-                        <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-xs sm:text-sm font-bold text-text-muted uppercase">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
                           <tr>
-                            <th className="py-3 px-3.5">Nivel / Lista de Precio</th>
-                            <th className="py-3 px-2.5 text-right">USD Neto</th>
-                            <th className="py-3 px-2.5 text-right">IVA (16%)</th>
-                            <th className="py-3 px-3.5 text-right text-primary font-bold">USD c/Imp</th>
-                            <th className="py-3 px-2.5 text-right">VES Neto</th>
-                            <th className="py-3 px-2.5 text-right">IVA VES</th>
-                            <th className="py-3 px-3.5 text-right text-primary font-bold">VES c/Imp</th>
-                            <th className="py-3 px-3.5 text-right bg-primary/5">
+                            <th className="py-2.5 px-3">Nivel / Lista de Precio</th>
+                            <th className="py-2.5 px-2 text-right">USD Neto</th>
+                            <th className="py-2.5 px-2 text-right">IVA (16%)</th>
+                            <th className="py-2.5 px-3 text-right text-primary font-bold">USD c/Imp</th>
+                            <th className="py-2.5 px-2 text-right">VES Neto</th>
+                            <th className="py-2.5 px-2 text-right">IVA VES</th>
+                            <th className="py-2.5 px-3 text-right text-primary font-bold">VES c/Imp</th>
+                            <th className="py-2.5 px-3 text-right bg-primary/5">
                               x{packageFactor} {selectedProduct.unit_of_measure ?? 'UND'}
                             </th>
                           </tr>
@@ -779,37 +779,37 @@ export function ProductSearchDetailModal({
                                 idx === 0 && 'bg-primary/5 font-medium',
                               )}
                             >
-                              <td className="py-3 px-3.5 font-medium">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm sm:text-base font-semibold">{row.label}</span>
+                              <td className="py-2.5 px-3 font-medium">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{row.label}</span>
                                   {row.isDefault && (
-                                    <Badge variant="outline" className="text-xs px-1.5 py-0.5 border-primary/40 text-primary font-bold">
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/40 text-primary">
                                       Base
                                     </Badge>
                                   )}
                                 </div>
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-sm sm:text-base text-text-secondary">
+                              <td className="py-2.5 px-2 text-right font-mono text-text-secondary">
                                 {money(row.netUsd)}
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-sm sm:text-base text-text-muted">
+                              <td className="py-2.5 px-2 text-right font-mono text-text-muted">
                                 {money(row.taxUsd)}
                               </td>
-                              <td className="py-3 px-3.5 text-right font-mono font-black text-base sm:text-lg text-text-primary">
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-text-primary">
                                 {money(row.totalUsd)}
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-sm sm:text-base text-text-secondary">
+                              <td className="py-2.5 px-2 text-right font-mono text-text-secondary">
                                 {moneyVes(row.netVes)}
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-sm sm:text-base text-text-muted">
+                              <td className="py-2.5 px-2 text-right font-mono text-text-muted">
                                 {moneyVes(row.taxVes)}
                               </td>
-                              <td className="py-3 px-3.5 text-right font-mono font-black text-base sm:text-lg text-text-primary">
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-text-primary">
                                 {moneyVes(row.totalVes)}
                               </td>
-                              <td className="py-3 px-3.5 text-right font-mono font-black bg-primary/5 text-primary text-base sm:text-lg">
+                              <td className="py-2.5 px-3 text-right font-mono font-bold bg-primary/5 text-primary">
                                 <div>{money(row.packageUsd)}</div>
-                                <div className="text-xs sm:text-sm font-semibold text-text-muted">{moneyVes(row.packageVes)}</div>
+                                <div className="text-[10px] font-normal text-text-muted">{moneyVes(row.packageVes)}</div>
                               </td>
                             </tr>
                           ))}
@@ -817,7 +817,7 @@ export function ProductSearchDetailModal({
                       </table>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs sm:text-sm text-text-muted px-1">
+                    <div className="flex items-center justify-between text-[11px] text-text-muted px-1">
                       <span>* Precios calculados con el 16% de IVA sobre el valor base de cada lista.</span>
                       {selectedPriceList && (
                         <span>
@@ -838,23 +838,23 @@ export function ProductSearchDetailModal({
                       {loadingStock ? (
                         <div className="flex h-48 flex-col items-center justify-center gap-2 text-text-muted">
                           <Loader2 className="size-6 animate-spin text-primary" />
-                          <span className="text-sm">Consultando existencias por almacén...</span>
+                          <span className="text-xs">Consultando existencias por almacén...</span>
                         </div>
                       ) : stockByWarehouse.length === 0 ? (
                         <div className="flex h-48 flex-col items-center justify-center gap-2 p-6 text-center text-text-muted">
                           <Warehouse className="size-8 stroke-1 text-text-muted/60" />
-                          <p className="text-sm">No hay registros de inventario para este producto.</p>
+                          <p className="text-xs">No hay registros de inventario para este producto.</p>
                         </div>
                       ) : (
-                        <table className="w-full text-left text-sm border-collapse">
-                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-xs sm:text-sm font-bold text-text-muted uppercase">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
                             <tr>
-                              <th className="py-3 px-3.5">Almacén</th>
-                              <th className="py-3 px-3.5">Sucursal</th>
-                              <th className="py-3 px-3.5 text-right">Disponible</th>
-                              <th className="py-3 px-3.5 text-right">Reservado</th>
-                              <th className="py-3 px-3.5 text-right">Dañado</th>
-                              <th className="py-3 px-3.5 text-right font-black text-text-primary">Físico Total</th>
+                              <th className="py-2.5 px-3">Almacén</th>
+                              <th className="py-2.5 px-3">Sucursal</th>
+                              <th className="py-2.5 px-3 text-right">Disponible</th>
+                              <th className="py-2.5 px-3 text-right">Reservado</th>
+                              <th className="py-2.5 px-3 text-right">Dañado</th>
+                              <th className="py-2.5 px-3 text-right font-bold text-text-primary">Físico Total</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border">
@@ -873,39 +873,39 @@ export function ProductSearchDetailModal({
                                     isCurrentWarehouse && 'bg-primary/5 font-medium',
                                   )}
                                 >
-                                  <td className="py-3 px-3.5">
-                                    <div className="flex items-center gap-2 font-medium">
-                                      <span className="text-sm sm:text-base font-semibold">{item.warehouse_name || `Almacén #${item.warehouse_id}`}</span>
+                                  <td className="py-2.5 px-3">
+                                    <div className="flex items-center gap-1.5 font-medium">
+                                      <span>{item.warehouse_name || `Almacén #${item.warehouse_id}`}</span>
                                       {item.warehouse_code && (
-                                        <span className="font-mono text-xs text-text-muted">
+                                        <span className="font-mono text-[10px] text-text-muted">
                                           ({item.warehouse_code})
                                         </span>
                                       )}
                                       {isCurrentWarehouse && (
-                                        <Badge variant="outline" className="text-xs px-1.5 py-0.5 border-primary/40 text-primary font-bold">
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/40 text-primary">
                                           Terminal
                                         </Badge>
                                       )}
                                     </div>
                                   </td>
-                                  <td className="py-3 px-3.5 text-sm sm:text-base text-text-secondary">
+                                  <td className="py-2.5 px-3 text-text-secondary">
                                     {item.branch_name || 'Principal'}
                                   </td>
-                                  <td className="py-3 px-3.5 text-right font-mono">
+                                  <td className="py-2.5 px-3 text-right font-mono">
                                     <Badge
                                       variant={avail > 0 ? 'success' : 'danger'}
-                                      className="px-3 py-1 text-sm font-bold"
+                                      className="px-2 py-0.5 text-xs font-semibold"
                                     >
                                       {avail}
                                     </Badge>
                                   </td>
-                                  <td className="py-3 px-3.5 text-right font-mono text-sm sm:text-base text-text-muted">
+                                  <td className="py-2.5 px-3 text-right font-mono text-text-muted">
                                     {res}
                                   </td>
-                                  <td className="py-3 px-3.5 text-right font-mono text-sm sm:text-base text-text-muted">
+                                  <td className="py-2.5 px-3 text-right font-mono text-text-muted">
                                     {dam}
                                   </td>
-                                  <td className="py-3 px-3.5 text-right font-mono font-black text-base sm:text-lg text-text-primary">
+                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-text-primary">
                                     {totalFisico}
                                   </td>
                                 </tr>
@@ -935,7 +935,7 @@ export function ProductSearchDetailModal({
                           fit="contain"
                           className="aspect-square w-full rounded-2xl border border-border bg-bg/50 p-2 shadow-xs"
                         />
-                        <span className="text-xs sm:text-sm text-text-muted">
+                        <span className="text-[11px] text-text-muted">
                           {selectedProduct.images?.length
                             ? `${selectedProduct.images.length} imágenes`
                             : 'Sin galería'}
@@ -946,22 +946,22 @@ export function ProductSearchDetailModal({
                       <div className="space-y-3.5">
                         {/* Descripción corta y extendida */}
                         {selectedProduct.description && (
-                          <div className="rounded-xl border border-border bg-bg/25 p-3.5">
-                            <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-muted">
+                          <div className="rounded-xl border border-border bg-bg/25 p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                               Descripción Corta
                             </span>
-                            <p className="mt-1.5 text-sm sm:text-base text-text-primary leading-relaxed">
+                            <p className="mt-1 text-xs text-text-primary leading-relaxed">
                               {selectedProduct.description}
                             </p>
                           </div>
                         )}
 
                         {selectedProduct.long_description && (
-                          <div className="rounded-xl border border-border bg-bg/25 p-3.5">
-                            <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-muted">
+                          <div className="rounded-xl border border-border bg-bg/25 p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                               Descripción Detallada / Técnica
                             </span>
-                            <p className="mt-1.5 max-h-36 overflow-y-auto whitespace-pre-wrap text-sm sm:text-base text-text-secondary leading-relaxed">
+                            <p className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap text-xs text-text-secondary leading-relaxed">
                               {stripHtml(selectedProduct.long_description)}
                             </p>
                           </div>
@@ -969,73 +969,73 @@ export function ProductSearchDetailModal({
 
                         {/* Parámetros de Stock y Parámetros Operativos */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          <div className="rounded-xl border border-border bg-surface p-3">
-                            <span className="text-xs sm:text-sm font-semibold uppercase text-text-muted">
+                          <div className="rounded-xl border border-border bg-surface p-2.5">
+                            <span className="text-[10px] font-semibold uppercase text-text-muted">
                               Stock Mínimo
                             </span>
-                            <p className="text-base sm:text-lg font-bold text-text-primary mt-1">
+                            <p className="text-sm font-bold text-text-primary mt-0.5">
                               {selectedProduct.min_stock ?? 0}
                             </p>
                           </div>
-                          <div className="rounded-xl border border-border bg-surface p-3">
-                            <span className="text-xs sm:text-sm font-semibold uppercase text-text-muted">
+                          <div className="rounded-xl border border-border bg-surface p-2.5">
+                            <span className="text-[10px] font-semibold uppercase text-text-muted">
                               Stock Máximo
                             </span>
-                            <p className="text-base sm:text-lg font-bold text-text-primary mt-1">
+                            <p className="text-sm font-bold text-text-primary mt-0.5">
                               {selectedProduct.max_stock ?? 'N/D'}
                             </p>
                           </div>
-                          <div className="rounded-xl border border-border bg-surface p-3">
-                            <span className="text-xs sm:text-sm font-semibold uppercase text-text-muted">
+                          <div className="rounded-xl border border-border bg-surface p-2.5">
+                            <span className="text-[10px] font-semibold uppercase text-text-muted">
                               Punto Reorden
                             </span>
-                            <p className="text-base sm:text-lg font-bold text-text-primary mt-1">
+                            <p className="text-sm font-bold text-text-primary mt-0.5">
                               {selectedProduct.reorder_quantity ?? 'N/D'}
                             </p>
                           </div>
-                          <div className="rounded-xl border border-border bg-surface p-3">
-                            <span className="text-xs sm:text-sm font-semibold uppercase text-text-muted">
+                          <div className="rounded-xl border border-border bg-surface p-2.5">
+                            <span className="text-[10px] font-semibold uppercase text-text-muted">
                               Control de Stock
                             </span>
-                            <p className="text-base sm:text-lg font-bold text-text-primary mt-1">
+                            <p className="text-sm font-bold text-text-primary mt-0.5">
                               {selectedProduct.track_stock ? 'Sí' : 'No'}
                             </p>
                           </div>
                         </div>
 
                         {/* Sección de Costos y Rentabilidad */}
-                        <div className="rounded-xl border border-border bg-bg/30 p-3.5">
-                          <div className="flex items-center justify-between mb-2.5">
-                            <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-muted">
+                        <div className="rounded-xl border border-border bg-bg/30 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                               Costos y Rentabilidad
                             </span>
                             {selectedProduct.average_cost === null && (
-                              <Badge variant="outline" className="text-xs text-text-muted gap-1 px-2 py-0.5">
+                              <Badge variant="outline" className="text-[10px] text-text-muted gap-1">
                                 <Lock className="size-3" /> Restringido
                               </Badge>
                             )}
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <div>
-                              <span className="text-sm text-text-muted">Último Costo Compra:</span>
-                              <p className="text-base sm:text-lg font-bold text-text-primary font-mono mt-1">
+                              <span className="text-xs text-text-muted">Último Costo Compra:</span>
+                              <p className="text-sm font-bold text-text-primary font-mono mt-0.5">
                                 {selectedProduct.last_purchase_cost !== null
                                   ? money(selectedProduct.last_purchase_cost)
                                   : '••••••'}
                               </p>
                             </div>
                             <div>
-                              <span className="text-sm text-text-muted">Costo Promedio:</span>
-                              <p className="text-base sm:text-lg font-bold text-text-primary font-mono mt-1">
+                              <span className="text-xs text-text-muted">Costo Promedio:</span>
+                              <p className="text-sm font-bold text-text-primary font-mono mt-0.5">
                                 {selectedProduct.average_cost !== null
                                   ? money(selectedProduct.average_cost)
                                   : '••••••'}
                               </p>
                             </div>
                             <div>
-                              <span className="text-sm text-text-muted">Margen Ganancia:</span>
-                              <p className="text-base sm:text-lg font-black text-primary font-mono mt-1">
+                              <span className="text-xs text-text-muted">Margen Ganancia:</span>
+                              <p className="text-sm font-bold text-primary font-mono mt-0.5">
                                 {selectedProduct.profit_margin ? `${selectedProduct.profit_margin}%` : 'N/D'}
                               </p>
                             </div>
@@ -1054,16 +1054,16 @@ export function ProductSearchDetailModal({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="relative flex-1 max-w-sm">
-                        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-text-muted" />
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-text-muted" />
                         <Input
                           id="serial-filter-input"
                           value={serialFilter}
                           onChange={(e) => setSerialFilter(e.target.value)}
                           placeholder="Filtrar número serial o IMEI..."
-                          className="h-10 pl-9 text-sm shadow-xs"
+                          className="h-8.5 pl-8 text-xs"
                         />
                       </div>
-                      <span className="text-sm sm:text-base text-text-muted">
+                      <span className="text-xs text-text-muted">
                         Total disponibles: <strong className="text-text-primary">{filteredSerials.length}</strong>
                       </span>
                     </div>
@@ -1072,43 +1072,43 @@ export function ProductSearchDetailModal({
                       {loadingSerials ? (
                         <div className="flex h-40 flex-col items-center justify-center gap-2 text-text-muted">
                           <Loader2 className="size-6 animate-spin text-primary" />
-                          <span className="text-sm">Cargando seriales...</span>
+                          <span className="text-xs">Cargando seriales...</span>
                         </div>
                       ) : filteredSerials.length === 0 ? (
                         <div className="flex h-40 flex-col items-center justify-center gap-2 p-6 text-center text-text-muted">
                           <ShieldCheck className="size-8 stroke-1 text-text-muted/60" />
-                          <p className="text-sm">
+                          <p className="text-xs">
                             {selectedProduct.tracking_type === 'serialized'
                               ? 'No hay unidades serializadas disponibles en existencia.'
                               : 'Este producto no requiere control individual por serial o IMEI.'}
                           </p>
                         </div>
                       ) : (
-                        <table className="w-full text-left text-sm border-collapse">
-                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-xs sm:text-sm font-bold text-text-muted uppercase">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
                             <tr>
-                              <th className="py-3 px-3.5">Número Serial / IMEI</th>
-                              <th className="py-3 px-3.5">Tipo</th>
-                              <th className="py-3 px-3.5">Almacén</th>
-                              <th className="py-3 px-3.5 text-right">Estado</th>
+                              <th className="py-2.5 px-3">Número Serial / IMEI</th>
+                              <th className="py-2.5 px-3">Tipo</th>
+                              <th className="py-2.5 px-3">Almacén</th>
+                              <th className="py-2.5 px-3 text-right">Estado</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border">
                             {filteredSerials.map((serial) => (
                               <tr key={serial.id} className="transition-colors hover:bg-bg/40">
-                                <td className="py-3 px-3.5 font-mono font-bold text-text-primary text-sm sm:text-base">
+                                <td className="py-2.5 px-3 font-mono font-bold text-text-primary">
                                   {serial.serial_number}
                                 </td>
-                                <td className="py-3 px-3.5 uppercase text-text-secondary text-xs sm:text-sm font-medium">
+                                <td className="py-2.5 px-3 uppercase text-text-secondary text-[11px]">
                                   {serial.serial_type || 'IMEI'}
                                 </td>
-                                <td className="py-3 px-3.5 text-text-secondary text-sm sm:text-base">
+                                <td className="py-2.5 px-3 text-text-secondary">
                                   {serial.warehouse_name || 'Principal'}
                                 </td>
-                                <td className="py-3 px-3.5 text-right">
+                                <td className="py-2.5 px-3 text-right">
                                   <Badge
                                     variant={serial.status === 'available' ? 'success' : 'outline'}
-                                    className="text-xs uppercase font-semibold px-2.5 py-1"
+                                    className="text-[10px] uppercase font-semibold"
                                   >
                                     {serial.status === 'available' ? 'Disponible' : serial.status}
                                   </Badge>
@@ -1128,18 +1128,18 @@ export function ProductSearchDetailModal({
                     value="lotes"
                     className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3 space-y-3"
                   >
-                    <div className="flex h-full flex-col items-center justify-center gap-3.5 p-8 text-center text-text-muted rounded-xl border border-dashed border-border bg-bg/20">
-                      <Calendar className="size-11 stroke-1 text-text-muted/60" />
+                    <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-text-muted rounded-xl border border-dashed border-border bg-bg/20">
+                      <Calendar className="size-10 stroke-1 text-text-muted/60" />
                       <div>
-                        <h4 className="text-base sm:text-lg font-bold text-text-primary">
+                        <h4 className="text-sm font-semibold text-text-primary">
                           Trazabilidad de Lotes y Vencimientos
                         </h4>
-                        <p className="mt-1.5 max-w-md text-sm leading-relaxed text-text-muted">
+                        <p className="mt-1 max-w-md text-xs leading-relaxed text-text-muted">
                           Este producto opera con inventario continuo estándar sin fechas de caducidad
                           o lotes perecederos asignados.
                         </p>
                       </div>
-                      <Badge variant="outline" className="text-xs sm:text-sm px-3.5 py-1">
+                      <Badge variant="outline" className="text-[11px]">
                         Control General por Unidad ({selectedProduct.unit_of_measure ?? 'UND'})
                       </Badge>
                     </div>
