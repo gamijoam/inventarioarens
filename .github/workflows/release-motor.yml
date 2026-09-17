@@ -57,7 +57,10 @@ jobs:
 
       - name: Build Motor Local
         shell: powershell
-        run: .\scripts\build-local-motor.ps1 -Version '${{ inputs.version }}'
+        run: |
+          $cloud = if ('${{ inputs.variant }}' -eq 'balanzapro') { 'https://app.balanzapro.com/api' } else { 'https://app.miinventariofacil.com/api' }
+          Write-Host "Cloud URL: $cloud"
+          .\scripts\build-local-motor.ps1 -Version '${{ inputs.version }}' -CloudUrl $cloud
 
       - name: Validate artifact
         shell: powershell

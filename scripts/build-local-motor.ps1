@@ -1,5 +1,6 @@
 param(
     [string]$Version = '0.1.0',
+    [string]$CloudUrl = 'https://app.miinventariofacil.com/api',
     [switch]$StageOnly
 )
 
@@ -31,7 +32,7 @@ try {
     if ($StageOnly) { return }
     $iscc = Resolve-InnoSetupCompiler
     if (-not $iscc) { throw 'Inno Setup 6 no esta instalado. Use -StageOnly o instale Inno Setup.' }
-    & $iscc "/DMotorVersion=$Version" 'installer\windows\MotorLocal.iss'
+    & $iscc "/DMotorVersion=$Version" "/DCloudUrl=$CloudUrl" 'installer\windows\MotorLocal.iss'
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup fallo con codigo $LASTEXITCODE." }
 } finally {
     Pop-Location

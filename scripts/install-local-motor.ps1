@@ -3,12 +3,15 @@ param(
     [string]$MotorRoot = (Join-Path $env:ProgramFiles 'Sistema de Inventario\Motor'),
     [string]$DataRoot = (Join-Path $env:ProgramData 'InventarioArens'),
     [string]$Version = '0.1.0',
+    [string]$CloudUrl = 'https://app.miinventariofacil.com/api',
     [switch]$ValidateOnly,
     [switch]$Uninstall
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$CloudUrl = $CloudUrl.TrimEnd('/')
+$CloudBase = $CloudUrl -replace '/api/?$', ''
 $BackendService = 'SistemaInventarioBackend'
 $PrinterService = 'SistemaInventarioPrinter'
 $SyncService = 'SistemaInventarioSync'
@@ -273,9 +276,9 @@ function Set-LaravelEnvironment([string]$Php, [string]$Backend, [string]$AppKey,
     $env:APP_KEY = $AppKey
     $env:APP_BOOTSTRAP_TOKEN = $BootstrapToken
     $env:APP_URL = 'http://127.0.0.1:8787'
-    $env:SYNC_CLOUD_URL = 'https://app.miinventariofacil.com/api'
-    $env:LOCAL_TECHNICAL_CONSOLE_CLOUD_URL = 'https://app.miinventariofacil.com/api'
-    $env:SYNC_PUBLIC_BASE = 'https://app.miinventariofacil.com'
+    $env:SYNC_CLOUD_URL = $CloudUrl
+    $env:LOCAL_TECHNICAL_CONSOLE_CLOUD_URL = $CloudUrl
+    $env:SYNC_PUBLIC_BASE = $CloudBase
     $env:DB_CONNECTION = 'sqlite'
     $env:DB_DATABASE = Join-Path $DataRoot 'inventario.sqlite'
     $env:DB_FOREIGN_KEYS = 'true'
@@ -343,9 +346,9 @@ function Install-Motor {
         APP_ENV = 'local'; APP_DEBUG = 'false'
         INVENTARIO_APP_KEY_FILE = (Join-Path $DataRoot 'app.key')
         INVENTARIO_BOOTSTRAP_TOKEN_FILE = (Join-Path $DataRoot 'bootstrap.token')
-        APP_URL = 'http://127.0.0.1:8787'; SYNC_CLOUD_URL = 'https://app.miinventariofacil.com/api'
-        LOCAL_TECHNICAL_CONSOLE_CLOUD_URL = 'https://app.miinventariofacil.com/api'
-        SYNC_PUBLIC_BASE = 'https://app.miinventariofacil.com'
+        APP_URL = 'http://127.0.0.1:8787'; SYNC_CLOUD_URL = $CloudUrl
+        LOCAL_TECHNICAL_CONSOLE_CLOUD_URL = $CloudUrl
+        SYNC_PUBLIC_BASE = $CloudBase
         APP_ALLOWED_ORIGINS_FOR_CSRF = 'http://127.0.0.1:8788,http://127.0.0.1:8789,http://127.0.0.1:8790,http://localhost:8788,http://localhost:8789,http://localhost:8790'
         CORS_ALLOWED_ORIGINS_LOCAL = 'http://127.0.0.1:8788'
         DB_CONNECTION = 'sqlite'; DB_DATABASE = $database; DB_FOREIGN_KEYS = 'true'; DB_BUSY_TIMEOUT = '5000'
