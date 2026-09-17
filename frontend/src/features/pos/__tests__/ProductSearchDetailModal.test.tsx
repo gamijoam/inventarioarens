@@ -176,6 +176,10 @@ describe('ProductSearchDetailModal', () => {
     expect(screen.getByText('MOT-20W50')).toBeInTheDocument();
     expect(screen.getAllByText('ACEITE 20W50 MINERAL MOTUL 1L').length).toBeGreaterThan(0);
     expect(screen.getByText('HF138')).toBeInTheDocument();
+
+    // Categoría visible en cabecera y en lista de productos
+    expect(screen.getByText('Categoría: Lubricantes')).toBeInTheDocument();
+    expect(screen.getAllByText(/Lubricantes/).length).toBeGreaterThan(0);
   });
 
   it('muestra la pestaña de Precios con comparativa Precio 1, 2 y 3 con impuesto en USD y VES', () => {
