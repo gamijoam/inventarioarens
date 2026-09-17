@@ -207,9 +207,11 @@ class SyncController extends Controller
 
     public function previewPairingCode(PreviewSyncPairingCodeRequest $request): JsonResponse
     {
-        $cloudUrl = rtrim((string) (config('services.local_support.cloud_url') ?: env('SYNC_CLOUD_URL') ?: env('LOCAL_TECHNICAL_CONSOLE_CLOUD_URL')), '/');
+        $isLocalNode = (bool) config('services.local_support.enabled') || env('INVENTARIO_SERVICE_MODE') === '1';
+        $cloudUrl = rtrim((string) (config('services.local_support.cloud_url') ?: env('SYNC_CLOUD_URL')), '/');
+        $cloudHost = parse_url($cloudUrl, PHP_URL_HOST);
 
-        if ($cloudUrl !== '' && ! str_contains($cloudUrl, '127.0.0.1') && ! str_contains($cloudUrl, 'localhost')) {
+        if ($isLocalNode && $cloudUrl !== '' && $cloudHost !== $request->getHost() && ! in_array($cloudHost, ['127.0.0.1', 'localhost'], true)) {
             try {
                 $response = \Illuminate\Support\Facades\Http::acceptJson()
                     ->timeout(20)
@@ -221,7 +223,7 @@ class SyncController extends Controller
                     return response()->json($response->json(), $response->status());
                 }
 
-                $message = (string) ($response->json('message') ?: ($response->status() === 403 ? 'El servidor en la nube aun no tiene el fix desplegado (responde 403). Realiza git pull en el VPS.' : 'El codigo es invalido, ya fue utilizado o expiro en la nube.'));
+                $message = (string) ($response->json('message') ?: 'El codigo es invalido, ya fue utilizado o expiro en la nube.');
 
                 return response()->json(['message' => $message], $response->status());
             } catch (\Throwable $e) {
