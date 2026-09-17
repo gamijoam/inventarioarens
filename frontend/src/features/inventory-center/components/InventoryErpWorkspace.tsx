@@ -40,6 +40,7 @@ import {
   Info,
   Loader2,
   Package,
+  Power,
   Search,
   Tag,
   Warehouse,
@@ -55,6 +56,7 @@ import {
   useProductMovements,
   useProductSerials,
   useProductStockByWarehouse,
+  useUpdateProduct,
 } from '@/features/inventory-center/api';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
@@ -191,6 +193,8 @@ export function InventoryErpWorkspace({
   const [packageFactor, setPackageFactor] = useState<number>(1);
   const [serialFilter, setSerialFilter] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  const updateProduct = useUpdateProduct();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
@@ -775,7 +779,7 @@ export function InventoryErpWorkspace({
                     </div>
                   </div>
 
-                  {/* Acciones de Cabecera: Editar [F2] y Enlace a Ficha */}
+                  {/* Acciones de Cabecera: Editar [F2], Activar/Desactivar y Enlace a Ficha */}
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       size="sm"
@@ -787,6 +791,28 @@ export function InventoryErpWorkspace({
                       <Edit className="size-3.5" />
                       Editar [F2]
                     </Button>
+                    <Button
+                      size="sm"
+                      variant={activeProduct.is_active ? 'outline' : 'outline'}
+                      onClick={() => {
+                        if (!activeProduct) return;
+                        updateProduct.mutate({ id: activeProduct.id, is_active: !activeProduct.is_active });
+                      }}
+                      disabled={updateProduct.isPending}
+                      className={
+                        activeProduct.is_active
+                          ? 'h-8 gap-1.5 text-xs font-semibold border-rose-500/60 text-rose-600 hover:bg-rose-500/10 dark:text-rose-400'
+                          : 'h-8 gap-1.5 text-xs font-semibold border-emerald-500/60 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400'
+                      }
+                      title={activeProduct.is_active ? 'Desactivar producto' : 'Activar producto'}
+                    >
+                      <Power className="size-3.5" />
+                      {updateProduct.isPending
+                        ? 'Guardando...'
+                        : activeProduct.is_active
+                          ? 'Desactivar'
+                          : 'Activar'}
+                    </Button>
                     <Link
                       to="/inventory/$productId"
                       params={{ productId: String(activeProduct.id) }}
@@ -797,6 +823,7 @@ export function InventoryErpWorkspace({
                       Ficha
                     </Link>
                   </div>
+
                 </div>
 
                 {/* Sub-barra: Stock total consolidado, Marca, Unidad y Tasa */}
