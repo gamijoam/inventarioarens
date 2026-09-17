@@ -207,6 +207,28 @@ class SyncController extends Controller
 
     public function previewPairingCode(PreviewSyncPairingCodeRequest $request): JsonResponse
     {
+        $cloudUrl = rtrim((string) (config('services.local_support.cloud_url') ?: env('SYNC_CLOUD_URL') ?: env('LOCAL_TECHNICAL_CONSOLE_CLOUD_URL')), '/');
+
+        if ($cloudUrl !== '' && ! str_contains($cloudUrl, '127.0.0.1') && ! str_contains($cloudUrl, 'localhost')) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::acceptJson()
+                    ->timeout(20)
+                    ->post($cloudUrl.'/sync/pairing-codes/preview', [
+                        'code' => $request->validated('code'),
+                    ]);
+
+                if ($response->successful()) {
+                    return response()->json($response->json(), $response->status());
+                }
+
+                $message = (string) ($response->json('message') ?: ($response->status() === 403 ? 'El servidor en la nube aun no tiene el fix desplegado (responde 403). Realiza git pull en el VPS.' : 'El codigo es invalido, ya fue utilizado o expiro en la nube.'));
+
+                return response()->json(['message' => $message], $response->status());
+            } catch (\Throwable $e) {
+                return response()->json(['message' => 'Error al conectar con la nube: '.$e->getMessage()], 502);
+            }
+        }
+
         return response()->json([
             'data' => $this->pairing->preview($request->validated('code')),
         ]);
