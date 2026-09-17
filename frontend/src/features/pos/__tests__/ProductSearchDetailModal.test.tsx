@@ -298,4 +298,29 @@ describe('ProductSearchDetailModal', () => {
     // En la columna derecha debe actualizarse al segundo producto
     expect(screen.getAllByText('FILTRO DE ACEITE HF138').length).toBeGreaterThan(0);
   });
+
+  it('agrega el producto con Enter incluso tras hacer clic en pestañas de la derecha (existencia o precios)', () => {
+    const onSelect = vi.fn();
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+        priceLists={mockPriceLists}
+      />,
+    );
+
+    // Simular clic en la pestaña Existencia
+    const existenciaTab = screen.getByText('[F6] Existencia');
+    fireEvent.click(existenciaTab);
+
+    // Presionar Enter en la pestaña enfocada
+    fireEvent.keyDown(existenciaTab, { key: 'Enter' });
+
+    // Debe llamar a onSelect con el producto seleccionado
+    expect(onSelect).toHaveBeenCalledWith(mockProducts[0]);
+  });
 });

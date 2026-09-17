@@ -443,9 +443,16 @@ export function ProductSearchDetailModal({
           break;
         }
         case 'Enter': {
-          // Si el foco está en un input y no es el de seriales, agregar producto
           const target = event.target as HTMLElement | null;
-          if (target && target.tagName !== 'BUTTON' && target.id !== 'serial-filter-input') {
+          const isCancelBtn = Boolean(
+            target?.closest(
+              '[data-testid="search-modal-cancel-btn"], [data-action="cancel"], button[aria-label="Cerrar ventana"]',
+            ),
+          );
+          if (isCancelBtn) {
+            event.preventDefault();
+            onClose();
+          } else if (target?.tagName !== 'SELECT') {
             event.preventDefault();
             handleConfirmSelect();
           }
@@ -457,6 +464,136 @@ export function ProductSearchDetailModal({
     },
     [products.length, page, totalPages, handleConfirmSelect, onClose],
   );
+
+  // Captura global de teclado mientras el modal esté abierto:
+  // Garantiza que Enter agregue el producto aunque el usuario haya hecho clic en pestañas,
+  // botones de empaque, tablas o cualquier parte de la columna derecha.
+  useEffect(() => {
+    if (!open) return;
+
+    const onGlobalKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+
+      if (event.key === 'F2') {
+        event.preventDefault();
+        event.stopPropagation();
+        handleConfirmSelect();
+        return;
+      }
+
+      if (event.key === 'F3') {
+        event.preventDefault();
+        event.stopPropagation();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      if (event.key === 'F4') {
+        event.preventDefault();
+        event.stopPropagation();
+        warehouseSelectRef.current?.focus();
+        return;
+      }
+
+      if (event.key === 'F5') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveTab('precios');
+        return;
+      }
+
+      if (event.key === 'F6') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveTab('existencia');
+        return;
+      }
+
+      if (event.key === 'F7') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveTab('seriales');
+        return;
+      }
+
+      if (event.key === 'F8') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveTab('datos');
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        if (target?.tagName !== 'SELECT' && products.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          setSelectedIndex((curr) => (curr + 1 < products.length ? curr + 1 : curr));
+        }
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        if (target?.tagName !== 'SELECT' && products.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          setSelectedIndex((curr) => (curr > 0 ? curr - 1 : 0));
+        }
+        return;
+      }
+
+      if (event.key === 'PageDown') {
+        if (page < totalPages) {
+          event.preventDefault();
+          event.stopPropagation();
+          setPage((p) => p + 1);
+        }
+        return;
+      }
+
+      if (event.key === 'PageUp') {
+        if (page > 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          setPage((p) => p - 1);
+        }
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        const isCancelBtn = Boolean(
+          target?.closest(
+            '[data-testid="search-modal-cancel-btn"], [data-action="cancel"], button[aria-label="Cerrar ventana"]',
+          ),
+        );
+        if (isCancelBtn) {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+          return;
+        }
+
+        if (target?.tagName !== 'SELECT') {
+          event.preventDefault();
+          event.stopPropagation();
+          handleConfirmSelect();
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onGlobalKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', onGlobalKeyDown, true);
+    };
+  }, [open, onClose, handleConfirmSelect, products.length, page, totalPages]);
 
   // Seriales filtrados
   const filteredSerials = useMemo(() => {
