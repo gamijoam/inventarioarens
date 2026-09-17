@@ -1404,20 +1404,22 @@ export function PosTerminal() {
                             <TapButton
                               key={product.id}
                               onPress={() => {
-                                // La sugerencia abre el panel de busqueda (mismo
-                                // flujo que F3 / "Ver todos"): asi los productos
-                                // con variantes/color muestran el VariantPicker de
-                                // forma fiable. Agregar directo desde el dropdown
-                                // fallaba en tablets.
-                                openSearchFromSuggestion(query, {
-                                  setProductSearch,
-                                  setPanel: (panel) => setPanel(panel),
+                                // Click / tap directo: agregar al carrito.
+                                // addProduct ya maneja variantes internamente:
+                                // si el producto tiene variantes, abre el VariantPicker
+                                // automaticamente sin necesidad de abrir el panel F3.
+                                void addProduct(product).then((added) => {
+                                  if (added) {
+                                    setQuery('');
+                                    setQuickSearchIndex(0);
+                                  }
                                 });
                               }}
                               onMouseEnter={() => setQuickSearchIndex(index)}
                               className={cn(
-                                'hover:bg-bg flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                                index === quickSearchIndex && 'bg-primary/5 ring-primary/20 ring-1',
+                                'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                                index === quickSearchIndex &&
+                                  'bg-primary/15 ring-2 ring-primary/50 shadow-sm scale-[1.01]',
                               )}
                             >
                               <ProductImageView
@@ -1428,24 +1430,28 @@ export function PosTerminal() {
                                 className="border-border bg-bg size-12 shrink-0 rounded-lg border"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold">{product.name}</p>
+                                <p className={cn(
+                                  'truncate text-sm font-semibold',
+                                  index === quickSearchIndex && 'text-primary',
+                                )}>{product.name}</p>
                                 <p className="text-text-muted truncate text-xs">
                                   {product.sku ?? product.barcode ?? 'Sin codigo'}
                                 </p>
                               </div>
-                              <Badge
-                                variant={
-                                  Number(product.available_stock ?? 0) > 0 ? 'success' : 'warning'
-                                }
-                                className="text-[10px]"
-                              >
+                              <span className={cn(
+                                'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold border',
+                                Number(product.available_stock ?? 0) > 0
+                                  ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-400'
+                                  : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
+                              )}>
                                 {Number(product.available_stock ?? 0) > 0
-                                  ? `Stock ${Number(product.available_stock)}`
-                                  : 'Sin stock'}
-                              </Badge>
+                                  ? `📦 ${Number(product.available_stock)} en stock`
+                                  : '⚠️ Sin stock'}
+                              </span>
                             </TapButton>
                           ))
                         )}
+
                       </div>
                     </div>
                   )}
@@ -3443,9 +3449,14 @@ function CartLineRow({
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex min-w-0 items-center gap-2">
               <p className="truncate text-lg font-semibold">{line.name}</p>
-              <Badge variant={stockIssue ? 'warning' : 'success'} className="shrink-0 text-[10px]">
-                Stock {line.available_stock}
-              </Badge>
+              <span className={cn(
+                'shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold border-2',
+                stockIssue
+                  ? 'bg-warning/20 text-warning border-warning/60 animate-pulse'
+                  : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/50',
+              )}>
+                {stockIssue ? `⚠️ Stock: ${line.available_stock}` : `✓ Stock: ${line.available_stock}`}
+              </span>
             </div>
             <div className="text-text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
               <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
