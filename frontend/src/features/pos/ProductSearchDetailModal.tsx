@@ -35,6 +35,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Folder,
   Loader2,
   Lock,
   Package,
@@ -52,8 +53,8 @@ import { Select } from '@/components/ui/Select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import {
   useProducts,
-  useProductStockByWarehouse,
   useProductSerials,
+  useProductStockByWarehouse,
 } from '@/features/inventory-center/api';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
@@ -74,8 +75,8 @@ interface ProductSearchDetailModalProps {
 
 type TabKey = 'datos' | 'existencia' | 'precios' | 'seriales' | 'lotes';
 
-const IVA_RATE = 0.16; // 16% IVA Venezuela
 const PAGE_SIZE = 10;
+const IVA_RATE = 0.16; // 16% IVA Venezuela
 
 function money(value: number | string | null | undefined): string {
   return new Intl.NumberFormat('en-US', {
@@ -103,6 +104,33 @@ function stripHtml(html?: string | null): string {
 
 function primaryProductImage(product: Product) {
   return product.images?.find((img) => img.is_primary) ?? product.images?.[0];
+}
+
+/**
+ * Obtiene el nombre formateado de la categoría o categorías de un producto
+ */
+function getProductCategory(product: Product | null | undefined): string {
+  if (!product) return 'Sin categoría';
+  if (product.categories && product.categories.length > 0) {
+    const names = product.categories
+      .map((c) => c.full_path || c.name)
+      .filter(Boolean);
+    if (names.length > 0) return names.join(', ');
+  }
+  const anyProd = product as unknown as {
+    category?: { name?: string; full_path?: string } | string;
+    category_name?: string;
+  };
+  if (typeof anyProd.category === 'string' && anyProd.category.trim()) {
+    return anyProd.category.trim();
+  }
+  if (anyProd.category && typeof anyProd.category === 'object' && anyProd.category.name) {
+    return anyProd.category.full_path || anyProd.category.name;
+  }
+  if (typeof anyProd.category_name === 'string' && anyProd.category_name.trim()) {
+    return anyProd.category_name.trim();
+  }
+  return 'Sin categoría';
 }
 
 interface PriceTableRow {
@@ -181,6 +209,12 @@ export function ProductSearchDetailModal({
     const safeIdx = Math.min(Math.max(0, selectedIndex), products.length - 1);
     return products[safeIdx] ?? null;
   }, [products, selectedIndex]);
+
+  // Categoría formateada del producto seleccionado
+  const selectedCategory = useMemo(
+    () => getProductCategory(selectedProduct),
+    [selectedProduct],
+  );
 
   // Consulta de existencia multi-almacén para el producto seleccionado
   const { data: stockByWarehouse = [], isLoading: loadingStock } = useProductStockByWarehouse(
@@ -585,9 +619,18 @@ export function ProductSearchDetailModal({
                           {p.sku || p.barcode || 'S/C'}
                         </div>
                         <div className="col-span-6 truncate pr-2" title={p.name}>
-                          <span className={cn('text-sm', isSelected && 'font-bold text-text-primary text-sm sm:text-base')}>
+                          <div className={cn('truncate text-sm', isSelected && 'font-bold text-text-primary text-sm sm:text-base')}>
                             {p.name}
-                          </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-muted">
+                            <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.2 font-medium text-primary">
+                              <Folder className="size-3 shrink-0" />
+                              <span className="truncate">{getProductCategory(p)}</span>
+                            </span>
+                            {p.brand?.name && (
+                              <span className="truncate text-text-muted">• {p.brand.name}</span>
+                            )}
+                          </div>
                         </div>
                         <div className="col-span-2 flex justify-end">
                           <Badge
@@ -656,7 +699,20 @@ export function ProductSearchDetailModal({
                         {selectedProduct.name}
                       </h3>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                    {/* Categoría destacada (medio grande y visible) */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-xs sm:text-sm font-bold text-primary shadow-2xs">
+                        <Folder className="size-3.5 sm:size-4 shrink-0 text-primary" />
+                        <span>Categoría: {selectedCategory}</span>
+                      </span>
+                      {selectedProduct.brand?.name && (
+                        <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg/50 px-2.5 py-1 text-xs sm:text-sm font-medium text-text-secondary">
+                          Marca: <strong className="text-text-primary font-semibold">{selectedProduct.brand.name}</strong>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-text-muted">
                       <span className="font-mono font-medium text-text-primary">
                         SKU: {selectedProduct.sku ?? 'N/A'}
                       </span>
@@ -664,12 +720,6 @@ export function ProductSearchDetailModal({
                       <span className="font-mono">
                         Barras: {selectedProduct.barcode ?? 'N/A'}
                       </span>
-                      {selectedProduct.brand?.name && (
-                        <>
-                          <span>•</span>
-                          <span>Marca: {selectedProduct.brand.name}</span>
-                        </>
-                      )}
                       {selectedProduct.unit_of_measure && (
                         <>
                           <span>•</span>
@@ -972,6 +1022,34 @@ export function ProductSearchDetailModal({
                             </p>
                           </div>
                         )}
+
+                        {/* Clasificación Principal: Categoría, Marca, Unidad */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="rounded-xl border border-primary/25 bg-primary/5 p-2.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                              Categoría
+                            </span>
+                            <p className="text-sm font-bold text-text-primary mt-0.5 truncate" title={selectedCategory}>
+                              {selectedCategory}
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-border bg-surface p-2.5">
+                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                              Marca
+                            </span>
+                            <p className="text-sm font-bold text-text-primary mt-0.5 truncate">
+                              {selectedProduct.brand?.name ?? 'Sin marca'}
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-border bg-surface p-2.5">
+                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                              Unidad de Medida
+                            </span>
+                            <p className="text-sm font-bold text-text-primary mt-0.5 uppercase">
+                              {selectedProduct.unit_of_measure ?? 'UND'}
+                            </p>
+                          </div>
+                        </div>
 
                         {/* Parámetros de Stock y Parámetros Operativos */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
