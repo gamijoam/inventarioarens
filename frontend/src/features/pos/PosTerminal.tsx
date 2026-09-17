@@ -118,6 +118,7 @@ import {
   usePaymentMethods,
   usePosBootstrap,
   usePosProductsDebounced,
+  fetchPosProductsDirect,
   useSessionOrders,
   useWarehousesForPos,
 } from './api';
@@ -431,6 +432,7 @@ export function PosTerminal() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const holdSaleRef = useRef<(() => Promise<void>) | null>(null);
   const confirmPaidSaleRef = useRef<(() => Promise<void>) | null>(null);
+  const isHandlingBarcodeEnterRef = useRef(false);
   // Estado POS (Zustand) ============================================
   // Carrito, pagos, panel, query y seleccion de almacen/lista se
   // almacenan en un store global con selectores atomicos para que
@@ -650,7 +652,11 @@ export function PosTerminal() {
   const hasPendingAlert = pendingAlert.length > 0;
   const { data: customerResults = [] } = useCustomers(customerSearch);
   const { data: customerCredit } = useCustomerCredit(selectedCustomer?.id ?? null);
-  const effectiveWarehouseId = warehouseId ?? warehouses[0]?.id ?? null;
+  const effectiveWarehouseId =
+    warehouses.find((w) => w.id === warehouseId)?.id ??
+    warehouses.find((w) => w.is_default)?.id ??
+    warehouses[0]?.id ??
+    null;
   const activeProductSearch = panel === 'product-search' ? productSearch : query;
   const shouldSearchProducts = activeProductSearch.trim().length >= 2;
   const {
@@ -1368,9 +1374,8 @@ export function PosTerminal() {
                     }
                     if (event.key === 'Enter') {
                       event.preventDefault();
-                      const selectedProduct =
-                        quickSearchResults[quickSearchIndex] ?? quickSearchResults[0];
-                      if (selectedProduct) {
+                      if (quickSearchIndex > 0 && quickSearchResults[quickSearchIndex]) {
+                        const selectedProduct = quickSearchResults[quickSearchIndex];
                         void addProduct(selectedProduct).then((added) => {
                           if (added) {
                             setQuery('');
@@ -2727,26 +2732,100 @@ export function PosTerminal() {
   }
 
   async function handleProductSearchEnter(): Promise<void> {
+    if (isHandlingBarcodeEnterRef.current) return;
     const term = query.trim();
     if (term.length < 2) return;
+    isHandlingBarcodeEnterRef.current = true;
     const normalized = term.toLowerCase();
-    const exact = products.find((product) =>
-      [product.barcode, product.sku].some((value) => value?.toLowerCase() === normalized),
-    );
-    if (exact) {
-      await addProduct(exact);
-      return;
+    const normalizedNoLeadingZeros = normalized.replace(/^0+/, '');
+
+    const matchesCode = (val?: string | null): boolean => {
+      if (!val) return false;
+      const clean = val.toLowerCase().trim();
+      return (
+        clean === normalized ||
+        (normalizedNoLeadingZeros.length > 0 && clean === normalizedNoLeadingZeros) ||
+        clean.replace(/^0+/, '') === normalized ||
+        (normalizedNoLeadingZeros.length > 0 && clean.replace(/^0+/, '') === normalizedNoLeadingZeros)
+      );
+    };
+
+    try {
+      // 1. Verificar si ya tenemos el producto exacto en memoria (en quickSearchResults o en la lista cargada)
+      const inMemoryExact =
+        quickSearchResults.find(
+          (product) => matchesCode(product.barcode) || matchesCode(product.sku),
+        ) ??
+        products.find(
+          (product) => matchesCode(product.barcode) || matchesCode(product.sku),
+        );
+
+      if (inMemoryExact) {
+        const added = await addProduct(inMemoryExact);
+        if (added) {
+          setQuery('');
+          setQuickSearchIndex(0);
+        }
+        return;
+      }
+
+      // 2. Búsqueda directa e inmediata al backend (omite debounce para lectores de código de barras)
+      try {
+        const directResults = await fetchPosProductsDirect(term, effectiveWarehouseId);
+        const directExact = directResults.find(
+          (product) => matchesCode(product.barcode) || matchesCode(product.sku),
+        );
+
+        if (directExact) {
+          const added = await addProduct(directExact);
+          if (added) {
+            setQuery('');
+            setQuickSearchIndex(0);
+          }
+          return;
+        }
+
+        // Si la consulta directa devolvió 1 solo producto que coincide
+        if (directResults.length === 1 && directResults[0]) {
+          const added = await addProduct(directResults[0]);
+          if (added) {
+            setQuery('');
+            setQuickSearchIndex(0);
+          }
+          return;
+        }
+
+        // Si devolvió varios productos (búsqueda general manual, ej. "filtro"), abrir modal
+        if (directResults.length > 1) {
+          setProductSearch(term);
+          setPanel('product-search');
+          return;
+        }
+      } catch {
+        // Fallback a seriales
+      }
+
+      // 3. Verificación de seriales / IMEI
+      if (/^[A-Za-z0-9-]{6,}$/.test(term) && /\d/.test(term)) {
+        const scanned = await addScannedSerial(term);
+        if (scanned) {
+          setQuery('');
+          setQuickSearchIndex(0);
+          return;
+        }
+      }
+
+      // 4. Si hay productos en la lista previa pero ninguno coincidió exactamente
+      if (products[0]) {
+        setProductSearch(term);
+        setPanel('product-search');
+        return;
+      }
+
+      toast.error('No se encontro un producto con ese codigo.');
+    } finally {
+      isHandlingBarcodeEnterRef.current = false;
     }
-    if (/^[A-Za-z0-9-]{6,}$/.test(term) && /\d/.test(term)) {
-      const scanned = await addScannedSerial(term);
-      if (scanned) return;
-    }
-    if (products[0]) {
-      setProductSearch(term);
-      setPanel('product-search');
-      return;
-    }
-    toast.error('No se encontro un producto con ese codigo.');
   }
 
   async function addScannedSerial(serial: string): Promise<boolean> {
