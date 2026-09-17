@@ -66,6 +66,7 @@ import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { ProductSearchDetailModal } from './ProductSearchDetailModal';
+import { TicketPreviewDialog } from './TicketPreviewDialog';
 import {
   DenominationGrid,
   cashCountTotals,
@@ -153,7 +154,6 @@ import { isTouchPrimaryDevice, shouldAutoFocusSearch } from './touchSupport';
 import {
   type PrintJob,
   downloadTicketPdf,
-  openTicketPdf,
   sendJobToLocalAgent,
   useCreatePosPrintJob,
   usePrinterStations,
@@ -503,6 +503,7 @@ export function PosTerminal() {
   });
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [lastPrintJobs, setLastPrintJobs] = useState<PrintJob[]>([]);
+  const [previewOrder, setPreviewOrder] = useState<PosOrder | null>(null);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
   const [promotionView, setPromotionView] = useState<'all' | 'invoice' | 'combo' | 'product_offer'>(
     'all',
@@ -794,6 +795,8 @@ export function PosTerminal() {
       null,
     [activeSession, printerStations],
   );
+  const canThermalPrint =
+    canPrint && !!activePrinterStation && activePrinterStation.output_mode !== 'digital';
   const selectedWarehouse =
     warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
   const cartProductIds = useMemo(() => cart.map((line) => line.product_id), [cart]);
@@ -2120,7 +2123,7 @@ export function PosTerminal() {
                 onPrint={(copy, output) =>
                   lastReceipt && createAndDispatchPrintJobs(lastReceipt, copy, output)
                 }
-                onOpenPdf={(job) => void openTicketPdf(job)}
+                onDownloadPdf={() => lastReceipt && void requestDigitalPdf(lastReceipt)}
               />
             )}
             {panel === 'pay' && (
@@ -2218,6 +2221,19 @@ export function PosTerminal() {
             const added = await addProduct(product);
             if (added) setPanel(null);
           }}
+        />
+
+        {/* Previsualizacion centrada del ticket al cobrar (F10) */}
+        <TicketPreviewDialog
+          order={previewOrder}
+          onClose={() => setPreviewOrder(null)}
+          canThermalPrint={canThermalPrint}
+          canDigital={canDigital}
+          busy={createPrintJob.isPending || updatePrintJobStatus.isPending}
+          onPrintThermal={() =>
+            previewOrder && void createAndDispatchPrintJobs(previewOrder, false, 'thermal')
+          }
+          onDownloadPdf={() => previewOrder && void requestDigitalPdf(previewOrder)}
         />
       </div>
 
@@ -2942,9 +2958,9 @@ export function PosTerminal() {
         setExchangeReturnId(null);
       }
       setLastReceipt(order);
-      void createAndDispatchPrintJobs(order, false);
+      if (canThermalPrint) void createAndDispatchPrintJobs(order, false);
+      setPreviewOrder(order);
       clearTicket();
-      setPanel('receipt');
       toast.success('Venta confirmada.');
     } catch (error) {
       void bootstrap.refetch();
@@ -2986,10 +3002,10 @@ export function PosTerminal() {
         credit_due_date: creditDueDate || null,
       });
       setLastReceipt(order);
-      void createAndDispatchPrintJobs(order, false);
+      if (canThermalPrint) void createAndDispatchPrintJobs(order, false);
+      setPreviewOrder(order);
       clearTicket();
       setCreditDueDate('');
-      setPanel('receipt');
       toast.success('Venta enviada a cuentas por cobrar.');
     } catch (error) {
       void bootstrap.refetch();
@@ -3092,9 +3108,9 @@ export function PosTerminal() {
         : undefined,
     });
     setLastReceipt(paid);
-    void createAndDispatchPrintJobs(paid, false);
+    if (canThermalPrint) void createAndDispatchPrintJobs(paid, false);
+    setPreviewOrder(paid);
     clearTicket();
-    setPanel('receipt');
   }
 
   async function recoverPendingOrder(order: PosOrder): Promise<void> {
@@ -3365,9 +3381,7 @@ export function PosTerminal() {
         jobs.map(async (job) => {
           try {
             if (job.output === 'digital') {
-              await downloadTicketPdf(job);
               await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'generated' });
-              toast.success('Ticket virtual descargado. Puedes guardarlo o imprimirlo desde el navegador.');
               return;
             }
 
@@ -3392,11 +3406,6 @@ export function PosTerminal() {
               status: 'failed',
               message: error instanceof Error ? error.message : 'No se pudo imprimir.',
             });
-            if (job.output === 'digital') {
-              await openTicketPdf(job);
-              toast.warning('Agente no disponible. Abrimos el PDF en el navegador.');
-              return;
-            }
             toast.error('Agente local no disponible. Puedes reintentar desde F9.');
           }
         }),
@@ -3405,6 +3414,35 @@ export function PosTerminal() {
       toast.error(
         error instanceof Error ? error.message : 'No se pudo crear el ticket de impresion.',
       );
+    }
+  }
+
+  async function requestDigitalPdf(order: PosOrder): Promise<void> {
+    if (!canDigital) {
+      toast.error('No tienes permiso para generar tickets digitales.');
+      return;
+    }
+
+    try {
+      const jobs = await createPrintJob.mutateAsync({
+        orderId: order.id,
+        output: 'digital',
+        copy: false,
+        printerStationId: activePrinterStation?.id ?? null,
+      });
+      setLastPrintJobs(jobs);
+      const job = jobs.find((item) => item.output === 'digital') ?? jobs[0];
+
+      if (!job) {
+        toast.error('No se pudo generar el PDF del ticket.');
+        return;
+      }
+
+      await downloadTicketPdf(job);
+      await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'generated' });
+      toast.success('PDF del ticket descargado.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo descargar el PDF.');
     }
   }
 }
@@ -4339,7 +4377,7 @@ export function CashPanel(props: {
   const session = props.session;
   const isOpen = session.status === 'open';
   const blind = props.closeForm.blind;
-  const difference = Number(session.difference_base_amount ?? 0);
+  const difference = Number(session.difference_cash_usd ?? session.difference_base_amount ?? 0);
   const hasCounted =
     session.counted_base_amount !== null && session.counted_base_amount !== undefined;
 
@@ -4399,7 +4437,7 @@ export function CashPanel(props: {
           <MetricCard
             icon={<CircleCheck className="size-4 text-success" aria-hidden="true" />}
             label="Esperado"
-            value={money(session.expected_base_amount ?? 0)}
+            value={money(session.expected_cash_usd ?? session.expected_base_amount ?? 0)}
             tone="success"
           />
         )}
@@ -4664,7 +4702,7 @@ function ReceiptPanel({
   canDigital,
   busy,
   onPrint,
-  onOpenPdf,
+  onDownloadPdf,
 }: {
   order: PosOrder | null;
   jobs: PrintJob[];
@@ -4675,10 +4713,9 @@ function ReceiptPanel({
   canDigital: boolean;
   busy: boolean;
   onPrint: (copy: boolean, output?: 'thermal' | 'digital' | 'both') => void;
-  onOpenPdf: (job: PrintJob) => void;
+  onDownloadPdf: () => void;
 }) {
   if (!order) return <p className="text-text-muted text-sm">Aun no hay recibo en esta sesion.</p>;
-  const digitalJob = jobs.find((job) => job.output === 'digital');
   return (
     <div className="space-y-3">
       <div className="border-success/20 from-success/15 to-surface rounded-2xl border bg-gradient-to-br p-5 shadow-sm">
@@ -4750,11 +4787,7 @@ function ReceiptPanel({
           </Button>
         )}
         {canDigital && (
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => (digitalJob ? onOpenPdf(digitalJob) : onPrint(false, 'digital'))}
-          >
+          <Button variant="outline" disabled={busy} onClick={onDownloadPdf}>
             <Receipt className="size-4" /> PDF digital
           </Button>
         )}

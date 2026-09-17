@@ -120,4 +120,57 @@ describe('<CashRegisterCommandCenter>', () => {
     expect(screen.getByText('Efectivo USD · 1')).toBeInTheDocument();
     expect(screen.getByText('Pago POS · Efectivo')).toBeInTheDocument();
   });
+
+  it('prioriza la diferencia fisica de caja sobre la base con pagos electronicos', () => {
+    mockUseCashSessions.mockReturnValue({
+      data: {
+        period: { from: '2026-07-27', to: '2026-07-27', from_datetime: '', to_datetime: '' },
+        summary: {
+          open_count: 0,
+          closed_count: 1,
+          expected_base_amount: 200,
+          expected_local_amount: 0,
+          expected_cash_usd: 0,
+          expected_cash_ves: 0,
+          difference_base_amount: -200,
+          difference_cash_usd: 0,
+          difference_cash_ves: 0,
+        },
+        rows: [
+          {
+            id: 9,
+            status: 'closed',
+            branch_name: 'Centro',
+            cash_register_name: 'Caja Electronica',
+            cashier_name: 'Ana',
+            expected_base_amount: 200,
+            expected_cash_usd: 0,
+            counted_base_amount: 0,
+            difference_base_amount: -200,
+            difference_cash_usd: 0,
+            difference_cash_ves: 0,
+            opened_at: '2026-07-27T08:00:00Z',
+            closed_at: '2026-07-27T16:00:00Z',
+            movements: [],
+          },
+        ],
+        movement_breakdown: [],
+      },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(
+      <CashRegisterCommandCenter
+        branches={[{ id: 1, name: 'Centro', code: 'CTR' }]}
+        registers={[{ id: 1, name: 'Caja Electronica', code: 'C1', branch_id: 1 }]}
+      />,
+    );
+
+    // El turno solo electronico no debe aparecer como faltante de efectivo.
+    expect(screen.queryByText('$-200,00')).not.toBeInTheDocument();
+    expect(screen.getByText('Sin alertas visibles')).toBeInTheDocument();
+  });
 });

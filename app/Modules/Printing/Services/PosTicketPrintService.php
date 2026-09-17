@@ -53,6 +53,25 @@ class PosTicketPrintService
         ])->render();
     }
 
+    /**
+     * Renderiza el ticket de una orden pagada sin persistir un PrintJob.
+     * Se usa para la previsualizacion en el POS, disponible para cualquier
+     * usuario con permiso de POS aunque no tenga permisos de impresion.
+     *
+     * @return array{html: string, paper_width_mm: int}
+     */
+    public function previewForOrder(PosOrder $order, bool $copy = false): array
+    {
+        $order = $this->loadOrder($order);
+        $profile = $this->resolveStation($order, null)?->profile ?? $this->defaultProfile();
+        $snapshot = $this->snapshot($order, $profile, $copy);
+
+        return [
+            'html' => View::make('printing.pos-ticket', ['ticket' => $snapshot])->render(),
+            'paper_width_mm' => (int) $profile->paper_width_mm,
+        ];
+    }
+
     public function renderPdf(PrintJob $job): string
     {
         $dompdf = app('dompdf.wrapper');

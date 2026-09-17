@@ -7,6 +7,9 @@ const credentials = getDemoCredentials();
 test('cambia lista, selecciona IMEI y completa checkout UI USD/VES', async ({ page }) => {
   test.skip(!credentials, 'Configura las variables PLAYWRIGHT_E2E_* para probar el POS UI.');
 
+  const downloads: string[] = [];
+  page.on('download', (download) => downloads.push(download.suggestedFilename()));
+
   await loginAsDemo(page, credentials!);
   await page.goto('/pos');
   await expect(page.getByRole('heading', { name: 'POS' })).toBeVisible();
@@ -92,4 +95,12 @@ test('cambia lista, selecciona IMEI y completa checkout UI USD/VES', async ({ pa
     reference: 'UI-MIX-001',
   });
   await expect(page.getByText('Venta confirmada.')).toBeVisible();
+
+  // El ticket se previsualiza en un modal centrado y NO se descarga PDF solo.
+  await expect(page.getByTestId('ticket-preview-dialog')).toBeVisible();
+  await expect(page.getByTestId('ticket-preview-frame')).toBeVisible();
+  expect(downloads).toEqual([]);
+
+  await page.getByTestId('ticket-preview-close').click();
+  await expect(page.getByTestId('ticket-preview-dialog')).toBeHidden();
 });

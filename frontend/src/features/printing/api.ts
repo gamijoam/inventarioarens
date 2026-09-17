@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { api, deleteOne, getMany, getPaginated, patchOne, postOne } from '@/api/client';
+import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
 
 const nullableNumber = z.union([z.number(), z.string()]).nullable().optional().transform((value) => {
   if (value == null || value === '') return null;
@@ -351,6 +351,16 @@ export async function downloadTicketPdf(job: PrintJob): Promise<void> {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function fetchTicketPreview(
+  orderId: number,
+): Promise<{ html: string; paperWidthMm: number }> {
+  const data = await getOne<{ html: string; paper_width_mm: number }>(
+    `/pos/orders/${orderId}/ticket-preview`,
+  );
+
+  return { html: data.html, paperWidthMm: data.paper_width_mm };
 }
 
 export async function downloadVirtualTicket(profile: PrintProfilePayload | PrintProfile): Promise<void> {
