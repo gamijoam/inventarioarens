@@ -281,7 +281,7 @@ describe('pos api', () => {
     ).toBe(false);
   });
 
-  it('permite confirmar cobro con Enter o F10 fuera de campos editables', () => {
+  it('permite confirmar cobro con Enter fuera de campos editables y con F10 en cualquier momento', () => {
     expect(
       shouldTriggerPosCheckoutShortcut('Enter', {
         panel: null,
@@ -289,10 +289,18 @@ describe('pos api', () => {
         isSearchInput: false,
       }),
     ).toBe(true);
+    // F10 funciona tanto en panel null como en panel pay, incluso con el buscador o campo activo
+    expect(
+      shouldTriggerPosCheckoutShortcut('F10', {
+        panel: null,
+        isEditableField: true,
+        isSearchInput: true,
+      }),
+    ).toBe(true);
     expect(
       shouldTriggerPosCheckoutShortcut('F10', {
         panel: 'pay',
-        isEditableField: false,
+        isEditableField: true,
         isSearchInput: false,
       }),
     ).toBe(true);

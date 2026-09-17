@@ -260,8 +260,20 @@ export function shouldTriggerPosCheckoutShortcut(
   key: string,
   input: { panel: Panel; isEditableField: boolean; isSearchInput: boolean },
 ): boolean {
-  if (!['Enter', 'F10'].includes(key)) return false;
-  return shouldTriggerPosCheckoutOnEnter(input);
+  if (key === 'F10') {
+    // F10 es la tecla de función física dedicada a "Cobrar / Confirmar venta".
+    // A diferencia de Enter, F10 NO es un caracter imprimible ni de navegación,
+    // por lo que debe funcionar tanto en la pantalla principal (panel null)
+    // como en la pantalla de cobro (panel pay), incluso si el cursor está en el
+    // buscador de productos o en un campo de texto/monto.
+    return input.panel === null || input.panel === 'pay';
+  }
+
+  if (key === 'Enter') {
+    return shouldTriggerPosCheckoutOnEnter(input);
+  }
+
+  return false;
 }
 
 export interface PosShellContextInput {
@@ -1097,6 +1109,34 @@ export function PosTerminal() {
       const inForm = isInForm(target);
       const isSearchInput = target?.dataset.posSearchInput === 'true';
 
+      // F10 siempre debe anular el comportamiento nativo del navegador (evita que Chrome/Edge abra menu bar)
+      if (event.key === 'F10') {
+        event.preventDefault();
+        if (
+          shouldTriggerPosCheckoutShortcut(event.key, {
+            panel,
+            isEditableField: inEditableField,
+            isSearchInput,
+          })
+        ) {
+          if (sellerOnlyMode) {
+            void holdSaleRef.current?.();
+          } else {
+            // Si estamos en la pantalla principal con productos y sin pagos, abrir directamente el panel de pago
+            if (panel === null && payments.length === 0 && cart.length > 0) {
+              if (priceListPaymentIssue) {
+                toast.error(priceListPaymentIssue);
+              } else {
+                setPanel('pay');
+              }
+            } else {
+              void confirmPaidSaleRef.current?.();
+            }
+          }
+        }
+        return;
+      }
+
       if (
         shouldTriggerPosCheckoutShortcut(event.key, {
           panel,
@@ -1863,8 +1903,22 @@ export function PosTerminal() {
               ) : (
                 <Button
                   className="h-14 w-full text-base font-black shadow-lg rounded-xl bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white shadow-orange-500/25 tracking-wide flex items-center justify-center gap-2 transition-all"
-                  disabled={Boolean(checkoutBlockReason) || checkout.isPending}
-                  onClick={() => void confirmPaidSale()}
+                  disabled={
+                    cart.length === 0 ||
+                    hasStockIssue(cart) ||
+                    hasPriceIssue(cart) ||
+                    Boolean(priceListPaymentIssue) ||
+                    checkout.isPending ||
+                    (payments.length > 0 && Boolean(checkoutBlockReason))
+                  }
+                  onClick={() => {
+                    if (panel === null && payments.length === 0 && cart.length > 0) {
+                      if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                      setPanel('pay');
+                    } else {
+                      void confirmPaidSale();
+                    }
+                  }}
                 >
                   {checkout.isPending ? (
                     <Loader2 className="size-5 animate-spin" />
