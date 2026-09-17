@@ -18,6 +18,9 @@ Route::prefix('pos')->group(function (): void {
     Route::post('checkouts', [PosOrderController::class, 'checkout'])
         ->middleware('idempotency');
     Route::get('orders/{posOrder}', [PosOrderController::class, 'show']);
+    // Previsualizacion del ticket sin crear PrintJob: disponible para cualquier
+    // usuario con pos.view, aunque no tenga permisos de impresion.
+    Route::get('orders/{posOrder}/ticket-preview', [PosOrderController::class, 'ticketPreview']);
     Route::post('orders/{posOrder}/payments', [PosOrderController::class, 'addPayments'])
         ->middleware('idempotency');
     Route::post('orders/{posOrder}/cancel', [PosOrderController::class, 'cancel'])

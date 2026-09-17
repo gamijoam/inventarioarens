@@ -11,6 +11,7 @@ use App\Modules\POS\Requests\StorePosHoldRequest;
 use App\Modules\POS\Resources\PosOrderResource;
 use App\Modules\POS\Resources\PosOrderSummaryResource;
 use App\Modules\POS\Services\PosCheckoutService;
+use App\Modules\Printing\Services\PosTicketPrintService;
 use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Promotions\Models\SalePromotionApplication;
 use Illuminate\Http\JsonResponse;
@@ -79,6 +80,20 @@ class PosOrderController extends Controller
         $this->preloadSerialUnits($posOrder->sale?->items ?? collect(), request());
 
         return PosOrderResource::make($posOrder);
+    }
+
+    public function ticketPreview(PosOrder $posOrder, PosTicketPrintService $service): JsonResponse
+    {
+        Gate::authorize('view', $posOrder);
+
+        $preview = $service->previewForOrder($posOrder);
+
+        return response()->json([
+            'data' => [
+                'html' => $preview['html'],
+                'paper_width_mm' => $preview['paper_width_mm'],
+            ],
+        ]);
     }
 
     public function checkout(StorePosCheckoutRequest $request, PosCheckoutService $checkout): JsonResponse
