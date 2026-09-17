@@ -10,6 +10,7 @@ use App\Modules\Reports\Requests\StockReportRequest;
 use App\Modules\Reports\Resources\MovementReportResource;
 use App\Modules\Reports\Resources\StockReportResource;
 use App\Support\Tenancy\TenantManager;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -61,8 +62,8 @@ class InventoryReportController extends Controller
                 }
             })
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
-            ->when($request->filled('date_from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date('date_from')))
-            ->when($request->filled('date_to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date('date_to')))
+            ->when($request->filled('date_from'), fn ($query) => $query->where('created_at', '>=', BusinessDateRange::startOfDay($request->string('date_from')->toString())))
+            ->when($request->filled('date_to'), fn ($query) => $query->where('created_at', '<=', BusinessDateRange::endOfDay($request->string('date_to')->toString())))
             ->latest('id')
             ->paginate($request->integer('per_page', 50));
 

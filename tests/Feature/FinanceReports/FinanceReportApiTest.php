@@ -72,6 +72,48 @@ class FinanceReportApiTest extends TestCase
             ->assertJsonPath('data.0.balance_base_amount', '50.0000');
     }
 
+    public function test_finance_report_date_filter_uses_business_timezone_instead_of_utc(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa TZ', 'slug' => 'empresa-tz']);
+        $user = $this->reportUser($tenant);
+        $this->useTenant($tenant);
+
+        $customer = Customer::create([
+            'document_type' => Customer::DOCUMENT_V,
+            'document_number' => 'TZ-1',
+            'name' => 'Cliente TZ',
+            'is_active' => true,
+        ]);
+        $sale = Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 10,
+            'confirmed_at' => now(),
+        ]);
+        AccountsReceivable::create([
+            'customer_id' => $customer->id,
+            'sale_id' => $sale->id,
+            'status' => AccountsReceivable::STATUS_PARTIAL,
+            'document_number' => 'CXC-TZ',
+            'original_base_amount' => 10,
+            'balance_base_amount' => 10,
+            'opened_at' => '2026-09-17 01:17:47',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/finance-reports/receivables?date_from=2026-09-17&date_to=2026-09-17')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/finance-reports/receivables?date_from=2026-09-16&date_to=2026-09-16')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+    }
+
     public function test_finance_reports_do_not_mix_companies(): void
     {
         $tenantA = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

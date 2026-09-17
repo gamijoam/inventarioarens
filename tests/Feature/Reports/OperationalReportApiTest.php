@@ -57,6 +57,38 @@ class OperationalReportApiTest extends TestCase
             ->assertJsonPath('data.payment_methods.0.amount_base', 125);
     }
 
+    public function test_daily_operations_date_uses_business_timezone_instead_of_utc(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa TZ', 'slug' => 'empresa-tz']);
+        $user = $this->userInTenant($tenant, ['reports.view']);
+        $this->useTenant($tenant);
+
+        Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 10,
+            'total_local_amount' => 740,
+            'created_at' => '2026-09-17 01:17:47',
+            'updated_at' => '2026-09-17 01:17:47',
+            'confirmed_at' => '2026-09-17 01:17:47',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/daily-operations?date=2026-09-17')
+            ->assertOk()
+            ->assertJsonPath('data.period.from', '2026-09-17')
+            ->assertJsonPath('data.period.to', '2026-09-17')
+            ->assertJsonPath('data.sales.confirmed_count', 0);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/daily-operations?date=2026-09-16')
+            ->assertOk()
+            ->assertJsonPath('data.sales.confirmed_count', 1);
+    }
+
     public function test_sales_detail_returns_items_payments_receivables_and_returns(): void
     {
         Carbon::setTestNow('2026-07-18 11:00:00');

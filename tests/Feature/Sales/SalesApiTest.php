@@ -23,6 +23,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -438,10 +439,61 @@ class SalesApiTest extends TestCase
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
-            ->getJson('/api/sales?search=' . urlencode("#{$saleB}"))
+            ->getJson('/api/sales?search='.urlencode("#{$saleB}"))
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $saleB);
+    }
+
+    public function test_sales_index_date_filter_uses_business_timezone_instead_of_utc(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa TZ', 'slug' => 'empresa-tz']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'PARALELO', 600);
+        $customer = $this->customer($tenant, 'Cliente TZ', Customer::DOCUMENT_V, '777');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.view', 'sales.create']);
+
+        $createSale = fn (): int => (int) $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $previousLocalDay = $createSale();
+        $sameLocalDay = $createSale();
+
+        Sale::whereKey($previousLocalDay)->update([
+            'created_at' => '2026-09-17 01:17:47',
+            'updated_at' => '2026-09-17 01:17:47',
+        ]);
+        Sale::whereKey($sameLocalDay)->update([
+            'created_at' => '2026-09-17 13:00:00',
+            'updated_at' => '2026-09-17 13:00:00',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?date_from=2026-09-17&date_to=2026-09-17')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $sameLocalDay);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?date_from=2026-09-16&date_to=2026-09-16')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $previousLocalDay);
     }
 
     public function test_sales_index_filters_and_exposes_promotion_applications(): void
@@ -659,7 +711,7 @@ class SalesApiTest extends TestCase
         ]);
 
         // Processed return of $40 on sale 1
-        \Illuminate\Support\Facades\DB::table('sales_returns')->insert([
+        DB::table('sales_returns')->insert([
             'tenant_id' => $tenant->id,
             'sale_id' => $sale1->id,
             'status' => 'processed',
