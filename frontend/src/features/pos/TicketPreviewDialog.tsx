@@ -26,6 +26,16 @@ interface TicketPreviewDialogProps {
   onDownloadPdf: () => void;
 }
 
+/** Escala del preview: agranda el ticket sin tocar la plantilla de impresion. */
+const PREVIEW_ZOOM = 1.5;
+const MM_TO_PX = 3.7795;
+
+function withPreviewZoom(html: string, zoom: number): string {
+  const style = `<style>html { zoom: ${zoom}; }</style>`;
+
+  return html.includes('</head>') ? html.replace('</head>', `${style}</head>`) : `${style}${html}`;
+}
+
 export function TicketPreviewDialog({
   order,
   onClose,
@@ -42,12 +52,14 @@ export function TicketPreviewDialog({
     enabled: open,
   });
 
-  const frameWidth = data?.paperWidthMm === 58 ? 260 : 340;
+  const paperWidthMm = data?.paperWidthMm ?? 80;
+  const paperWidthPx = Math.round(paperWidthMm * MM_TO_PX);
+  const frameWidth = Math.round(paperWidthPx * PREVIEW_ZOOM);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
-        className="fixed top-1/2 left-1/2 z-50 flex h-[90vh] max-h-[90vh] w-[94vw] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-surface p-0 shadow-2xl"
+        className="fixed top-1/2 left-1/2 z-50 flex h-[92vh] max-h-[92vh] w-[94vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-surface p-0 shadow-2xl"
         data-testid="ticket-preview-dialog"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
@@ -80,7 +92,7 @@ export function TicketPreviewDialog({
           ) : (
             <iframe
               title={`Ticket #${order?.id}`}
-              srcDoc={data.html}
+              srcDoc={withPreviewZoom(data.html, PREVIEW_ZOOM)}
               data-testid="ticket-preview-frame"
               style={{ width: frameWidth }}
               className="h-full rounded-lg border border-border bg-white shadow-sm"

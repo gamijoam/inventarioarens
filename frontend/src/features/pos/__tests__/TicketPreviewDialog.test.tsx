@@ -37,17 +37,22 @@ describe('TicketPreviewDialog', () => {
   beforeEach(() => {
     mockFetchTicketPreview.mockReset();
     mockFetchTicketPreview.mockResolvedValue({
-      html: '<html><body>Ticket POS #42</body></html>',
+      html: '<html><head></head><body>Ticket POS #42</body></html>',
       paperWidthMm: 80,
     });
   });
 
-  it('muestra el ticket en un iframe con el HTML del backend', async () => {
+  it('muestra el ticket agrandado en un iframe con el HTML del backend', async () => {
     renderDialog();
 
     expect(screen.getByTestId('ticket-preview-dialog')).toBeInTheDocument();
     const frame = await screen.findByTestId('ticket-preview-frame');
-    expect(frame).toHaveAttribute('srcdoc', '<html><body>Ticket POS #42</body></html>');
+    const srcdoc = frame.getAttribute('srcdoc') ?? '';
+
+    expect(srcdoc).toContain('Ticket POS #42');
+    // El preview agranda con zoom sin alterar la plantilla de impresion.
+    expect(srcdoc).toContain('zoom');
+    expect(frame.style.width).toBe('453px');
     expect(mockFetchTicketPreview).toHaveBeenCalledWith(42);
   });
 
