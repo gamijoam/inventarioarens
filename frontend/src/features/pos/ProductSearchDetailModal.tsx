@@ -229,21 +229,27 @@ export function ProductSearchDetailModal({
 
     const rows: PriceTableRow[] = [];
 
-    // Helper para armar fila
+    // Helper para armar fila considerando que los precios del sistema ya incluyen IVA
     const buildRow = (
       id: string | number,
       label: string,
-      netUsdPrice: number,
+      usdPriceWithTax: number,
       code?: string,
       isDefault?: boolean,
     ): PriceTableRow => {
-      const netUsd = Math.max(0, Number(netUsdPrice || 0));
-      const taxUsd = Math.round(netUsd * IVA_RATE * 100) / 100;
-      const totalUsd = Math.round((netUsd + taxUsd) * 100) / 100;
+      // El precio del sistema ya es el precio con impuesto (PVP)
+      const totalUsd = Math.max(0, Math.round(Number(usdPriceWithTax || 0) * 100) / 100);
+      // Base imponible desglosando el 16% de IVA
+      const netUsd = totalUsd > 0 ? Math.round((totalUsd / (1 + IVA_RATE)) * 100) / 100 : 0;
+      // Impuesto correspondiente al desglose
+      const taxUsd = totalUsd > 0 ? Math.round((totalUsd - netUsd) * 100) / 100 : 0;
 
-      const netVes = rateVal > 0 ? Math.round(netUsd * rateVal * 100) / 100 : 0;
-      const taxVes = rateVal > 0 ? Math.round(taxUsd * rateVal * 100) / 100 : 0;
-      const totalVes = rateVal > 0 ? Math.round(totalUsd * rateVal * 100) / 100 : 0;
+      // En moneda local (VES): precio final con impuesto convertido a la tasa activa
+      const totalVes = rateVal > 0 && totalUsd > 0 ? Math.round(totalUsd * rateVal * 100) / 100 : 0;
+      // Base imponible en VES desglosando el 16% de IVA
+      const netVes = totalVes > 0 ? Math.round((totalVes / (1 + IVA_RATE)) * 100) / 100 : 0;
+      // Impuesto en VES correspondiente al desglose
+      const taxVes = totalVes > 0 ? Math.round((totalVes - netVes) * 100) / 100 : 0;
 
       const factor = Math.max(1, packageFactor);
       const packageUsd = Math.round(totalUsd * factor * 100) / 100;
@@ -818,7 +824,7 @@ export function ProductSearchDetailModal({
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-text-muted px-1">
-                      <span>* Precios calculados con el 16% de IVA sobre el valor base de cada lista.</span>
+                      <span>* Precios con 16% de IVA incluido. Las columnas netas reflejan la base imponible desglosada.</span>
                       {selectedPriceList && (
                         <span>
                           Lista actual del POS: <strong className="text-text-primary">{selectedPriceList.name}</strong>
