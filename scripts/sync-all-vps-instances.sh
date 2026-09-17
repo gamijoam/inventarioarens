@@ -12,6 +12,13 @@ TARGETS=(
 
 echo "=== Sincronizando instancias en VPS desde $SOURCE_DIR ==="
 
+# 0. Promover build de dist/admin a dist/ raiz para servicio web en source
+if [ -d "$SOURCE_DIR/frontend/dist/admin" ]; then
+  echo ">> Promoviendo frontend/dist/admin/ a frontend/dist/ en $SOURCE_DIR..."
+  cp -rf "$SOURCE_DIR/frontend/dist/admin/"* "$SOURCE_DIR/frontend/dist/"
+  chown -R www-data:www-data "$SOURCE_DIR/frontend/dist"
+fi
+
 for target_entry in "${TARGETS[@]}"; do
   IFS=":" read -r target_dir target_user target_group <<< "$target_entry"
   echo "----------------------------------------------------"
