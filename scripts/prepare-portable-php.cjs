@@ -13,9 +13,14 @@ const artifact = getPortablePhpArtifact({
     platform: process.platform,
     arch: process.arch,
 });
-const downloadUrl = process.platform === "win32"
-    ? `https://windows.php.net/downloads/releases/${artifact.fileName}`
-    : `https://dl.static-php.dev/v3/php-bin/${artifact.flavor}/${artifact.fileName}`;
+const downloadUrls = process.platform === "win32"
+    ? [
+        // PHP mueve las versiones recientes a archives/ cuando sale una nueva,
+        // asi que reintentamos ahi si la ruta principal responde 404.
+        `https://windows.php.net/downloads/releases/${artifact.fileName}`,
+        `https://windows.php.net/downloads/releases/archives/${artifact.fileName}`,
+      ]
+    : [`https://dl.static-php.dev/v3/php-bin/${artifact.flavor}/${artifact.fileName}`];
 const cacheRoot = path.join(repoRoot, "build", ".cache", "php");
 const archivePath = path.join(cacheRoot, artifact.fileName);
 const runtimeRoot = path.join(repoRoot, "build", "linux-runtime", "php");
@@ -54,6 +59,22 @@ function download(url, destination) {
     });
 }
 
+async function downloadFirst(urls, destination) {
+    let lastError;
+
+    for (const url of urls) {
+        try {
+            await download(url, destination);
+            return;
+        } catch (error) {
+            lastError = error;
+            fs.rmSync(destination, { force: true });
+        }
+    }
+
+    throw lastError;
+}
+
 async function prepare() {
     fs.mkdirSync(cacheRoot, { recursive: true });
 
@@ -63,7 +84,7 @@ async function prepare() {
 
     if (!fs.existsSync(archivePath)) {
         process.stdout.write(`Descargando PHP portable ${artifact.version}...\n`);
-        await download(downloadUrl, archivePath);
+        await downloadFirst(downloadUrls, archivePath);
     }
 
     const checksum = sha256(archivePath);
