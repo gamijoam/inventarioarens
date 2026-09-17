@@ -8,6 +8,7 @@ import { productKeys } from '@/features/inventory-center/queries';
 import {
   BranchSchema,
   ExchangeRateTypeSchema,
+  PaginatedProductsSchema,
   PriceListSchema,
   type PriceList,
   ProductSchema,
@@ -562,6 +563,32 @@ export function usePosProducts(
   };
 
   return useProducts(filters, options);
+}
+
+/**
+ * Consulta directa e inmediata al backend para lectores de código de barras.
+ * No pasa por el debounce de 200ms para evitar falsos negativos cuando el lector
+ * envía la ráfaga de teclas seguida inmediatamente de Enter en menos de 50ms.
+ */
+export async function fetchPosProductsDirect(
+  search: string,
+  warehouseId?: number | null,
+): Promise<Product[]> {
+  const params = new URLSearchParams({
+    search,
+    tracking_type: 'all',
+    stock_status: 'all',
+    active_status: 'active',
+    page: '1',
+    per_page: '12',
+    with_images: '1',
+  });
+  if (warehouseId) {
+    params.set('warehouse_id', String(warehouseId));
+  }
+  const response = await getPaginated<unknown>(`/products?${params.toString()}`);
+  const parsed = PaginatedProductsSchema.parse(response);
+  return parsed.data;
 }
 
 /**
