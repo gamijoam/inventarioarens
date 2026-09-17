@@ -391,4 +391,32 @@ describe('ProductSearchDetailModal', () => {
 
     expect(screen.getByText('[F5] Precios')).toBeInTheDocument();
   });
+
+  it('no muestra el selector de empaque ni la tarjeta de stock/precio base', () => {
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+        priceLists={mockPriceLists}
+        activeRate={{ rate: 70, name: 'BCV' }}
+      />,
+    );
+
+    // El selector de empaque (x1 / x6 / x12) ya no existe.
+    expect(screen.queryByText('Empaque:')).not.toBeInTheDocument();
+    expect(screen.queryByText('x1')).not.toBeInTheDocument();
+    expect(screen.queryByText('x6')).not.toBeInTheDocument();
+    expect(screen.queryByText('x12')).not.toBeInTheDocument();
+
+    // La tarjeta redundante de stock y precio base fue eliminada.
+    expect(screen.queryByText('Precio base')).not.toBeInTheDocument();
+
+    // La tabla comparativa sigue disponible con sus columnas clave.
+    expect(screen.getByText('USD c/Imp')).toBeInTheDocument();
+    expect(screen.getByText('VES c/Imp')).toBeInTheDocument();
+  });
 });

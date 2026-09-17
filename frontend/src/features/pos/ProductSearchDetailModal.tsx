@@ -146,9 +146,6 @@ interface PriceTableRow {
   netVes: number;
   taxVes: number;
   totalVes: number;
-  packageFactor: number;
-  packageUsd: number;
-  packageVes: number;
 }
 
 export function ProductSearchDetailModal({
@@ -168,7 +165,6 @@ export function ProductSearchDetailModal({
   const [page, setPage] = useState(1);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('precios');
-  const [packageFactor, setPackageFactor] = useState<number>(1);
   const [serialFilter, setSerialFilter] = useState('');
   const [detailOpen, setDetailOpen] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -307,10 +303,6 @@ export function ProductSearchDetailModal({
       // Impuesto en VES correspondiente al desglose
       const taxVes = totalVes > 0 ? Math.round((totalVes - netVes) * 100) / 100 : 0;
 
-      const factor = Math.max(1, packageFactor);
-      const packageUsd = Math.round(totalUsd * factor * 100) / 100;
-      const packageVes = Math.round(totalVes * factor * 100) / 100;
-
       return {
         id,
         label,
@@ -322,9 +314,6 @@ export function ProductSearchDetailModal({
         netVes,
         taxVes,
         totalVes,
-        packageFactor: factor,
-        packageUsd,
-        packageVes,
       };
     };
 
@@ -383,7 +372,7 @@ export function ProductSearchDetailModal({
     }
 
     return rows;
-  }, [selectedProduct, priceLists, activeRate, packageFactor]);
+  }, [selectedProduct, priceLists, activeRate]);
 
   // Acción de agregar el producto seleccionado al ticket
   const handleConfirmSelect = useCallback(() => {
@@ -625,14 +614,6 @@ export function ProductSearchDetailModal({
     return productSerials.filter((s) => s.serial_number?.toLowerCase().includes(q));
   }, [productSerials, serialFilter]);
 
-  // Stock total sumando todos los almacenes
-  const totalStockAllWarehouses = useMemo(() => {
-    if (!stockByWarehouse || stockByWarehouse.length === 0) {
-      return Number(selectedProduct?.available_stock ?? 0);
-    }
-    return stockByWarehouse.reduce((acc, row) => acc + Number(row.available || 0), 0);
-  }, [stockByWarehouse, selectedProduct]);
-
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
@@ -873,49 +854,30 @@ export function ProductSearchDetailModal({
             ) : (
               <div className="flex h-full flex-col overflow-hidden">
                 {/* Cabecera del producto seleccionado */}
-                <div className="flex shrink-0 items-start justify-between gap-4 pb-4">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-xl font-bold tracking-tight text-text-primary">
-                      {selectedProduct.name}
-                    </h3>
+                <div className="shrink-0 pb-4">
+                  <h3 className="truncate text-xl font-bold tracking-tight text-text-primary">
+                    {selectedProduct.name}
+                  </h3>
 
-                    <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-text-muted">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                        <Folder className="size-3.5 shrink-0" />
-                        <span className="truncate">Categoría: {selectedCategory}</span>
-                      </span>
-                      {selectedProduct.brand?.name && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 font-medium text-text-secondary">
-                          Marca:{' '}
-                          <strong className="font-semibold text-text-primary">
-                            {selectedProduct.brand.name}
-                          </strong>
-                        </span>
-                      )}
-                      <span className="font-mono">SKU: {selectedProduct.sku ?? 'N/A'}</span>
-                      <span>•</span>
-                      <span className="font-mono">Barras: {selectedProduct.barcode ?? 'N/A'}</span>
-                      <span>•</span>
-                      <span className="uppercase">
-                        Unidad: {selectedProduct.unit_of_measure ?? 'UND'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 flex-col items-end gap-1.5 rounded-2xl border border-border bg-surface px-4 py-3 shadow-2xs">
-                    <Badge
-                      variant={totalStockAllWarehouses > 0 ? 'success' : 'danger'}
-                      className="px-2.5 py-1 text-xs font-semibold leading-none"
-                    >
-                      {totalStockAllWarehouses > 0
-                        ? `Stock: ${totalStockAllWarehouses} ${selectedProduct.unit_of_measure ?? 'UND'}`
-                        : 'Sin existencia'}
-                    </Badge>
-                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                      Precio base
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-text-muted">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      <Folder className="size-3.5 shrink-0" />
+                      <span className="truncate">Categoría: {selectedCategory}</span>
                     </span>
-                    <span className="font-mono text-base font-bold text-primary">
-                      {money(selectedProduct.base_price)}
+                    {selectedProduct.brand?.name && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 font-medium text-text-secondary">
+                        Marca:{' '}
+                        <strong className="font-semibold text-text-primary">
+                          {selectedProduct.brand.name}
+                        </strong>
+                      </span>
+                    )}
+                    <span className="font-mono">SKU: {selectedProduct.sku ?? 'N/A'}</span>
+                    <span>•</span>
+                    <span className="font-mono">Barras: {selectedProduct.barcode ?? 'N/A'}</span>
+                    <span>•</span>
+                    <span className="uppercase">
+                      Unidad: {selectedProduct.unit_of_measure ?? 'UND'}
                     </span>
                   </div>
                 </div>
@@ -948,36 +910,13 @@ export function ProductSearchDetailModal({
                     value="precios"
                     className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3 space-y-3"
                   >
-                    {/* Barra de Tasa, Factor de Empaque e IVA */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-bg/40 px-4 py-3 text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <span className="font-semibold text-text-primary">Tasa activa</span>
-                        <span className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 font-mono font-semibold text-primary">
-                          {activeRate ? `1 USD = ${moneyVes(activeRate.rate)} (${activeRate.name})` : 'Sin tasa definida'}
-                        </span>
-                        <span className="text-text-muted">IVA 16% incluido</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-text-muted">Empaque:</span>
-                        <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-0.5">
-                          {[1, 6, 12].map((factor) => (
-                            <button
-                              key={factor}
-                              type="button"
-                              onClick={() => setPackageFactor(factor)}
-                              className={cn(
-                                'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                                packageFactor === factor
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'text-text-muted hover:text-text-primary',
-                              )}
-                            >
-                              x{factor}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                    {/* Barra de Tasa e IVA */}
+                    <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-border/70 bg-bg/40 px-4 py-3 text-xs">
+                      <span className="font-semibold text-text-primary">Tasa activa</span>
+                      <span className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 font-mono font-semibold text-primary">
+                        {activeRate ? `1 USD = ${moneyVes(activeRate.rate)} (${activeRate.name})` : 'Sin tasa definida'}
+                      </span>
+                      <span className="text-text-muted">IVA 16% incluido</span>
                     </div>
 
                     {/* Tabla Comparativa de Precios */}
@@ -992,11 +931,6 @@ export function ProductSearchDetailModal({
                             <th className="px-3 py-3 text-right">VES Neto</th>
                             <th className="px-3 py-3 text-right">IVA VES</th>
                             <th className="px-3 py-3 text-right text-primary font-bold">VES c/Imp</th>
-                            {packageFactor > 1 && (
-                              <th className="px-4 py-3 text-right bg-primary/5">
-                                x{packageFactor} {selectedProduct.unit_of_measure ?? 'UND'}
-                              </th>
-                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/70">
@@ -1039,14 +973,6 @@ export function ProductSearchDetailModal({
                               <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary">
                                 {moneyVes(row.totalVes)}
                               </td>
-                              {packageFactor > 1 && (
-                                <td className="px-4 py-3.5 text-right font-mono font-bold bg-primary/5 text-primary">
-                                  <div>{money(row.packageUsd)}</div>
-                                  <div className="text-[10px] font-normal text-text-muted">
-                                    {moneyVes(row.packageVes)}
-                                  </div>
-                                </td>
-                              )}
                             </tr>
                           ))}
                         </tbody>
