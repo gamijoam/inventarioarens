@@ -1,7 +1,13 @@
-const UPDATE_CHANNELS = Object.freeze(['admin', 'pos', 'technician']);
+const UPDATE_CHANNELS = Object.freeze([
+  'admin',
+  'pos',
+  'technician',
+  'balanzapro-pos',
+  'balanzapro-admin',
+]);
 
-function resolveUpdateChannel(mode) {
-  return UPDATE_CHANNELS.includes(mode) ? mode : 'admin';
+function resolveUpdateChannel(clientIdOrMode) {
+  return UPDATE_CHANNELS.includes(clientIdOrMode) ? clientIdOrMode : 'admin';
 }
 
 function shouldEnableAutoUpdater({ isPackaged, isRuntimeSupervisor }) {

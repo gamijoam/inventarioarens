@@ -60,7 +60,7 @@ function loadAutoUpdater(logger) {
   }
 }
 
-function setupAutoUpdater({ app, appMode, isRuntimeSupervisor, logger = console }) {
+function setupAutoUpdater({ app, appMode, appClient = appMode, isRuntimeSupervisor, logger = console }) {
   if (!shouldEnableAutoUpdater({ isPackaged: app.isPackaged, isRuntimeSupervisor })) {
     return false;
   }
@@ -77,7 +77,7 @@ function setupAutoUpdater({ app, appMode, isRuntimeSupervisor, logger = console 
   );
   const checkScheduler = createUpdateCheckScheduler(autoUpdater, { logger: updaterLogger });
 
-  autoUpdater.channel = resolveUpdateChannel(appMode);
+  autoUpdater.channel = resolveUpdateChannel(appClient);
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;

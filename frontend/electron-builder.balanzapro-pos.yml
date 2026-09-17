@@ -1,0 +1,33 @@
+appId: com.balanzapro.pos
+productName: BalanzaPro POS
+executableName: BalanzaPro-POS
+artifactName: BalanzaPro-POS-${version}.${ext}
+asar: true
+directories:
+  output: release/balanzapro-pos
+publish:
+  provider: github
+  owner: gamijoam
+  repo: inventarioarens
+  channel: balanzapro-pos
+files:
+  - electron/**/*
+  - dist/pos/**/*
+  - package.json
+win:
+  icon: build/icons/balanzapro-pos/icon.ico
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: true
+  allowElevation: true
+  allowToChangeInstallationDirectory: false
+  shortcutName: BalanzaPro POS
+  uninstallDisplayName: BalanzaPro POS
+  include: build/nsis/separate-install-dir.nsh
+linux:
+  icon: build/icons/balanzapro-pos
+  target:
+    - AppImage
+  category: Office

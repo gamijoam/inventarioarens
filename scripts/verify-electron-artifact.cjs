@@ -6,7 +6,14 @@ const asar = createRequire(
     path.join(__dirname, "..", "frontend", "package.json"),
 )("@electron/asar");
 
-const CLIENTS = ["admin", "pos", "technician"];
+const CLIENT_RENDERERS = Object.freeze({
+    admin: "admin",
+    pos: "pos",
+    technician: "technician",
+    "balanzapro-pos": "pos",
+    "balanzapro-admin": "admin",
+});
+const CLIENTS = Object.keys(CLIENT_RENDERERS);
 const MOTOR_PAYLOAD_PATTERNS = [
     /^backend(?:\/|$)/,
     /^runtime(?:\/|$)/,
@@ -24,14 +31,16 @@ function normalizeEntries(entries) {
 }
 
 function validateEntries(client, rawEntries) {
-    if (!CLIENTS.includes(client)) {
+    const rendererMode = CLIENT_RENDERERS[client];
+    if (!rendererMode) {
         throw new Error(`Cliente Electron invalido: ${client}`);
     }
 
     const entries = normalizeEntries(rawEntries);
-    const renderer = `dist/${client}`;
-    const foreignRenderers = CLIENTS.filter((candidate) => candidate !== client)
-        .map((candidate) => `dist/${candidate}`)
+    const renderer = `dist/${rendererMode}`;
+    const foreignRenderers = [...new Set(Object.values(CLIENT_RENDERERS))]
+        .filter((mode) => mode !== rendererMode)
+        .map((mode) => `dist/${mode}`)
         .filter((candidate) =>
             entries.some(
                 (entry) =>
@@ -102,7 +111,7 @@ if (require.main === module) {
 
     if (!client || !artifactPath) {
         process.stderr.write(
-            "Uso: node scripts/verify-electron-artifact.cjs <admin|pos|technician> <artifact-dir|app.asar>\n",
+            "Uso: node scripts/verify-electron-artifact.cjs <admin|pos|technician|balanzapro-pos|balanzapro-admin> <artifact-dir|app.asar>\n",
         );
         process.exitCode = 2;
     } else {

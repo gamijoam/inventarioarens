@@ -38,6 +38,27 @@ describe('Electron app configuration', () => {
     );
   });
 
+  it('defines BalanzaPro clients with isolated ports, data dirs and renderer bundles', () => {
+    expect(getAppConfig('balanzapro-pos').productName).toBe('BalanzaPro POS');
+    expect(getAppConfig('balanzapro-admin').productName).toBe('BalanzaPro (Administrativo)');
+    expect(getAppConfig('balanzapro-pos').appId).toBe('com.balanzapro.pos');
+    expect(getAppConfig('balanzapro-admin').appId).toBe('com.balanzapro.admin');
+    expect(getAppConfig('balanzapro-pos').rendererPort).toBe(8791);
+    expect(getAppConfig('balanzapro-admin').rendererPort).toBe(8792);
+    expect(rendererDirectory('/bundle', 'balanzapro-pos').replace(/\\/g, '/')).toBe(
+      '/bundle/dist/pos',
+    );
+    expect(rendererDirectory('/bundle', 'balanzapro-admin').replace(/\\/g, '/')).toBe(
+      '/bundle/dist/admin',
+    );
+    expect(userDataDirectory('/home/user/.config', 'balanzapro-pos').replace(/\\/g, '/')).toBe(
+      '/home/user/.config/BalanzaPro-POS',
+    );
+    expect(userDataDirectory('/home/user/.config', 'balanzapro-admin').replace(/\\/g, '/')).toBe(
+      '/home/user/.config/BalanzaPro-Administrativo',
+    );
+  });
+
   it('selects an isolated Electron user data directory per app', () => {
     expect(userDataDirectory('/home/user/.config', 'admin').replace(/\\/g, '/')).toBe(
       '/home/user/.config/InventarioArens-Administrativo',

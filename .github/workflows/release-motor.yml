@@ -7,6 +7,17 @@ on:
         description: 'Version independiente del Motor Local'
         required: true
         default: '0.1.0'
+      variant:
+        description: 'Variante del Motor (default = generico)'
+        required: true
+        type: choice
+        options:
+          - default
+          - balanzapro
+      ref:
+        description: 'Rama/tag a construir (vacio = rama del workflow). Para BalanzaPro usar client/balanzapro.'
+        required: false
+        default: ''
       prerelease:
         description: 'Publicar como release de prueba'
         required: true
@@ -24,6 +35,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -60,8 +73,15 @@ jobs:
         run: |
           set -euo pipefail
           VERSION='${{ inputs.version }}'
-          TAG="motor-v${VERSION}"
-          RELEASE_FLAGS=(--repo gamijoam/inventarioarens --title "Motor Local ${VERSION}" --generate-notes)
+          VARIANT='${{ inputs.variant }}'
+          SUFFIX=""
+          LABEL=""
+          if [[ "$VARIANT" == "balanzapro" ]]; then
+            SUFFIX="-balanzapro"
+            LABEL=" (BalanzaPro)"
+          fi
+          TAG="motor-v${VERSION}${SUFFIX}"
+          RELEASE_FLAGS=(--repo gamijoam/inventarioarens --title "Motor Local ${VERSION}${LABEL}" --generate-notes)
           if [[ '${{ inputs.prerelease }}' == 'true' ]]; then
             RELEASE_FLAGS+=(--prerelease)
           fi
@@ -70,3 +90,4 @@ jobs:
             "${RELEASE_FLAGS[@]}" \
             build/local-motor/release/*.exe \
             build/local-motor/release/*.sha256
+          echo "Publicado $TAG"

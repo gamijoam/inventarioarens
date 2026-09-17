@@ -6,7 +6,7 @@ const {
   rendererDirectory,
   userDataDirectory,
 } = require('./app-config.cjs');
-const { detectAppMode } = require('./app-mode.cjs');
+const { detectAppClient } = require('./app-mode.cjs');
 const {
   createLocalRuntime,
   createRuntimeSupervisor,
@@ -20,8 +20,9 @@ try {
   console.warn('[main] auto-updater module not bundled:', error.message);
 }
 
-const appMode = detectAppMode();
-const appConfig = getAppConfig(appMode);
+const appClient = detectAppClient();
+const appConfig = getAppConfig(appClient);
+const appMode = appConfig.mode;
 const isRuntimeSupervisor = process.argv.includes('--inventario-runtime-supervisor');
 let rendererServer = null;
 let localRuntime = null;
@@ -46,8 +47,9 @@ async function prepareRenderer() {
       isPackaged: app.isPackaged,
       dataRoot: localDataRoot(),
       appVersion: app.getVersion(),
+      brand: appConfig.brand,
     }),
-    clientId: appMode,
+    clientId: appClient,
     isPackaged: app.isPackaged,
     supervisorAppPath: app.getAppPath(),
     supervisorExecutable: process.execPath,
@@ -132,7 +134,7 @@ if (isRuntimeSupervisor) {
   });
 } else {
   app.setName(appConfig.productName);
-  app.setPath('userData', userDataDirectory(app.getPath('appData'), appMode));
+  app.setPath('userData', userDataDirectory(app.getPath('appData'), appClient));
 
   const hasLock = app.requestSingleInstanceLock();
 
@@ -159,7 +161,7 @@ if (isRuntimeSupervisor) {
         }
 
         await createWindow();
-        setupAutoUpdater({ app, appMode, isRuntimeSupervisor });
+        setupAutoUpdater({ app, appMode, appClient, isRuntimeSupervisor });
 
         app.on('activate', async () => {
           if (BrowserWindow.getAllWindows().length === 0) {

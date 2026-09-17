@@ -8,51 +8,27 @@ function getFrontendVersion(repoRoot) {
     return JSON.parse(fs.readFileSync(packageJsonPath, "utf8")).version;
 }
 
-function getSmokeConfig(repoRoot, mode, version = getFrontendVersion(repoRoot)) {
-    const artifactNames = {
-        admin: `Sistema-de-Inventario-Administrativo-${version}.AppImage`,
-        pos: `Sistema-de-Inventario-POS-${version}.AppImage`,
-        technician: `Soporte-Tecnico-Inventario-${version}.AppImage`,
-    };
+const CLIENT_SMOKE = Object.freeze({
+    admin: { artifact: "Sistema-de-Inventario-Administrativo", dir: "admin", mode: "admin", apiPort: 8805 },
+    pos: { artifact: "Sistema-de-Inventario-POS", dir: "pos", mode: "pos", apiPort: 8806 },
+    technician: { artifact: "Soporte-Tecnico-Inventario", dir: "technician", mode: "technician", apiPort: 8807 },
+    "balanzapro-pos": { artifact: "BalanzaPro-POS", dir: "balanzapro-pos", mode: "pos", apiPort: 8808 },
+    "balanzapro-admin": { artifact: "BalanzaPro-Administrativo", dir: "balanzapro-admin", mode: "admin", apiPort: 8809 },
+});
 
-    if (mode === "pos") {
-        return {
-            appImage: path.join(
-                repoRoot,
-                "frontend",
-                "release",
-                "pos",
-                artifactNames.pos,
-            ),
-            apiPort: 8806,
-            mode,
-        };
-    }
-
-    if (mode === "technician") {
-        return {
-            appImage: path.join(
-                repoRoot,
-                "frontend",
-                "release",
-                "technician",
-                artifactNames.technician,
-            ),
-            apiPort: 8807,
-            mode,
-        };
-    }
+function getSmokeConfig(repoRoot, client, version = getFrontendVersion(repoRoot)) {
+    const config = CLIENT_SMOKE[client] ?? CLIENT_SMOKE.admin;
 
     return {
         appImage: path.join(
             repoRoot,
             "frontend",
             "release",
-            "admin",
-            artifactNames.admin,
+            config.dir,
+            `${config.artifact}-${version}.AppImage`,
         ),
-        apiPort: 8805,
-        mode: "admin",
+        apiPort: config.apiPort,
+        mode: config.mode,
     };
 }
 

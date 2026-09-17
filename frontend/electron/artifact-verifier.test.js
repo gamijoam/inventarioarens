@@ -14,6 +14,27 @@ describe('Electron artifact verification', () => {
     ).toEqual({ client: 'admin', renderer: 'dist/admin' });
   });
 
+  it('maps balanzapro clients to their shared renderer bundle', () => {
+    expect(
+      verifier.validateEntries('balanzapro-pos', [
+        'electron/main.cjs',
+        'dist/pos/index.html',
+        'dist/pos/assets/index.js',
+        'package.json',
+      ]),
+    ).toEqual({ client: 'balanzapro-pos', renderer: 'dist/pos' });
+
+    expect(() =>
+      verifier.validateEntries('balanzapro-admin', [
+        'electron/main.cjs',
+        'dist/admin/index.html',
+        'dist/admin/assets/index.js',
+        'dist/pos/index.html',
+        'package.json',
+      ]),
+    ).toThrow('dist/pos');
+  });
+
   it('rejects foreign client renderers', () => {
     expect(() =>
       verifier.validateEntries('pos', [

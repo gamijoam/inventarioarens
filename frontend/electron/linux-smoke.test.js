@@ -31,5 +31,21 @@ describe('Linux AppImage smoke configuration', () => {
       apiPort: 8807,
       mode: 'technician',
     });
+
+    const configBalanzaProPos = linuxSmoke.getSmokeConfig('/repo', 'balanzapro-pos', version);
+    configBalanzaProPos.appImage = configBalanzaProPos.appImage.replace(/\\/g, '/');
+    expect(configBalanzaProPos).toEqual({
+      appImage: `/repo/frontend/release/balanzapro-pos/BalanzaPro-POS-${version}.AppImage`,
+      apiPort: 8808,
+      mode: 'pos',
+    });
+
+    const configBalanzaProAdmin = linuxSmoke.getSmokeConfig('/repo', 'balanzapro-admin', version);
+    configBalanzaProAdmin.appImage = configBalanzaProAdmin.appImage.replace(/\\/g, '/');
+    expect(configBalanzaProAdmin).toEqual({
+      appImage: `/repo/frontend/release/balanzapro-admin/BalanzaPro-Administrativo-${version}.AppImage`,
+      apiPort: 8809,
+      mode: 'admin',
+    });
   });
 });

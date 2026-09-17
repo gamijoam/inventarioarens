@@ -1,0 +1,33 @@
+appId: com.balanzapro.admin
+productName: BalanzaPro (Administrativo)
+executableName: BalanzaPro-Administrativo
+artifactName: BalanzaPro-Administrativo-${version}.${ext}
+asar: true
+directories:
+  output: release/balanzapro-admin
+publish:
+  provider: github
+  owner: gamijoam
+  repo: inventarioarens
+  channel: balanzapro-admin
+files:
+  - electron/**/*
+  - dist/admin/**/*
+  - package.json
+win:
+  icon: build/icons/balanzapro-admin/icon.ico
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: true
+  allowElevation: true
+  allowToChangeInstallationDirectory: false
+  shortcutName: BalanzaPro (Administrativo)
+  uninstallDisplayName: BalanzaPro (Administrativo)
+  include: build/nsis/separate-install-dir.nsh
+linux:
+  icon: build/icons/balanzapro-admin
+  target:
+    - AppImage
+  category: Office

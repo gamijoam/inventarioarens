@@ -4,21 +4,43 @@ const path = require('node:path');
 const APP_CONFIGS = Object.freeze({
   admin: Object.freeze({
     mode: 'admin',
+    brand: 'default',
     productName: 'Sistema de Inventario (Administrativo)',
     appId: 'com.inventarioarens.admin',
     rendererPort: 8788,
+    userDataSuffix: 'InventarioArens-Administrativo',
   }),
   pos: Object.freeze({
     mode: 'pos',
+    brand: 'default',
     productName: 'Sistema de Inventario (POS)',
     appId: 'com.inventarioarens.pos',
     rendererPort: 8789,
+    userDataSuffix: 'InventarioArens-POS',
   }),
   technician: Object.freeze({
     mode: 'technician',
+    brand: 'default',
     productName: 'Soporte Técnico',
     appId: 'com.inventarioarens.technician',
     rendererPort: 8790,
+    userDataSuffix: 'InventarioArens-Soporte',
+  }),
+  'balanzapro-pos': Object.freeze({
+    mode: 'pos',
+    brand: 'balanzapro',
+    productName: 'BalanzaPro POS',
+    appId: 'com.balanzapro.pos',
+    rendererPort: 8791,
+    userDataSuffix: 'BalanzaPro-POS',
+  }),
+  'balanzapro-admin': Object.freeze({
+    mode: 'admin',
+    brand: 'balanzapro',
+    productName: 'BalanzaPro (Administrativo)',
+    appId: 'com.balanzapro.admin',
+    rendererPort: 8792,
+    userDataSuffix: 'BalanzaPro-Administrativo',
   }),
 });
 
@@ -26,23 +48,20 @@ function normalizeAppMode(mode) {
   return mode === 'pos' || mode === 'technician' ? mode : 'admin';
 }
 
-function getAppConfig(mode) {
-  return APP_CONFIGS[normalizeAppMode(mode)];
+function normalizeClientId(value) {
+  return Object.prototype.hasOwnProperty.call(APP_CONFIGS, value) ? value : 'admin';
 }
 
-function rendererDirectory(appRoot, mode) {
-  return path.join(appRoot, 'dist', normalizeAppMode(mode));
+function getAppConfig(clientIdOrMode) {
+  return APP_CONFIGS[normalizeClientId(clientIdOrMode)];
 }
 
-function userDataDirectory(appDataPath, mode) {
-  const normalizedMode = normalizeAppMode(mode);
-  const suffix =
-    normalizedMode === 'pos'
-      ? 'InventarioArens-POS'
-      : normalizedMode === 'technician'
-        ? 'InventarioArens-Soporte'
-        : 'InventarioArens-Administrativo';
-  return path.join(appDataPath, suffix);
+function rendererDirectory(appRoot, clientIdOrMode) {
+  return path.join(appRoot, 'dist', getAppConfig(clientIdOrMode).mode);
+}
+
+function userDataDirectory(appDataPath, clientIdOrMode) {
+  return path.join(appDataPath, getAppConfig(clientIdOrMode).userDataSuffix);
 }
 
 function localDataDirectory(appDataPath, options = {}) {
@@ -70,6 +89,7 @@ module.exports = {
   getAppConfig,
   localDataDirectory,
   normalizeAppMode,
+  normalizeClientId,
   rendererDirectory,
   userDataDirectory,
 };
