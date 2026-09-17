@@ -133,10 +133,10 @@ function InventoryListPage() {
   useEffect(() => {
     if (searchInput === search.search) return;
     const timer = setTimeout(() => {
-      void navigate({ search: { ...search, search: searchInput, page: 1 } });
+      void navigate({ search: (prev: InventorySearch) => ({ ...prev, search: searchInput, page: 1 }) });
     }, 250);
     return () => clearTimeout(timer);
-  }, [searchInput, search, navigate]);
+  }, [searchInput, search.search, navigate]);
 
   const filters = useMemo(
     () => ({
@@ -163,7 +163,16 @@ function InventoryListPage() {
   const exportProducts = useExportProducts();
 
   const updateSearch = (patch: Partial<InventorySearch>) => {
-    void navigate({ search: { ...search, search: searchInput, ...patch, page: 1 } });
+    if (patch.search !== undefined) {
+      setSearchInput(patch.search);
+    }
+    void navigate({
+      search: (prev: InventorySearch) => ({
+        ...prev,
+        ...patch,
+        page: 1,
+      }),
+    });
   };
 
   const goToPage = (page: number) => {

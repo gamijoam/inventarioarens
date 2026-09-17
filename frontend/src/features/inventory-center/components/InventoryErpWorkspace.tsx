@@ -474,6 +474,12 @@ export function InventoryErpWorkspace({
                   ref={searchInputRef}
                   value={searchInput}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      onSearchChange(searchInput);
+                    }
+                  }}
                   placeholder="Buscar SKU, código o nombre... [F3]"
                   className={cn('pl-8 pr-16 h-9 text-sm', searchInput && 'pr-20')}
                   data-testid="erp-inventory-search"

@@ -104,7 +104,20 @@ export function useProductStockByWarehouse(productId: number) {
 function toQueryString(filters: Partial<InventoryFilters>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value == null || value === '' || value === 'all') continue;
+    if (value == null || value === '') continue;
+    if (key === 'active_status') {
+      if (value === 'inactive') {
+        params.set('active_status', 'inactive');
+        params.set('is_active', '0');
+      } else if (value === 'all') {
+        params.set('active_status', 'all');
+      } else if (value === 'active') {
+        params.set('active_status', 'active');
+        params.set('is_active', '1');
+      }
+      continue;
+    }
+    if (value === 'all') continue;
     params.set(key, String(value));
   }
   return params.toString();

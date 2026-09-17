@@ -38,7 +38,7 @@ class ProductController extends Controller
 
         $search = trim((string) $request->query('search', ''));
         $normalizedSearch = mb_strtolower($search);
-        $limit = min(max((int) $request->query('limit', 25), 1), 100);
+        $limit = min(max((int) ($request->query('per_page') ?? $request->query('limit', 25)), 1), 100);
 
         $relations = ['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'];
         if ($request->boolean('with_images')) {
@@ -140,10 +140,41 @@ class ProductController extends Controller
             $query->where('tracking_type', $request->string('tracking_type'));
         }
 
-        if ($request->filled('is_active')) {
+        // Estado activo / inactivo / todos
+        $activeStatus = $request->query('active_status');
+        if ($activeStatus === 'inactive') {
+            $query->where('is_active', false);
+        } elseif ($activeStatus === 'all') {
+            // Mostrar todos (no filtrar por is_active)
+        } elseif ($activeStatus === 'active') {
+            $query->where('is_active', true);
+        } elseif ($request->has('is_active')) {
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         } else {
             $query->where('is_active', true);
+        }
+
+        // Filtro por estado de stock
+        if ($request->filled('stock_status') && $request->query('stock_status') !== 'all') {
+            $stockStatus = $request->query('stock_status');
+            $warehouseId = $request->filled('warehouse_id') ? $request->integer('warehouse_id') : null;
+
+            $stockSubquery = DB::table('stock_balances')
+                ->selectRaw('COALESCE(SUM(quantity_available), 0)')
+                ->whereColumn('stock_balances.product_id', 'products.id')
+                ->when($warehouseId, fn ($q) => $q->where('stock_balances.warehouse_id', $warehouseId));
+
+            match ($stockStatus) {
+                'available' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings()),
+                'low' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings())
+                    ->whereRaw("({$stockSubquery->toSql()}) <= COALESCE(products.min_stock, 5)", array_merge($stockSubquery->getBindings(), $stockSubquery->getBindings())),
+                'critical' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings())
+                    ->whereRaw("({$stockSubquery->toSql()}) <= 2", $stockSubquery->getBindings()),
+                'out' => $query->whereRaw("({$stockSubquery->toSql()}) <= 0", $stockSubquery->getBindings()),
+                'overstock' => $query->whereNotNull('products.max_stock')
+                    ->whereRaw("({$stockSubquery->toSql()}) > products.max_stock", $stockSubquery->getBindings()),
+                default => null,
+            };
         }
 
         if ($search === '') {
