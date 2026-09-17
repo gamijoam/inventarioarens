@@ -9,10 +9,8 @@ require base_path('app/Modules/CRM/routes.php');
 
 require base_path('app/Modules/Bootstrap/routes.php');
 
-Route::post('sync/pairing-codes/redeem', [SyncController::class, 'redeemPairingCode'])
-    ->middleware('throttle:auth');
-Route::post('sync/pairing-codes/preview', [SyncController::class, 'previewPairingCode'])
-    ->middleware('throttle:auth');
+Route::post('sync/pairing-codes/redeem', [SyncController::class, 'redeemPairingCode']);
+Route::post('sync/pairing-codes/preview', [SyncController::class, 'previewPairingCode']);
 
 require base_path('app/Modules/LocalSupport/routes.php');
 
