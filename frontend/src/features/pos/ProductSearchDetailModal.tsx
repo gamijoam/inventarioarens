@@ -39,6 +39,8 @@ import {
   Loader2,
   Lock,
   Package,
+  PanelRightClose,
+  PanelRightOpen,
   Search,
   ShieldCheck,
   Warehouse,
@@ -168,6 +170,15 @@ export function ProductSearchDetailModal({
   const [activeTab, setActiveTab] = useState<TabKey>('precios');
   const [packageFactor, setPackageFactor] = useState<number>(1);
   const [serialFilter, setSerialFilter] = useState('');
+  const [detailOpen, setDetailOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+
+    try {
+      return window.localStorage.getItem('pos.f3.detailOpen') !== 'false';
+    } catch {
+      return true;
+    }
+  });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const warehouseSelectRef = useRef<HTMLSelectElement>(null);
@@ -241,6 +252,17 @@ export function ProductSearchDetailModal({
   useEffect(() => {
     setSelectedIndex(0);
   }, [debouncedSearch, page]);
+
+  // Persistir la preferencia del panel de detalle entre aperturas del modal
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      window.localStorage.setItem('pos.f3.detailOpen', detailOpen ? 'true' : 'false');
+    } catch {
+      // localStorage puede no estar disponible (modo privado o SSR).
+    }
+  }, [detailOpen]);
 
   // Asegurar visibilidad de la fila seleccionada
   useEffect(() => {
@@ -618,95 +640,104 @@ export function ProductSearchDetailModal({
         onKeyDown={handleKeyDown}
         data-testid="product-search-detail-modal"
       >
-        {/* Encabezado Superior */}
-        <div className="flex shrink-0 items-center justify-between border-b border-border bg-bg/40 px-6 py-4">
-          <div className="flex items-center gap-3.5">
-            <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Boxes className="size-5.5" />
+        {/* Barra superior: búsqueda y controles */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-border bg-bg/40 px-4 py-2.5">
+          <div className="hidden items-center gap-2.5 md:flex">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Boxes className="size-5" />
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-text-primary tracking-tight">
-                Búsqueda y Detalle de Productos
-              </h2>
-              <p className="text-sm text-text-muted">
-                Consulta de catálogo, precios e inventario multi-almacén
-              </p>
-            </div>
+            <h2 className="text-base font-bold tracking-tight text-text-primary xl:hidden">
+              Productos
+            </h2>
+            <h2 className="hidden text-base font-bold tracking-tight text-text-primary xl:block">
+              Búsqueda y Detalle de Productos
+            </h2>
           </div>
 
-          <div className="flex items-center gap-3">
-            {activeRate && (
-              <span className="hidden items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm shadow-2xs sm:flex">
-                <span className="text-text-muted">Tasa</span>
-                <span className="font-bold text-primary">{activeRate.rate.toFixed(2)}</span>
-                <span className="text-text-muted">({activeRate.name})</span>
-              </span>
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-text-muted" />
+            <Input
+              ref={searchInputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por código, SKU o nombre... (F3)"
+              className="h-10 pl-10 pr-9 text-base shadow-xs"
+              data-testid="search-modal-input"
+            />
+            {search.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="size-4" />
+              </button>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl p-2 text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
-              aria-label="Cerrar ventana"
-            >
-              <X className="size-5.5" />
-            </button>
           </div>
+
+          <div className="flex items-center gap-2 text-sm text-text-muted sm:w-56">
+            <Warehouse className="size-4 shrink-0 text-text-muted" />
+            <Select
+              ref={warehouseSelectRef}
+              value={warehouseId ?? ''}
+              onChange={(e) =>
+                onWarehouseChange(e.target.value ? Number(e.target.value) : null)
+              }
+              className="h-10 flex-1 text-sm shadow-xs"
+              data-testid="search-modal-warehouse-select"
+            >
+              <option value="">Todos los almacenes</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code} - {w.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          {activeRate && (
+            <span className="hidden items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm shadow-2xs lg:flex">
+              <span className="text-text-muted">Tasa</span>
+              <span className="font-bold text-primary">{activeRate.rate.toFixed(2)}</span>
+              <span className="text-text-muted">({activeRate.name})</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setDetailOpen((value) => !value)}
+            className="hidden items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 py-2 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-text-primary lg:flex"
+            aria-label={detailOpen ? 'Ocultar detalle' : 'Mostrar detalle'}
+            data-testid="search-modal-detail-toggle"
+          >
+            {detailOpen ? (
+              <PanelRightClose className="size-4.5" />
+            ) : (
+              <PanelRightOpen className="size-4.5" />
+            )}
+            <span>{detailOpen ? 'Ocultar detalle' : 'Mostrar detalle'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
+            aria-label="Cerrar ventana"
+          >
+            <X className="size-5.5" />
+          </button>
         </div>
 
-        {/* Cuerpo Principal: 2 Columnas */}
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[38fr_62fr]">
+        {/* Cuerpo Principal: lista de productos + panel de detalle */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           {/* ============================================================== */}
-          {/* COLUMNA IZQUIERDA: Búsqueda, Tabla de Resultados y Paginación */}
+          {/* COLUMNA IZQUIERDA: Tabla de Resultados y Paginación */}
           {/* ============================================================== */}
-          <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden border-b border-border p-4 lg:border-b-0 lg:border-r">
-            {/* Controles de Búsqueda y Almacén */}
-            <div className="flex flex-col gap-2.5">
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-text-muted" />
-                <Input
-                  ref={searchInputRef}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por código, SKU o nombre... (F3)"
-                  className="h-11 pl-10 pr-9 text-base shadow-xs"
-                  data-testid="search-modal-input"
-                />
-                {search.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearch('');
-                      searchInputRef.current?.focus();
-                    }}
-                    className="absolute top-1/2 right-3 -translate-y-1/2 text-text-muted hover:text-text-primary"
-                    aria-label="Limpiar búsqueda"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 text-sm text-text-muted">
-                <Warehouse className="size-4 shrink-0 text-text-muted" />
-                <Select
-                  ref={warehouseSelectRef}
-                  value={warehouseId ?? ''}
-                  onChange={(e) =>
-                    onWarehouseChange(e.target.value ? Number(e.target.value) : null)
-                  }
-                  className="h-10 flex-1 text-sm shadow-xs"
-                  data-testid="search-modal-warehouse-select"
-                >
-                  <option value="">Todos los almacenes</option>
-                  {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.code} - {w.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
+          <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
             {/* Tabla de Resultados */}
             <div
               ref={tableContainerRef}
@@ -743,7 +774,10 @@ export function ProductSearchDetailModal({
                         <div
                           key={p.id}
                           data-row-index={index}
-                          onClick={() => setSelectedIndex(index)}
+                          onClick={() => {
+                            setSelectedIndex(index);
+                            setDetailOpen(true);
+                          }}
                           onDoubleClick={handleConfirmSelect}
                           className={cn(
                             'grid cursor-pointer grid-cols-12 items-center gap-2 rounded-xl px-3 py-3 text-sm transition-colors select-none',
@@ -829,7 +863,8 @@ export function ProductSearchDetailModal({
           {/* ============================================================== */}
           {/* COLUMNA DERECHA: Detalle con Pestañas */}
           {/* ============================================================== */}
-          <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg/20 p-4">
+          {detailOpen ? (
+            <div className="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-t border-border bg-bg/20 p-4 lg:w-[58%] lg:border-t-0 lg:border-l xl:w-[55%]">
             {!selectedProduct ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-text-muted">
                 <Package className="size-12 stroke-1 text-text-muted/40" />
@@ -1368,7 +1403,21 @@ export function ProductSearchDetailModal({
                 </Tabs>
               </div>
             )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex shrink-0 items-center justify-center border-t border-border bg-bg/20 p-2 lg:w-12 lg:border-t-0 lg:border-l">
+              <button
+                type="button"
+                onClick={() => setDetailOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-text-primary lg:flex-col lg:px-2.5 lg:py-4"
+                aria-label="Mostrar detalle"
+                data-testid="search-modal-detail-rail-toggle"
+              >
+                <PanelRightOpen className="size-4.5" />
+                <span className="lg:[writing-mode:vertical-rl]">Detalle</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ============================================================== */}
