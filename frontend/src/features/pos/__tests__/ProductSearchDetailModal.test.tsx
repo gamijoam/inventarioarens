@@ -139,6 +139,7 @@ vi.mock('@/features/inventory-center/components/ProductImage', () => ({
 describe('ProductSearchDetailModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
   });
 
   it('renderiza correctamente el modal con título, buscador, atajos F2..F8 y tabla de resultados', () => {
@@ -322,5 +323,100 @@ describe('ProductSearchDetailModal', () => {
 
     // Debe llamar a onSelect con el producto seleccionado
     expect(onSelect).toHaveBeenCalledWith(mockProducts[0]);
+  });
+
+  it('colapsa y expande el panel de detalle con el botón', () => {
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+        priceLists={mockPriceLists}
+      />,
+    );
+
+    // Por defecto el detalle del producto seleccionado es visible.
+    expect(screen.getByText('Categoría: Lubricantes')).toBeInTheDocument();
+
+    // Al colapsar, el detalle desaparece y el listado sigue visible.
+    fireEvent.click(screen.getByTestId('search-modal-detail-toggle'));
+    expect(screen.queryByText('Categoría: Lubricantes')).not.toBeInTheDocument();
+    expect(screen.getByTestId('search-modal-row-1')).toBeInTheDocument();
+
+    // Al volver a pulsar, el detalle reaparece.
+    fireEvent.click(screen.getByTestId('search-modal-detail-toggle'));
+    expect(screen.getByText('Categoría: Lubricantes')).toBeInTheDocument();
+  });
+
+  it('recuerda en localStorage que el panel de detalle fue colapsado', () => {
+    window.localStorage.setItem('pos.f3.detailOpen', 'false');
+
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+        priceLists={mockPriceLists}
+      />,
+    );
+
+    expect(screen.queryByText('Categoría: Lubricantes')).not.toBeInTheDocument();
+    expect(screen.getByTestId('search-modal-row-1')).toBeInTheDocument();
+  });
+
+  it('abre el detalle al seleccionar una fila si estaba colapsado', () => {
+    window.localStorage.setItem('pos.f3.detailOpen', 'false');
+
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+        priceLists={mockPriceLists}
+      />,
+    );
+
+    expect(screen.queryByText('[F5] Precios')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('search-modal-row-2'));
+
+    expect(screen.getByText('[F5] Precios')).toBeInTheDocument();
+  });
+
+  it('no muestra el selector de empaque ni la tarjeta de stock/precio base', () => {
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+        priceLists={mockPriceLists}
+        activeRate={{ rate: 70, name: 'BCV' }}
+      />,
+    );
+
+    // El selector de empaque (x1 / x6 / x12) ya no existe.
+    expect(screen.queryByText('Empaque:')).not.toBeInTheDocument();
+    expect(screen.queryByText('x1')).not.toBeInTheDocument();
+    expect(screen.queryByText('x6')).not.toBeInTheDocument();
+    expect(screen.queryByText('x12')).not.toBeInTheDocument();
+
+    // La tarjeta redundante de stock y precio base fue eliminada.
+    expect(screen.queryByText('Precio base')).not.toBeInTheDocument();
+
+    // La tabla comparativa sigue disponible con sus columnas clave.
+    expect(screen.getByText('USD c/Imp')).toBeInTheDocument();
+    expect(screen.getByText('VES c/Imp')).toBeInTheDocument();
   });
 });

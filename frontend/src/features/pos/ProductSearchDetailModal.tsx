@@ -39,6 +39,8 @@ import {
   Loader2,
   Lock,
   Package,
+  PanelRightClose,
+  PanelRightOpen,
   Search,
   ShieldCheck,
   Warehouse,
@@ -73,7 +75,7 @@ interface ProductSearchDetailModalProps {
   initialSearch?: string;
 }
 
-type TabKey = 'datos' | 'existencia' | 'precios' | 'seriales' | 'lotes';
+type TabKey = 'datos' | 'existencia' | 'precios' | 'seriales';
 
 const PAGE_SIZE = 10;
 const IVA_RATE = 0.16; // 16% IVA Venezuela
@@ -144,9 +146,6 @@ interface PriceTableRow {
   netVes: number;
   taxVes: number;
   totalVes: number;
-  packageFactor: number;
-  packageUsd: number;
-  packageVes: number;
 }
 
 export function ProductSearchDetailModal({
@@ -166,8 +165,16 @@ export function ProductSearchDetailModal({
   const [page, setPage] = useState(1);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('precios');
-  const [packageFactor, setPackageFactor] = useState<number>(1);
   const [serialFilter, setSerialFilter] = useState('');
+  const [detailOpen, setDetailOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+
+    try {
+      return window.localStorage.getItem('pos.f3.detailOpen') !== 'false';
+    } catch {
+      return true;
+    }
+  });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const warehouseSelectRef = useRef<HTMLSelectElement>(null);
@@ -242,6 +249,17 @@ export function ProductSearchDetailModal({
     setSelectedIndex(0);
   }, [debouncedSearch, page]);
 
+  // Persistir la preferencia del panel de detalle entre aperturas del modal
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      window.localStorage.setItem('pos.f3.detailOpen', detailOpen ? 'true' : 'false');
+    } catch {
+      // localStorage puede no estar disponible (modo privado o SSR).
+    }
+  }, [detailOpen]);
+
   // Asegurar visibilidad de la fila seleccionada
   useEffect(() => {
     if (!tableContainerRef.current) return;
@@ -285,10 +303,6 @@ export function ProductSearchDetailModal({
       // Impuesto en VES correspondiente al desglose
       const taxVes = totalVes > 0 ? Math.round((totalVes - netVes) * 100) / 100 : 0;
 
-      const factor = Math.max(1, packageFactor);
-      const packageUsd = Math.round(totalUsd * factor * 100) / 100;
-      const packageVes = Math.round(totalVes * factor * 100) / 100;
-
       return {
         id,
         label,
@@ -300,9 +314,6 @@ export function ProductSearchDetailModal({
         netVes,
         taxVes,
         totalVes,
-        packageFactor: factor,
-        packageUsd,
-        packageVes,
       };
     };
 
@@ -361,7 +372,7 @@ export function ProductSearchDetailModal({
     }
 
     return rows;
-  }, [selectedProduct, priceLists, activeRate, packageFactor]);
+  }, [selectedProduct, priceLists, activeRate]);
 
   // Acción de agregar el producto seleccionado al ticket
   const handleConfirmSelect = useCallback(() => {
@@ -603,125 +614,125 @@ export function ProductSearchDetailModal({
     return productSerials.filter((s) => s.serial_number?.toLowerCase().includes(q));
   }, [productSerials, serialFilter]);
 
-  // Stock total sumando todos los almacenes
-  const totalStockAllWarehouses = useMemo(() => {
-    if (!stockByWarehouse || stockByWarehouse.length === 0) {
-      return Number(selectedProduct?.available_stock ?? 0);
-    }
-    return stockByWarehouse.reduce((acc, row) => acc + Number(row.available || 0), 0);
-  }, [stockByWarehouse, selectedProduct]);
-
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex h-[92vh] max-h-[92vh] w-[96vw] max-w-7xl flex-col overflow-hidden rounded-2xl border border-border bg-surface p-0 shadow-2xl"
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex h-[88vh] max-h-[88vh] w-[94vw] max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-border bg-surface p-0 shadow-2xl"
         onKeyDown={handleKeyDown}
         data-testid="product-search-detail-modal"
       >
-        {/* Encabezado Superior */}
-        <div className="flex shrink-0 items-center justify-between border-b border-border bg-bg/50 px-5 py-3.5">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
+        {/* Barra superior: búsqueda y controles */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-border bg-bg/40 px-4 py-2.5">
+          <div className="hidden items-center gap-2.5 md:flex">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Boxes className="size-5" />
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-text-primary tracking-tight">
-                Búsqueda y Detalle de Productos
-              </h2>
-              <p className="text-sm text-text-muted">
-                Consulta técnica, catálogo de precios e inventario multi-almacén
-              </p>
-            </div>
+            <h2 className="text-base font-bold tracking-tight text-text-primary xl:hidden">
+              Productos
+            </h2>
+            <h2 className="hidden text-base font-bold tracking-tight text-text-primary xl:block">
+              Búsqueda y Detalle de Productos
+            </h2>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            {activeRate && (
-              <Badge variant="outline" className="border-border bg-surface px-3 py-1.5 text-sm">
-                Tasa: <span className="ml-1.5 font-bold text-primary">{activeRate.rate.toFixed(2)}</span>{' '}
-                <span className="text-text-muted ml-1">({activeRate.name})</span>
-              </Badge>
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-text-muted" />
+            <Input
+              ref={searchInputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por código, SKU o nombre... (F3)"
+              className="h-10 pl-10 pr-9 text-base shadow-xs"
+              data-testid="search-modal-input"
+            />
+            {search.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="size-4" />
+              </button>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-2 text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
-              aria-label="Cerrar ventana"
-            >
-              <X className="size-5.5" />
-            </button>
           </div>
+
+          <div className="flex items-center gap-2 text-sm text-text-muted sm:w-56">
+            <Warehouse className="size-4 shrink-0 text-text-muted" />
+            <Select
+              ref={warehouseSelectRef}
+              value={warehouseId ?? ''}
+              onChange={(e) =>
+                onWarehouseChange(e.target.value ? Number(e.target.value) : null)
+              }
+              className="h-10 flex-1 text-sm shadow-xs"
+              data-testid="search-modal-warehouse-select"
+            >
+              <option value="">Todos los almacenes</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code} - {w.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          {activeRate && (
+            <span className="hidden items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm shadow-2xs lg:flex">
+              <span className="text-text-muted">Tasa</span>
+              <span className="font-bold text-primary">{activeRate.rate.toFixed(2)}</span>
+              <span className="text-text-muted">({activeRate.name})</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setDetailOpen((value) => !value)}
+            className="hidden items-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 py-2 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-text-primary lg:flex"
+            aria-label={detailOpen ? 'Ocultar detalle' : 'Mostrar detalle'}
+            data-testid="search-modal-detail-toggle"
+          >
+            {detailOpen ? (
+              <PanelRightClose className="size-4.5" />
+            ) : (
+              <PanelRightOpen className="size-4.5" />
+            )}
+            <span>{detailOpen ? 'Ocultar detalle' : 'Mostrar detalle'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
+            aria-label="Cerrar ventana"
+          >
+            <X className="size-5.5" />
+          </button>
         </div>
 
-        {/* Cuerpo Principal: 2 Columnas */}
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden divide-y divide-border md:grid-cols-12 md:divide-y-0 md:divide-x">
+        {/* Cuerpo Principal: lista de productos + panel de detalle */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           {/* ============================================================== */}
-          {/* COLUMNA IZQUIERDA: Búsqueda, Tabla de Resultados y Paginación */}
+          {/* COLUMNA IZQUIERDA: Tabla de Resultados y Paginación */}
           {/* ============================================================== */}
-          <div className="flex h-full flex-col overflow-hidden bg-bg/25 p-3.5 gap-3 md:col-span-5 lg:col-span-4">
-            {/* Controles de Búsqueda y Almacén */}
-            <div className="flex flex-col gap-2.5">
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-text-muted" />
-                <Input
-                  ref={searchInputRef}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por código, SKU o nombre... (F3)"
-                  className="h-11 pl-10 pr-9 text-base shadow-xs"
-                  data-testid="search-modal-input"
-                />
-                {search.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearch('');
-                      searchInputRef.current?.focus();
-                    }}
-                    className="absolute top-1/2 right-3 -translate-y-1/2 text-text-muted hover:text-text-primary"
-                    aria-label="Limpiar búsqueda"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-text-muted">
-                  <Warehouse className="size-4 shrink-0 text-text-muted" />
-                  <Select
-                    ref={warehouseSelectRef}
-                    value={warehouseId ?? ''}
-                    onChange={(e) =>
-                      onWarehouseChange(e.target.value ? Number(e.target.value) : null)
-                    }
-                    className="h-9.5 text-sm shadow-xs"
-                    data-testid="search-modal-warehouse-select"
-                  >
-                    <option value="">Todos los almacenes</option>
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.code} - {w.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-            </div>
-
+          <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
             {/* Tabla de Resultados */}
             <div
               ref={tableContainerRef}
-              className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-xs"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface"
             >
               {/* Encabezado fijo de la tabla */}
-              <div className="grid grid-cols-12 border-b border-border bg-bg/60 px-3.5 py-2.5 text-xs sm:text-sm font-bold tracking-wider text-text-muted uppercase">
+              <div className="grid grid-cols-12 gap-2 border-b border-border/70 bg-bg/40 px-4 py-3 text-[11px] font-semibold tracking-wider text-text-muted uppercase">
                 <div className="col-span-4">Código / SKU</div>
                 <div className="col-span-6">Descripción</div>
                 <div className="col-span-2 text-right">Stock</div>
               </div>
 
               {/* Contenido scrolleable */}
-              <div className="flex-1 overflow-y-auto divide-y divide-border/60">
+              <div className="flex-1 overflow-y-auto p-2">
                 {loadingProducts ? (
                   <div className="flex h-48 flex-col items-center justify-center gap-2 text-text-muted">
                     <Loader2 className="size-6 animate-spin text-primary" />
@@ -733,62 +744,75 @@ export function ProductSearchDetailModal({
                     <p className="text-sm">No se encontraron productos coincidentes.</p>
                   </div>
                 ) : (
-                  products.map((p, index) => {
-                    const isSelected = index === selectedIndex;
-                    const stock = Number(p.available_stock ?? 0);
-                    const isLowStock = stock <= Number(p.min_stock ?? 0) && Number(p.min_stock ?? 0) > 0;
+                  <div className="flex flex-col gap-1">
+                    {products.map((p, index) => {
+                      const isSelected = index === selectedIndex;
+                      const stock = Number(p.available_stock ?? 0);
+                      const isLowStock =
+                        stock <= Number(p.min_stock ?? 0) && Number(p.min_stock ?? 0) > 0;
 
-                    return (
-                      <div
-                        key={p.id}
-                        data-row-index={index}
-                        onClick={() => setSelectedIndex(index)}
-                        onDoubleClick={handleConfirmSelect}
-                        className={cn(
-                          'grid cursor-pointer grid-cols-12 items-center px-3.5 py-2.5 text-sm transition-colors select-none',
-                          isSelected
-                            ? 'bg-primary/10 border-l-4 border-l-primary font-medium text-text-primary'
-                            : 'hover:bg-bg/60 text-text-secondary',
-                        )}
-                        data-testid={`search-modal-row-${p.id}`}
-                      >
-                        <div className="col-span-4 font-mono text-xs sm:text-sm font-semibold text-text-primary truncate">
-                          {p.sku || p.barcode || 'S/C'}
-                        </div>
-                        <div className="col-span-6 truncate pr-2" title={p.name}>
-                          <div className={cn('truncate text-sm', isSelected && 'font-bold text-text-primary text-sm sm:text-base')}>
-                            {p.name}
+                      return (
+                        <div
+                          key={p.id}
+                          data-row-index={index}
+                          onClick={() => {
+                            setSelectedIndex(index);
+                            setDetailOpen(true);
+                          }}
+                          onDoubleClick={handleConfirmSelect}
+                          className={cn(
+                            'grid cursor-pointer grid-cols-12 items-center gap-2 rounded-xl px-3 py-3 text-sm transition-colors select-none',
+                            isSelected
+                              ? 'bg-primary/10 ring-1 ring-primary/40'
+                              : 'hover:bg-bg/60',
+                          )}
+                          data-testid={`search-modal-row-${p.id}`}
+                        >
+                          <div className="col-span-4 truncate font-mono text-xs font-semibold text-text-primary sm:text-sm">
+                            {p.sku || p.barcode || 'S/C'}
                           </div>
-                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-muted">
-                            <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.2 font-medium text-primary">
-                              <Folder className="size-3 shrink-0" />
-                              <span className="truncate">{getProductCategory(p)}</span>
-                            </span>
-                            {p.brand?.name && (
-                              <span className="truncate text-text-muted">• {p.brand.name}</span>
-                            )}
+                          <div className="col-span-6 min-w-0" title={p.name}>
+                            <div
+                              className={cn(
+                                'truncate text-sm',
+                                isSelected ? 'font-bold text-text-primary' : 'text-text-secondary',
+                              )}
+                            >
+                              {p.name}
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                <Folder className="size-2.5 shrink-0" />
+                                <span className="truncate">{getProductCategory(p)}</span>
+                              </span>
+                              {p.brand?.name && (
+                                <span className="truncate text-[10px] text-text-muted">
+                                  {p.brand.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="col-span-2 flex justify-end">
+                            <Badge
+                              variant={stock > 0 ? (isLowStock ? 'warning' : 'success') : 'danger'}
+                              className="px-2.5 py-1 text-xs font-mono font-bold leading-none tabular-nums"
+                            >
+                              {stock}
+                            </Badge>
                           </div>
                         </div>
-                        <div className="col-span-2 flex justify-end">
-                          <Badge
-                            variant={stock > 0 ? (isLowStock ? 'warning' : 'success') : 'danger'}
-                            className="px-2 py-0.5 text-xs font-mono font-bold leading-none"
-                          >
-                            {stock}
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Controles de Paginación */}
-            <div className="flex shrink-0 items-center justify-between border-t border-border/80 pt-2.5 text-sm text-text-muted">
+            <div className="flex shrink-0 items-center justify-between rounded-2xl border border-border/70 bg-bg/30 px-4 py-2.5 text-sm text-text-muted">
               <span>
                 Pág. <strong className="text-text-primary">{page}</strong> de{' '}
-                <strong className="text-text-primary">{totalPages}</strong> ({totalProducts} items)
+                <strong className="text-text-primary">{totalPages}</strong> · {totalProducts} items
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -796,21 +820,21 @@ export function ProductSearchDetailModal({
                   size="sm"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1 || loadingProducts}
-                  className="h-8.5 px-3 text-sm font-medium"
+                  className="h-9 gap-1 rounded-xl px-3 text-sm font-medium"
                   aria-label="Página anterior"
                 >
                   <ChevronLeft className="size-4" />
-                  <span className="hidden sm:inline ml-1">Ant.</span>
+                  <span>Ant.</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages || loadingProducts}
-                  className="h-8.5 px-3 text-sm font-medium"
+                  className="h-9 gap-1 rounded-xl px-3 text-sm font-medium"
                   aria-label="Página siguiente"
                 >
-                  <span className="hidden sm:inline mr-1">Sig.</span>
+                  <span>Sig.</span>
                   <ChevronRight className="size-4" />
                 </Button>
               </div>
@@ -820,7 +844,8 @@ export function ProductSearchDetailModal({
           {/* ============================================================== */}
           {/* COLUMNA DERECHA: Detalle con Pestañas */}
           {/* ============================================================== */}
-          <div className="flex h-full flex-col overflow-hidden bg-surface p-4 md:col-span-7 lg:col-span-8">
+          {detailOpen ? (
+            <div className="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-t border-border bg-bg/20 p-4 lg:w-[58%] lg:border-t-0 lg:border-l xl:w-[55%]">
             {!selectedProduct ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-text-muted">
                 <Package className="size-12 stroke-1 text-text-muted/40" />
@@ -829,56 +854,30 @@ export function ProductSearchDetailModal({
             ) : (
               <div className="flex h-full flex-col overflow-hidden">
                 {/* Cabecera del producto seleccionado */}
-                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border pb-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate text-base font-bold text-text-primary sm:text-lg">
-                        {selectedProduct.name}
-                      </h3>
-                    </div>
-                    {/* Categoría destacada (medio grande y visible) */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-xs sm:text-sm font-bold text-primary shadow-2xs">
-                        <Folder className="size-3.5 sm:size-4 shrink-0 text-primary" />
-                        <span>Categoría: {selectedCategory}</span>
-                      </span>
-                      {selectedProduct.brand?.name && (
-                        <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg/50 px-2.5 py-1 text-xs sm:text-sm font-medium text-text-secondary">
-                          Marca: <strong className="text-text-primary font-semibold">{selectedProduct.brand.name}</strong>
-                        </span>
-                      )}
-                    </div>
+                <div className="shrink-0 pb-4">
+                  <h3 className="truncate text-xl font-bold tracking-tight text-text-primary">
+                    {selectedProduct.name}
+                  </h3>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-text-muted">
-                      <span className="font-mono font-medium text-text-primary">
-                        SKU: {selectedProduct.sku ?? 'N/A'}
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-text-muted">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      <Folder className="size-3.5 shrink-0" />
+                      <span className="truncate">Categoría: {selectedCategory}</span>
+                    </span>
+                    {selectedProduct.brand?.name && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 font-medium text-text-secondary">
+                        Marca:{' '}
+                        <strong className="font-semibold text-text-primary">
+                          {selectedProduct.brand.name}
+                        </strong>
                       </span>
-                      <span>•</span>
-                      <span className="font-mono">
-                        Barras: {selectedProduct.barcode ?? 'N/A'}
-                      </span>
-                      {selectedProduct.unit_of_measure && (
-                        <>
-                          <span>•</span>
-                          <span className="uppercase">
-                            Unidad: {selectedProduct.unit_of_measure}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge
-                      variant={totalStockAllWarehouses > 0 ? 'success' : 'danger'}
-                      className="px-2.5 py-1 text-xs font-semibold shadow-xs"
-                    >
-                      {totalStockAllWarehouses > 0
-                        ? `Stock: ${totalStockAllWarehouses} ${selectedProduct.unit_of_measure ?? 'UND'}`
-                        : 'Sin existencia'}
-                    </Badge>
-                    <span className="text-[11px] text-text-muted font-mono">
-                      Ref: {money(selectedProduct.base_price)}
+                    )}
+                    <span className="font-mono">SKU: {selectedProduct.sku ?? 'N/A'}</span>
+                    <span>•</span>
+                    <span className="font-mono">Barras: {selectedProduct.barcode ?? 'N/A'}</span>
+                    <span>•</span>
+                    <span className="uppercase">
+                      Unidad: {selectedProduct.unit_of_measure ?? 'UND'}
                     </span>
                   </div>
                 </div>
@@ -889,21 +888,18 @@ export function ProductSearchDetailModal({
                   onValueChange={(v) => setActiveTab(v as TabKey)}
                   className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3"
                 >
-                  <TabsList className="grid w-full grid-cols-5 h-9 bg-bg/60 p-1 border border-border rounded-lg shrink-0">
-                    <TabsTrigger value="precios" className="text-xs py-1 px-1.5 truncate">
+                  <TabsList className="grid h-10 w-full shrink-0 grid-cols-4 gap-1 rounded-full bg-bg/50 p-1">
+                    <TabsTrigger value="precios" className="rounded-full text-xs py-1.5 px-2 truncate">
                       [F5] Precios
                     </TabsTrigger>
-                    <TabsTrigger value="existencia" className="text-xs py-1 px-1.5 truncate">
+                    <TabsTrigger value="existencia" className="rounded-full text-xs py-1.5 px-2 truncate">
                       [F6] Existencia
                     </TabsTrigger>
-                    <TabsTrigger value="datos" className="text-xs py-1 px-1.5 truncate">
+                    <TabsTrigger value="datos" className="rounded-full text-xs py-1.5 px-2 truncate">
                       [F8] Datos
                     </TabsTrigger>
-                    <TabsTrigger value="seriales" className="text-xs py-1 px-1.5 truncate">
-                      [F7] Seriales
-                    </TabsTrigger>
-                    <TabsTrigger value="lotes" className="text-xs py-1 px-1.5 truncate">
-                      Lotes
+                    <TabsTrigger value="seriales" className="rounded-full text-xs py-1.5 px-2 truncate">
+                      [F7] Seriales/Lotes
                     </TabsTrigger>
                   </TabsList>
 
@@ -914,95 +910,68 @@ export function ProductSearchDetailModal({
                     value="precios"
                     className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3 space-y-3"
                   >
-                    {/* Barra de Tasa, Factor de Empaque e IVA */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-bg/40 p-2.5 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-text-primary">Tasa activa:</span>
-                        <Badge variant="outline" className="border-primary/40 bg-primary/5 font-mono text-primary">
-                          {activeRate ? `1 USD = ${moneyVes(activeRate.rate)} (${activeRate.name})` : 'Sin tasa definida'}
-                        </Badge>
-                        <span className="text-text-muted">• IVA 16%</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-text-muted">Empaque:</span>
-                        <div className="flex items-center rounded-lg border border-border bg-surface p-0.5">
-                          {[1, 6, 12, 24].map((factor) => (
-                            <button
-                              key={factor}
-                              type="button"
-                              onClick={() => setPackageFactor(factor)}
-                              className={cn(
-                                'rounded px-2 py-0.5 text-xs font-medium transition-colors',
-                                packageFactor === factor
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'text-text-muted hover:text-text-primary',
-                              )}
-                            >
-                              x{factor}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                    {/* Barra de Tasa e IVA */}
+                    <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-border/70 bg-bg/40 px-4 py-3 text-xs">
+                      <span className="font-semibold text-text-primary">Tasa activa</span>
+                      <span className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 font-mono font-semibold text-primary">
+                        {activeRate ? `1 USD = ${moneyVes(activeRate.rate)} (${activeRate.name})` : 'Sin tasa definida'}
+                      </span>
+                      <span className="text-text-muted">IVA 16% incluido</span>
                     </div>
 
                     {/* Tabla Comparativa de Precios */}
-                    <div className="flex-1 overflow-auto rounded-xl border border-border bg-surface shadow-xs">
+                    <div className="flex-1 overflow-auto rounded-2xl border border-border/70 bg-surface">
                       <table className="w-full text-left text-xs border-collapse">
-                        <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
+                        <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
                           <tr>
-                            <th className="py-2.5 px-3">Nivel / Lista de Precio</th>
-                            <th className="py-2.5 px-2 text-right">USD Neto</th>
-                            <th className="py-2.5 px-2 text-right">IVA (16%)</th>
-                            <th className="py-2.5 px-3 text-right text-primary font-bold">USD c/Imp</th>
-                            <th className="py-2.5 px-2 text-right">VES Neto</th>
-                            <th className="py-2.5 px-2 text-right">IVA VES</th>
-                            <th className="py-2.5 px-3 text-right text-primary font-bold">VES c/Imp</th>
-                            <th className="py-2.5 px-3 text-right bg-primary/5">
-                              x{packageFactor} {selectedProduct.unit_of_measure ?? 'UND'}
-                            </th>
+                            <th className="px-4 py-3">Nivel / Lista de Precio</th>
+                            <th className="px-3 py-3 text-right">USD Neto</th>
+                            <th className="px-3 py-3 text-right">IVA</th>
+                            <th className="px-3 py-3 text-right text-primary font-bold">USD c/Imp</th>
+                            <th className="px-3 py-3 text-right">VES Neto</th>
+                            <th className="px-3 py-3 text-right">IVA VES</th>
+                            <th className="px-3 py-3 text-right text-primary font-bold">VES c/Imp</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-border">
+                        <tbody className="divide-y divide-border/70">
                           {priceRows.map((row, idx) => (
                             <tr
                               key={row.id}
                               className={cn(
                                 'transition-colors hover:bg-bg/40',
-                                idx === 0 && 'bg-primary/5 font-medium',
+                                idx === 0 && 'bg-primary/5',
                               )}
                             >
-                              <td className="py-2.5 px-3 font-medium">
-                                <div className="flex items-center gap-1.5">
+                              <td className="px-4 py-3.5 font-medium">
+                                <div className="flex items-center gap-2">
                                   <span>{row.label}</span>
                                   {row.isDefault && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/40 text-primary">
+                                    <Badge
+                                      variant="outline"
+                                      className="border-primary/40 px-1.5 py-0 text-[9px] text-primary"
+                                    >
                                       Base
                                     </Badge>
                                   )}
                                 </div>
                               </td>
-                              <td className="py-2.5 px-2 text-right font-mono text-text-secondary">
+                              <td className="px-3 py-3.5 text-right font-mono text-text-secondary">
                                 {money(row.netUsd)}
                               </td>
-                              <td className="py-2.5 px-2 text-right font-mono text-text-muted">
+                              <td className="px-3 py-3.5 text-right font-mono text-text-muted">
                                 {money(row.taxUsd)}
                               </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-text-primary">
+                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary">
                                 {money(row.totalUsd)}
                               </td>
-                              <td className="py-2.5 px-2 text-right font-mono text-text-secondary">
+                              <td className="px-3 py-3.5 text-right font-mono text-text-secondary">
                                 {moneyVes(row.netVes)}
                               </td>
-                              <td className="py-2.5 px-2 text-right font-mono text-text-muted">
+                              <td className="px-3 py-3.5 text-right font-mono text-text-muted">
                                 {moneyVes(row.taxVes)}
                               </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-text-primary">
+                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary">
                                 {moneyVes(row.totalVes)}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold bg-primary/5 text-primary">
-                                <div>{money(row.packageUsd)}</div>
-                                <div className="text-[10px] font-normal text-text-muted">{moneyVes(row.packageVes)}</div>
                               </td>
                             </tr>
                           ))}
@@ -1267,7 +1236,7 @@ export function ProductSearchDetailModal({
                   </TabsContent>
 
                   {/* -------------------------------------------------------- */}
-                  {/* TAB 4: SERIALES / IMEIS                                   */}
+                  {/* TAB 4: SERIALES / IMEIS Y LOTES                           */}
                   {/* -------------------------------------------------------- */}
                   <TabsContent
                     value="seriales"
@@ -1281,7 +1250,7 @@ export function ProductSearchDetailModal({
                           value={serialFilter}
                           onChange={(e) => setSerialFilter(e.target.value)}
                           placeholder="Filtrar número serial o IMEI..."
-                          className="h-8.5 pl-8 text-xs"
+                          className="h-10 pl-8 text-xs"
                         />
                       </div>
                       <span className="text-xs text-text-muted">
@@ -1289,7 +1258,7 @@ export function ProductSearchDetailModal({
                       </span>
                     </div>
 
-                    <div className="flex-1 overflow-auto rounded-xl border border-border bg-surface shadow-xs">
+                    <div className="flex-1 overflow-auto rounded-2xl border border-border/70 bg-surface">
                       {loadingSerials ? (
                         <div className="flex h-40 flex-col items-center justify-center gap-2 text-text-muted">
                           <Loader2 className="size-6 animate-spin text-primary" />
@@ -1306,27 +1275,27 @@ export function ProductSearchDetailModal({
                         </div>
                       ) : (
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
+                          <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
                             <tr>
-                              <th className="py-2.5 px-3">Número Serial / IMEI</th>
-                              <th className="py-2.5 px-3">Tipo</th>
-                              <th className="py-2.5 px-3">Almacén</th>
-                              <th className="py-2.5 px-3 text-right">Estado</th>
+                              <th className="px-4 py-3">Número Serial / IMEI</th>
+                              <th className="px-4 py-3">Tipo</th>
+                              <th className="px-4 py-3">Almacén</th>
+                              <th className="px-4 py-3 text-right">Estado</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-border">
+                          <tbody className="divide-y divide-border/70">
                             {filteredSerials.map((serial) => (
                               <tr key={serial.id} className="transition-colors hover:bg-bg/40">
-                                <td className="py-2.5 px-3 font-mono font-bold text-text-primary">
+                                <td className="px-4 py-3 font-mono font-bold text-text-primary">
                                   {serial.serial_number}
                                 </td>
-                                <td className="py-2.5 px-3 uppercase text-text-secondary text-[11px]">
+                                <td className="px-4 py-3 uppercase text-text-secondary text-[11px]">
                                   {serial.serial_type || 'IMEI'}
                                 </td>
-                                <td className="py-2.5 px-3 text-text-secondary">
+                                <td className="px-4 py-3 text-text-secondary">
                                   {serial.warehouse_name || 'Principal'}
                                 </td>
-                                <td className="py-2.5 px-3 text-right">
+                                <td className="px-4 py-3 text-right">
                                   <Badge
                                     variant={serial.status === 'available' ? 'success' : 'outline'}
                                     className="text-[10px] uppercase font-semibold"
@@ -1340,52 +1309,58 @@ export function ProductSearchDetailModal({
                         </table>
                       )}
                     </div>
-                  </TabsContent>
 
-                  {/* -------------------------------------------------------- */}
-                  {/* TAB 5: LOTES Y TRAZABILIDAD                              */}
-                  {/* -------------------------------------------------------- */}
-                  <TabsContent
-                    value="lotes"
-                    className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3 space-y-3"
-                  >
-                    <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-text-muted rounded-xl border border-dashed border-border bg-bg/20">
-                      <Calendar className="size-10 stroke-1 text-text-muted/60" />
-                      <div>
-                        <h4 className="text-sm font-semibold text-text-primary">
-                          Trazabilidad de Lotes y Vencimientos
-                        </h4>
-                        <p className="mt-1 max-w-md text-xs leading-relaxed text-text-muted">
-                          Este producto opera con inventario continuo estándar sin fechas de caducidad
-                          o lotes perecederos asignados.
+                    {/* Trazabilidad de lotes y vencimientos */}
+                    <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-dashed border-border/70 bg-bg/20 px-4 py-3">
+                      <Calendar className="size-5 shrink-0 text-text-muted/70" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-text-primary">
+                          Trazabilidad de lotes y vencimientos
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-text-muted">
+                          Inventario continuo estándar sin fechas de caducidad ni lotes perecederos.
                         </p>
                       </div>
-                      <Badge variant="outline" className="text-[11px]">
-                        Control General por Unidad ({selectedProduct.unit_of_measure ?? 'UND'})
+                      <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
+                        Control por Unidad ({selectedProduct.unit_of_measure ?? 'UND'})
                       </Badge>
                     </div>
                   </TabsContent>
                 </Tabs>
               </div>
             )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex shrink-0 items-center justify-center border-t border-border bg-bg/20 p-2 lg:w-12 lg:border-t-0 lg:border-l">
+              <button
+                type="button"
+                onClick={() => setDetailOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:border-primary hover:text-text-primary lg:flex-col lg:px-2.5 lg:py-4"
+                aria-label="Mostrar detalle"
+                data-testid="search-modal-detail-rail-toggle"
+              >
+                <PanelRightOpen className="size-4.5" />
+                <span className="lg:[writing-mode:vertical-rl]">Detalle</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ============================================================== */}
         {/* PIE DE VENTANA: Barra de Atajos F2..F8 y Botones de Acción     */}
         {/* ============================================================== */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-bg/75 px-5 py-3.5">
-          {/* Pills de atajos de teclado F2 al F8 */}
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-bg/50 px-6 py-3.5">
+          {/* Chips de atajos de teclado F2 al F8 */}
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={handleConfirmSelect}
-              className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
+              className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
             >
-              <kbd className="rounded bg-primary/10 border border-primary/30 px-2 py-0.5 font-mono text-xs font-bold text-primary">
+              <kbd className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
                 F2
               </kbd>
-              <span>Aceptar / Agregar</span>
+              <span>Aceptar</span>
             </button>
 
             <button
@@ -1394,9 +1369,9 @@ export function ProductSearchDetailModal({
                 searchInputRef.current?.focus();
                 searchInputRef.current?.select();
               }}
-              className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
+              className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
             >
-              <kbd className="rounded bg-bg border border-border px-2 py-0.5 font-mono text-xs font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
                 F3
               </kbd>
               <span>Buscar</span>
@@ -1405,9 +1380,9 @@ export function ProductSearchDetailModal({
             <button
               type="button"
               onClick={() => warehouseSelectRef.current?.focus()}
-              className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
+              className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
             >
-              <kbd className="rounded bg-bg border border-border px-2 py-0.5 font-mono text-xs font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
                 F4
               </kbd>
               <span>Almacén</span>
@@ -1417,13 +1392,13 @@ export function ProductSearchDetailModal({
               type="button"
               onClick={() => setActiveTab('precios')}
               className={cn(
-                'flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm transition-colors',
+                'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors',
                 activeTab === 'precios'
-                  ? 'border-primary bg-primary/10 text-primary font-semibold'
+                  ? 'border-primary bg-primary/10 font-semibold text-primary'
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg border border-border px-2 py-0.5 font-mono text-xs font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
                 F5
               </kbd>
               <span>Precios</span>
@@ -1433,13 +1408,13 @@ export function ProductSearchDetailModal({
               type="button"
               onClick={() => setActiveTab('existencia')}
               className={cn(
-                'flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm transition-colors',
+                'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors',
                 activeTab === 'existencia'
-                  ? 'border-primary bg-primary/10 text-primary font-semibold'
+                  ? 'border-primary bg-primary/10 font-semibold text-primary'
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg border border-border px-2 py-0.5 font-mono text-xs font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
                 F6
               </kbd>
               <span>Existencia</span>
@@ -1449,13 +1424,13 @@ export function ProductSearchDetailModal({
               type="button"
               onClick={() => setActiveTab('seriales')}
               className={cn(
-                'flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm transition-colors',
+                'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors',
                 activeTab === 'seriales'
-                  ? 'border-primary bg-primary/10 text-primary font-semibold'
+                  ? 'border-primary bg-primary/10 font-semibold text-primary'
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg border border-border px-2 py-0.5 font-mono text-xs font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
                 F7
               </kbd>
               <span>Seriales/Lotes</span>
@@ -1465,13 +1440,13 @@ export function ProductSearchDetailModal({
               type="button"
               onClick={() => setActiveTab('datos')}
               className={cn(
-                'flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm transition-colors',
+                'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors',
                 activeTab === 'datos'
-                  ? 'border-primary bg-primary/10 text-primary font-semibold'
+                  ? 'border-primary bg-primary/10 font-semibold text-primary'
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg border border-border px-2 py-0.5 font-mono text-xs font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
                 F8
               </kbd>
               <span>Datos</span>
@@ -1484,21 +1459,21 @@ export function ProductSearchDetailModal({
               type="button"
               variant="outline"
               onClick={onClose}
-              className="h-10 px-5 text-sm font-bold"
+              className="h-10 rounded-xl px-5 text-sm font-bold"
               data-testid="search-modal-cancel-btn"
             >
-              Salir <span className="ml-1 text-xs text-text-muted font-mono">(Esc)</span>
+              Salir <span className="ml-1 font-mono text-xs text-text-muted">(Esc)</span>
             </Button>
             <Button
               type="button"
               onClick={handleConfirmSelect}
               disabled={!selectedProduct}
-              className="h-10 px-6 text-sm sm:text-base font-bold gap-2 shadow-sm"
+              className="h-10 gap-2 rounded-xl px-6 text-sm sm:text-base font-bold shadow-sm"
               data-testid="search-modal-accept-btn"
             >
               <Check className="size-4.5" />
               <span>Aceptar</span>
-              <span className="ml-1 text-xs opacity-80 font-mono">(Enter/F2)</span>
+              <span className="ml-1 font-mono text-xs opacity-80">(Enter/F2)</span>
             </Button>
           </div>
         </div>
