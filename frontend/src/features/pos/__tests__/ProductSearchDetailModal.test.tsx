@@ -201,8 +201,12 @@ describe('ProductSearchDetailModal', () => {
     expect(screen.getByText('Precio 2 (Mayor)')).toBeInTheDocument();
     expect(screen.getByText('Precio 3 (Especial)')).toBeInTheDocument();
 
-    // Cálculo con 16% IVA: 10.34 + (10.34 * 0.16 = 1.65) = 11.99 USD
-    expect(screen.getAllByText('$11.99').length).toBeGreaterThan(0);
+    // El precio base del sistema ya incluye el 16% de IVA: 10.34 USD con impuesto
+    expect(screen.getAllByText('$10.34').length).toBeGreaterThan(0);
+    // Base imponible desglosada (10.34 / 1.16 = 8.91 USD neto)
+    expect(screen.getAllByText('$8.91').length).toBeGreaterThan(0);
+    // IVA 16% desglosado (10.34 - 8.91 = 1.43 USD)
+    expect(screen.getAllByText('$1.43').length).toBeGreaterThan(0);
   });
 
   it('permite cambiar entre pestañas (Existencia, Datos, Seriales) usando atajos F6, F8 y F7', () => {
