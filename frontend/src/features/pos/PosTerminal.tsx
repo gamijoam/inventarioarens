@@ -18,7 +18,6 @@ import {
   EyeOff,
   FileText,
   Gift,
-  Info,
   Loader2,
   Minus,
   PauseCircle,
@@ -66,7 +65,7 @@ import { isInvoiceDiscountType, type Promotion } from '@/features/promotions/sch
 import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
-import { ProductDetailDialog } from './ProductDetailDialog';
+import { ProductSearchDetailModal } from './ProductSearchDetailModal';
 import {
   DenominationGrid,
   cashCountTotals,
@@ -1142,20 +1141,11 @@ export function PosTerminal() {
         return;
       }
 
-      // F3 siempre debe anular el comportamiento nativo del navegador (evita abrir 'Buscar en la página')
-      // y hace focus de inmediato en el buscador principal del POS
+      // F3 siempre debe anular el comportamiento nativo del navegador y abrir el modal desktop de Búsqueda y Detalle
       if (event.key === 'F3') {
         event.preventDefault();
-        if (panel !== null) {
-          setPanel(null);
-          setTimeout(() => {
-            searchRef.current?.focus();
-            searchRef.current?.select();
-          }, 50);
-        } else {
-          searchRef.current?.focus();
-          searchRef.current?.select();
-        }
+        setProductSearch(query || '');
+        setPanel('product-search');
         return;
       }
 
@@ -1190,16 +1180,8 @@ export function PosTerminal() {
             return;
           }
           case 'F3': {
-            if (panel !== null) {
-              setPanel(null);
-              setTimeout(() => {
-                searchRef.current?.focus();
-                searchRef.current?.select();
-              }, 50);
-            } else {
-              searchRef.current?.focus();
-              searchRef.current?.select();
-            }
+            setProductSearch(query || '');
+            setPanel('product-search');
             return;
           }
           case 'F4': {
@@ -1563,16 +1545,8 @@ export function PosTerminal() {
               variant="outline"
               size="sm"
               onClick={() => {
-                if (panel !== null) {
-                  setPanel(null);
-                  setTimeout(() => {
-                    searchRef.current?.focus();
-                    searchRef.current?.select();
-                  }, 50);
-                } else {
-                  searchRef.current?.focus();
-                  searchRef.current?.select();
-                }
+                setProductSearch(query || '');
+                setPanel('product-search');
               }}
             >
               <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
@@ -1922,7 +1896,7 @@ export function PosTerminal() {
           </aside>
         </main>
 
-        {panel && (
+        {panel && panel !== 'product-search' && (
           <PanelShell
             title={panelTitle(panel)}
             onClose={() => setPanel(null)}
@@ -1938,16 +1912,8 @@ export function PosTerminal() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (panel !== null) {
-                      setPanel(null);
-                      setTimeout(() => {
-                        searchRef.current?.focus();
-                        searchRef.current?.select();
-                      }, 50);
-                    } else {
-                      searchRef.current?.focus();
-                      searchRef.current?.select();
-                    }
+                    setProductSearch(query || '');
+                    setPanel('product-search');
                   }}
                 >
                   <Search className="size-4" /> F3 Buscar
@@ -2157,22 +2123,6 @@ export function PosTerminal() {
                 onOpenPdf={(job) => void openTicketPdf(job)}
               />
             )}
-            {panel === 'product-search' && (
-              <ProductSearchPanel
-                search={productSearch}
-                products={products}
-                warehouses={warehouses}
-                warehouseId={warehouseId}
-                priceListName={selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL}
-                loading={loadingProducts}
-                onSearch={setProductSearch}
-                onWarehouseChange={setWarehouseId}
-                onSelect={async (product) => {
-                  const added = await addProduct(product);
-                  if (added) setPanel(null);
-                }}
-              />
-            )}
             {panel === 'pay' && (
               <QuickPaymentPanel
                 methods={allowedPaymentMethods}
@@ -2252,6 +2202,23 @@ export function PosTerminal() {
             />
           </PanelShell>
         )}
+
+        {/* Modal Desktop de Búsqueda y Detalle de Productos (F3) */}
+        <ProductSearchDetailModal
+          open={panel === 'product-search'}
+          onClose={() => setPanel(null)}
+          warehouses={warehouses}
+          warehouseId={warehouseId}
+          onWarehouseChange={setWarehouseId}
+          priceLists={priceLists}
+          selectedPriceList={selectedPriceList}
+          activeRate={activeRate}
+          initialSearch={productSearch}
+          onSelect={async (product) => {
+            const added = await addProduct(product);
+            if (added) setPanel(null);
+          }}
+        />
       </div>
 
       <QuotationCreateDialog
@@ -4053,176 +4020,6 @@ function QuickPaymentPanel({
                 <p className="mt-4 text-2xl font-bold">{preview.amountLabel}</p>
                 <p className="text-text-muted text-xs">{preview.detail}</p>
               </TapButton>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProductSearchPanel({
-  search,
-  products,
-  warehouses,
-  warehouseId,
-  priceListName,
-  loading,
-  onSearch,
-  onWarehouseChange,
-  onSelect,
-}: {
-  search: string;
-  products: Product[];
-  warehouses: { id: number; code: string; name: string }[];
-  warehouseId: number | null;
-  priceListName: string | null;
-  loading: boolean;
-  onSearch: (value: string) => void;
-  onWarehouseChange: (value: number | null) => void;
-  onSelect: (product: Product) => void | Promise<void>;
-}) {
-  const canSearch = search.trim().length >= 2;
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [search, products.length]);
-
-  const safeIndex = products.length > 0 ? Math.min(selectedIndex, products.length - 1) : 0;
-
-  return (
-    <div className="space-y-4">
-      {detailProduct && (
-        <ProductDetailDialog
-          product={detailProduct}
-          warehouseId={warehouseId}
-          priceListName={priceListName ?? BASE_PRICE_LIST_LABEL}
-          onClose={() => setDetailProduct(null)}
-          onAdd={async (p) => {
-            setDetailProduct(null);
-            await onSelect(p);
-          }}
-        />
-      )}
-      <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_220px]">
-        <div className="relative">
-          <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-          <Input
-            value={search}
-            onChange={(event) => onSearch(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowDown' && products.length > 0) {
-                event.preventDefault();
-                setSelectedIndex((current) => (current + 1) % products.length);
-                return;
-              }
-              if (event.key === 'ArrowUp' && products.length > 0) {
-                event.preventDefault();
-                setSelectedIndex((current) => (current - 1 + products.length) % products.length);
-                return;
-              }
-              if (event.key === 'Enter' && products.length > 0) {
-                event.preventDefault();
-                const selectedProduct = products[safeIndex] ?? products[0] ?? null;
-                if (selectedProduct) {
-                  void onSelect(selectedProduct);
-                }
-              }
-            }}
-            className="h-11 pl-9 text-base"
-            placeholder="Nombre, SKU o codigo de barras"
-            data-pos-search-input="true"
-          />
-        </div>
-        <Select
-          value={warehouseId ?? ''}
-          onChange={(event) =>
-            onWarehouseChange(event.target.value ? Number(event.target.value) : null)
-          }
-        >
-          {warehouses.map((warehouse) => (
-            <option key={warehouse.id} value={warehouse.id}>
-              {warehouse.code} - {warehouse.name}
-            </option>
-          ))}
-        </Select>
-      </div>
-      {priceListName && (
-        <p className="border-border bg-bg/40 text-text-muted rounded border px-3 py-2 text-xs">
-          Los productos se cotizan al agregarlos con la lista {priceListName}.
-        </p>
-      )}
-
-      {!canSearch ? (
-        <div className="border-border bg-bg/40 text-text-muted rounded border p-6 text-center text-sm">
-          Escribe al menos 2 caracteres o escanea un codigo para buscar.
-        </div>
-      ) : loading ? (
-        <div className="border-border bg-bg/40 text-text-muted flex items-center gap-2 rounded border p-4 text-sm">
-          <Loader2 className="size-4 animate-spin" /> Buscando productos
-        </div>
-      ) : products.length === 0 ? (
-        <div className="border-border bg-bg/40 text-text-muted rounded border p-6 text-center text-sm">
-          No hay productos con esa busqueda.
-        </div>
-      ) : (
-        <div className="flex max-h-[68vh] flex-col gap-2 overflow-auto pr-1">
-          {products.map((product, index) => {
-            const stock = Number(product.available_stock ?? 0);
-            return (
-              <div
-                key={product.id}
-                className={cn(
-                  'group border-border bg-surface hover:border-primary/60 flex items-center gap-3 rounded-xl border p-3 shadow-sm transition-colors',
-                  index === safeIndex && 'border-primary bg-primary/5 ring-primary/20 ring-1',
-                )}
-                onMouseEnter={() => setSelectedIndex(index)}
-              >
-                <TapButton
-                  onPress={() => void onSelect(product)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  data-testid={`search-product-${product.id}`}
-                >
-                  <ProductImageView
-                    image={primaryProductImage(product)}
-                    src={productImageSrc(product) ?? undefined}
-                    alt={product.name}
-                    variant="thumb"
-                    className="border-border bg-bg size-14 shrink-0 rounded-lg border"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="whitespace-normal break-words font-semibold leading-tight">
-                      {product.name}
-                    </p>
-                    <p className="text-text-muted font-mono text-xs">
-                      {product.sku ?? product.barcode ?? 'Sin codigo'}
-                    </p>
-                    {stock <= Number(product.min_stock ?? 0) && Number(product.min_stock ?? 0) > 0 && (
-                      <p className="text-warning text-[10px]">Stock bajo (min {product.min_stock})</p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge variant={stock > 0 ? 'success' : 'warning'} className="text-[10px]">
-                      {stock > 0 ? `Stock ${stock}` : 'Sin stock'}
-                    </Badge>
-                    <p className="text-lg font-bold">{money(Number(product.base_price ?? 0))}</p>
-                  </div>
-                </TapButton>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDetailProduct(product);
-                  }}
-                  className="border-border bg-bg text-text-muted hover:border-primary hover:text-primary size-9 shrink-0 rounded-full border p-2 transition-colors"
-                  aria-label={`Ver información de ${product.name}`}
-                  data-testid={`product-info-${product.id}`}
-                >
-                  <Info className="size-4" />
-                </button>
-              </div>
             );
           })}
         </div>
