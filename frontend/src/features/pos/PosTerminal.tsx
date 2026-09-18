@@ -992,6 +992,11 @@ export function PosTerminal() {
     selectedPending,
   ]);
 
+  const totalCartUnits = useMemo(
+    () => cart.reduce((sum, line) => sum + Number(line.quantity || 0), 0),
+    [cart],
+  );
+
   const paymentTotals = useMemo(
     () => calculatePaymentTotals(payments, cartTotals.total),
     [payments, cartTotals.total],
@@ -1670,17 +1675,19 @@ export function PosTerminal() {
                               <div className="min-w-0 flex-1">
                                 <p
                                   className={cn(
-                                    'truncate text-sm font-semibold',
+                                    'truncate text-sm font-bold text-text-primary',
                                     index === quickSearchIndex && 'text-primary',
                                   )}
                                 >
                                   {product.name}
                                 </p>
-                                <p className="text-text-muted truncate text-xs">
-                                  {product.sku ?? product.barcode ?? 'Sin código'}
+                                <p className="text-text-secondary truncate text-xs font-medium mt-0.5">
+                                  <span className="font-mono text-text-primary font-bold bg-bg/80 border border-border/80 px-1.5 py-0.2 rounded mr-1">
+                                    {product.sku ?? product.barcode ?? 'Sin código'}
+                                  </span>
                                   {product.unit_of_measure &&
                                     product.unit_of_measure.toLowerCase() !== 'unit' && (
-                                      <span className="ml-1.5 font-medium text-text-secondary uppercase">
+                                      <span className="ml-1 font-bold text-text-primary uppercase">
                                         · {product.unit_of_measure}
                                       </span>
                                     )}
@@ -2000,8 +2007,13 @@ export function PosTerminal() {
             <div className="border-border from-surface to-bg/70 flex items-center justify-between gap-3 border-b bg-gradient-to-r px-4 py-2.5">
               {/* Título Ticket y Cliente en la misma fila */}
               <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <h2 className="font-bold text-sm tracking-tight text-text-primary">Ticket actual</h2>
+                  {cart.length > 0 && (
+                    <Badge variant="outline" className="text-xs font-bold font-mono px-2 py-0.5 text-text-primary bg-surface-subtle border-border">
+                      {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
+                    </Badge>
+                  )}
                   {exchangeReturnId && <Badge variant="info">Canje #{exchangeReturnId}</Badge>}
                 </div>
 
@@ -2111,16 +2123,31 @@ export function PosTerminal() {
             <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
-                  <p className="mt-1 text-4xl font-bold tracking-normal">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
+                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold text-white tracking-wide">
+                      {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-4xl font-bold tracking-normal text-white">
                     {money(cartTotals.total)}
                   </p>
                 </div>
-                <div className="min-w-28 space-y-1 text-right text-xs text-white/70">
-                  <AmountRow label="Subtotal" value={cartTotals.subtotal} />
-                  {cartTotals.discount > 0 && (
-                    <AmountRow label="Desc." value={cartTotals.discount} muted />
-                  )}
+                <div className="min-w-32 space-y-1.5 text-right text-xs text-white/80">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-white/70">Total artículos:</span>
+                    <span className="font-bold font-mono text-white text-sm">{totalCartUnits}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-white/70">Líneas de ticket:</span>
+                    <span className="font-bold font-mono text-white">{cart.length}</span>
+                  </div>
+                  <div className="border-t border-white/20 pt-1">
+                    <AmountRow label="Subtotal" value={cartTotals.subtotal} className="text-white" />
+                    {cartTotals.discount > 0 && (
+                      <AmountRow label="Desc." value={cartTotals.discount} muted className="text-white/70" />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -3923,30 +3950,32 @@ function CartLineRow({
           </div>
 
           {/* Subtítulo / Metadata del Producto */}
-          <div className="text-text-muted flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
-            <span className="font-mono text-[11px]">{line.sku ?? line.barcode ?? line.product_id}</span>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs">
+            <span className="font-mono text-xs font-bold text-text-primary bg-bg border border-border px-2 py-0.5 rounded shadow-2xs">
+              {line.sku ?? line.barcode ?? line.product_id}
+            </span>
             {line.product_variant_name && (
-              <Badge variant="default" className="text-[10px]">
+              <Badge variant="default" className="text-xs font-semibold px-2 py-0.5">
                 {line.product_variant_name}
               </Badge>
             )}
-            <span className="font-semibold text-text-secondary">
+            <span className="font-bold text-text-primary text-sm">
               {money(line.unit_price)} {unitLabel}
             </span>
             {unitSuffix && (
-              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider text-text-primary bg-surface-subtle border-border">
+              <Badge variant="outline" className="text-xs font-bold uppercase tracking-wider text-text-primary bg-surface-subtle border-border px-2 py-0.5">
                 {unitSuffix}
               </Badge>
             )}
             {line.price_list_name && (
-              <Badge variant="default" className="text-[10px]">
+              <Badge variant="outline" className="text-xs font-semibold text-text-primary border-border px-2 py-0.5">
                 {line.price_list_name}
               </Badge>
             )}
             {line.tracking_type === 'serialized' && (
               <button
                 type="button"
-                className={cn('font-semibold', serialIssue ? 'text-warning' : 'text-success')}
+                className={cn('font-bold text-xs', serialIssue ? 'text-warning' : 'text-success')}
                 onClick={onSerials}
               >
                 IMEI {serialCount}/{line.quantity}
@@ -3960,7 +3989,7 @@ function CartLineRow({
       {line.tracking_type === 'serialized' && serialCount > 0 && (
         <div className="flex flex-wrap gap-1 pl-15">
           {line.selected_serials?.map((serial) => (
-            <Badge key={serial.id} variant="default" className="font-mono text-[10px]">
+            <Badge key={serial.id} variant="default" className="font-mono text-xs font-bold px-2 py-0.5">
               {serial.serial_number}
             </Badge>
           ))}
@@ -3979,18 +4008,18 @@ function CartLineRow({
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-border/60">
         {/* Selector de Cantidad */}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-text-muted font-medium">Cant:</span>
+          <span className="text-xs text-text-primary font-bold">Cant:</span>
           <div className="flex items-center gap-1">
             <Button
               size="icon-sm"
               variant="outline"
-              className="size-8"
+              className="size-8 text-text-primary font-bold"
               onClick={() => onChange({ quantity: line.quantity - 1 })}
             >
-              <Minus className="size-3" />
+              <Minus className="size-3.5" />
             </Button>
             <Input
-              className="h-8 w-16 text-center text-sm font-bold"
+              className="h-8 w-16 text-center text-sm font-bold text-text-primary bg-surface border-border"
               type="number"
               min="1"
               value={line.quantity}
@@ -3999,14 +4028,14 @@ function CartLineRow({
             <Button
               size="icon-sm"
               variant="outline"
-              className="size-8"
+              className="size-8 text-text-primary font-bold"
               onClick={() => onChange({ quantity: line.quantity + 1 })}
             >
-              <Plus className="size-3" />
+              <Plus className="size-3.5" />
             </Button>
           </div>
           {unitSuffix && (
-            <span className="text-xs font-semibold text-text-secondary uppercase">
+            <span className="text-xs font-bold text-text-primary uppercase">
               {unitSuffix}
             </span>
           )}
@@ -4015,13 +4044,13 @@ function CartLineRow({
         {/* Opciones de Descuento (Reordenadas para no comprimir el nombre) */}
         {canDiscount && (
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-text-muted font-medium">Desc:</span>
+            <span className="text-xs text-text-primary font-bold">Desc:</span>
             <Select
               value={line.discount_type ?? ''}
               onChange={(event) =>
                 onChange({ discount_type: (event.target.value || null) as DiscountType | null })
               }
-              className="h-8 text-xs w-28"
+              className="h-8 text-xs w-28 text-text-primary font-medium"
             >
               <option value="">Sin desc.</option>
               <option value="percent">% Porcentaje</option>
@@ -4031,7 +4060,7 @@ function CartLineRow({
               <Input
                 type="number"
                 min="0"
-                className="h-8 w-20 text-xs text-center font-medium"
+                className="h-8 w-20 text-xs text-center font-bold text-text-primary"
                 placeholder={line.discount_type === 'percent' ? '%' : '$'}
                 value={line.discount_value ?? ''}
                 onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })}
@@ -4045,7 +4074,7 @@ function CartLineRow({
           <Button
             variant={serialIssue ? 'secondary' : 'outline'}
             size="sm"
-            className="h-8 text-xs"
+            className="h-8 text-xs font-bold"
             onClick={onSerials}
           >
             {serialCount > 0 ? 'Cambiar IMEI' : 'Asignar IMEI'}
@@ -4054,8 +4083,8 @@ function CartLineRow({
 
         {/* Total Línea a la derecha */}
         <div className="flex items-center gap-2 ml-auto text-right">
-          <span className="text-xs text-text-muted font-medium">Total:</span>
-          <span className="text-base font-bold font-mono text-text-primary">
+          <span className="text-xs text-text-secondary font-bold">Total:</span>
+          <span className="text-lg font-bold font-mono text-text-primary">
             {money(lineTotal(line))}
           </span>
         </div>
@@ -5429,16 +5458,24 @@ function AmountRow({
   value,
   muted = false,
   currency = 'USD',
+  className,
 }: {
   label: string;
   value: number;
   muted?: boolean;
   currency?: CurrencyCode;
+  className?: string;
 }) {
   return (
-    <div className={cn('flex items-center justify-between', muted && 'text-text-muted')}>
-      <span>{label}</span>
-      <span className="font-medium">
+    <div
+      className={cn(
+        'flex items-center justify-between text-sm',
+        muted ? 'text-text-secondary opacity-90' : 'text-text-primary font-medium',
+        className,
+      )}
+    >
+      <span className="font-medium">{label}</span>
+      <span className="font-bold font-mono">
         {currency === 'VES' ? `Bs ${formatLocalNumber(value)}` : money(value)}
       </span>
     </div>

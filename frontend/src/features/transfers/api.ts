@@ -372,6 +372,6 @@ export function useProductsForTransfer(search = '') {
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return (await import('zod')).z.array(ProductSchema).parse(arr);
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 1000,
   });
 }

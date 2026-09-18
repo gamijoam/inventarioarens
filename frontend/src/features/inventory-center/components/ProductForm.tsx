@@ -35,6 +35,7 @@ import { Combobox } from '@/components/ui/Combobox';
 import { TreeSelect } from '@/components/ui/TreeSelect';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
 
 import {
@@ -129,10 +130,19 @@ export function ProductForm({
   const margin = Number(form.watch('profit_margin'));
   const currentBasePrice = Number(form.watch('base_price') ?? 0);
 
-  const calculatedSalePrice =
-    Number.isFinite(cost) && Number.isFinite(margin)
-      ? (cost * (1 + margin / 100)).toFixed(2)
-      : '';
+  const [applyIva, setApplyIva] = useState(true);
+  const [ivaRate, setIvaRate] = useState(16);
+
+  const netSubtotal =
+    Number.isFinite(cost) && cost > 0 && Number.isFinite(margin) && margin >= 0
+      ? cost * (1 + margin / 100)
+      : null;
+
+  const calculatedSalePrice = useMemo(() => {
+    if (netSubtotal === null) return '';
+    const finalPrice = applyIva ? netSubtotal * (1 + ivaRate / 100) : netSubtotal;
+    return (Math.round(finalPrice * 100) / 100).toFixed(2);
+  }, [netSubtotal, applyIva, ivaRate]);
 
   useEffect(() => {
     if (pricingMode === 'automatic' && calculatedSalePrice && Number(calculatedSalePrice) > 0) {
@@ -213,11 +223,18 @@ export function ProductForm({
   );
 
   // Cálculos ERP informativos de IVA sobre base_price
-  const effectivePrice = pricingMode === 'automatic' && calculatedSalePrice
-    ? Number(calculatedSalePrice)
-    : currentBasePrice;
-  const netEstimate = effectivePrice > 0 ? effectivePrice / 1.16 : 0;
-  const ivaEstimate = effectivePrice > 0 ? effectivePrice - netEstimate : 0;
+  const effectivePrice =
+    pricingMode === 'automatic' && calculatedSalePrice
+      ? Number(calculatedSalePrice)
+      : currentBasePrice;
+  const netEstimate =
+    applyIva && effectivePrice > 0
+      ? Math.round((effectivePrice / (1 + ivaRate / 100)) * 100) / 100
+      : effectivePrice;
+  const ivaEstimate =
+    applyIva && effectivePrice > 0
+      ? Math.round((effectivePrice - netEstimate) * 100) / 100
+      : 0;
 
   // Detección de errores por pestaña
   const errors = form.formState.errors;
@@ -456,29 +473,75 @@ export function ProductForm({
                 </p>
               </div>
               <div>
-                <span className="text-[11px] uppercase font-bold text-text-muted">Margen</span>
+                <span className="text-[11px] uppercase font-bold text-text-muted">Margen Utilidad</span>
                 <p className="text-sm font-semibold font-mono text-primary">
                   {margin > 0 ? `+${margin.toFixed(1)}%` : '0%'}
                 </p>
+                {netSubtotal !== null && (
+                  <span className="text-[10px] text-text-muted block font-mono">
+                    (${netSubtotal.toFixed(2)} neto)
+                  </span>
+                )}
               </div>
               <div>
-                <span className="text-[11px] uppercase font-bold text-text-muted">Neto Estimado</span>
+                <span className="text-[11px] uppercase font-bold text-text-muted">
+                  {applyIva ? `IVA (${ivaRate}%)` : 'Impuesto'}
+                </span>
                 <p className="text-sm font-semibold font-mono text-text-secondary">
-                  ${netEstimate.toFixed(2)}
+                  {applyIva ? `$${ivaEstimate.toFixed(2)}` : 'Exento'}
                 </p>
-                <span className="text-[10px] text-text-muted">(Sin IVA)</span>
+                <span className="text-[10px] text-text-muted block font-mono">
+                  {applyIva ? `Base: $${netEstimate.toFixed(2)}` : 'Sin IVA'}
+                </span>
               </div>
               <div className="border-l border-primary/20 pl-2">
                 <span className="text-[11px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
-                  PVP Final
+                  PVP Final {applyIva ? '(c/IVA)' : '(Exento)'}
                 </span>
                 <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
                   ${effectivePrice > 0 ? effectivePrice.toFixed(2) : '0.00'}
                 </p>
-                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
-                  (IVA 16% incl. ${ivaEstimate.toFixed(2)})
-                </span>
+                {effectivePrice > 0 && (
+                  <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80 block">
+                    {applyIva
+                      ? `Neto $${netEstimate.toFixed(2)} + IVA $${ivaEstimate.toFixed(2)}`
+                      : 'Exento de IVA'}
+                  </span>
+                )}
               </div>
+            </div>
+
+            {/* Casilla de IVA y Configuración de Cálculo */}
+            <div className="rounded-xl border border-border bg-surface-subtle/40 p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={applyIva}
+                  onChange={(e) => setApplyIva(e.target.checked)}
+                  className="size-4.5 rounded border-border text-primary focus:ring-primary/20"
+                />
+                <span className="text-sm font-bold text-text-primary">
+                  Aplica IVA
+                </span>
+                <Badge variant={applyIva ? 'primary' : 'outline'} className="text-[11px] font-semibold">
+                  {applyIva ? `${ivaRate}% IVA incluido en PVP` : 'Exento (Sin IVA)'}
+                </Badge>
+              </label>
+
+              {applyIva && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-text-secondary font-medium">Porcentaje IVA (%):</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={ivaRate}
+                    onChange={(e) => setIvaRate(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-18 h-8 text-center font-mono font-bold text-sm"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -530,24 +593,35 @@ export function ProductForm({
                 <Field
                   name="base_price"
                   label={pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'}
-                  hint="Precio base final en dólares (con IVA)"
+                  hint={applyIva ? `Precio base final en dólares (con ${ivaRate}% IVA)` : 'Precio base final en dólares (Exento)'}
                   error={form.formState.errors.base_price?.message}
                 >
-                  {pricingMode === 'automatic' ? (
-                    <Input
-                      value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''}
-                      readOnly
-                      className="font-mono font-bold text-emerald-600 bg-surface-subtle"
-                    />
-                  ) : (
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      {...form.register('base_price', { valueAsNumber: true })}
-                      className="font-mono font-bold text-emerald-600"
-                    />
-                  )}
+                  <div className="space-y-1.5">
+                    {pricingMode === 'automatic' ? (
+                      <Input
+                        value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''}
+                        readOnly
+                        className="font-mono font-bold text-emerald-600 bg-surface-subtle"
+                      />
+                    ) : (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        {...form.register('base_price', { valueAsNumber: true })}
+                        className="font-mono font-bold text-emerald-600"
+                      />
+                    )}
+                    {calculatedSalePrice && pricingMode === 'manual' && (
+                      <button
+                        type="button"
+                        onClick={() => form.setValue('base_price', Number(calculatedSalePrice), { shouldValidate: true })}
+                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        ⚡ Aplicar cálculo automático ({applyIva ? `con ${ivaRate}% IVA` : 'sin IVA'}): ${calculatedSalePrice}
+                      </button>
+                    )}
+                  </div>
                 </Field>
               )}
 

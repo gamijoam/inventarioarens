@@ -630,6 +630,11 @@ class ProductController extends Controller
             ? ($data['profit_margin'] === null ? null : (float) $data['profit_margin'])
             : $product?->effectiveProfitMargin();
 
+        // Si base_price ya fue calculado y enviado (ej. con IVA desde el formulario), respetarlo
+        if (isset($data['base_price']) && (float) $data['base_price'] > 0) {
+            return;
+        }
+
         if ($cost !== null && $margin !== null) {
             $data['base_price'] = round($cost * (1 + ($margin / 100)), 2);
         }

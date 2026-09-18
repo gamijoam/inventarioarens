@@ -42,7 +42,15 @@ export function CreateManualMovementDialog({
   warehouses,
   onCreated,
 }: CreateProps) {
-  const { data: products = [] } = useProductsForTransfer();
+  const [productSearch, setProductSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedSearch(productSearch), 250);
+    return () => window.clearTimeout(handle);
+  }, [productSearch]);
+
+  const { data: products = [] } = useProductsForTransfer(debouncedSearch);
   const create = useCreateManualMovement();
   const [warehouseId, setWarehouseId] = useState(0);
   const [productId, setProductId] = useState<number | null>(null);
@@ -63,6 +71,8 @@ export function CreateManualMovementDialog({
       setType('internal_consumption');
       setReason('');
       setNotes('');
+      setProductSearch('');
+      setDebouncedSearch('');
       setErrors({});
     }
   }, [open]);
@@ -75,7 +85,9 @@ export function CreateManualMovementDialog({
       products.map((product) => ({
         value: product.id,
         label: product.name,
-        hint: product.sku ? `SKU: ${product.sku}` : undefined,
+        hint: [product.sku ? `SKU: ${product.sku}` : null, product.barcode ? `BC: ${product.barcode}` : null]
+          .filter(Boolean)
+          .join(' · ') || undefined,
       })),
     [products],
   );
@@ -132,7 +144,8 @@ export function CreateManualMovementDialog({
               value={productId}
               onChange={(value) => setProductId(value == null ? null : Number(value))}
               options={productOptions}
-              placeholder="Buscar producto…"
+              placeholder="Buscar producto por nombre, SKU o código…"
+              onQueryChange={setProductSearch}
             />
           </Field>
           {hasVariants && (
