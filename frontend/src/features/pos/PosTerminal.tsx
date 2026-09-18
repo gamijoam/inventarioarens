@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   loadPersistedPriceListPreference,
   savePersistedPriceListPreference,
@@ -9,6 +9,7 @@ import {
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowDownToLine,
+  ArrowLeft,
   ArrowUpFromLine,
   CircleCheck,
   ClipboardList,
@@ -79,6 +80,7 @@ import { QuotationCreateDialog } from '@/features/quotations/QuotationCreateDial
 import { QuotationPickerDialog } from '@/features/quotations/QuotationPickerDialog';
 import { getProductVariants } from '@/features/inventory-center/variantApi';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
+import { APP_MODE } from '@/config/branding';
 import {
   type CashRegisterSession,
   type CheckoutPayload,
@@ -88,6 +90,7 @@ import {
   type PosOrder,
   type PosPaymentMethod,
   type PaymentMethod,
+  type PosProductQuote,
   type ProductSerial,
   quoteProductForPos,
   useAddCashMovement,
@@ -550,8 +553,16 @@ export function PosTerminal() {
   async function exitPos(): Promise<void> {
     setExitingPos(true);
     try {
-      await signOut();
-      await navigate({ to: '/login' });
+      if (APP_MODE === 'pos') {
+        await signOut();
+        await navigate({ to: '/login' });
+      } else {
+        if (typeof window !== 'undefined' && window.history.length > 1) {
+          window.history.back();
+        } else {
+          await navigate({ to: '/dashboard' });
+        }
+      }
     } finally {
       setExitingPos(false);
     }
@@ -1103,6 +1114,153 @@ export function PosTerminal() {
       setOpeningRegisterId(activeCashRegisters[0].id);
   }, [activeCashRegisters, openingRegisterId]);
 
+  const isRefreshingCartRef = useRef(false);
+
+  const refreshCartProducts = useCallback(async () => {
+    const currentLines = usePosCartStore.getState().lines;
+    if (currentLines.length === 0 || isRefreshingCartRef.current) return;
+
+    isRefreshingCartRef.current = true;
+    try {
+      const uniqueKeys = Array.from(
+        new Set(currentLines.map((l) => `${l.product_id}_${l.warehouse_id}`)),
+      );
+
+      const productMap = new Map<string, Product>();
+      const quoteMap = new Map<string, PosProductQuote>();
+
+      await Promise.all(
+        uniqueKeys.map(async (key) => {
+          const [prodIdStr, whIdStr] = key.split('_');
+          const pId = Number(prodIdStr);
+          const wId = Number(whIdStr) || effectiveWarehouseId || null;
+          try {
+            const product = await getProductForPos(pId, wId);
+            productMap.set(key, product);
+
+            if (selectedPriceListId) {
+              try {
+                const quote = await quoteProductForPos(pId, selectedPriceListId);
+                quoteMap.set(key, quote);
+              } catch {
+                // Si la lista de precio no tiene cotizacion para este producto, se ignora
+              }
+            }
+          } catch {
+            // Ignorar errores puntuales si el producto no responde o fue eliminado
+          }
+        }),
+      );
+
+      if (productMap.size === 0) return;
+
+      usePosCartStore.setState((state) => {
+        let changed = false;
+        const newLines = state.lines.map((line) => {
+          const key = `${line.product_id}_${line.warehouse_id}`;
+          const product = productMap.get(key);
+          if (!product) return line;
+
+          const quote = quoteMap.get(key);
+          const newName = product.name;
+          const newSku = product.sku ?? null;
+          const newBarcode = product.barcode ?? null;
+          const newUom = product.unit_of_measure ?? 'unit';
+          const newTrackingType = product.tracking_type ?? null;
+          const newTrackStock = product.track_stock !== false;
+          const newAvailableStock = Number(product.available_stock ?? 0);
+          const newBasePrice = Number(product.base_price ?? 0);
+          const newImageUrl =
+            product.image_url ?? product.primary_image_url ?? line.image_url ?? null;
+
+          let newUnitPrice = line.unit_price;
+          let newCurrency = line.currency;
+          if (!line.promotion_id) {
+            if (quote && line.price_source === 'price_list') {
+              newUnitPrice = quote.base_price_usd;
+              newCurrency = quote.sale_currency;
+            } else if (line.price_source !== 'price_list' || !line.price_list_id) {
+              if (line.base_unit_price === undefined || line.unit_price === line.base_unit_price) {
+                newUnitPrice = newBasePrice;
+                newCurrency = (product.sale_currency ?? 'USD') as CurrencyCode;
+              }
+            }
+          }
+
+          if (
+            line.name === newName &&
+            line.sku === newSku &&
+            line.barcode === newBarcode &&
+            line.unit_of_measure === newUom &&
+            line.tracking_type === newTrackingType &&
+            line.track_stock === newTrackStock &&
+            line.available_stock === newAvailableStock &&
+            line.base_unit_price === newBasePrice &&
+            line.unit_price === newUnitPrice &&
+            line.currency === newCurrency &&
+            line.image_url === newImageUrl
+          ) {
+            return line;
+          }
+
+          changed = true;
+          return {
+            ...line,
+            name: newName,
+            sku: newSku,
+            barcode: newBarcode,
+            unit_of_measure: newUom,
+            tracking_type: newTrackingType,
+            track_stock: newTrackStock,
+            available_stock: newAvailableStock,
+            base_unit_price: newBasePrice,
+            unit_price: newUnitPrice,
+            currency: newCurrency,
+            image_url: newImageUrl,
+          };
+        });
+
+        return changed ? { lines: newLines } : state;
+      });
+    } finally {
+      isRefreshingCartRef.current = false;
+    }
+  }, [effectiveWarehouseId, selectedPriceListId]);
+
+  const cartLength = cart.length;
+  const prevCartLengthRef = useRef(0);
+  useEffect(() => {
+    if (cartLength > 0 && prevCartLengthRef.current === 0) {
+      void refreshCartProducts();
+    }
+    prevCartLengthRef.current = cartLength;
+  }, [cartLength, refreshCartProducts]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      void refreshCartProducts();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshCartProducts();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [refreshCartProducts]);
+
+  const prevPanelRef = useRef<Panel>(panel);
+  useEffect(() => {
+    if (prevPanelRef.current !== null && panel === null && cart.length > 0) {
+      void refreshCartProducts();
+    }
+    prevPanelRef.current = panel;
+  }, [panel, cart.length, refreshCartProducts]);
+
   useEffect(() => {
     // En dispositivos tactiles NO re-focalizar el buscador: reabre el
     // teclado virtual, cambia el layout y pierde la accion del tap. En
@@ -1509,7 +1667,17 @@ export function PosTerminal() {
             </div>
           </div>
           <div className="order-2 flex shrink-0 flex-wrap items-end gap-2">
-            {sellerOnlyMode ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void exitPos()}
+              title="Volver atrás / Salir del POS"
+              className="shadow-sm"
+            >
+              <ArrowLeft className="size-4" />
+              Volver
+            </Button>
+            {sellerOnlyMode && (
               <Button
                 size="sm"
                 onClick={() => void holdSale()}
@@ -1522,23 +1690,6 @@ export function PosTerminal() {
                   <PauseCircle className="size-4" />
                 )}
                 Armar orden
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-                  void confirmPaidSale();
-                }}
-                disabled={Boolean(checkoutBlockReason) || checkout.isPending}
-                className="shadow-sm"
-              >
-                {checkout.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <CreditCard className="size-4" />
-                )}
-                Cobrar
               </Button>
             )}
             <Button
@@ -1631,15 +1782,6 @@ export function PosTerminal() {
                 <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearPos}
-              disabled={cart.length === 0 && payments.length === 0}
-              title="Vaciar el ticket actual y sus promociones"
-            >
-              <Trash2 className="size-4" /> Limpiar POS
-            </Button>
           </div>
         </header>
 
