@@ -7,6 +7,7 @@ use App\Modules\Purchases\Requests\ReceivePurchaseOrderRequest;
 use App\Modules\Purchases\Requests\StorePurchaseOrderRequest;
 use App\Modules\Purchases\Resources\PurchaseOrderResource;
 use App\Modules\Purchases\Services\PurchaseOrderService;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -62,10 +63,10 @@ class PurchaseOrderController extends Controller
                     $query->where('supplier_id', $filters['supplier_id']);
                 })
                 ->when(! empty($filters['date_from']), function ($query) use ($filters): void {
-                    $query->whereDate('issued_at', '>=', $filters['date_from']);
+                    $query->where('issued_at', '>=', BusinessDateRange::startOfDay($filters['date_from']));
                 })
                 ->when(! empty($filters['date_to']), function ($query) use ($filters): void {
-                    $query->whereDate('issued_at', '<=', $filters['date_to']);
+                    $query->where('issued_at', '<=', BusinessDateRange::endOfDay($filters['date_to']));
                 })
                 ->latest()
                 ->paginate($limit)

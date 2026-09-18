@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Inventory\Models\AlertHistory;
 use App\Modules\Inventory\Requests\ListAlertHistoryRequest;
 use App\Modules\Inventory\Resources\AlertHistoryResource;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -24,8 +25,8 @@ class AlertHistoryController extends Controller
                 $q->where('subject_type', $request->string('subject_type'))
                     ->where('subject_id', $request->integer('product_id'));
             })
-            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('detected_at', '>=', $request->date('date_from')))
-            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('detected_at', '<=', $request->date('date_to')))
+            ->when($request->filled('date_from'), fn ($q) => $q->where('detected_at', '>=', BusinessDateRange::startOfDay($request->string('date_from')->toString())))
+            ->when($request->filled('date_to'), fn ($q) => $q->where('detected_at', '<=', BusinessDateRange::endOfDay($request->string('date_to')->toString())))
             ->latest('detected_at');
 
         return AlertHistoryResource::collection($query->paginate($request->integer('limit', 25)));

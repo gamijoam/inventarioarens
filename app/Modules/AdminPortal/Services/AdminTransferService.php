@@ -5,6 +5,7 @@ namespace App\Modules\AdminPortal\Services;
 use App\Modules\Audit\Models\AuditLog;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Support\Tenancy\TenantManager;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -124,12 +125,12 @@ class AdminTransferService
         }
 
         if (! empty($filters['date_from'])) {
-            $from = Carbon::parse($filters['date_from'])->startOfDay();
+            $from = BusinessDateRange::startOfDay($filters['date_from']);
             $query->where('inventory_transfers.processed_at', '>=', $from);
         }
 
         if (! empty($filters['date_to'])) {
-            $to = Carbon::parse($filters['date_to'])->endOfDay();
+            $to = BusinessDateRange::endOfDay($filters['date_to']);
             $query->where('inventory_transfers.processed_at', '<=', $to);
         }
 

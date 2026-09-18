@@ -8,6 +8,7 @@ use App\Modules\Quotations\Requests\UpdateQuotationRequest;
 use App\Modules\Quotations\Resources\QuotationResource;
 use App\Modules\Quotations\Services\QuotationService;
 use App\Support\Tenancy\TenantManager;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -32,9 +33,9 @@ class QuotationController extends Controller
             ->when($request->query('customer_id'),
                 fn ($query, int $customerId) => $query->where('customer_id', $customerId))
             ->when($request->query('date_from'),
-                fn ($query, string $from) => $query->where('created_at', '>=', $from))
+                fn ($query, string $from) => $query->where('created_at', '>=', BusinessDateRange::startOfDay($from)))
             ->when($request->query('date_to'),
-                fn ($query, string $to) => $query->where('created_at', '<=', $to))
+                fn ($query, string $to) => $query->where('created_at', '<=', BusinessDateRange::endOfDay($to)))
             ->when($request->query('search'), function ($query, string $search): void {
                 $needle = '%'.strtolower($search).'%';
                 $query->where(function ($q) use ($needle, $search): void {

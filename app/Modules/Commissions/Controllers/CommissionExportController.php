@@ -3,6 +3,7 @@
 namespace App\Modules\Commissions\Controllers;
 
 use App\Modules\Commissions\Models\CommissionEntry;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,8 +20,8 @@ class CommissionExportController extends Controller
             ->with('beneficiary')
             ->when($request->filled('status'), fn (Builder $query) => $query->where('status', $request->string('status')))
             ->when($request->filled('user_id'), fn (Builder $query) => $query->where('beneficiary_user_id', $request->integer('user_id')))
-            ->when($request->filled('from'), fn (Builder $query) => $query->whereDate('earned_at', '>=', $request->string('from')))
-            ->when($request->filled('to'), fn (Builder $query) => $query->whereDate('earned_at', '<=', $request->string('to')))
+            ->when($request->filled('from'), fn (Builder $query) => $query->where('earned_at', '>=', BusinessDateRange::startOfDay($request->string('from')->toString())))
+            ->when($request->filled('to'), fn (Builder $query) => $query->where('earned_at', '<=', BusinessDateRange::endOfDay($request->string('to')->toString())))
             ->latest('earned_at');
 
         return response()->streamDownload(function () use ($query): void {

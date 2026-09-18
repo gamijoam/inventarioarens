@@ -7,6 +7,7 @@ use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\ProductExits\Requests\StoreProductExitRequest;
 use App\Modules\ProductExits\Resources\ProductExitResource;
 use App\Modules\ProductExits\Services\ProductExitService;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,8 +64,8 @@ class ProductExitController extends Controller
             ->when($warehouseId, function ($query) use ($warehouseId): void {
                 $query->whereHas('items', fn ($query) => $query->where('warehouse_id', $warehouseId));
             })
-            ->when($dateFrom, fn ($query) => $query->whereDate('processed_at', '>=', $dateFrom))
-            ->when($dateTo, fn ($query) => $query->whereDate('processed_at', '<=', $dateTo))
+            ->when($dateFrom, fn ($query) => $query->where('processed_at', '>=', BusinessDateRange::startOfDay($dateFrom)))
+            ->when($dateTo, fn ($query) => $query->where('processed_at', '<=', BusinessDateRange::endOfDay($dateTo)))
             ->latest('processed_at')
             ->paginate($limit);
 

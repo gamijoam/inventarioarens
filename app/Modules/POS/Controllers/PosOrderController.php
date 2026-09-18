@@ -13,6 +13,7 @@ use App\Modules\POS\Resources\PosOrderSummaryResource;
 use App\Modules\POS\Services\PosCheckoutService;
 use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Promotions\Models\SalePromotionApplication;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -50,9 +51,9 @@ class PosOrderController extends Controller
             ->when($customerId = $request->integer('customer_id'),
                 fn ($query, int $customerId) => $query->where('customer_id', $customerId))
             ->when($request->query('date_from'),
-                fn ($query, string $from) => $query->where('opened_at', '>=', $from))
+                fn ($query, string $from) => $query->where('opened_at', '>=', BusinessDateRange::startOfDay($from)))
             ->when($request->query('date_to'),
-                fn ($query, string $to) => $query->where('opened_at', '<=', $to))
+                fn ($query, string $to) => $query->where('opened_at', '<=', BusinessDateRange::endOfDay($to)))
             ->when($request->query('search'), function ($query, string $search): void {
                 $needle = '%'.strtolower($search).'%';
                 $query->where(function ($q) use ($needle): void {

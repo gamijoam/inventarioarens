@@ -4,6 +4,7 @@ namespace App\Modules\InventoryCenter\Services;
 
 use App\Modules\Inventory\Models\StockMovement;
 use App\Support\Performance\PerformanceProbe;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 
 class InventoryCenterMovementService
@@ -51,11 +52,11 @@ class InventoryCenterMovementService
             }
 
             if ($dateFrom = $filters['date_from'] ?? null) {
-                $query->whereDate('created_at', '>=', $dateFrom);
+                $query->where('created_at', '>=', BusinessDateRange::startOfDay($dateFrom));
             }
 
             if ($dateTo = $filters['date_to'] ?? null) {
-                $query->whereDate('created_at', '<=', $dateTo);
+                $query->where('created_at', '<=', BusinessDateRange::endOfDay($dateTo));
             }
 
             $total = (clone $query)->count();
