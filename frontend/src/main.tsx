@@ -44,12 +44,47 @@ const router = createRouter({
   defaultPreload: 'intent',
   context: { queryClient },
   defaultPreloadStaleTime: 0,
+  defaultErrorComponent: ({ error }) => {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (
+      msg.includes('dynamically imported') ||
+      msg.includes('token') ||
+      msg.includes('Failed to fetch') ||
+      msg.includes('appendChild')
+    ) {
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+      return null;
+    }
+    return (
+      <div className="bg-bg flex min-h-screen flex-col items-center justify-center p-4 text-center">
+        <h2 className="text-text-primary text-base font-semibold">Ocurrió un error al cargar la vista</h2>
+        <p className="text-text-muted mt-1 text-sm max-w-md">{msg}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+        >
+          Recargar página
+        </button>
+      </div>
+    );
+  },
 });
 
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router;
   }
+}
+
+// Auto-recarga limpia si el navegador intenta cargar un chunk viejo tras un nuevo despliegue.
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault();
+    window.location.reload();
+  });
 }
 
 // Registrar handler de 401 que navega via SPA (no window.location.href).
