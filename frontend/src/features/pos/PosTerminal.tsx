@@ -492,7 +492,7 @@ function PosColorPicker({
       <PopoverPrimitive.Trigger asChild>
         <button
           type="button"
-          title="Personalizar color del POS"
+          title="Personalizar color del código SKU"
           className="inline-flex items-center justify-center size-9 rounded-lg border border-border bg-surface hover:bg-surface-subtle transition-colors shadow-xs text-text-secondary hover:text-text-primary"
         >
           <Settings2 className="size-4" />
@@ -505,7 +505,7 @@ function PosColorPicker({
           className="z-50 w-64 rounded-2xl border border-border bg-surface p-4 shadow-2xl animate-in fade-in-0 zoom-in-95"
         >
           <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">
-            🎨 Color del panel de cobro
+            🎨 Color del código SKU
           </p>
           <div className="grid grid-cols-5 gap-2">
             {POS_COLOR_THEMES.map((theme) => (
@@ -2218,6 +2218,7 @@ export function PosTerminal() {
                       key={line.id}
                       line={line}
                       canDiscount={canDiscount}
+                      skuColor={posColorTheme.to}
                       onChange={(patch) => updateLine(line.id, patch)}
                       onSerials={() => {
                         setSerialLineId(line.id);
@@ -2232,10 +2233,7 @@ export function PosTerminal() {
           </section>
 
           <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div
-              className="border-border border-b p-4 text-white"
-              style={{ background: `linear-gradient(135deg, ${posColorTheme.from}, ${posColorTheme.to})` }}
-            >
+            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -3999,12 +3997,14 @@ function CartLineRow({
   onChange,
   onSerials,
   onRemove,
+  skuColor,
 }: {
   line: PosCartLine;
   canDiscount: boolean;
   onChange: (patch: Partial<PosCartLine>) => void;
   onSerials: () => void;
   onRemove: () => void;
+  skuColor?: string;
 }) {
   const stockIssue = line.quantity > line.available_stock;
   const serialCount = line.selected_serials?.length ?? 0;
@@ -4066,7 +4066,14 @@ function CartLineRow({
 
           {/* Subtítulo / Metadata del Producto */}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs">
-            <span className="font-mono text-sm font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-600 px-2.5 py-0.5 rounded-md tracking-wide shadow-sm">
+            <span
+              className="font-mono text-sm font-black px-2.5 py-0.5 rounded-md tracking-wide shadow-sm border"
+              style={
+                skuColor
+                  ? { color: skuColor, backgroundColor: `${skuColor}18`, borderColor: `${skuColor}55` }
+                  : { color: '#d97706', backgroundColor: '#fefce8', borderColor: '#fcd34d' }
+              }
+            >
               {line.sku ?? line.barcode ?? line.product_id}
             </span>
             {line.product_variant_name && (
