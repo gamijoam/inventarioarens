@@ -29,6 +29,8 @@ import { SupplierAutocomplete, type SupplierOption } from './SupplierAutocomplet
 import { PurchaseItemRow, type PurchaseItemRowValue } from './PurchaseItemRow';
 import type { ImeiInput } from './ImeiListInput';
 import { cn } from '@/lib/cn';
+import { todayDateString } from '@/lib/format';
+
 
 interface PurchaseFormDialogProps {
   open: boolean;
@@ -58,7 +60,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [, setSupplier] = useState<SupplierOption | null>(null);
   const [documentNumber, setDocumentNumber] = useState('');
-  const [issuedAt, setIssuedAt] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [issuedAt, setIssuedAt] = useState<string>(todayDateString());
   const [dueDate, setDueDate] = useState<string>('');
   const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
   const [rateTypeId, setRateTypeId] = useState<number | null>(null);
@@ -92,7 +94,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
     setSupplierId(null);
     setSupplier(null);
     setDocumentNumber('');
-    setIssuedAt(new Date().toISOString().slice(0, 10));
+    setIssuedAt(todayDateString());
+
     setDueDate('');
     setCurrency('USD');
     setRateTypeId(null);

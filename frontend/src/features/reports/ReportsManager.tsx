@@ -1,4 +1,4 @@
-﻿import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
   Banknote,
   Boxes,
@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatMoney } from '@/lib/money';
+import { todayDateString } from '@/lib/format';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import type { PaginationMeta } from '@/types/api';
@@ -1283,8 +1284,9 @@ function parseOptionalNumber(value: string): number | undefined {
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayDateString();
 }
+
 
 function formatQty(value: number): string {
   return new Intl.NumberFormat('es-VE', { maximumFractionDigits: 4 }).format(value);

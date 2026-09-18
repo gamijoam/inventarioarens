@@ -38,6 +38,7 @@ import {
 import { Label } from '@/components/ui/Label';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
+import { formatDate, todayDateString } from '@/lib/format';
 import { formatMoney } from '@/lib/money';
 import { useSessionStore } from '@/stores/session';
 import {
@@ -109,7 +110,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
       base_currency: 'USD',
       quote_currency: 'VES',
       rate: 0,
-      effective_at: new Date().toISOString().slice(0, 10),
+      effective_at: todayDateString(),
       source: 'manual',
       is_active: true,
     },
@@ -126,10 +127,11 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
       base_currency: 'USD',
       quote_currency: 'VES',
       rate: 0,
-      effective_at: new Date().toISOString().slice(0, 10),
+      effective_at: todayDateString(),
       source: 'manual',
       is_active: true,
     });
+
     setShowForm(true);
   };
 

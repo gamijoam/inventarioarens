@@ -12,6 +12,7 @@ import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { todayDateString } from '@/lib/format';
 import { ImeiScanner } from './ImeiScanner';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
@@ -78,15 +79,16 @@ export function TransferReceiveDialog({
   const { data: transfer } = useTransfer(transferId);
   const receive = useReceiveTransfer();
   const [rows, setRows] = useState<ItemRow[]>([]);
-  const [receivedAt, setReceivedAt] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [receivedAt, setReceivedAt] = useState<string>(todayDateString());
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (transfer && open) {
       setRows(buildInitialRows(transfer));
-      setReceivedAt(new Date().toISOString().slice(0, 10));
+      setReceivedAt(todayDateString());
     }
   }, [transfer, open]);
+
 
   const itemsWithPending = useMemo(() => rows, [rows]);
 
