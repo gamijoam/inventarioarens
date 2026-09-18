@@ -130,7 +130,7 @@ export function ProductForm({
   const margin = Number(form.watch('profit_margin'));
   const currentBasePrice = Number(form.watch('base_price') ?? 0);
 
-  const [applyIva, setApplyIva] = useState(true);
+  const [applyIva, setApplyIva] = useState(!productId); // false en edición: evita desglose confuso del precio existente
   const [ivaRate, setIvaRate] = useState(16);
 
   const netSubtotal =
