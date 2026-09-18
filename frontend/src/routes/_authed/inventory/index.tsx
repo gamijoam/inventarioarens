@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, Package, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -36,6 +36,7 @@ import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-set
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
 import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/ExportInventoryDialog';
+import { InventoryErpWorkspace } from '@/features/inventory-center/components/InventoryErpWorkspace';
 import {
   DEFAULT_INVENTORY_TABLE_COLUMNS,
   getStoredInventoryColumnsVisibility,
@@ -132,10 +133,10 @@ function InventoryListPage() {
   useEffect(() => {
     if (searchInput === search.search) return;
     const timer = setTimeout(() => {
-      void navigate({ search: { ...search, search: searchInput, page: 1 } });
+      void navigate({ search: (prev: InventorySearch) => ({ ...prev, search: searchInput, page: 1 }) });
     }, 250);
     return () => clearTimeout(timer);
-  }, [searchInput, search, navigate]);
+  }, [searchInput, search.search, navigate]);
 
   const filters = useMemo(
     () => ({
@@ -162,7 +163,16 @@ function InventoryListPage() {
   const exportProducts = useExportProducts();
 
   const updateSearch = (patch: Partial<InventorySearch>) => {
-    void navigate({ search: { ...search, search: searchInput, ...patch, page: 1 } });
+    if (patch.search !== undefined) {
+      setSearchInput(patch.search);
+    }
+    void navigate({
+      search: (prev: InventorySearch) => ({
+        ...prev,
+        ...patch,
+        page: 1,
+      }),
+    });
   };
 
   const goToPage = (page: number) => {
@@ -177,6 +187,21 @@ function InventoryListPage() {
   );
   const [customizeColumnsOpen, setCustomizeColumnsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
+  const [viewMode, setViewMode] = useState<'erp' | 'table'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inventory_view_mode');
+      if (saved === 'table' || saved === 'erp') return saved;
+    }
+    return 'erp';
+  });
+
+  const handleViewModeChange = (mode: 'erp' | 'table') => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inventory_view_mode', mode);
+    }
+  };
 
   useEffect(() => {
     if (uiPreferences?.inventory_table_columns) {
@@ -235,15 +260,49 @@ function InventoryListPage() {
       description="Listado de productos con stock, precios y estado."
       actions={
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<SlidersHorizontal className="size-4" />}
-            onClick={() => setCustomizeColumnsOpen(true)}
-            data-testid="customize-columns-btn"
-          >
-            Columnas
-          </Button>
+          {/* Selector de modo de vista */}
+          <div className="inline-flex items-center rounded-lg border border-border bg-surface p-0.5 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('erp')}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all',
+                viewMode === 'erp'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                  : 'text-text-muted hover:text-text-primary',
+              )}
+              title="Vista ERP dividida con búsqueda y panel detallado"
+            >
+              <LayoutGrid className="size-3.5" />
+              Vista ERP
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('table')}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all',
+                viewMode === 'table'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                  : 'text-text-muted hover:text-text-primary',
+              )}
+              title="Vista clásica de tabla completa"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Vista Tabla
+            </button>
+          </div>
+
+          {viewMode === 'table' && (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<SlidersHorizontal className="size-4" />}
+              onClick={() => setCustomizeColumnsOpen(true)}
+              data-testid="customize-columns-btn"
+            >
+              Columnas
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -262,12 +321,37 @@ function InventoryListPage() {
         </div>
       }
     >
-      <InventoryKpis total={data?.meta.total ?? 0} alerts={alerts} />
+      {viewMode === 'erp' ? (
+        <InventoryErpWorkspace
+          products={data?.data ?? []}
+          totalProducts={data?.meta.total ?? 0}
+          totalPages={data?.meta.last_page ?? 1}
+          currentPage={data?.meta.current_page ?? 1}
+          isLoading={isLoading}
+          search={search.search}
+          onSearchChange={(s) => updateSearch({ search: s })}
+          warehouseId={search.warehouse_id}
+          onWarehouseChange={(w) => updateSearch({ warehouse_id: w })}
+          tracking={search.tracking}
+          onTrackingChange={(t) => updateSearch({ tracking: t })}
+          stock={search.stock}
+          onStockChange={(s) => updateSearch({ stock: s })}
+          status={search.status}
+          onStatusChange={(st) => updateSearch({ status: st })}
+          onPageChange={goToPage}
+          warehouses={warehouses}
+          priceLists={priceLists}
+          activeRate={activeRate}
+          onNewProduct={() => setCreateOpen(true)}
+        />
+      ) : (
+        <>
+          <InventoryKpis total={data?.meta.total ?? 0} alerts={alerts} />
 
-      <BulkActionsMenu
-        selectedIds={Array.from(selectedIds)}
-        onClearSelection={() => setSelectedIds(new Set())}
-        onSuccess={() => setSelectedIds(new Set())}
+          <BulkActionsMenu
+            selectedIds={Array.from(selectedIds)}
+            onClearSelection={() => setSelectedIds(new Set())}
+            onSuccess={() => setSelectedIds(new Set())}
       />
 
       {/* Filtros */}
@@ -441,6 +525,8 @@ function InventoryListPage() {
             </Button>
           </div>
         </div>
+      )}
+      </>
       )}
 
       <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />

@@ -6,6 +6,7 @@ use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 
 class FinanceReportService
@@ -90,36 +91,46 @@ class FinanceReportService
 
     private function receivableQuery(array $filters): Builder
     {
-        return AccountsReceivable::query()
-            ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
-            ->when($filters['customer_id'] ?? null, fn (Builder $query, int $customerId) => $query->where('customer_id', $customerId))
-            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->whereDate('opened_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->whereDate('opened_at', '<=', $date));
+        return $this->applyDateRange(
+            AccountsReceivable::query()
+                ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
+                ->when($filters['customer_id'] ?? null, fn (Builder $query, int $customerId) => $query->where('customer_id', $customerId)),
+            $filters,
+            'opened_at',
+        );
     }
 
     private function payableQuery(array $filters): Builder
     {
-        return AccountsPayable::query()
-            ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
-            ->when($filters['supplier_id'] ?? null, fn (Builder $query, int $supplierId) => $query->where('supplier_id', $supplierId))
-            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->whereDate('opened_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->whereDate('opened_at', '<=', $date));
+        return $this->applyDateRange(
+            AccountsPayable::query()
+                ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
+                ->when($filters['supplier_id'] ?? null, fn (Builder $query, int $supplierId) => $query->where('supplier_id', $supplierId)),
+            $filters,
+            'opened_at',
+        );
     }
 
     private function collectionsTotal(array $filters): float
     {
-        return round((float) AccountsReceivablePayment::query()
-            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->whereDate('paid_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->whereDate('paid_at', '<=', $date))
-            ->sum('amount_base'), 4);
+        return round((float) $this->applyDateRange(AccountsReceivablePayment::query(), $filters, 'paid_at')->sum('amount_base'), 4);
     }
 
     private function supplierPaymentsTotal(array $filters): float
     {
-        return round((float) AccountsPayablePayment::query()
-            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->whereDate('paid_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->whereDate('paid_at', '<=', $date))
-            ->sum('amount_base'), 4);
+        return round((float) $this->applyDateRange(AccountsPayablePayment::query(), $filters, 'paid_at')->sum('amount_base'), 4);
+    }
+
+    private function applyDateRange(Builder $query, array $filters, string $column): Builder
+    {
+        [$from, $to] = BusinessDateRange::range(
+            $filters['date_from'] ?? null,
+            $filters['date_to'] ?? null,
+        );
+
+        return $query
+            ->when($from, fn (Builder $builder) => $builder->where($column, '>=', $from))
+            ->when($to, fn (Builder $builder) => $builder->where($column, '<=', $to));
     }
 
     private function sumClone(Builder $query, string $column): float

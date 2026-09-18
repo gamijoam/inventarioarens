@@ -8,6 +8,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Requests\StoreSaleRequest;
 use App\Modules\Sales\Resources\SaleResource;
 use App\Modules\Sales\Services\SaleService;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -54,12 +55,17 @@ class SaleController extends Controller
             );
         }
 
-        if ($dateFrom = $request->date('date_from')) {
-            $query->whereDate('created_at', '>=', $dateFrom);
+        [$dateFrom, $dateTo] = BusinessDateRange::range(
+            $request->filled('date_from') ? $request->string('date_from')->toString() : null,
+            $request->filled('date_to') ? $request->string('date_to')->toString() : null,
+        );
+
+        if ($dateFrom) {
+            $query->where('created_at', '>=', $dateFrom);
         }
 
-        if ($dateTo = $request->date('date_to')) {
-            $query->whereDate('created_at', '<=', $dateTo);
+        if ($dateTo) {
+            $query->where('created_at', '<=', $dateTo);
         }
 
         if ($search = $request->string('search')->trim()->toString()) {

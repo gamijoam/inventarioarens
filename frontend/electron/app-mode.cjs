@@ -26,7 +26,41 @@ function detectAppMode(options = {}) {
   return 'admin';
 }
 
+/**
+ * Detecta la marca del cliente. El branding BalanzaPro usa instaladores,
+ * appIds y canales de actualizacion propios aunque comparta el modo (POS o
+ * Administrativo) del producto generico.
+ */
+function detectAppBrand(options = {}) {
+  const envBrand = options.brand ?? process.env.INVENTARIO_APP_BRAND;
+  if (envBrand) {
+    return String(envBrand).toLowerCase() === 'balanzapro' ? 'balanzapro' : 'default';
+  }
+
+  const execPath = options.execPath ?? process.execPath ?? '';
+  const exeName = path.basename(execPath).toLowerCase();
+
+  return exeName.includes('balanzapro') ? 'balanzapro' : 'default';
+}
+
+/**
+ * Devuelve el id de cliente completo (brand + modo) usado para config,
+ * directorio de datos y canal de actualizacion.
+ */
+function detectAppClient(options = {}) {
+  const mode = detectAppMode(options);
+  const brand = detectAppBrand(options);
+
+  if (brand === 'balanzapro') {
+    return `balanzapro-${mode}`;
+  }
+
+  return mode;
+}
+
 module.exports = {
+  detectAppBrand,
+  detectAppClient,
   detectAppMode,
   normalizeAppMode,
 };

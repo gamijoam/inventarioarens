@@ -45,8 +45,11 @@ export function usePosTap(onTap: () => void, enabled = true): UsePosTapResult {
   const fire = (source: 'touch' | 'click' | 'gesture' = 'gesture'): void => {
     const now = Date.now();
     if (source === 'click') {
-      // Android can emit a native click after the immediate touch action.
+      // Deduplica contra tacto (Android) Y contra gesture (mouse desktop).
+      // Sin esto, en mouse: gesture dispara (setea lastGestureFiredAt) y luego
+      // el onClick nativo tambien dispara porque solo chequeaba lastTouchFiredAt.
       if (now - lastTouchFiredAt.current < DEDUP_MS) return;
+      if (now - lastGestureFiredAt.current < DEDUP_MS) return;
     } else if (source === 'touch') {
       if (now - lastTouchFiredAt.current < DEDUP_MS) return;
       lastTouchFiredAt.current = now;

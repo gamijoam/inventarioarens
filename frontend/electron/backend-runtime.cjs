@@ -8,13 +8,26 @@ const API_HOST = '127.0.0.1';
 const API_PORT = 8787;
 const PRINTER_PORT = 17777;
 const DEFAULT_SYNC_CLOUD_URL = 'https://app.miinventariofacil.com/api';
+const BALANZAPRO_SYNC_CLOUD_URL = 'https://app.balanzapro.com/api';
+
+function defaultSyncCloudUrl(brand) {
+  return String(brand ?? '').toLowerCase() === 'balanzapro'
+    ? BALANZAPRO_SYNC_CLOUD_URL
+    : DEFAULT_SYNC_CLOUD_URL;
+}
 const ELECTRON_RENDERER_ORIGINS = [
   'http://127.0.0.1:8788',
   'http://127.0.0.1:8789',
   'http://127.0.0.1:8790',
+  'http://127.0.0.1:8791',
+  'http://127.0.0.1:8792',
+  'http://127.0.0.1:8793',
   'http://localhost:8788',
   'http://localhost:8789',
   'http://localhost:8790',
+  'http://localhost:8791',
+  'http://localhost:8792',
+  'http://localhost:8793',
 ];
 const RUNTIME_SUPERVISOR_FLAG = '--inventario-runtime-supervisor';
 const RUNTIME_LEASE_TTL_MS = 10000;
@@ -127,7 +140,9 @@ function resolveRuntimeConfig(options = {}) {
       'scheduled_task',
     storagePath: path.join(dataRoot, 'storage'),
     syncCloudUrl:
-      options.syncCloudUrl ?? process.env.INVENTARIO_SYNC_CLOUD_URL ?? DEFAULT_SYNC_CLOUD_URL,
+      options.syncCloudUrl ??
+      process.env.INVENTARIO_SYNC_CLOUD_URL ??
+      defaultSyncCloudUrl(options.brand ?? process.env.INVENTARIO_APP_BRAND),
     syncTenant: options.syncTenant ?? process.env.INVENTARIO_SYNC_TENANT,
     syncToken: options.syncToken ?? process.env.INVENTARIO_SYNC_TOKEN,
   };
@@ -918,6 +933,7 @@ module.exports = {
   createLocalRuntime,
   createRuntimeSupervisor,
   dedicatedServiceConfigPath,
+  defaultSyncCloudUrl,
   isBackendOutdated,
   killProcessOnApiPort,
   listLiveRuntimeLeases,

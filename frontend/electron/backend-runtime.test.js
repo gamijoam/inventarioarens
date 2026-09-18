@@ -14,6 +14,7 @@ const {
   isBackendOutdated,
   readBackendVersion,
   dedicatedServiceConfigPath,
+  defaultSyncCloudUrl,
   readDedicatedServiceSettings,
   releaseRuntimeStartupLock,
   releaseRuntimeSupervisorLock,
@@ -36,6 +37,12 @@ const {
 } = backendRuntime;
 
 describe('Local Laravel runtime configuration', () => {
+  it('defaults the sync cloud URL per brand', () => {
+    expect(defaultSyncCloudUrl('balanzapro')).toBe('https://app.balanzapro.com/api');
+    expect(defaultSyncCloudUrl('default')).toBe('https://app.miinventariofacil.com/api');
+    expect(defaultSyncCloudUrl(undefined)).toBe('https://app.miinventariofacil.com/api');
+  });
+
   it('ships an independent local motor installer with WinSW recovery and migration wiring', () => {
     const installerPath = path.join(repositoryRoot, 'scripts', 'install-local-motor.ps1');
     const installer = fs.readFileSync(installerPath, 'utf8');

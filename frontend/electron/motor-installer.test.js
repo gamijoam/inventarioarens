@@ -44,6 +44,34 @@ describe('Motor Local packaging contracts', () => {
     expect(inno).toContain('ResultCode <> 0');
   });
 
+  it('allows configuring the sync cloud URL per build variant', () => {
+    const inno = fs.readFileSync(
+      path.join(repositoryRoot, 'installer', 'windows', 'MotorLocal.iss'),
+      'utf8',
+    );
+    const installer = fs.readFileSync(
+      path.join(repositoryRoot, 'scripts', 'install-local-motor.ps1'),
+      'utf8',
+    );
+    const build = fs.readFileSync(
+      path.join(repositoryRoot, 'scripts', 'build-local-motor.ps1'),
+      'utf8',
+    );
+    const workflow = fs.readFileSync(
+      path.join(repositoryRoot, '.github', 'workflows', 'release-motor.yml'),
+      'utf8',
+    );
+
+    expect(installer).toContain("[string]$CloudUrl = 'https://app.miinventariofacil.com/api'");
+    expect(installer).toContain('$env:SYNC_CLOUD_URL = $CloudUrl');
+    expect(installer).toContain('http://127.0.0.1:8791');
+    expect(installer).toContain('http://127.0.0.1:8792');
+    expect(installer).toContain('http://127.0.0.1:8793');
+    expect(inno).toContain('CloudUrl "{#CloudUrl}"');
+    expect(build).toContain('/DCloudUrl=$CloudUrl');
+    expect(workflow).toContain('https://app.balanzapro.com/api');
+  });
+
   it('creates the application window before waiting for Motor health', () => {
     const main = fs.readFileSync(
       path.join(repositoryRoot, 'frontend', 'electron', 'main.cjs'),

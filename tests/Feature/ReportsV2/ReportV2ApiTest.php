@@ -118,6 +118,25 @@ class ReportV2ApiTest extends TestCase
         $this->assertSame(['2026-08', '2026-09'], collect($monthResponse->json('data.rows'))->pluck('label')->all());
     }
 
+    public function test_date_filter_uses_business_timezone_instead_of_utc(): void
+    {
+        $group = $this->group();
+        $tucacas = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedSales($tucacas, 0, new \DateTimeImmutable('2026-09-17 01:17:47'));
+        $this->seedSales($tucacas, 0, new \DateTimeImmutable('2026-09-17 13:00:00'));
+
+        $manager = $this->userInSpinoff($tucacas, 'Gerente');
+
+        $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tucacas->slug)
+            ->getJson('/api/reports/v2/sales_overview?scope=tenant&date_from=2026-09-17&date_to=2026-09-17')
+            ->assertOk()
+            ->assertJsonPath('data.period.from', '2026-09-17')
+            ->assertJsonPath('data.period.to', '2026-09-17')
+            ->assertJsonPath('data.totals.sales_count', 1);
+    }
+
     public function test_non_owner_gets_403_for_organization_scope(): void
     {
         $group = $this->group();

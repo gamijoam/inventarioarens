@@ -33,6 +33,8 @@ import { Label } from '@/components/ui/Label';
 import { usePurchase, useReceivePurchase } from '@/features/purchases/api';
 import type { Purchase } from '@/features/purchases/schemas';
 import { formatMoney } from '@/lib/money';
+import { todayDateString } from '@/lib/format';
+
 import { ReceiveItemRow, type ReceiveItemRowValue } from './ReceiveItemRow';
 
 interface ReceiveDialogProps {
@@ -102,7 +104,7 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
   const { data: purchase, isLoading } = usePurchase(purchaseId ?? 0);
   const receive = useReceivePurchase();
   const [items, setItems] = useState<ReceiveItemRowValue[]>([]);
-  const [receivedAt, setReceivedAt] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [receivedAt, setReceivedAt] = useState<string>(todayDateString());
   const [submitting, setSubmitting] = useState(false);
   const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
 
@@ -111,9 +113,10 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
     if (purchase && open) {
       setItems(buildInitialValues(purchase));
       setItemErrors({});
-      setReceivedAt(new Date().toISOString().slice(0, 10));
+      setReceivedAt(todayDateString());
     }
   }, [purchase, open]);
+
 
   const totals = useMemo(() => {
     let base = 0;

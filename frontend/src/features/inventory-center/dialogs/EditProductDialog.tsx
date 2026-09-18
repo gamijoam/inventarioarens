@@ -34,7 +34,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   // render. Si no se memoiza, productToFormValues retorna una referencia
   // nueva cada vez y useProductForm (con [formId] en deps) se dispara
   // + veces -> loop infinito de re-renders.
-  // Solo recalcular si cambia el id del producto.
+  // Dependemos de product.id para recalcular cuando cambia el producto.
   const initialValues = useMemo(
     () => productToFormValues(product),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,7 +54,12 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const tagOptions = tags.map((t) => ({ value: t.id, label: t.name, color: t.color ?? undefined }));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // La key combina el id del producto con el estado 'open', forzando el
+    // desmontaje y remontaje del Dialog (y del form interno) cada vez que
+    // se abre. Esto garantiza que los initialValues (incluyendo base_price,
+    // precios, etc.) siempre se carguen desde el producto actual, sin
+    // importar si el usuario lo abrió antes para el mismo producto.
+    <Dialog key={`edit-${product.id}-${open ? 'open' : 'closed'}`} open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar producto</DialogTitle>

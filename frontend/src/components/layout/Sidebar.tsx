@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   LayoutDashboard,
@@ -352,7 +352,8 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const tenant = useSessionStore((state) => state.tenant);
   // Cargamos los grupos donde soy Owner para que el item "Organizaciones"
   // aparezca solo si tengo al menos uno. Si el query falla o carga lento,
@@ -363,6 +364,18 @@ export function Sidebar() {
   const routerState = useRouterState();
 
   const currentPath = routerState.location.pathname;
+
+  // Al navegar o cambiar de ruta, colapsar el menú flotante
+  useEffect(() => {
+    setIsHovered(false);
+  }, [currentPath]);
+
+  const isExpanded = isPinned || isHovered;
+  const collapsed = !isExpanded;
+
+  const handleItemClick = () => {
+    setIsHovered(false);
+  };
 
   // El item "Organizaciones" aparece si:
   //   - El query completo Y tengo grupos -> mostrar.
@@ -382,131 +395,158 @@ export function Sidebar() {
     item.to === '/users' ? { scope: usersScope } : undefined;
 
   return (
-    <aside
+    <div
       className={cn(
-        'border-border bg-surface flex flex-col border-r transition-[width] duration-200',
-        collapsed ? 'w-16' : 'w-60',
+        'relative shrink-0 min-h-screen transition-[width] duration-200',
+        isPinned ? 'w-60' : 'w-16',
       )}
-      aria-label="Navegación principal"
+      onMouseEnter={() => {
+        if (!isPinned) setIsHovered(true);
+      }}
+      onMouseLeave={() => {
+        if (!isPinned) setIsHovered(false);
+      }}
     >
-      {/* Brand */}
-      <div className="border-border flex h-14 items-center gap-2 border-b px-3">
-        <div
-          className={cn(
-            'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-wide overflow-hidden p-0.5',
-            'shadow-sm',
-          )}
-          aria-hidden="true"
-        >
-          {tenant?.logo_url ? (
-            <img
-              src={tenant.logo_url}
-              alt={tenant.name || 'Logo'}
-              className="size-full object-contain"
-              data-testid="sidebar-tenant-logo"
-            />
-          ) : (
-            'SDI'
-          )}
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
+      <aside
+        className={cn(
+          'fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-surface border-r border-border transition-all duration-200 ease-in-out h-screen',
+          isExpanded
+            ? 'w-60 shadow-2xl ring-1 ring-black/10 dark:ring-white/10'
+            : 'w-16 shadow-none',
+        )}
+        aria-label="Navegación principal"
+      >
+        {/* Brand */}
+        <div className="border-border flex h-14 items-center gap-2 border-b px-3 shrink-0">
+          <div
+            className={cn(
+              'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-wide overflow-hidden p-0.5',
+              'shadow-sm',
+            )}
+            aria-hidden="true"
+          >
+            {tenant?.logo_url ? (
+              <img
+                src={tenant.logo_url}
+                alt={tenant.name || 'Logo'}
+                className="size-full object-contain"
+                data-testid="sidebar-tenant-logo"
+              />
+            ) : (
+              'SDI'
+            )}
+          </div>
+          <div className={cn('min-w-0 transition-opacity duration-150', !isExpanded && 'sr-only')}>
             <p className="truncate text-sm font-semibold">{tenant?.name || APP_SHORT_NAME}</p>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">
-        <ul className="space-y-0.5">
-          {visibleItems.map((item, index) => {
-            const prevSection = visibleItems[index - 1]?.section;
-            const isNewSection = item.section != null && item.section !== prevSection;
-            const sectionHeader =
-              !collapsed && isNewSection ? (
-                <div className="text-text-muted px-2.5 pt-3 pb-1 text-[10px] font-semibold tracking-wider uppercase">
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">
+          <ul className="space-y-0.5">
+            {visibleItems.map((item, index) => {
+              const prevSection = visibleItems[index - 1]?.section;
+              const isNewSection = item.section != null && item.section !== prevSection;
+              const sectionHeader = isNewSection ? (
+                <div
+                  className={cn(
+                    'text-text-muted px-2.5 pt-3 pb-1 text-[10px] font-semibold tracking-wider uppercase',
+                    !isExpanded && 'sr-only',
+                  )}
+                >
                   {item.section}
                 </div>
               ) : null;
 
-            // Si el item tiene children, renderiza submenu anidado.
-            if (item.children && item.children.length > 0) {
-              const isParentActive =
-                currentPath === item.to || currentPath.startsWith(`${item.to}/`);
+              // Si el item tiene children, renderiza submenu anidado.
+              if (item.children && item.children.length > 0) {
+                const isParentActive =
+                  currentPath === item.to || currentPath.startsWith(`${item.to}/`);
+                return (
+                  <li key={item.to}>
+                    {sectionHeader}
+                    <NavItemAccess item={item}>
+                      <Group
+                        item={item}
+                        isParentActive={isParentActive}
+                        currentPath={currentPath}
+                        collapsed={collapsed}
+                        usersScope={usersScope}
+                        shouldHideOrgItem={shouldHideOrgItem}
+                        onItemClick={handleItemClick}
+                      />
+                    </NavItemAccess>
+                  </li>
+                );
+              }
+
+              const isActive = currentPath === item.to || currentPath.startsWith(`${item.to}/`);
+
+              const linkContent = (
+                <Link
+                  to={item.to}
+                  search={searchForItem(item)}
+                  onClick={handleItemClick}
+                  className={cn(
+                    'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary/10 text-primary font-semibold'
+                      : 'text-text-secondary hover:bg-bg hover:text-text-primary',
+                    !isExpanded && 'justify-center',
+                  )}
+                  title={!isExpanded ? item.label : undefined}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                  <span className={cn('truncate', !isExpanded && 'sr-only')}>{item.label}</span>
+                  {isExpanded && item.to === '/inventory-transfer-requests' && (
+                    <UnreadTransferRequestsBadge />
+                  )}
+                </Link>
+              );
+
               return (
                 <li key={item.to}>
                   {sectionHeader}
-                  <NavItemAccess item={item}>
-                    <Group
-                      item={item}
-                      isParentActive={isParentActive}
-                      currentPath={currentPath}
-                      collapsed={collapsed}
-                      usersScope={usersScope}
-                      shouldHideOrgItem={shouldHideOrgItem}
-                    />
-                  </NavItemAccess>
+                  <NavItemAccess item={item}>{linkContent}</NavItemAccess>
                 </li>
               );
-            }
+            })}
+          </ul>
+        </nav>
 
-            const isActive = currentPath === item.to || currentPath.startsWith(`${item.to}/`);
-
-            const linkContent = (
-              <Link
-                to={item.to}
-                search={searchForItem(item)}
-                className={cn(
-                  'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-text-secondary hover:bg-bg hover:text-text-primary',
-                  collapsed && 'justify-center',
-                )}
-                title={collapsed ? item.label : undefined}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <item.icon className="size-4 shrink-0" aria-hidden="true" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-                {!collapsed && item.to === '/inventory-transfer-requests' && (
-                  <UnreadTransferRequestsBadge />
-                )}
-              </Link>
-            );
-
-            return (
-              <li key={item.to}>
-                {sectionHeader}
-                <NavItemAccess item={item}>{linkContent}</NavItemAccess>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {/* Collapse */}
-      <div className="border-border border-t p-2">
-        <button
-          type="button"
-          onClick={() => setCollapsed((v) => !v)}
-          className={cn(
-            'text-text-muted hover:bg-bg hover:text-text-secondary flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs',
-            collapsed && 'justify-center',
-          )}
-          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-          aria-expanded={!collapsed}
-        >
-          {collapsed ? (
-            <ChevronRight className="size-4" aria-hidden="true" />
-          ) : (
-            <>
-              <ChevronLeft className="size-4" aria-hidden="true" />
-              <span>Colapsar</span>
-            </>
-          )}
-        </button>
-      </div>
-    </aside>
+        {/* Collapse / Pin Toggle */}
+        <div className="border-border border-t p-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (isPinned) {
+                setIsPinned(false);
+                setIsHovered(false);
+              } else {
+                setIsPinned(true);
+              }
+            }}
+            className={cn(
+              'text-text-muted hover:bg-bg hover:text-text-secondary flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs transition-colors',
+              !isExpanded && 'justify-center',
+            )}
+            aria-label={isExpanded ? 'Colapsar menú' : 'Expandir menú'}
+            aria-expanded={isExpanded}
+            title={isPinned ? 'Desfijar (auto-colapsar)' : 'Fijar menú abierto'}
+          >
+            {isExpanded ? (
+              <>
+                <ChevronLeft className="size-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">{isPinned ? 'Desfijar menú' : 'Colapsar'}</span>
+              </>
+            ) : (
+              <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -547,6 +587,7 @@ function Group({
   collapsed,
   usersScope,
   shouldHideOrgItem,
+  onItemClick,
 }: {
   item: NavItem;
   isParentActive: boolean;
@@ -554,18 +595,12 @@ function Group({
   collapsed: boolean;
   usersScope: UsersSearch['scope'];
   shouldHideOrgItem: boolean;
+  onItemClick?: () => void;
 }) {
   const [open, setOpen] = useState(isParentActive);
   const visibleChildren = item.children!.filter((sub) =>
     sub.hideIfNoOwnedGroup ? !shouldHideOrgItem : true,
   );
-
-  // Si el padre se vuelve activo (navigate), abrimos el submenu.
-  if (isParentActive && !open) {
-    // No podemos setState en render; usamos un efecto. En la practica el
-    // padre se vuelve activo via navigate, que ya re-renderiza con la
-    // prop isParentActive, y abrimos via el efecto siguiente.
-  }
 
   if (collapsed) {
     // En modo colapsado, mostramos solo el icono. Click navega al padre
@@ -574,6 +609,7 @@ function Group({
       <Link
         to={item.to}
         search={item.to === '/users' ? { scope: usersScope } : undefined}
+        onClick={onItemClick}
         className={cn(
           'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
           isParentActive
@@ -585,6 +621,7 @@ function Group({
         aria-current={isParentActive ? 'page' : undefined}
       >
         <item.icon className="size-4 shrink-0" aria-hidden="true" />
+        <span className="sr-only">{item.label}</span>
       </Link>
     );
   }
@@ -595,6 +632,7 @@ function Group({
         <Link
           to={item.to}
           search={item.to === '/users' ? { scope: usersScope } : undefined}
+          onClick={onItemClick}
           className={cn(
             'flex flex-1 items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
             isParentActive
@@ -628,6 +666,7 @@ function Group({
               <Link
                 to={sub.to}
                 search={sub.to === '/users' ? { scope: usersScope } : undefined}
+                onClick={onItemClick}
                 className={cn(
                   'flex items-center gap-3 rounded px-2.5 py-1.5 text-sm transition-colors',
                   isSubActive

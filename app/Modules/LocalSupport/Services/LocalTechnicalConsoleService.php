@@ -342,6 +342,54 @@ class LocalTechnicalConsoleService
         }
     }
 
+    public function pairingPreview(string $code): array
+    {
+        $cloudUrl = rtrim((string) config('services.local_support.cloud_url'), '/');
+        if ($cloudUrl === '') {
+            throw ValidationException::withMessages([
+                'code' => 'La URL de la nube no esta configurada en esta instalacion.',
+            ]);
+        }
+
+        $endpoint = $cloudUrl.'/sync/pairing-codes/preview';
+
+        try {
+            $response = Http::acceptJson()
+                ->timeout(20)
+                ->post($endpoint, [
+                    'code' => $code,
+                ]);
+        } catch (ConnectionException $e) {
+            throw ValidationException::withMessages([
+                'code' => sprintf(
+                    'No fue posible conectar con la nube (%s). Verifica Internet, firewall y la URL configurada (%s).',
+                    $e->getMessage(),
+                    $cloudUrl,
+                ),
+            ]);
+        }
+
+        $contentType = $response->header('Content-Type') ?? '';
+
+        if ($contentType !== '' && stripos($contentType, 'text/html') !== false) {
+            $host = parse_url($endpoint, PHP_URL_HOST) ?? $cloudUrl;
+
+            throw ValidationException::withMessages([
+                'code' => sprintf(
+                    'La URL %s devolvio HTML en vez de JSON. Verifica la configuracion del servidor en la nube.',
+                    $endpoint,
+                ),
+            ]);
+        }
+
+        if (! $response->successful()) {
+            $message = (string) ($response->json('message') ?: 'El codigo no es valido, expiro o ya fue utilizado.');
+            throw ValidationException::withMessages(['code' => $message]);
+        }
+
+        return (array) $response->json('data');
+    }
+
     private function redeemPairingCode(array $data): array
     {
         $cloudUrl = rtrim((string) config('services.local_support.cloud_url'), '/');

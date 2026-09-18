@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
 import { PermissionContext, type PermissionContextValue } from '@/permissions/PermissionContext';
@@ -162,4 +162,36 @@ describe('<Sidebar>', () => {
       '/settings/company',
     );
   });
+
+  it('se expande como overlay al pasar el mouse (hover) y se colapsa al salir o hacer click', async () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    const { container } = render(<Sidebar />, {
+      wrapper: makeWrapper(Object.values(PERMISSIONS)),
+    });
+
+    const wrapperDiv = container.firstChild as HTMLElement;
+    const aside = container.querySelector('aside') as HTMLElement;
+
+    // Estado inicial: colapsado en w-16
+    expect(aside.className).toContain('w-16');
+
+    // Hover (mouseEnter): se expande a w-60 con shadow-2xl flotante
+    fireEvent.mouseEnter(wrapperDiv);
+    expect(aside.className).toContain('w-60');
+    expect(aside.className).toContain('shadow-2xl');
+
+    // Mouse leave: vuelve a w-16
+    fireEvent.mouseLeave(wrapperDiv);
+    expect(aside.className).toContain('w-16');
+
+    // Hover de nuevo y click en una opcion: se colapsa
+    fireEvent.mouseEnter(wrapperDiv);
+    expect(aside.className).toContain('w-60');
+
+    const dashboardLink = screen.getByRole('link', { name: 'Dashboard' });
+    fireEvent.click(dashboardLink);
+    expect(aside.className).toContain('w-16');
+  });
 });
+

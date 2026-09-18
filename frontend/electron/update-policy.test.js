@@ -11,6 +11,9 @@ describe('Electron update policy', () => {
     expect(resolveUpdateChannel('admin')).toBe('admin');
     expect(resolveUpdateChannel('pos')).toBe('pos');
     expect(resolveUpdateChannel('technician')).toBe('technician');
+    expect(resolveUpdateChannel('balanzapro-pos')).toBe('balanzapro-pos');
+    expect(resolveUpdateChannel('balanzapro-admin')).toBe('balanzapro-admin');
+    expect(resolveUpdateChannel('balanzapro-technician')).toBe('balanzapro-technician');
   });
 
   it('falls back to the administrative channel for unknown modes', () => {
@@ -24,12 +27,12 @@ describe('Electron update policy', () => {
     expect(shouldEnableAutoUpdater({ isPackaged: true, isRuntimeSupervisor: true })).toBe(false);
   });
 
-  it('publishes a client inferred from a channel-suffixed tag instead of defaulting to technician', () => {
+  it('publishes a client inferred from a channel-suffixed tag, including balanzapro', () => {
     const workflowPath = path.resolve(import.meta.dirname, '../../.github/workflows/release.yml');
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
     expect(workflow).toContain('GITHUB_REF_NAME');
-    expect(workflow).toContain('CLIENT="${TAG_NAME##*-}"');
-    expect(workflow).toContain('admin|pos|technician');
+    expect(workflow).toContain('for candidate in balanzapro-pos balanzapro-admin balanzapro-technician technician admin pos');
+    expect(workflow).toContain('balanzapro-pos|balanzapro-admin|balanzapro-technician');
   });
 });

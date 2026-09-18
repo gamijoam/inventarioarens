@@ -1,6 +1,9 @@
 #ifndef MotorVersion
   #define MotorVersion "0.1.0"
 #endif
+#ifndef CloudUrl
+  #define CloudUrl "https://app.miinventariofacil.com/api"
+#endif
 #define MotorName "Motor Local - Sistema de Inventario"
 #define StageRoot "..\..\build\local-motor\stage"
 
@@ -46,7 +49,8 @@ begin
     '" -PayloadRoot "' + ExpandConstant('{app}\versions\{#MotorVersion}') +
     '" -MotorRoot "' + ExpandConstant('{app}') +
     '" -DataRoot "' + ExpandConstant('{commonappdata}\InventarioArens') +
-    '" -Version "{#MotorVersion}"';
+    '" -Version "{#MotorVersion}"' +
+    ' -CloudUrl "{#CloudUrl}"';
 
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Arguments,
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then

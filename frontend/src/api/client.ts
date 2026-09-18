@@ -103,21 +103,22 @@ api.interceptors.response.use(
         break;
       }
       case 403: {
-        toast.error(body?.message ?? 'No tienes permiso para esta acción.');
-        throw new ForbiddenError(body?.message);
+        const message = body?.message?.trim() || 'No tienes permiso para esta acción.';
+        toast.error(message);
+        throw new ForbiddenError(message);
       }
       case 404: {
-        toast.error(body?.message ?? 'Recurso no encontrado.');
+        toast.error(body?.message?.trim() || 'Recurso no encontrado.');
         break;
       }
       case 422: {
         const fieldErrors = body?.errors ?? {};
-        throw new ValidationError(body?.message ?? 'Datos inválidos.', fieldErrors);
+        throw new ValidationError(body?.message?.trim() || 'Datos inválidos.', fieldErrors);
       }
       case 500:
       case 502:
       case 503: {
-        toast.error('Error del servidor. Por favor intenta de nuevo.');
+        toast.error(body?.message?.trim() || 'Error del servidor. Por favor intenta de nuevo.');
         break;
       }
       default: {
@@ -128,7 +129,8 @@ api.interceptors.response.use(
     }
 
     if (status >= 400) {
-      throw new HttpError(status, body?.message ?? error.message, body);
+      const errorMessage = body?.message?.trim() || error.message || 'Error en la solicitud.';
+      throw new HttpError(status, errorMessage, body);
     }
     throw error;
   },

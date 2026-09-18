@@ -24,6 +24,11 @@ vi.mock('../Topbar', () => ({
   Topbar: () => <header data-testid="admin-topbar">Admin topbar</header>,
 }));
 
+vi.mock('@/features/company-settings/api', () => ({
+  useUiPreferences: () => ({ data: undefined }),
+}));
+
+
 vi.mock('@/permissions/PermissionContext', () => ({
   usePermissionContext: () => ({
     permissions: new Set<string>(),

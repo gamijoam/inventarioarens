@@ -18,6 +18,7 @@ import {
   type CashSessions,
   type ReportFilters,
 } from '@/features/reports/api';
+import { todayDateString } from '@/lib/format';
 import { useCashSessionDetail, useReviewCashSession, type CashRegisterSessionDetail } from './api';
 import { cashMovementMethodLabel, cashMovementTypeLabel } from '@/features/reports/movementLabels';
 
@@ -26,7 +27,8 @@ type CommandCenterProps = {
   registers: Array<{ id: number; name: string; code?: string | null; branch_id?: number | null }>;
 };
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayDateString();
+
 
 export function CashRegisterCommandCenter({ branches, registers }: CommandCenterProps) {
   const canViewReports = useCan(PERMISSIONS.REPORTS_VIEW);

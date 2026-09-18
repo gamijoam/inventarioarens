@@ -53,3 +53,21 @@ export function formatNumber(value: string | number | null | undefined, decimals
     maximumFractionDigits: decimals,
   }).format(num);
 }
+
+/**
+ * Retorna la fecha local en formato YYYY-MM-DD según el calendario local del usuario (Venezuela),
+ * evitando el desfase de toISOString() que convierte a UTC y adelanta 1 día a partir de las 8:00 PM.
+ *
+ * @example
+ *   todayDateString() // "2026-09-17"
+ */
+export function getLocalDateString(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function todayDateString(): string {
+  return getLocalDateString(new Date());
+}

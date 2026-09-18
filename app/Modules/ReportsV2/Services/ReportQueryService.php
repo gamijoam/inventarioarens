@@ -6,6 +6,7 @@ use App\Modules\ReportsV2\ReportDefinition;
 use App\Modules\ReportsV2\ReportRegistry;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -55,8 +56,8 @@ class ReportQueryService
             ],
             'scope' => $scope,
             'period' => $dateFrom && $dateTo ? [
-                'from' => $dateFrom->toDateString(),
-                'to' => $dateTo->toDateString(),
+                'from' => $dateFrom->copy()->setTimezone(BusinessDateRange::timezone())->toDateString(),
+                'to' => $dateTo->copy()->setTimezone(BusinessDateRange::timezone())->toDateString(),
             ] : null,
             'rows' => $rows,
             'totals' => $totals,
@@ -164,7 +165,7 @@ class ReportQueryService
     private function dateFrom(array $filters): ?Carbon
     {
         if (! empty($filters['date_from'])) {
-            return Carbon::parse($filters['date_from'])->startOfDay();
+            return BusinessDateRange::startOfDay($filters['date_from']);
         }
 
         return null;
@@ -173,7 +174,7 @@ class ReportQueryService
     private function dateTo(array $filters): ?Carbon
     {
         if (! empty($filters['date_to'])) {
-            return Carbon::parse($filters['date_to'])->endOfDay();
+            return BusinessDateRange::endOfDay($filters['date_to']);
         }
 
         return null;

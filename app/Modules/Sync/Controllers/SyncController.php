@@ -196,8 +196,6 @@ class SyncController extends Controller
 
     public function redeemPairingCode(RedeemSyncPairingCodeRequest $request): JsonResponse
     {
-        $this->authorizeTransport($request);
-
         return response()->json([
             'data' => $this->pairing->redeem(
                 $request->validated(),
@@ -209,7 +207,29 @@ class SyncController extends Controller
 
     public function previewPairingCode(PreviewSyncPairingCodeRequest $request): JsonResponse
     {
-        $this->authorizeTransport($request);
+        $isLocalNode = (bool) config('services.local_support.enabled') || env('INVENTARIO_SERVICE_MODE') === '1';
+        $cloudUrl = rtrim((string) (config('services.local_support.cloud_url') ?: env('SYNC_CLOUD_URL')), '/');
+        $cloudHost = parse_url($cloudUrl, PHP_URL_HOST);
+
+        if ($isLocalNode && $cloudUrl !== '' && $cloudHost !== $request->getHost() && ! in_array($cloudHost, ['127.0.0.1', 'localhost'], true)) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::acceptJson()
+                    ->timeout(20)
+                    ->post($cloudUrl.'/sync/pairing-codes/preview', [
+                        'code' => $request->validated('code'),
+                    ]);
+
+                if ($response->successful()) {
+                    return response()->json($response->json(), $response->status());
+                }
+
+                $message = (string) ($response->json('message') ?: 'El codigo es invalido, ya fue utilizado o expiro en la nube.');
+
+                return response()->json(['message' => $message], $response->status());
+            } catch (\Throwable $e) {
+                return response()->json(['message' => 'Error al conectar con la nube: '.$e->getMessage()], 502);
+            }
+        }
 
         return response()->json([
             'data' => $this->pairing->preview($request->validated('code')),

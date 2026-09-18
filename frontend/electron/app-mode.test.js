@@ -2,13 +2,14 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
 import appMode from './app-mode.cjs';
 
-const { detectAppMode, normalizeAppMode } = appMode;
+const { detectAppBrand, detectAppClient, detectAppMode, normalizeAppMode } = appMode;
 
 const ORIGINAL_ENV = { ...process.env };
 const ORIGINAL_EXEC_PATH = process.execPath;
 
 beforeEach(() => {
   delete process.env.INVENTARIO_APP_MODE;
+  delete process.env.INVENTARIO_APP_BRAND;
 });
 
 afterEach(() => {
@@ -98,6 +99,50 @@ describe('App mode detection', () => {
         configurable: true,
       });
       expect(detectAppMode()).toBe('pos');
+    });
+  });
+
+  describe('detectAppBrand / detectAppClient', () => {
+    it('detects the balanzapro brand and POS client from the executable name', () => {
+      Object.defineProperty(process, 'execPath', {
+        value: 'C:\\Apps\\BalanzaPro-POS.exe',
+        configurable: true,
+      });
+      expect(detectAppBrand()).toBe('balanzapro');
+      expect(detectAppClient()).toBe('balanzapro-pos');
+    });
+
+    it('detects the balanzapro administrative client', () => {
+      Object.defineProperty(process, 'execPath', {
+        value: '/opt/balanzapro/BalanzaPro-Administrativo',
+        configurable: true,
+      });
+      expect(detectAppBrand()).toBe('balanzapro');
+      expect(detectAppClient()).toBe('balanzapro-admin');
+    });
+
+    it('detects the balanzapro technician client', () => {
+      Object.defineProperty(process, 'execPath', {
+        value: 'C:\\Apps\\BalanzaPro-Soporte-Tecnico.exe',
+        configurable: true,
+      });
+      expect(detectAppBrand()).toBe('balanzapro');
+      expect(detectAppClient()).toBe('balanzapro-technician');
+    });
+
+    it('keeps the generic brand for the standard clients', () => {
+      Object.defineProperty(process, 'execPath', {
+        value: 'C:\\Apps\\Sistema-de-Inventario-POS.exe',
+        configurable: true,
+      });
+      expect(detectAppBrand()).toBe('default');
+      expect(detectAppClient()).toBe('pos');
+    });
+
+    it('honors INVENTARIO_APP_BRAND in development', () => {
+      process.env.INVENTARIO_APP_MODE = 'pos';
+      process.env.INVENTARIO_APP_BRAND = 'balanzapro';
+      expect(detectAppClient()).toBe('balanzapro-pos');
     });
   });
 });

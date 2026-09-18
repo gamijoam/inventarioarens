@@ -12,6 +12,9 @@ on:
           - technician
           - admin
           - pos
+          - balanzapro-pos
+          - balanzapro-admin
+          - balanzapro-technician
   push:
     tags:
       - 'v*'
@@ -43,23 +46,36 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Build client
-        working-directory: frontend
+      - name: Resolve client
+        id: client
         shell: bash
         run: |
           set -euo pipefail
           CLIENT="${{ github.event.inputs.client }}"
           if [ -z "$CLIENT" ]; then
             TAG_NAME="${GITHUB_REF_NAME:-}"
-            case "$TAG_NAME" in
-              v*-[a-z]*) CLIENT="${TAG_NAME##*-}" ;;
-              *) echo "No se pudo inferir el cliente desde el tag '$TAG_NAME'. Usa un tag v<version>-admin|pos|technician."; exit 1 ;;
-            esac
+            # Los clientes con guion (balanzapro-pos) se resuelven primero para
+            # no confundirlos con el sufijo simple (pos).
+            for candidate in balanzapro-pos balanzapro-admin balanzapro-technician technician admin pos; do
+              if [[ "$TAG_NAME" == *"-$candidate" ]]; then
+                CLIENT="$candidate"
+                break
+              fi
+            done
           fi
           case "$CLIENT" in
-            admin|pos|technician) ;;
-            *) echo "Cliente invalido: $CLIENT"; exit 1 ;;
+            admin|pos|technician|balanzapro-pos|balanzapro-admin|balanzapro-technician) ;;
+            *) echo "No se pudo resolver un cliente valido desde '$GITHUB_REF_NAME'. Usa un tag v<version>-admin|pos|technician|balanzapro-pos|balanzapro-admin|balanzapro-technician."; exit 1 ;;
           esac
+          echo "client=$CLIENT" >> "$GITHUB_OUTPUT"
+          echo "CLIENT=$CLIENT" >> "$GITHUB_ENV"
+          echo "Cliente: $CLIENT"
+
+      - name: Build client
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
           pnpm run build:${CLIENT}
           # Build without publishing; the Motor Local has its own release workflow.
           # because electron-builder + GITHUB_TOKEN leaves drafts and can drop
@@ -72,18 +88,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CLIENT="${{ github.event.inputs.client }}"
-          if [ -z "$CLIENT" ]; then
-            TAG_NAME="${GITHUB_REF_NAME:-}"
-            case "$TAG_NAME" in
-              v*-[a-z]*) CLIENT="${TAG_NAME##*-}" ;;
-              *) echo "No se pudo inferir el cliente desde el tag '$TAG_NAME'. Usa un tag v<version>-admin|pos|technician."; exit 1 ;;
-            esac
-          fi
-          case "$CLIENT" in
-            admin|pos|technician) ;;
-            *) echo "Cliente invalido: $CLIENT"; exit 1 ;;
-          esac
           VERSION="$(node -p "require('./package.json').version")"
           TAG="v${VERSION}-${CLIENT}"
           YML="${CLIENT}.yml"

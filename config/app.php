@@ -69,6 +69,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Business Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Los timestamps se persisten en UTC, pero la operacion se planifica y
+    | filtra por dia natural en la zona horaria del negocio. Los filtros de
+    | fecha deben convertir el dia local a su rango UTC equivalente.
+    |
+    */
+
+    'business_timezone' => env('APP_BUSINESS_TIMEZONE', 'America/Caracas'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

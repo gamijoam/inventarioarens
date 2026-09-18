@@ -5,6 +5,7 @@ namespace Tests\Feature\Reports;
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductVariant;
@@ -195,6 +196,33 @@ class InventoryReportApiTest extends TestCase
             ->assertJsonPath('data.0.product_name', 'Producto A')
             ->assertJsonPath('data.0.type', 'sale')
             ->assertJsonPath('data.0.quantity', 3);
+    }
+
+    public function test_movements_report_date_filter_uses_business_timezone_instead_of_utc(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa TZ', 'slug' => 'empresa-tz']);
+        [$warehouse, $product] = $this->warehouseAndProduct($tenant, 'TZ');
+        $this->service()->purchase($warehouse, $product, 5);
+        $user = $this->reportUser($tenant);
+
+        StockMovement::query()->update([
+            'created_at' => '2026-09-17 01:17:47',
+            'updated_at' => '2026-09-17 01:17:47',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/movements?date_from=2026-09-17&date_to=2026-09-17')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/movements?date_from=2026-09-16&date_to=2026-09-16')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
     }
 
     public function test_movements_report_is_paginated(): void
