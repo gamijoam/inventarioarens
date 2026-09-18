@@ -38,7 +38,8 @@ import {
 import { Label } from '@/components/ui/Label';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
-import { formatDate, todayDateString } from '@/lib/format';
+import { todayDateString } from '@/lib/format';
+
 import { formatMoney } from '@/lib/money';
 import { useSessionStore } from '@/stores/session';
 import {
