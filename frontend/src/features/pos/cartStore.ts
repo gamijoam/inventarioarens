@@ -47,6 +47,7 @@ export interface AddLineInput {
     barcode?: string | null;
     tracking_type?: string | null;
     track_stock?: boolean;
+    unit_of_measure?: string | null;
     base_price?: number | string | null;
     available_stock?: number | string | null;
     sale_currency?: string | null;
@@ -278,6 +279,7 @@ export const usePosCartStore = create<{
             price_list_name: quote?.price_list_name ?? null,
             price_issue: null,
             tracking_type: product.tracking_type ?? null,
+            unit_of_measure: product.unit_of_measure ?? 'unit',
             track_stock: product.track_stock !== false,
             selected_serials: [],
           },

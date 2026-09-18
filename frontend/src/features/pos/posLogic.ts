@@ -10,6 +10,7 @@ export interface PosCartLine {
   sku?: string | null;
   barcode?: string | null;
   warehouse_id: number;
+  unit_of_measure?: string | null;
   /**
    * ID del sale_item de la orden armada cuando esta linea se recupero de
    * un ticket en espera. Se usa al cobrar para asignar IMEIs/seriales al
@@ -375,3 +376,34 @@ export function missingSerialIssue(lines: PosCartLine[]): string | null {
 export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
+
+/**
+ * Formatea la unidad de medida para el precio en el POS.
+ * Ej: 'par' -> 'c/par', 'kg' -> 'c/kg', 'unit' o default -> 'c/u'.
+ */
+export function formatCartUnitPrice(unit?: string | null): string {
+  if (!unit) return 'c/u';
+  const clean = unit.trim().toLowerCase();
+  if (clean === 'unit' || clean === 'und' || clean === 'unidad') return 'c/u';
+  if (clean === 'par' || clean === 'pair') return 'c/par';
+  if (clean === 'kg' || clean === 'kilo' || clean === 'kilogramo') return 'c/kg';
+  if (clean === 'lt' || clean === 'litro') return 'c/lt';
+  if (clean === 'm' || clean === 'metro') return 'c/m';
+  if (clean === 'caja' || clean === 'cja') return 'c/caja';
+  if (clean === 'paquete' || clean === 'paq') return 'c/paq';
+  if (clean === 'docena' || clean === 'doc') return 'c/doc';
+  if (clean === 'bulto' || clean === 'blt') return 'c/bulto';
+  return `c/${clean}`;
+}
+
+/**
+ * Formatea el sufijo de unidad para mostrar junto a cantidades en el POS.
+ * Ej: 'par' -> 'PAR', 'unit' -> '' (omitido para mantenerlo limpio).
+ */
+export function formatUnitSuffix(unit?: string | null): string {
+  if (!unit) return '';
+  const clean = unit.trim().toLowerCase();
+  if (clean === 'unit' || clean === 'und' || clean === 'unidad') return '';
+  return clean.toUpperCase();
+}
+

@@ -127,6 +127,8 @@ import { useCompleteSalesReturnExchange } from '@/features/sales-returns/api';
 import {
   calculateCartTotals,
   calculatePaymentTotals,
+  formatCartUnitPrice,
+  formatUnitSuffix,
   clampQuantity,
   expandPromotionItems,
   hasStockIssue,
@@ -1018,6 +1020,7 @@ export function PosTerminal() {
         price_list_name: BASE_PRICE_LIST_LABEL,
         price_issue: null,
         tracking_type: exchangeDraft.product.tracking_type ?? 'quantity',
+        unit_of_measure: exchangeDraft.product.unit_of_measure ?? 'unit',
         track_stock: true,
         selected_serials: [],
       },
@@ -1439,6 +1442,11 @@ export function PosTerminal() {
                                 )}>{product.name}</p>
                                 <p className="text-text-muted truncate text-xs">
                                   {product.sku ?? product.barcode ?? 'Sin codigo'}
+                                  {product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' && (
+                                    <span className="ml-1.5 font-medium text-text-secondary uppercase">
+                                      · {product.unit_of_measure}
+                                    </span>
+                                  )}
                                 </p>
                               </div>
                               <span className={cn(
@@ -1448,7 +1456,7 @@ export function PosTerminal() {
                                   : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
                               )}>
                                 {Number(product.available_stock ?? 0) > 0
-                                  ? `📦 ${Number(product.available_stock)} en stock`
+                                  ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
                                   : '⚠️ Sin stock'}
                               </span>
                             </TapButton>
@@ -2441,6 +2449,7 @@ export function PosTerminal() {
           line.id === existing.id
             ? {
                 ...line,
+                unit_of_measure: line.unit_of_measure ?? product.unit_of_measure ?? 'unit',
                 quantity: Math.min(line.quantity + quantity, maximumQuantity),
                 selected_serials: scannedSerial
                   ? [
@@ -2491,6 +2500,7 @@ export function PosTerminal() {
           price_issue: null,
           image_url: productImageSrc(product),
           tracking_type: product.tracking_type,
+          unit_of_measure: product.unit_of_measure ?? 'unit',
           // `track_stock` por defecto es true en el backend; si el producto
           // es un servicio o concepto facturable, el listado lo trae en
           // false y el POS no exige stock ni genera movimiento (QW10).
@@ -3188,6 +3198,7 @@ export function PosTerminal() {
             exchange_rate: item.exchange_rate ?? null,
             tracking_type: product.tracking_type,
             track_stock: product.track_stock !== false,
+            unit_of_measure: product.unit_of_measure ?? 'unit',
             image_url: product.image_url,
             selected_serials: selectedSerials,
           } satisfies PosCartLine;
@@ -3469,140 +3480,199 @@ function CartLineRow({
   const stockIssue = line.quantity > line.available_stock;
   const serialCount = line.selected_serials?.length ?? 0;
   const serialIssue = line.tracking_type === 'serialized' && serialCount !== Number(line.quantity);
+
+  const unitLabel = formatCartUnitPrice(line.unit_of_measure);
+  const unitSuffix = formatUnitSuffix(line.unit_of_measure);
+
   return (
     <div
       className={cn(
-        'bg-surface grid gap-3 rounded-xl border border-transparent p-3 shadow-sm transition-colors xl:grid-cols-[minmax(220px,1fr)_440px_120px_40px] xl:items-center',
-        (stockIssue || serialIssue) && 'border-warning/40 bg-warning/10',
+        'bg-surface rounded-xl border border-border/80 p-3.5 shadow-xs transition-colors space-y-2.5',
+        (stockIssue || serialIssue) && 'border-warning/50 bg-warning/5',
       )}
     >
-      <div className="min-w-0 space-y-1">
-        <div className="flex min-w-0 items-start gap-3">
-          <ProductImageView
-            src={line.image_url ?? undefined}
-            alt={line.name}
-            variant="thumb"
-            className="border-border bg-bg size-12 shrink-0 rounded-xl border"
-          />
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-lg font-semibold">{line.name}</p>
-              <span className={cn(
-                'shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold border-2',
-                stockIssue
-                  ? 'bg-warning/20 text-warning border-warning/60 animate-pulse'
-                  : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/50',
-              )}>
+      {/* ============================================================ */}
+      {/* 1. Encabezado del Producto: Nombre Completo y Acciones        */}
+      {/* ============================================================ */}
+      <div className="flex items-start gap-3">
+        <ProductImageView
+          src={line.image_url ?? undefined}
+          alt={line.name}
+          variant="thumb"
+          className="border-border bg-bg size-12 shrink-0 rounded-xl border"
+        />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-start justify-between gap-3">
+            {/* Nombre Completo sin truncate */}
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-bold text-text-primary leading-snug break-words">
+                {line.name}
+              </p>
+            </div>
+
+            {/* Badge de Stock y Botón Eliminar */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold border',
+                  stockIssue
+                    ? 'bg-warning/20 text-warning border-warning/60 animate-pulse'
+                    : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40',
+                )}
+              >
                 {stockIssue ? `⚠️ Stock: ${line.available_stock}` : `✓ Stock: ${line.available_stock}`}
+                {unitSuffix ? ` ${unitSuffix.toLowerCase()}` : ''}
               </span>
-            </div>
-            <div className="text-text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              <span className="font-mono">{line.sku ?? line.barcode ?? line.product_id}</span>
-              {line.product_variant_name && (
-                <Badge variant="default" className="text-[10px]">
-                  {line.product_variant_name}
-                </Badge>
-              )}
-              <span>{money(line.unit_price)} c/u</span>
-              {line.price_list_name && (
-                <Badge variant="default" className="text-[10px]">
-                  {line.price_list_name}
-                </Badge>
-              )}
-              {line.tracking_type === 'serialized' && (
-                <button
-                  type="button"
-                  className={cn('font-semibold', serialIssue ? 'text-warning' : 'text-success')}
-                  onClick={onSerials}
-                >
-                  IMEI {serialCount}/{line.quantity}
-                </button>
-              )}
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={onRemove}
+                aria-label="Eliminar linea"
+                className="text-text-muted hover:text-danger hover:bg-danger/10 size-8 rounded-lg"
+              >
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           </div>
-        </div>
-        {line.tracking_type === 'serialized' && serialCount > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {line.selected_serials?.map((serial) => (
-              <Badge key={serial.id} variant="default" className="font-mono text-[10px]">
-                {serial.serial_number}
+
+          {/* Subtítulo / Metadata del Producto */}
+          <div className="text-text-muted flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+            <span className="font-mono text-[11px]">{line.sku ?? line.barcode ?? line.product_id}</span>
+            {line.product_variant_name && (
+              <Badge variant="default" className="text-[10px]">
+                {line.product_variant_name}
               </Badge>
-            ))}
+            )}
+            <span className="font-semibold text-text-secondary">
+              {money(line.unit_price)} {unitLabel}
+            </span>
+            {unitSuffix && (
+              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider text-text-primary bg-surface-subtle border-border">
+                {unitSuffix}
+              </Badge>
+            )}
+            {line.price_list_name && (
+              <Badge variant="default" className="text-[10px]">
+                {line.price_list_name}
+              </Badge>
+            )}
+            {line.tracking_type === 'serialized' && (
+              <button
+                type="button"
+                className={cn('font-semibold', serialIssue ? 'text-warning' : 'text-success')}
+                onClick={onSerials}
+              >
+                IMEI {serialCount}/{line.quantity}
+              </button>
+            )}
           </div>
-        )}
-        {line.price_issue && (
-          <p className="border-warning bg-warning/10 text-warning rounded border px-2 py-1 text-xs">
-            {line.price_issue}
-          </p>
-        )}
-      </div>
-      <div
-        className={cn(
-          'grid gap-2',
-          canDiscount ? 'sm:grid-cols-[124px_1fr]' : 'sm:grid-cols-[124px]',
-        )}
-      >
-        <div className="flex items-center gap-1">
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={() => onChange({ quantity: line.quantity - 1 })}
-          >
-            <Minus className="size-3" />
-          </Button>
-          <Input
-            className="h-9 text-center"
-            type="number"
-            min="1"
-            value={line.quantity}
-            onChange={(event) => onChange({ quantity: Number(event.target.value) })}
-          />
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={() => onChange({ quantity: line.quantity + 1 })}
-          >
-            <Plus className="size-3" />
-          </Button>
         </div>
+      </div>
+
+      {/* IMEIs / Seriales Seleccionados */}
+      {line.tracking_type === 'serialized' && serialCount > 0 && (
+        <div className="flex flex-wrap gap-1 pl-15">
+          {line.selected_serials?.map((serial) => (
+            <Badge key={serial.id} variant="default" className="font-mono text-[10px]">
+              {serial.serial_number}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {line.price_issue && (
+        <p className="border-warning bg-warning/10 text-warning rounded border px-2 py-1 text-xs">
+          {line.price_issue}
+        </p>
+      )}
+
+      {/* ============================================================ */}
+      {/* 2. Barra de Opciones Reordenada: Cantidad, Descuento y Total  */}
+      {/* ============================================================ */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-border/60">
+        {/* Selector de Cantidad */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-text-muted font-medium">Cant:</span>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon-sm"
+              variant="outline"
+              className="size-8"
+              onClick={() => onChange({ quantity: line.quantity - 1 })}
+            >
+              <Minus className="size-3" />
+            </Button>
+            <Input
+              className="h-8 w-16 text-center text-sm font-bold"
+              type="number"
+              min="1"
+              value={line.quantity}
+              onChange={(event) => onChange({ quantity: Number(event.target.value) })}
+            />
+            <Button
+              size="icon-sm"
+              variant="outline"
+              className="size-8"
+              onClick={() => onChange({ quantity: line.quantity + 1 })}
+            >
+              <Plus className="size-3" />
+            </Button>
+          </div>
+          {unitSuffix && (
+            <span className="text-xs font-semibold text-text-secondary uppercase">
+              {unitSuffix}
+            </span>
+          )}
+        </div>
+
+        {/* Opciones de Descuento (Reordenadas para no comprimir el nombre) */}
         {canDiscount && (
-          <div className="grid grid-cols-[minmax(100px,1fr)_92px] gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-text-muted font-medium">Desc:</span>
             <Select
               value={line.discount_type ?? ''}
               onChange={(event) =>
                 onChange({ discount_type: (event.target.value || null) as DiscountType | null })
               }
+              className="h-8 text-xs w-28"
             >
-              <option value="">Sin descuento</option>
-              <option value="percent">Porcentaje</option>
-              <option value="fixed">Monto</option>
+              <option value="">Sin desc.</option>
+              <option value="percent">% Porcentaje</option>
+              <option value="fixed">$ Monto</option>
             </Select>
-            <Input
-              type="number"
-              min="0"
-              value={line.discount_value ?? ''}
-              onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })}
-            />
+            {line.discount_type && (
+              <Input
+                type="number"
+                min="0"
+                className="h-8 w-20 text-xs text-center font-medium"
+                placeholder={line.discount_type === 'percent' ? '%' : '$'}
+                value={line.discount_value ?? ''}
+                onChange={(event) => onChange({ discount_value: Number(event.target.value || 0) })}
+              />
+            )}
           </div>
         )}
+
+        {/* Botón de IMEI si es serializado */}
         {line.tracking_type === 'serialized' && (
           <Button
-            className="sm:col-span-2"
             variant={serialIssue ? 'secondary' : 'outline'}
             size="sm"
+            className="h-8 text-xs"
             onClick={onSerials}
           >
-            {serialCount > 0 ? 'Cambiar IMEI/serial' : 'Seleccionar IMEI/serial'}
+            {serialCount > 0 ? 'Cambiar IMEI' : 'Asignar IMEI'}
           </Button>
         )}
+
+        {/* Total Línea a la derecha */}
+        <div className="flex items-center gap-2 ml-auto text-right">
+          <span className="text-xs text-text-muted font-medium">Total:</span>
+          <span className="text-base font-bold font-mono text-text-primary">
+            {money(lineTotal(line))}
+          </span>
+        </div>
       </div>
-      <div className="text-right">
-        <p className="text-text-muted text-xs">Total linea</p>
-        <p className="text-lg font-bold">{money(lineTotal(line))}</p>
-      </div>
-      <Button size="icon-sm" variant="ghost" onClick={onRemove} aria-label="Eliminar linea">
-        <Trash2 className="size-4" />
-      </Button>
     </div>
   );
 }
