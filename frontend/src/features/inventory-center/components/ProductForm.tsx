@@ -222,19 +222,20 @@ export function ProductForm({
     [categoryTree, categorySearch],
   );
 
-  // Cálculos ERP informativos de IVA sobre base_price
+  // Cálculos financieros claros: Costo Compra -> Costo c/IVA -> Ganancia -> PVP Final
+  const costBase = Number.isFinite(cost) && cost > 0 ? cost : 0;
+  const costWithIva = applyIva && costBase > 0 ? Math.round(costBase * (1 + ivaRate / 100) * 100) / 100 : costBase;
   const effectivePrice =
     pricingMode === 'automatic' && calculatedSalePrice
       ? Number(calculatedSalePrice)
       : currentBasePrice;
-  const netEstimate =
-    applyIva && effectivePrice > 0
-      ? Math.round((effectivePrice / (1 + ivaRate / 100)) * 100) / 100
-      : effectivePrice;
-  const ivaEstimate =
-    applyIva && effectivePrice > 0
-      ? Math.round((effectivePrice - netEstimate) * 100) / 100
-      : 0;
+
+  // Ganancia real estimada entre precio de venta y costo
+  const grossProfitUsd = effectivePrice > 0 && costBase > 0 ? Math.round((effectivePrice - costBase) * 100) / 100 : 0;
+  const actualProfitMarginPercent =
+    costBase > 0 && effectivePrice > 0
+      ? Math.round(((effectivePrice - costBase) / costBase) * 1000) / 10
+      : margin > 0 ? margin : 0;
 
   // Detección de errores por pestaña
   const errors = form.formState.errors;
@@ -464,50 +465,45 @@ export function ProductForm({
           <fieldset className="space-y-4">
             <SectionLegend>Precios</SectionLegend>
 
-            {/* Tarjeta de Resumen ERP de Precios */}
+            {/* Tarjeta de Resumen Financiero: Costo Compra -> Costo con IVA -> Ganancia -> PVP Final */}
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div>
-                <span className="text-[11px] uppercase font-bold text-text-muted">Costo Base</span>
-                <p className="text-sm font-semibold font-mono text-text-primary">
-                  ${cost > 0 ? cost.toFixed(2) : '0.00'}
+                <span className="text-[11px] uppercase font-bold text-text-muted">1. Costo Compra</span>
+                <p className="text-base font-bold font-mono text-text-primary">
+                  ${costBase > 0 ? costBase.toFixed(2) : '0.00'}
                 </p>
-              </div>
-              <div>
-                <span className="text-[11px] uppercase font-bold text-text-muted">Margen Utilidad</span>
-                <p className="text-sm font-semibold font-mono text-primary">
-                  {margin > 0 ? `+${margin.toFixed(1)}%` : '0%'}
-                </p>
-                {netSubtotal !== null && (
-                  <span className="text-[10px] text-text-muted block font-mono">
-                    (${netSubtotal.toFixed(2)} neto)
-                  </span>
-                )}
+                <span className="text-[10px] text-text-muted block">Precio proveedor</span>
               </div>
               <div>
                 <span className="text-[11px] uppercase font-bold text-text-muted">
-                  {applyIva ? `IVA (${ivaRate}%)` : 'Impuesto'}
+                  2. Costo {applyIva ? `con IVA (${ivaRate}%)` : '(Exento)'}
                 </span>
-                <p className="text-sm font-semibold font-mono text-text-secondary">
-                  {applyIva ? `$${ivaEstimate.toFixed(2)}` : 'Exento'}
+                <p className="text-base font-bold font-mono text-text-secondary">
+                  ${costWithIva > 0 ? costWithIva.toFixed(2) : '0.00'}
+                </p>
+                <span className="text-[10px] text-text-muted block">
+                  {applyIva && costBase > 0 ? `IVA: +$${(costWithIva - costBase).toFixed(2)}` : 'Sin recargo IVA'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] uppercase font-bold text-text-muted">3. Ganancia Agregada</span>
+                <p className="text-base font-bold font-mono text-primary">
+                  {actualProfitMarginPercent > 0 ? `+${actualProfitMarginPercent.toFixed(1)}%` : '0%'}
                 </p>
                 <span className="text-[10px] text-text-muted block font-mono">
-                  {applyIva ? `Base: $${netEstimate.toFixed(2)}` : 'Sin IVA'}
+                  {grossProfitUsd > 0 ? `(+$${grossProfitUsd.toFixed(2)} utilidad)` : 'Sin utilidad'}
                 </span>
               </div>
               <div className="border-l border-primary/20 pl-2">
                 <span className="text-[11px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
-                  PVP Final {applyIva ? '(c/IVA)' : '(Exento)'}
+                  4. PVP Venta Final
                 </span>
-                <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                <p className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
                   ${effectivePrice > 0 ? effectivePrice.toFixed(2) : '0.00'}
                 </p>
-                {effectivePrice > 0 && (
-                  <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80 block">
-                    {applyIva
-                      ? `Neto $${netEstimate.toFixed(2)} + IVA $${ivaEstimate.toFixed(2)}`
-                      : 'Exento de IVA'}
-                  </span>
-                )}
+                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80 block">
+                  {pricingMode === 'automatic' ? 'Calculado automático' : 'Precio venta manual'}
+                </span>
               </div>
             </div>
 
