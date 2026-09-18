@@ -45,6 +45,7 @@ interface PosShellProps {
   actions?: readonly PosShellAction[];
   onExit?: () => void | Promise<void>;
   exitDisabled?: boolean;
+  hideHeader?: boolean;
 }
 
 function hasRequiredPermission(
@@ -82,23 +83,26 @@ export function PosShell({
   actions = [],
   onExit,
   exitDisabled = false,
+  hideHeader = false,
 }: PosShellProps) {
   const { permissions } = usePermissionContext();
   const visibleActions = actions.filter((action) =>
     hasRequiredPermission(permissions, action.permission),
   );
-  const showHeader = Boolean(context) || visibleActions.length > 0;
+  const showHeader = !hideHeader && (Boolean(context) || visibleActions.length > 0);
 
   return (
     <div data-testid="pos-shell" data-shell="pos" className="bg-bg relative min-h-screen w-full">
-      <button
-        type="button"
-        onClick={() => void onExit?.()}
-        disabled={exitDisabled}
-        className="bg-surface text-text-secondary hover:text-text-primary absolute top-3 right-3 z-50 rounded-md border px-3 py-2 text-xs font-medium shadow-sm transition-colors"
-      >
-        Salir del POS
-      </button>
+      {!hideHeader && (
+        <button
+          type="button"
+          onClick={() => void onExit?.()}
+          disabled={exitDisabled}
+          className="bg-surface text-text-secondary hover:text-text-primary absolute top-3 right-3 z-50 rounded-md border px-3 py-2 text-xs font-medium shadow-sm transition-colors"
+        >
+          Salir del POS
+        </button>
+      )}
       {showHeader && (
         <header
           aria-label="POS"

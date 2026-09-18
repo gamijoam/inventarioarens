@@ -32,12 +32,21 @@ import {
   Trash2,
   UserRound,
   Wallet,
+  ChevronDown,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import {
@@ -1490,163 +1499,183 @@ export function PosTerminal() {
       actions={shellActions}
       onExit={exitPos}
       exitDisabled={exitingPos}
+      hideHeader
     >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
-        <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-3 shadow-sm backdrop-blur">
-          <div className="order-3 grid w-full min-w-0 gap-2 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
-            <div className="space-y-1">
-              <label className="text-text-muted block text-[10px] font-semibold uppercase">
-                Buscar / escanear
-              </label>
-              <div className="relative">
-                <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-                <Input
-                  ref={searchRef}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'ArrowDown' && quickSearchResults.length > 0) {
-                      event.preventDefault();
-                      setQuickSearchIndex((current) => (current + 1) % quickSearchResults.length);
+        <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
+          {/* Navegación y Búsqueda */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void exitPos()}
+              title="Volver atrás / Salir del POS"
+              className="gap-1.5 shadow-sm font-semibold shrink-0 h-9"
+            >
+              <ArrowLeft className="size-4" />
+              <span className="hidden sm:inline">Volver</span>
+            </Button>
+
+            <div className="relative flex-1 min-w-[200px] max-w-xl">
+              <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                ref={searchRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown' && quickSearchResults.length > 0) {
+                    event.preventDefault();
+                    setQuickSearchIndex((current) => (current + 1) % quickSearchResults.length);
+                    return;
+                  }
+                  if (event.key === 'ArrowUp' && quickSearchResults.length > 0) {
+                    event.preventDefault();
+                    setQuickSearchIndex(
+                      (current) =>
+                        (current - 1 + quickSearchResults.length) % quickSearchResults.length,
+                    );
+                    return;
+                  }
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (quickSearchIndex > 0 && quickSearchResults[quickSearchIndex]) {
+                      const selectedProduct = quickSearchResults[quickSearchIndex];
+                      void addProduct(selectedProduct).then((added) => {
+                        if (added) {
+                          setQuery('');
+                          setQuickSearchIndex(0);
+                        }
+                      });
                       return;
                     }
-                    if (event.key === 'ArrowUp' && quickSearchResults.length > 0) {
-                      event.preventDefault();
-                      setQuickSearchIndex(
-                        (current) =>
-                          (current - 1 + quickSearchResults.length) % quickSearchResults.length,
-                      );
-                      return;
-                    }
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      if (quickSearchIndex > 0 && quickSearchResults[quickSearchIndex]) {
-                        const selectedProduct = quickSearchResults[quickSearchIndex];
-                        void addProduct(selectedProduct).then((added) => {
-                          if (added) {
-                            setQuery('');
-                            setQuickSearchIndex(0);
-                          }
-                        });
-                        return;
-                      }
-                      void handleProductSearchEnter();
-                    }
-                  }}
-                  className="h-10 pl-9 text-base"
-                  placeholder="Escanea codigo, SKU o escribe producto"
-                  data-pos-search-input="true"
-                  data-testid="pos-search"
-                />
-                {!panel &&
-                  query.trim().length >= 2 &&
-                  (loadingProducts || quickSearchResults.length > 0) && (
-                    <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
-                      <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
-                        <span>Resultados rapidos</span>
-                        <TapButton
-                          onPress={() => {
-                            setProductSearch(query);
-                            setPanel('product-search');
-                          }}
-                          className="text-primary font-semibold hover:underline"
-                        >
-                          Ver todos
-                        </TapButton>
-                      </div>
-                      <div className="max-h-96 overflow-auto p-2">
-                        {loadingProducts && quickSearchResults.length === 0 ? (
-                          <div className="text-text-muted px-2 py-3 text-sm">
-                            Buscando productos...
-                          </div>
-                        ) : quickSearchResults.length === 0 ? (
-                          <div className="text-text-muted px-2 py-3 text-sm">
-                            No hay productos con esa búsqueda.
-                          </div>
-                        ) : (
-                          quickSearchResults.map((product, index) => (
-                            <TapButton
-                              key={product.id}
-                              onPress={() => {
-                                // Click / tap directo: agregar al carrito.
-                                // addProduct ya maneja variantes internamente:
-                                // si el producto tiene variantes, abre el VariantPicker
-                                // automaticamente sin necesidad de abrir el panel F3.
-                                void addProduct(product).then((added) => {
-                                  if (added) {
-                                    setQuery('');
-                                    setQuickSearchIndex(0);
-                                  }
-                                });
-                              }}
-                              onMouseEnter={() => setQuickSearchIndex(index)}
-                              className={cn(
-                                'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                                index === quickSearchIndex &&
-                                  'bg-primary/15 ring-2 ring-primary/50 shadow-sm scale-[1.01]',
-                              )}
-                            >
-                              <ProductImageView
-                                image={primaryProductImage(product)}
-                                src={productImageSrc(product) ?? undefined}
-                                alt={product.name}
-                                variant="thumb"
-                                className="border-border bg-bg size-12 shrink-0 rounded-lg border"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className={cn(
+                    void handleProductSearchEnter();
+                  }
+                }}
+                className="h-9 pl-9 pr-8 text-sm"
+                placeholder="Escanea código, SKU o producto... [F3]"
+                data-pos-search-input="true"
+                data-testid="pos-search"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  className="text-text-muted hover:text-text-primary absolute top-1/2 right-2.5 -translate-y-1/2 p-0.5 rounded"
+                  title="Borrar búsqueda"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+              {!panel &&
+                query.trim().length >= 2 &&
+                (loadingProducts || quickSearchResults.length > 0) && (
+                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
+                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
+                      <span>Resultados rápidos</span>
+                      <TapButton
+                        onPress={() => {
+                          setProductSearch(query);
+                          setPanel('product-search');
+                        }}
+                        className="text-primary font-semibold hover:underline"
+                      >
+                        Ver todos
+                      </TapButton>
+                    </div>
+                    <div className="max-h-96 overflow-auto p-2">
+                      {loadingProducts && quickSearchResults.length === 0 ? (
+                        <div className="text-text-muted px-2 py-3 text-sm">
+                          Buscando productos...
+                        </div>
+                      ) : quickSearchResults.length === 0 ? (
+                        <div className="text-text-muted px-2 py-3 text-sm">
+                          No hay productos con esa búsqueda.
+                        </div>
+                      ) : (
+                        quickSearchResults.map((product, index) => (
+                          <TapButton
+                            key={product.id}
+                            onPress={() => {
+                              void addProduct(product).then((added) => {
+                                if (added) {
+                                  setQuery('');
+                                  setQuickSearchIndex(0);
+                                }
+                              });
+                            }}
+                            onMouseEnter={() => setQuickSearchIndex(index)}
+                            className={cn(
+                              'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                              index === quickSearchIndex &&
+                                'bg-primary/15 ring-2 ring-primary/50 shadow-sm scale-[1.01]',
+                            )}
+                          >
+                            <ProductImageView
+                              image={primaryProductImage(product)}
+                              src={productImageSrc(product) ?? undefined}
+                              alt={product.name}
+                              variant="thumb"
+                              className="border-border bg-bg size-12 shrink-0 rounded-lg border"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={cn(
                                   'truncate text-sm font-semibold',
                                   index === quickSearchIndex && 'text-primary',
-                                )}>{product.name}</p>
-                                <p className="text-text-muted truncate text-xs">
-                                  {product.sku ?? product.barcode ?? 'Sin codigo'}
-                                  {product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' && (
+                                )}
+                              >
+                                {product.name}
+                              </p>
+                              <p className="text-text-muted truncate text-xs">
+                                {product.sku ?? product.barcode ?? 'Sin código'}
+                                {product.unit_of_measure &&
+                                  product.unit_of_measure.toLowerCase() !== 'unit' && (
                                     <span className="ml-1.5 font-medium text-text-secondary uppercase">
                                       · {product.unit_of_measure}
                                     </span>
                                   )}
-                                </p>
-                              </div>
-                              <span className={cn(
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
                                 'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold border',
                                 Number(product.available_stock ?? 0) > 0
                                   ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-400'
                                   : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
-                              )}>
-                                {Number(product.available_stock ?? 0) > 0
-                                  ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
-                                  : '⚠️ Sin stock'}
-                              </span>
-                            </TapButton>
-                          ))
-                        )}
-
-                      </div>
+                              )}
+                            >
+                              {Number(product.available_stock ?? 0) > 0
+                                ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
+                                : '⚠️ Sin stock'}
+                            </span>
+                          </TapButton>
+                        ))
+                      )}
                     </div>
-                  )}
-              </div>
+                  </div>
+                )}
             </div>
-            <div className="space-y-1">
-              <label className="text-text-muted block text-[10px] font-semibold uppercase">
-                Almacen
-              </label>
+
+            {/* Selector de Almacén */}
+            <div className="hidden lg:block w-36 shrink-0">
               <Select
                 value={warehouseId ?? ''}
                 onChange={(event) =>
                   setWarehouseId(event.target.value ? Number(event.target.value) : null)
                 }
+                className="h-9 text-xs"
+                title="Almacén de despacho"
               >
                 {warehouses.map((warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>
-                    {warehouse.code} - {warehouse.name}
+                    📦 {warehouse.code} - {warehouse.name}
                   </option>
                 ))}
               </Select>
             </div>
-            <div className="space-y-1">
-              <label className="text-text-muted block text-[10px] font-semibold uppercase">
-                Lista de precio
-              </label>
+
+            {/* Selector de Lista de Precio */}
+            <div className="hidden md:block w-44 shrink-0">
               <Select
                 value={selectedPriceListId ?? 'base'}
                 onChange={(event) =>
@@ -1655,133 +1684,253 @@ export function PosTerminal() {
                   )
                 }
                 disabled={repricing || selectedPending !== null}
+                className="h-9 text-xs"
+                title="Tarifa / Lista de precios"
                 data-testid="pos-price-list"
               >
-                <option value="base">{BASE_PRICE_LIST_LABEL}</option>
+                <option value="base">🏷️ {BASE_PRICE_LIST_LABEL}</option>
                 {priceLists.map((list) => (
                   <option key={list.id} value={list.id}>
-                    {list.code} - {list.name}
+                    🏷️ {list.code} - {list.name}
                   </option>
                 ))}
               </Select>
             </div>
           </div>
-          <div className="order-2 flex shrink-0 flex-wrap items-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void exitPos()}
-              title="Volver atrás / Salir del POS"
-              className="shadow-sm"
-            >
-              <ArrowLeft className="size-4" />
-              Volver
-            </Button>
-            {sellerOnlyMode && (
-              <Button
-                size="sm"
-                onClick={() => void holdSale()}
-                disabled={cart.length === 0 || holdOrder.isPending}
-                className="shadow-sm"
+
+          {/* Contexto, Cliente y Acciones */}
+          <div className="flex items-center gap-2 shrink-0">
+            {activeRate && (
+              <div
+                className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-[11px] font-mono font-medium text-text-secondary shrink-0"
+                title={`Tasa activa: ${activeRate.name ?? activeRate.code}`}
               >
-                {holdOrder.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <PauseCircle className="size-4" />
-                )}
-                Armar orden
-              </Button>
+                <span className="text-text-muted font-normal">{activeRate.code}:</span>
+                <span className="font-bold text-text-primary">
+                  {formatLocalNumber(activeRate.rate)} VES
+                </span>
+              </div>
             )}
+
+            {/* Botón Cliente [F4] */}
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setQuotationOpen(true)}
-              disabled={cart.length === 0}
-              data-testid="pos-create-quotation"
+              onClick={() => setPanel('customer')}
+              className={cn(
+                'gap-1.5 h-9 text-xs font-medium shrink-0',
+                selectedCustomer && 'border-primary/50 text-primary bg-primary/5 font-semibold',
+              )}
+              title="Asignar cliente al ticket [F4]"
             >
-              <FileText className="size-4" /> Cotizacion
+              <UserRound className="size-3.5" />
+              <span>
+                <ShortcutText label="F4" text="Cliente" />
+              </span>
+              {selectedCustomer && (
+                <span className="max-w-[70px] truncate text-[11px] opacity-80 hidden md:inline">
+                  ({selectedCustomer.name.split(' ')[0]})
+                </span>
+              )}
             </Button>
+
+            {/* Botón Pendientes directo */}
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setQuotationsOpen(true)}
-              data-testid="pos-view-quotations"
-            >
-              <FileText className="size-4" /> Ver cotizaciones
-            </Button>
-            <Button
-              variant="outline"
+              variant={pendingCount > 0 ? 'secondary' : 'outline'}
               size="sm"
               onClick={() => {
-                setProductSearch(query || '');
-                setPanel('product-search');
+                setPendingAlert([]);
+                setPanel('hold');
               }}
+              className={cn(
+                'gap-1.5 h-9 text-xs font-medium shrink-0 relative',
+                hasPendingAlert && 'animate-pulse ring-2 ring-primary',
+              )}
+              title="Ventas en espera / órdenes pendientes"
             >
-              <Search className="size-4" /> <ShortcutText label="F3" text="Buscar" />
+              <ClipboardList className="size-3.5" />
+              <span className="hidden sm:inline">Pendientes</span>
+              {pendingCount > 0 && (
+                <span className="bg-primary-foreground text-primary rounded-full px-1.5 py-0.2 text-[10px] font-bold">
+                  {pendingCount}
+                </span>
+              )}
             </Button>
-            {!sellerOnlyMode && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-                  setPanel('pay');
-                }}
-                disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-              >
-                <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
-              </Button>
-            )}
-            {canViewPromotions && (
-              <>
+
+            {/* Menú Desplegable "ACCIONES" */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
-                  variant={selectedInvoicePromotion ? 'secondary' : 'outline'}
+                  variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setPromotionView('invoice');
-                    setPanel('promotions');
-                  }}
-                  disabled={!selectedWarehouse}
+                  className="gap-1.5 h-9 text-xs font-semibold shrink-0 shadow-xs"
+                  data-testid="pos-actions-menu-trigger"
                 >
-                  <Tag className="size-4" /> Promoción factura
+                  <SlidersHorizontal className="size-3.5" />
+                  <span>Acciones</span>
+                  <ChevronDown className="size-3 opacity-60" />
                 </Button>
-                <Button
-                  variant={comboApplications.length > 0 ? 'secondary' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setPromotionView('combo');
-                    setPanel('promotions');
-                  }}
-                  disabled={!selectedWarehouse}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5 shadow-xl border-border bg-surface">
+                <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-2 py-1">
+                  Operaciones de Caja
+                </DropdownMenuLabel>
+
+                {!sellerOnlyMode && (
+                  <DropdownMenuItem onClick={() => setPanel('cash')} className="gap-2.5 py-2">
+                    <Wallet className="size-4 text-emerald-600" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-xs">Caja / Turno</p>
+                      <p className="text-[10px] text-text-muted">Movimientos y cierre de caja</p>
+                    </div>
+                  </DropdownMenuItem>
+                )}
+
+                {!sellerOnlyMode && (
+                  <DropdownMenuItem
+                    onClick={() => void holdSale()}
+                    disabled={cart.length === 0 || !canCheckout || checkout.isPending}
+                    className="gap-2.5 py-2"
+                  >
+                    <PauseCircle className="size-4 text-amber-600" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-xs">Poner en espera</p>
+                      <p className="text-[10px] text-text-muted">Guardar ticket actual [F6]</p>
+                    </div>
+                  </DropdownMenuItem>
+                )}
+
+                {sellerOnlyMode && (
+                  <DropdownMenuItem
+                    onClick={() => void holdSale()}
+                    disabled={cart.length === 0 || holdOrder.isPending}
+                    className="gap-2.5 py-2"
+                  >
+                    <PauseCircle className="size-4 text-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-xs">Armar orden</p>
+                      <p className="text-[10px] text-text-muted">Enviar a caja</p>
+                    </div>
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuItem onClick={() => setPanel('receipt')} className="gap-2.5 py-2">
+                  <Receipt className="size-4 text-blue-600" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs">Último recibo</p>
+                    <p className="text-[10px] text-text-muted">Reimprimir comprobante</p>
+                  </div>
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator className="my-1" />
+
+                <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-2 py-1">
+                  Cotizaciones
+                </DropdownMenuLabel>
+
+                <DropdownMenuItem
+                  onClick={() => setQuotationOpen(true)}
+                  disabled={cart.length === 0}
+                  className="gap-2.5 py-2"
                 >
-                  <Gift className="size-4" /> Combos
-                </Button>
-                <Button
-                  variant={productOfferApplications.length > 0 ? 'secondary' : 'outline'}
-                  size="sm"
+                  <FileText className="size-4 text-purple-600" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs">Crear cotización</p>
+                    <p className="text-[10px] text-text-muted">Generar con carrito actual</p>
+                  </div>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => setQuotationsOpen(true)} className="gap-2.5 py-2">
+                  <FileText className="size-4 text-indigo-600" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs">Ver cotizaciones</p>
+                    <p className="text-[10px] text-text-muted">Historial y cargar a venta</p>
+                  </div>
+                </DropdownMenuItem>
+
+                {canViewPromotions && (
+                  <>
+                    <DropdownMenuSeparator className="my-1" />
+                    <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-2 py-1">
+                      Promociones y Ofertas
+                    </DropdownMenuLabel>
+
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setPromotionView('invoice');
+                        setPanel('promotions');
+                      }}
+                      disabled={!selectedWarehouse}
+                      className="gap-2.5 py-2"
+                    >
+                      <Tag className="size-4 text-amber-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs">Promoción factura</p>
+                        <p className="text-[10px] text-text-muted">Descuentos globales</p>
+                      </div>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setPromotionView('combo');
+                        setPanel('promotions');
+                      }}
+                      disabled={!selectedWarehouse}
+                      className="gap-2.5 py-2"
+                    >
+                      <Gift className="size-4 text-rose-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs">Combos</p>
+                        <p className="text-[10px] text-text-muted">Packs y promociones</p>
+                      </div>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setPromotionView('product_offer');
+                        setPanel('promotions');
+                      }}
+                      disabled={!selectedWarehouse}
+                      className="gap-2.5 py-2"
+                    >
+                      <Tag className="size-4 text-teal-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs">Ofertas especiales</p>
+                        <p className="text-[10px] text-text-muted">Precios de oportunidad</p>
+                      </div>
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                <DropdownMenuSeparator className="my-1" />
+
+                <DropdownMenuItem
                   onClick={() => {
-                    setPromotionView('product_offer');
-                    setPanel('promotions');
+                    setProductSearch(query || '');
+                    setPanel('product-search');
                   }}
-                  disabled={!selectedWarehouse}
+                  className="gap-2.5 py-2"
                 >
-                  <Tag className="size-4" /> Ofertas
-                </Button>
-              </>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
-              <UserRound className="size-4" /> <ShortcutText label="F4" text="Cliente" />
-            </Button>
-            {!sellerOnlyMode && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={cart.length === 0 || !canCheckout || checkout.isPending}
-                onClick={() => void holdSale()}
-              >
-                <PauseCircle className="size-4" /> <ShortcutText label="F6" text="Espera" />
-              </Button>
-            )}
+                  <Search className="size-4 text-text-muted" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs">Búsqueda avanzada</p>
+                    <p className="text-[10px] text-text-muted">Catálogo detallado [F3]</p>
+                  </div>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={clearPos}
+                  disabled={cart.length === 0}
+                  className="gap-2.5 py-2 text-danger focus:text-danger focus:bg-danger/10"
+                >
+                  <Trash2 className="size-4" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs">Limpiar POS</p>
+                    <p className="text-[10px] text-danger/80">Vaciar carrito actual</p>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
