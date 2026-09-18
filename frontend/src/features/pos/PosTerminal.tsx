@@ -3951,7 +3951,7 @@ function CartLineRow({
 
           {/* Subtítulo / Metadata del Producto */}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs">
-            <span className="font-mono text-xs font-bold text-text-primary bg-bg border border-border px-2 py-0.5 rounded shadow-2xs">
+            <span className="font-mono text-sm font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-600 px-2.5 py-0.5 rounded-md tracking-wide shadow-sm">
               {line.sku ?? line.barcode ?? line.product_id}
             </span>
             {line.product_variant_name && (
