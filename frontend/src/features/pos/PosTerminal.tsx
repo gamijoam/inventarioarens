@@ -1936,43 +1936,85 @@ export function PosTerminal() {
 
         <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
           <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div className="border-border from-surface to-bg/70 flex items-center justify-between border-b bg-gradient-to-r p-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-semibold">Ticket actual</h2>
+            <div className="border-border from-surface to-bg/70 flex items-center justify-between gap-3 border-b bg-gradient-to-r px-4 py-2.5">
+              {/* Título Ticket y Cliente en la misma fila */}
+              <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <h2 className="font-bold text-sm tracking-tight text-text-primary">Ticket actual</h2>
                   {exchangeReturnId && <Badge variant="info">Canje #{exchangeReturnId}</Badge>}
                 </div>
-                <p className="text-text-muted text-xs">
-                  {selectedCustomer ? 'Cliente asignado' : customerName}
-                </p>
+
+                <span className="text-border text-xs hidden sm:inline">•</span>
+
+                {/* Selector/Visualizador de Cliente Integrado */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setPanel('customer')}
+                    className={cn(
+                      'group flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-all max-w-[280px]',
+                      selectedCustomer
+                        ? 'border-primary/40 bg-primary/8 text-primary font-semibold hover:bg-primary/15'
+                        : 'border-border bg-surface hover:border-primary/50 text-text-secondary hover:text-text-primary',
+                    )}
+                    title="Click para cambiar cliente [F4]"
+                  >
+                    <UserRound className="size-3.5 shrink-0 text-text-muted group-hover:text-primary transition-colors" />
+                    <span className="text-[11px] text-text-muted uppercase font-normal">Cliente:</span>
+                    <span className="truncate font-medium">
+                      {selectedCustomer ? selectedCustomer.name : customerName}
+                    </span>
+                    {selectedCustomer && customerDocument(selectedCustomer) && (
+                      <span className="text-[10px] text-text-muted font-normal hidden md:inline">
+                        ({customerDocument(selectedCustomer)})
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-bg border border-border text-text-muted opacity-70 group-hover:opacity-100">
+                      F4
+                    </span>
+                  </button>
+
+                  {selectedCustomer && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (exchangeReturnId) {
+                          toast.error('El cliente de un canje no puede cambiarse.');
+                          return;
+                        }
+                        setSelectedCustomer(null);
+                        setCustomerName('Consumidor Final');
+                      }}
+                      className="text-text-muted hover:text-danger p-1 rounded hover:bg-danger/10 transition-colors"
+                      title="Quitar cliente (volver a Consumidor Final)"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+
                 {exchangeReturnId && (
-                  <p className="text-primary mt-1 text-xs">
-                    Confirma el pago aquí para completar la devolución.
-                  </p>
+                  <span className="text-primary text-[11px] italic">
+                    (Confirma el pago para completar devolución)
+                  </span>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPanel('customer')}>
-                  <UserRound className="size-4" /> Cliente
-                </Button>
-                <Button variant="outline" size="sm" onClick={clearPos}>
-                  <Trash2 className="size-4" /> Limpiar POS
+
+              {/* Botón de limpiar ticket a la derecha */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearPos}
+                  disabled={cart.length === 0}
+                  className="h-8 text-xs text-text-muted hover:text-danger gap-1.5"
+                  title="Vaciar ticket actual"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span className="hidden sm:inline">Limpiar</span>
                 </Button>
               </div>
             </div>
-            <CustomerAssignmentBanner
-              customer={selectedCustomer}
-              customerName={customerName}
-              onChange={() => setPanel('customer')}
-              onClear={() => {
-                if (exchangeReturnId) {
-                  toast.error('El cliente de un canje no puede cambiarse.');
-                  return;
-                }
-                setSelectedCustomer(null);
-                setCustomerName('Consumidor Final');
-              }}
-            />
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] p-3">
               {cart.length === 0 ? (
                 <div className="border-border bg-surface text-text-muted flex h-full items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm">
@@ -4434,63 +4476,6 @@ function QuickPaymentPanel({
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function CustomerAssignmentBanner({
-  customer,
-  customerName,
-  onChange,
-  onClear,
-}: {
-  customer: Customer | null;
-  customerName: string;
-  onChange: () => void;
-  onClear: () => void;
-}) {
-  const document = customerDocument(customer);
-
-  if (!customer) {
-    return (
-      <div className="border-border bg-bg/30 border-b px-3 py-2">
-        <button
-          type="button"
-          onClick={onChange}
-          className="border-border hover:border-primary flex w-full items-center justify-between gap-3 rounded border border-dashed px-3 py-2 text-left transition-colors"
-        >
-          <span className="min-w-0">
-            <span className="text-text-muted block text-xs font-semibold uppercase">Cliente</span>
-            <span className="block truncate text-sm font-medium">{customerName}</span>
-          </span>
-          <Badge variant="default">F4</Badge>
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="border-primary/20 bg-primary/5 border-b px-3 py-2">
-      <div className="border-primary/30 bg-surface flex items-center justify-between gap-3 rounded border px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <UserRound className="text-primary size-5 shrink-0" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Badge variant="info">Cliente asignado</Badge>
-              {document && <span className="text-text-muted truncate text-xs">{document}</span>}
-            </div>
-            <p className="mt-1 truncate text-sm font-semibold">{customer.name}</p>
-          </div>
-        </div>
-        <div className="flex shrink-0 gap-1">
-          <Button variant="outline" size="sm" onClick={onChange}>
-            Cambiar
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label="Quitar cliente">
-            <X className="size-4" />
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
