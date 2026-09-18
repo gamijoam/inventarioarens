@@ -6,6 +6,7 @@ use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -21,6 +22,7 @@ class OrganizationDashboardService
     {
         [$dateFrom, $dateTo] = DashboardSummaryService::resolveDateRange($filters);
         $threshold = (float) ($filters['low_stock_threshold'] ?? 3);
+        $tz = BusinessDateRange::timezone();
 
         $companies = $group->spinoffs()
             ->where('status', 'active')
@@ -38,8 +40,8 @@ class OrganizationDashboardService
                     'slug' => $group->slug,
                 ],
                 'period' => [
-                    'from' => $dateFrom->toDateString(),
-                    'to' => $dateTo->toDateString(),
+                    'from' => $dateFrom->copy()->timezone($tz)->toDateString(),
+                    'to' => $dateTo->copy()->timezone($tz)->toDateString(),
                 ],
                 'totals' => $this->emptyTotals(),
                 'companies' => [],
@@ -87,8 +89,8 @@ class OrganizationDashboardService
                 'slug' => $group->slug,
             ],
             'period' => [
-                'from' => $dateFrom->toDateString(),
-                'to' => $dateTo->toDateString(),
+                'from' => $dateFrom->copy()->timezone($tz)->toDateString(),
+                'to' => $dateTo->copy()->timezone($tz)->toDateString(),
             ],
             'totals' => $this->computeTotals($companiesPayload),
             'companies' => $companiesPayload,

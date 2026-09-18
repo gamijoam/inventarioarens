@@ -4,6 +4,7 @@ namespace App\Modules\AdminPortal\Services;
 
 use App\Modules\POS\Models\PosOrder;
 use App\Support\Tenancy\TenantManager;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -549,17 +550,27 @@ class AdminPosSalesService
     {
         if (($filters['date_from'] ?? null) && ($filters['date_to'] ?? null)) {
             return [
-                Carbon::parse($filters['date_from'])->startOfDay(),
-                Carbon::parse($filters['date_to'])->endOfDay(),
+                BusinessDateRange::startOfDay($filters['date_from']),
+                BusinessDateRange::endOfDay($filters['date_to']),
             ];
         }
 
-        $now = now();
+        $tz = BusinessDateRange::timezone();
+        $now = now($tz);
 
         return match ($filters['period'] ?? 'today') {
-            'week' => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
-            'month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
-            default => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'week' => [
+                $now->copy()->startOfWeek()->startOfDay()->utc(),
+                $now->copy()->endOfWeek()->endOfDay()->utc(),
+            ],
+            'month' => [
+                $now->copy()->startOfMonth()->startOfDay()->utc(),
+                $now->copy()->endOfMonth()->endOfDay()->utc(),
+            ],
+            default => [
+                BusinessDateRange::startOfDay($now),
+                BusinessDateRange::endOfDay($now),
+            ],
         };
     }
 

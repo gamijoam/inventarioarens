@@ -5,7 +5,7 @@ namespace App\Modules\Commissions\Services;
 use App\Models\User;
 use App\Modules\Commissions\Models\CommissionEntry;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
-use App\Modules\POS\Models\PosOrder;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
@@ -38,8 +38,8 @@ class CommissionControlService
             ->when(isset($filters['cashier_id']), fn (Builder $query) => $query->where('cashier_id', $filters['cashier_id']))
             ->when(isset($filters['payment_method_id']), fn (Builder $query) => $query->whereHas('payments', fn (Builder $query) => $query
                 ->where('payment_method_id', $filters['payment_method_id'])))
-            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->where('paid_at', '>=', Carbon::parse($date)->startOfDay()))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->where('paid_at', '<=', Carbon::parse($date)->endOfDay()))
+            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date) => $query->where('paid_at', '>=', BusinessDateRange::startOfDay($date)))
+            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date) => $query->where('paid_at', '<=', BusinessDateRange::endOfDay($date)))
             ->latest('paid_at')
             ->get();
 
