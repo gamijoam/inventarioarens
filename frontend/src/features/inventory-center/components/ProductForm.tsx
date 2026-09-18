@@ -355,7 +355,7 @@ export function ProductForm({
                 <Input
                   {...form.register('name')}
                   placeholder="Ej. Nombre del producto"
-                  className="font-medium"
+                  className="font-semibold text-base h-11"
                   autoFocus
                 />
               </Field>
@@ -1035,20 +1035,20 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'group flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-all border-b-2 relative -mb-px',
+        'group flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold rounded-t-lg transition-all border-b-2 relative -mb-px whitespace-nowrap',
         active
           ? 'bg-surface border-primary text-primary shadow-xs'
           : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-surface/50',
       )}
     >
-      <span className={cn('text-text-muted transition-colors', active && 'text-primary')}>
+      <span className={cn('transition-colors', active ? 'text-primary' : 'text-text-muted')}>
         {icon}
       </span>
       <span>{label}</span>
       <span
         className={cn(
-          'text-[10px] font-mono px-1 py-0.2 rounded bg-bg/80 border border-border text-text-muted',
-          active && 'border-primary/30 text-primary font-bold',
+          'text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg/80 border border-border text-text-muted',
+          active && 'border-primary/40 text-primary font-bold bg-primary/5',
         )}
       >
         {shortcut}
@@ -1134,7 +1134,8 @@ const toNode = (c: TreeLike): TreeNode => ({
 
 function SectionLegend({ children }: { children: React.ReactNode }) {
   return (
-    <legend className="text-xs font-bold uppercase tracking-wider text-text-muted border-b border-border/60 pb-1.5 mb-3 flex items-center gap-2">
+    <legend className="text-xs font-black uppercase tracking-widest text-primary border-b border-primary/20 pb-2 mb-4 flex items-center gap-2">
+      <span className="w-1 h-3.5 rounded-full bg-primary inline-block" />
       <span>{children}</span>
     </legend>
   );
@@ -1152,13 +1153,13 @@ interface FieldProps {
 function Field({ name, label, required, hint, error, children }: FieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={name} className="flex items-center gap-1 font-medium text-xs">
+      <Label htmlFor={name} className="flex items-center gap-1 font-bold text-sm text-text-primary">
         {label}
-        {required && <span className="text-danger font-bold">*</span>}
+        {required && <span className="text-danger font-black">*</span>}
       </Label>
       {children}
-      {hint && !error && <p className="text-[11px] text-text-muted leading-tight">{hint}</p>}
-      {error && <p className="text-xs text-danger font-medium">{error}</p>}
+      {hint && !error && <p className="text-xs text-text-secondary leading-tight">{hint}</p>}
+      {error && <p className="text-sm text-danger font-semibold">{error}</p>}
     </div>
   );
 }
