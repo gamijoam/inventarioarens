@@ -100,7 +100,7 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[92vh] w-[95vw] max-w-5xl overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
+        <DialogContent className="h-[95vh] max-h-[95vh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
           <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-8">
               <div>

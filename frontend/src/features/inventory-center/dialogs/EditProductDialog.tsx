@@ -60,7 +60,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     // precios, etc.) siempre se carguen desde el producto actual, sin
     // importar si el usuario lo abrió antes para el mismo producto.
     <Dialog key={`edit-${product.id}-${open ? 'open' : 'closed'}`} open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[95vw] max-w-5xl overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
+      <DialogContent className="h-[95vh] max-h-[95vh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
         <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
           <div className="flex flex-col gap-1 pr-8">
             <div className="flex items-center gap-2 flex-wrap">
