@@ -6,6 +6,7 @@ use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\Request;
 
 class KardexService
@@ -65,13 +66,16 @@ class KardexService
             $runningBalance -= $this->signedQuantity($movement);
         }
 
-        // Aplicar rango de fechas sobre la lista ya balanceada.
+        // Aplicar rango de fechas sobre la lista ya balanceada con BusinessDateRange.
+        $from = $dateFrom ? BusinessDateRange::startOfDay($dateFrom) : null;
+        $to = $dateTo ? BusinessDateRange::endOfDay($dateTo) : null;
+
         $inRange = $movements
-            ->when($dateFrom, fn ($collection) => $collection->filter(
-                fn (StockMovement $m): bool => $m->created_at && $m->created_at->toDateString() >= $dateFrom
+            ->when($from, fn ($collection) => $collection->filter(
+                fn (StockMovement $m): bool => $m->created_at && $m->created_at->gte($from)
             ))
-            ->when($dateTo, fn ($collection) => $collection->filter(
-                fn (StockMovement $m): bool => $m->created_at && $m->created_at->toDateString() <= $dateTo
+            ->when($to, fn ($collection) => $collection->filter(
+                fn (StockMovement $m): bool => $m->created_at && $m->created_at->lte($to)
             ))
             ->values();
 

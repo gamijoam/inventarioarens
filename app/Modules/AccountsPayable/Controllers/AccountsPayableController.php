@@ -107,8 +107,8 @@ class AccountsPayableController extends Controller
             ->when($statuses = $this->statusFilter($filters['status'] ?? null),
                 fn ($query, array $statuses) => $query->whereIn('status', $statuses))
             ->when($filters['supplier_id'] ?? null, fn ($query, $supplierId) => $query->where('supplier_id', $supplierId))
-            ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
-            ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
+            ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->where('due_date', '>=', $date))
+            ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->where('due_date', '<=', $date))
             ->latest();
     }
 

@@ -10,6 +10,7 @@ use App\Modules\Inventory\Resources\InventoryManualMovementResource;
 use App\Modules\Inventory\Services\AuthorizedInventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -48,11 +49,11 @@ class InventoryManualMovementController extends Controller
         }
 
         if ($request->filled('from')) {
-            $query->whereDate('created_at', '>=', $request->from);
+            $query->where('created_at', '>=', BusinessDateRange::startOfDay($request->string('from')->toString()));
         }
 
         if ($request->filled('to')) {
-            $query->whereDate('created_at', '<=', $request->to);
+            $query->where('created_at', '<=', BusinessDateRange::endOfDay($request->string('to')->toString()));
         }
 
         return InventoryManualMovementResource::collection(

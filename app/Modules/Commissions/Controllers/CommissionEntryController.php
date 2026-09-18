@@ -4,6 +4,7 @@ namespace App\Modules\Commissions\Controllers;
 
 use App\Modules\Commissions\Models\CommissionEntry;
 use App\Modules\Commissions\Resources\CommissionEntryResource;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,8 +42,8 @@ class CommissionEntryController extends Controller
             ->with('beneficiary')
             ->when($request->filled('status'), fn (Builder $query) => $query->where('status', $request->string('status')))
             ->when($request->filled('user_id'), fn (Builder $query) => $query->where('beneficiary_user_id', $request->integer('user_id')))
-            ->when($request->filled('from'), fn (Builder $query) => $query->whereDate('earned_at', '>=', $request->string('from')))
-            ->when($request->filled('to'), fn (Builder $query) => $query->whereDate('earned_at', '<=', $request->string('to')));
+            ->when($request->filled('from'), fn (Builder $query) => $query->where('earned_at', '>=', BusinessDateRange::startOfDay($request->string('from')->toString())))
+            ->when($request->filled('to'), fn (Builder $query) => $query->where('earned_at', '<=', BusinessDateRange::endOfDay($request->string('to')->toString())));
 
         $entries = $query->latest('earned_at')->latest('id')->get();
         $total = round((float) $entries->sum('commission_base_amount'), 4);

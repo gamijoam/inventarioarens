@@ -133,8 +133,8 @@ class AccountsReceivableController extends Controller
             ->when($statuses = $this->statusFilter($filters['status'] ?? null),
                 fn ($query, array $statuses) => $query->whereIn('status', $statuses))
             ->when($filters['customer_id'] ?? null, fn ($query, $customerId) => $query->where('customer_id', $customerId))
-            ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '>=', $date))
-            ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->whereDate('due_date', '<=', $date))
+            ->when($filters['due_from'] ?? null, fn ($query, $date) => $query->where('due_date', '>=', $date))
+            ->when($filters['due_to'] ?? null, fn ($query, $date) => $query->where('due_date', '<=', $date))
             ->latest();
 
         // Scope por customer_group: filtrar CxC cuyos clientes pertenezcan a los grupos del user.

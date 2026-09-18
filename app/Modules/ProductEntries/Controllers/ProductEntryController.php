@@ -6,6 +6,7 @@ use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Requests\StoreProductEntryRequest;
 use App\Modules\ProductEntries\Resources\ProductEntryResource;
 use App\Modules\ProductEntries\Services\ProductEntryService;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -49,8 +50,8 @@ class ProductEntryController extends Controller
                 ->when($warehouseId, function ($query) use ($warehouseId): void {
                     $query->whereHas('items', fn ($query) => $query->where('warehouse_id', $warehouseId));
                 })
-                ->when($dateFrom, fn ($query) => $query->whereDate('processed_at', '>=', $dateFrom))
-                ->when($dateTo, fn ($query) => $query->whereDate('processed_at', '<=', $dateTo))
+                ->when($dateFrom, fn ($query) => $query->where('processed_at', '>=', BusinessDateRange::startOfDay($dateFrom)))
+                ->when($dateTo, fn ($query) => $query->where('processed_at', '<=', BusinessDateRange::endOfDay($dateTo)))
                 ->latest('processed_at')
                 ->paginate($limit)
         );
