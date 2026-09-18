@@ -211,17 +211,44 @@ export function InventoryErpWorkspace({
     return () => clearTimeout(timer);
   }, [searchInput, search, onSearchChange]);
 
-  // Reset selected index cuando cambie la lista de productos
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [products]);
+  // Referencia al ID del producto actualmente seleccionado, para preservar posición tras mutaciones
+  const selectedProductIdRef = useRef<number | null>(null);
 
-  // Asegurar índice seguro
+  // Asegurar índice seguro y derivar producto seleccionado
   const selectedProductSummary = useMemo(() => {
     if (products.length === 0) return null;
     const safeIdx = Math.min(Math.max(0, selectedIndex), products.length - 1);
     return products[safeIdx] ?? null;
   }, [products, selectedIndex]);
+
+  // Mantener la referencia de ID sincronizada con la selección visual
+  useEffect(() => {
+    if (selectedProductSummary?.id != null) {
+      selectedProductIdRef.current = selectedProductSummary.id;
+    }
+  }, [selectedProductSummary]);
+
+  // Cuando la lista de productos cambia (filtro, búsqueda o refetch tras mutación):
+  // - Si hay un ID previo en la ref, intentar reencontrar ese producto por ID
+  // - Si no existe ya (producto eliminado), ir al índice anterior más cercano
+  // - Solo reset a 0 cuando no había selección previa (primera carga)
+  useEffect(() => {
+    const prevId = selectedProductIdRef.current;
+    if (prevId == null) {
+      // Primera carga: seleccionar el primero
+      setSelectedIndex(0);
+      return;
+    }
+    const foundIdx = products.findIndex((p) => p.id === prevId);
+    if (foundIdx >= 0) {
+      // El producto sigue existiendo → mantener su posición visual
+      setSelectedIndex(foundIdx);
+    } else {
+      // Desapareció (filtro diferente, eliminado, etc.) → ir al índice anterior
+      setSelectedIndex((prev) => Math.min(prev, Math.max(0, products.length - 1)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products]);
 
   // Auto-scroll del item seleccionado en la lista
   useEffect(() => {
