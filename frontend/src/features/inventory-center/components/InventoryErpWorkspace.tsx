@@ -26,7 +26,6 @@ import {
   useState,
   type ChangeEvent,
 } from 'react';
-import { Link } from '@tanstack/react-router';
 import {
   Barcode,
   Boxes,
@@ -34,7 +33,6 @@ import {
   ChevronRight,
   DollarSign,
   Edit,
-  ExternalLink,
   Folder,
   History,
   Info,
@@ -813,15 +811,6 @@ export function InventoryErpWorkspace({
                           ? 'Desactivar'
                           : 'Activar'}
                     </Button>
-                    <Link
-                      to="/inventory/$productId"
-                      params={{ productId: String(activeProduct.id) }}
-                      className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border border-border bg-surface hover:bg-muted text-text-secondary text-xs font-medium transition-colors"
-                      title="Ver ficha completa en página independiente"
-                    >
-                      <ExternalLink className="size-3.5" />
-                      Ficha
-                    </Link>
                   </div>
 
                 </div>

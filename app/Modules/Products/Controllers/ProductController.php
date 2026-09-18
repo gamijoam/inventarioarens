@@ -440,6 +440,31 @@ class ProductController extends Controller
             $before = $product->only(array_keys($data));
             $product->update($data);
 
+            if (array_key_exists('base_price', $data) && $data['base_price'] !== null) {
+                // Sincronizar automaticamente la lista de precios por defecto (is_default = true)
+                // si tiene un registro en product_prices, para evitar que el POS y las cotizaciones
+                // queden con un precio desfasado del precio base actualizado.
+                $defaultPriceList = PriceList::query()
+                    ->where('tenant_id', $product->tenant_id)
+                    ->where('is_default', true)
+                    ->first();
+
+                if ($defaultPriceList) {
+                    $defaultProductPrice = ProductPrice::query()
+                        ->where('product_id', $product->id)
+                        ->where('price_list_id', $defaultPriceList->id)
+                        ->first();
+
+                    if ($defaultProductPrice) {
+                        $defaultProductPrice->update([
+                            'price' => $data['base_price'],
+                            'currency' => $data['sale_currency'] ?? $product->sale_currency ?? 'USD',
+                        ]);
+                        $syncCatalog->productPriceUpdated($defaultProductPrice);
+                    }
+                }
+            }
+
             // Sincronizar categorias y tags si vienen en el payload.
             // Antes el controller los descartaba (ver prepareProductData)
             // y solo se sincronizaban via endpoints dedicados, lo cual el

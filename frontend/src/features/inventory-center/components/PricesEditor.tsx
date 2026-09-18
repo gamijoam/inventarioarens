@@ -39,9 +39,10 @@ interface PriceRow {
 
 export interface PricesEditorProps {
   productId: number;
+  currentBasePrice?: number;
 }
 
-export function PricesEditor({ productId }: PricesEditorProps) {
+export function PricesEditor({ productId, currentBasePrice }: PricesEditorProps) {
   const { data: product, isLoading: productLoading } = useProduct(productId);
   const { data: priceLists = [], isLoading: listsLoading } = usePriceLists(false);
   const updateProduct = useUpdateProduct();
@@ -79,13 +80,24 @@ export function PricesEditor({ productId }: PricesEditorProps) {
       list: PriceList,
       seen = new Set<number>(),
     ): number | null => {
-      if (seen.has(list.id)) return product?.base_price ? Number(product.base_price) : null;
+      if (seen.has(list.id)) {
+        return currentBasePrice != null && currentBasePrice > 0
+          ? currentBasePrice
+          : product?.base_price
+            ? Number(product.base_price)
+            : null;
+      }
       seen.add(list.id);
 
       const manual = existingByList.get(list.id);
       if (manual) return Number(manual.amount);
 
-      let base: number | null = product?.base_price != null ? Number(product.base_price) : null;
+      let base: number | null =
+        currentBasePrice != null && currentBasePrice > 0
+          ? currentBasePrice
+          : product?.base_price != null
+            ? Number(product.base_price)
+            : null;
       if (list.base_price_list_id) {
         const baseList = priceLists.find((l) => l.id === list.base_price_list_id);
         if (baseList) base = effectivePrice(baseList, seen);
@@ -111,7 +123,7 @@ export function PricesEditor({ productId }: PricesEditorProps) {
       };
     });
     setRows(next);
-  }, [priceLists, pricesQuery.data, product?.base_price]);
+  }, [priceLists, pricesQuery.data, product?.base_price, currentBasePrice]);
 
   const dirty = useMemo(() => rows.some((r) => r.dirty), [rows]);
 
@@ -150,8 +162,8 @@ export function PricesEditor({ productId }: PricesEditorProps) {
   };
 
   const copyBasePrice = (priceListId: number) => {
-    if (!product) return;
-    const base = product.base_price;
+    const base =
+      currentBasePrice != null && currentBasePrice > 0 ? currentBasePrice : product?.base_price;
     if (!base) {
       toast.error('El producto no tiene precio base.');
       return;
@@ -270,7 +282,10 @@ export function PricesEditor({ productId }: PricesEditorProps) {
                         size="sm"
                         variant="ghost"
                         onClick={() => {
-                          const base = Number(product?.base_price ?? 0);
+                          const base =
+                            currentBasePrice != null && currentBasePrice > 0
+                              ? currentBasePrice
+                              : Number(product?.base_price ?? 0);
                           const amount = base * (1 + Number(list.markup_percentage) / 100);
                           setRow(r.price_list_id, {
                             amount: amount.toFixed(2),

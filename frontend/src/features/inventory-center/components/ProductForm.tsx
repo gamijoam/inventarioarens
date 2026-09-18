@@ -17,7 +17,10 @@ import {
   Check,
   ClipboardList,
   DollarSign,
+  FileClock,
+  History,
   Image as ImageIcon,
+  Layers,
   Link2,
   ShieldCheck,
   Tag as TagIcon,
@@ -57,6 +60,11 @@ import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
 import { InlineWarrantyPolicyCreate } from './InlineWarrantyPolicyCreate';
 import { ImageGallery } from './ImageGallery';
 import { UnitOfMeasureSelector } from './UnitOfMeasureSelector';
+import { PricesEditor } from './PricesEditor';
+import { ProductStockDetailPanel } from './ProductStockDetailPanel';
+import { ProductVariantsTab } from './ProductVariantsTab';
+import { KardexTab } from './KardexTab';
+import { AuditsTab } from './AuditsTab';
 
 export type ProductFormTab =
   | 'general'
@@ -64,7 +72,10 @@ export type ProductFormTab =
   | 'stock'
   | 'catalogs'
   | 'images'
-  | 'details';
+  | 'details'
+  | 'variants'
+  | 'kardex'
+  | 'audits';
 
 export interface ProductFormProps {
   form: UseFormReturn<StoreProductInput, unknown, StoreProductValues>;
@@ -133,7 +144,7 @@ export function ProductForm({
     }
   }, [pricingMode, calculatedSalePrice, form]);
 
-  // Atajos de teclado para pestañas ERP (F1 - F6)
+  // Atajos de teclado para pestañas ERP (F1 - F9)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F1') {
@@ -154,12 +165,21 @@ export function ProductForm({
       } else if (e.key === 'F6') {
         e.preventDefault();
         setActiveTab('details');
+      } else if (e.key === 'F7' && productId) {
+        e.preventDefault();
+        setActiveTab('variants');
+      } else if (e.key === 'F8' && productId) {
+        e.preventDefault();
+        setActiveTab('kardex');
+      } else if (e.key === 'F9' && productId) {
+        e.preventDefault();
+        setActiveTab('audits');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [productId]);
 
   const brandOptions = useMemo(
     () => [
@@ -271,6 +291,31 @@ export function ProductForm({
             icon={<ShieldCheck className="size-3.5" />}
             hasError={hasDetailsErrors}
           />
+        )}
+        {productId && (
+          <>
+            <TabButton
+              active={activeTab === 'variants'}
+              onClick={() => setActiveTab('variants')}
+              shortcut="F7"
+              label="Variantes"
+              icon={<Layers className="size-3.5" />}
+            />
+            <TabButton
+              active={activeTab === 'kardex'}
+              onClick={() => setActiveTab('kardex')}
+              shortcut="F8"
+              label="Kardex"
+              icon={<History className="size-3.5" />}
+            />
+            <TabButton
+              active={activeTab === 'audits'}
+              onClick={() => setActiveTab('audits')}
+              shortcut="F9"
+              label="Auditoría"
+              icon={<FileClock className="size-3.5" />}
+            />
+          </>
         )}
       </div>
 
@@ -554,6 +599,12 @@ export function ProductForm({
               )}
             </div>
           </fieldset>
+
+          {productId && (
+            <div className="pt-4 border-t border-border">
+              <PricesEditor productId={productId} currentBasePrice={currentBasePrice} />
+            </div>
+          )}
         </div>
 
         {/* Pestaña 3: Control de Stock [F3] */}
@@ -655,6 +706,15 @@ export function ProductForm({
               </div>
             )}
           </fieldset>
+
+          {productId && (
+            <div className="pt-4 border-t border-border">
+              <ProductStockDetailPanel
+                productId={productId}
+                trackingType={form.watch('tracking_type')}
+              />
+            </div>
+          )}
         </div>
 
         {/* Pestaña 4: Catálogos y Etiquetas [F4] */}
@@ -800,6 +860,22 @@ export function ProductForm({
         </div>
         )}
 
+        {productId && (
+          <>
+            <div className={cn('space-y-4', activeTab !== 'variants' && 'hidden')}>
+              <ProductVariantsTab productId={productId} />
+            </div>
+
+            <div className={cn('space-y-4', activeTab !== 'kardex' && 'hidden')}>
+              <KardexTab productId={productId} />
+            </div>
+
+            <div className={cn('space-y-4', activeTab !== 'audits' && 'hidden')}>
+              <AuditsTab productId={productId} />
+            </div>
+          </>
+        )}
+
         {/* Botón para desplegar campos adicionales */}
         {showAdvancedToggle && hasHiddenFields && (
           <div className="flex justify-center border-t border-dashed border-border pt-3">
@@ -823,7 +899,7 @@ export function ProductForm({
       <div className="border-t border-border bg-surface-subtle/50 px-4 py-3 flex items-center justify-between gap-3 shrink-0 flex-wrap">
         <div className="flex items-center gap-2 text-[11px] text-text-muted font-mono hidden sm:flex">
           <span className="inline-flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">F1-F6</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">{productId ? 'F1-F9' : 'F1-F6'}</kbd>
             <span>Pestañas</span>
           </span>
           <span>•</span>

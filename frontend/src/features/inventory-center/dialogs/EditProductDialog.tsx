@@ -82,7 +82,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
               )}
             </div>
             <DialogDescription className="text-xs text-text-muted">
-              Modifica los datos del producto. Usa [F1 - F6] para alternar entre pestañas y [Enter] para guardar.
+              Modifica los datos del producto. Usa [F1 - F9] para alternar entre pestañas y [Enter] para guardar.
             </DialogDescription>
           </div>
         </DialogHeader>
