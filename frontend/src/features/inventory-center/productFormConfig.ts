@@ -99,7 +99,7 @@ export const CREATE_PRODUCT_FORM_VISIBILITY: ProductFormVisibility = {
 
   // Control de stock
   tracking_type: true,
-  unit_of_measure: false,
+  unit_of_measure: true,
   track_stock: false,
   min_stock: false,
   max_stock: false,
