@@ -151,6 +151,9 @@ interface PriceTableRow {
   label: string;
   code?: string;
   isDefault?: boolean;
+  costBase: number;
+  costWithIva: number;
+  profitUsd: number;
   netUsd: number;
   taxUsd: number;
   totalUsd: number;
@@ -401,10 +404,14 @@ export function InventoryErpWorkspace({
       const packageUsd = Math.round(totalUsd * factor * 100) / 100;
       const packageVes = Math.round(totalVes * factor * 100) / 100;
 
-      // Margen sobre base imponible
+      const costBase = cost > 0 ? Math.round(cost * 100) / 100 : 0;
+      const costWithIva = costBase > 0 ? Math.round(costBase * (1 + IVA_RATE) * 100) / 100 : 0;
+      const profitUsd = totalUsd > 0 && costBase > 0 ? Math.round((totalUsd - costBase) * 100) / 100 : 0;
+
+      // Margen sobre costo de compra
       let marginPercent: number | null = null;
-      if (netUsd > 0 && cost > 0) {
-        marginPercent = Math.round(((netUsd - cost) / netUsd) * 1000) / 10;
+      if (totalUsd > 0 && costBase > 0) {
+        marginPercent = Math.round(((totalUsd - costBase) / costBase) * 1000) / 10;
       }
 
       return {
@@ -412,6 +419,9 @@ export function InventoryErpWorkspace({
         label,
         code,
         isDefault,
+        costBase,
+        costWithIva,
+        profitUsd,
         netUsd,
         taxUsd,
         totalUsd,
@@ -991,12 +1001,14 @@ export function InventoryErpWorkspace({
                         <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-[11px]">
                           <tr>
                             <th className="p-2.5">Lista de Precio</th>
-                            <th className="p-2.5 text-right">USD Neto</th>
-                            <th className="p-2.5 text-right">IVA (16%)</th>
+                            <th className="p-2.5 text-right">Costo Compra</th>
+                            <th className="p-2.5 text-right">Costo c/IVA</th>
+                            <th className="p-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                              Ganancia ($)
+                            </th>
                             <th className="p-2.5 text-right font-bold text-text-primary bg-primary/5">
                               PVP USD
                             </th>
-                            <th className="p-2.5 text-right">VES Neto</th>
                             <th className="p-2.5 text-right font-bold text-text-primary bg-primary/5">
                               PVP VES
                             </th>
@@ -1005,7 +1017,7 @@ export function InventoryErpWorkspace({
                                 Empaque (x{packageFactor})
                               </th>
                             )}
-                            <th className="p-2.5 text-right">Margen</th>
+                            <th className="p-2.5 text-right">Margen %</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/60 font-mono">
@@ -1021,12 +1033,18 @@ export function InventoryErpWorkspace({
                                   )}
                                 </div>
                               </td>
-                              <td className="p-2.5 text-right text-text-muted">{money(row.netUsd)}</td>
-                              <td className="p-2.5 text-right text-text-muted">{money(row.taxUsd)}</td>
-                              <td className="p-2.5 text-right font-bold text-text-primary bg-primary/5">
+                              <td className="p-2.5 text-right text-text-muted font-bold">
+                                {row.costBase > 0 ? money(row.costBase) : '—'}
+                              </td>
+                              <td className="p-2.5 text-right text-text-muted">
+                                {row.costWithIva > 0 ? money(row.costWithIva) : '—'}
+                              </td>
+                              <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                                {row.profitUsd > 0 ? `+${money(row.profitUsd)}` : money(row.profitUsd)}
+                              </td>
+                              <td className="p-2.5 text-right font-black text-text-primary bg-primary/5 text-sm">
                                 {money(row.totalUsd)}
                               </td>
-                              <td className="p-2.5 text-right text-text-muted">{moneyVes(row.netVes)}</td>
                               <td className="p-2.5 text-right font-bold text-text-primary bg-primary/5">
                                 {moneyVes(row.totalVes)}
                               </td>
@@ -1047,7 +1065,7 @@ export function InventoryErpWorkspace({
                                           : 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
                                     )}
                                   >
-                                    {row.marginPercent.toFixed(1)}%
+                                    +{row.marginPercent.toFixed(1)}%
                                   </span>
                                 ) : (
                                   <span className="text-text-muted">—</span>
