@@ -558,6 +558,7 @@ export function usePosProducts(
     page: 1,
     per_page: 12,
     with_images: 1,
+    with_prices: 1,
     warehouse_id: warehouseId ?? undefined,
   };
 
@@ -581,6 +582,7 @@ export async function fetchPosProductsDirect(
     page: '1',
     per_page: '12',
     with_images: '1',
+    with_prices: '1',
   });
   if (warehouseId) {
     params.set('warehouse_id', String(warehouseId));

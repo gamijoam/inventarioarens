@@ -368,6 +368,33 @@ export function formatPosRateLabel(
   return `${typeLabel} @ ${formatLocalNumber(rate.rate)}`;
 }
 
+export function resolvePosProductPrice(
+  product: Product,
+  selectedPriceList: PriceList | null,
+): number {
+  const basePrice = Number(product.base_price ?? 0);
+  if (!selectedPriceList) return basePrice;
+
+  // Si el producto tiene precios cargados en prices (relacion cargada con with_prices: 1)
+  if (product.prices && product.prices.length > 0) {
+    const found = product.prices.find(
+      (p) =>
+        (p.price_list_id === selectedPriceList.id || p.price_list?.id === selectedPriceList.id) &&
+        (p.is_active ?? true),
+    );
+    if (found && found.price != null && Number(found.price) > 0) {
+      return Number(found.price);
+    }
+  }
+
+  // Si la lista de precios aplica un margen sobre el precio base
+  if (selectedPriceList.markup_percentage && basePrice > 0) {
+    return Math.round(basePrice * (1 + Number(selectedPriceList.markup_percentage) / 100) * 100) / 100;
+  }
+
+  return basePrice;
+}
+
 export interface SearchPanelAction {
   setProductSearch: (value: string) => void;
   setPanel: (panel: 'product-search') => void;
@@ -1521,7 +1548,10 @@ export function PosTerminal() {
               <Input
                 ref={searchRef}
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setQuickSearchIndex(0);
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown' && quickSearchResults.length > 0) {
                     event.preventDefault();
@@ -1538,15 +1568,21 @@ export function PosTerminal() {
                   }
                   if (event.key === 'Enter') {
                     event.preventDefault();
-                    if (quickSearchIndex > 0 && quickSearchResults[quickSearchIndex]) {
-                      const selectedProduct = quickSearchResults[quickSearchIndex];
-                      void addProduct(selectedProduct).then((added) => {
-                        if (added) {
-                          setQuery('');
-                          setQuickSearchIndex(0);
-                        }
-                      });
-                      return;
+                    if (quickSearchResults.length > 0) {
+                      const targetIndex =
+                        quickSearchIndex >= 0 && quickSearchIndex < quickSearchResults.length
+                          ? quickSearchIndex
+                          : 0;
+                      const selectedProduct = quickSearchResults[targetIndex];
+                      if (selectedProduct) {
+                        void addProduct(selectedProduct).then((added) => {
+                          if (added) {
+                            setQuery('');
+                            setQuickSearchIndex(0);
+                          }
+                        });
+                        return;
+                      }
                     }
                     void handleProductSearchEnter();
                   }
@@ -1571,7 +1607,14 @@ export function PosTerminal() {
                 (loadingProducts || quickSearchResults.length > 0) && (
                   <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
                     <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
-                      <span>Resultados rápidos</span>
+                      <span>
+                        Resultados rápidos
+                        {selectedPriceList && (
+                          <span className="ml-1.5 text-primary font-semibold normal-case">
+                            ({selectedPriceList.name})
+                          </span>
+                        )}
+                      </span>
                       <TapButton
                         onPress={() => {
                           setProductSearch(query);
@@ -1592,64 +1635,82 @@ export function PosTerminal() {
                           No hay productos con esa búsqueda.
                         </div>
                       ) : (
-                        quickSearchResults.map((product, index) => (
-                          <TapButton
-                            key={product.id}
-                            onPress={() => {
-                              void addProduct(product).then((added) => {
-                                if (added) {
-                                  setQuery('');
-                                  setQuickSearchIndex(0);
-                                }
-                              });
-                            }}
-                            onMouseEnter={() => setQuickSearchIndex(index)}
-                            className={cn(
-                              'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
-                              index === quickSearchIndex &&
-                                'bg-primary/15 ring-2 ring-primary/50 shadow-sm scale-[1.01]',
-                            )}
-                          >
-                            <ProductImageView
-                              image={primaryProductImage(product)}
-                              src={productImageSrc(product) ?? undefined}
-                              alt={product.name}
-                              variant="thumb"
-                              className="border-border bg-bg size-12 shrink-0 rounded-lg border"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p
-                                className={cn(
-                                  'truncate text-sm font-semibold',
-                                  index === quickSearchIndex && 'text-primary',
-                                )}
-                              >
-                                {product.name}
-                              </p>
-                              <p className="text-text-muted truncate text-xs">
-                                {product.sku ?? product.barcode ?? 'Sin código'}
-                                {product.unit_of_measure &&
-                                  product.unit_of_measure.toLowerCase() !== 'unit' && (
-                                    <span className="ml-1.5 font-medium text-text-secondary uppercase">
-                                      · {product.unit_of_measure}
-                                    </span>
-                                  )}
-                              </p>
-                            </div>
-                            <span
+                        quickSearchResults.map((product, index) => {
+                          const itemPriceUsd = resolvePosProductPrice(product, selectedPriceList);
+                          const itemPriceVes =
+                            activeRate && activeRate.rate > 0
+                              ? itemPriceUsd * activeRate.rate
+                              : null;
+
+                          return (
+                            <TapButton
+                              key={product.id}
+                              onPress={() => {
+                                void addProduct(product).then((added) => {
+                                  if (added) {
+                                    setQuery('');
+                                    setQuickSearchIndex(0);
+                                  }
+                                });
+                              }}
+                              onMouseEnter={() => setQuickSearchIndex(index)}
                               className={cn(
-                                'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold border',
-                                Number(product.available_stock ?? 0) > 0
-                                  ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-400'
-                                  : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
+                                'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                                index === quickSearchIndex &&
+                                  'bg-primary/15 ring-2 ring-primary/50 shadow-sm scale-[1.01]',
                               )}
                             >
-                              {Number(product.available_stock ?? 0) > 0
-                                ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
-                                : '⚠️ Sin stock'}
-                            </span>
-                          </TapButton>
-                        ))
+                              <ProductImageView
+                                image={primaryProductImage(product)}
+                                src={productImageSrc(product) ?? undefined}
+                                alt={product.name}
+                                variant="thumb"
+                                className="border-border bg-bg size-12 shrink-0 rounded-lg border"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={cn(
+                                    'truncate text-sm font-semibold',
+                                    index === quickSearchIndex && 'text-primary',
+                                  )}
+                                >
+                                  {product.name}
+                                </p>
+                                <p className="text-text-muted truncate text-xs">
+                                  {product.sku ?? product.barcode ?? 'Sin código'}
+                                  {product.unit_of_measure &&
+                                    product.unit_of_measure.toLowerCase() !== 'unit' && (
+                                      <span className="ml-1.5 font-medium text-text-secondary uppercase">
+                                        · {product.unit_of_measure}
+                                      </span>
+                                    )}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0 px-1">
+                                <span className="text-sm font-bold text-text-primary block">
+                                  {money(itemPriceUsd)}
+                                </span>
+                                {itemPriceVes !== null && (
+                                  <span className="text-[10px] text-text-muted font-mono block">
+                                    Bs {formatLocalNumber(itemPriceVes)}
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className={cn(
+                                  'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold border',
+                                  Number(product.available_stock ?? 0) > 0
+                                    ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-400'
+                                    : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
+                                )}
+                              >
+                                {Number(product.available_stock ?? 0) > 0
+                                  ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
+                                  : '⚠️ Sin stock'}
+                              </span>
+                            </TapButton>
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -3117,20 +3178,13 @@ export function PosTerminal() {
           return;
         }
 
-        // Si la consulta directa devolvió 1 solo producto que coincide
-        if (directResults.length === 1 && directResults[0]) {
+        // Si la consulta directa devolvió productos, agregar el primero directamente sin abrir modal
+        if (directResults.length >= 1 && directResults[0]) {
           const added = await addProduct(directResults[0]);
           if (added) {
             setQuery('');
             setQuickSearchIndex(0);
           }
-          return;
-        }
-
-        // Si devolvió varios productos (búsqueda general manual, ej. "filtro"), abrir modal
-        if (directResults.length > 1) {
-          setProductSearch(term);
-          setPanel('product-search');
           return;
         }
       } catch {
