@@ -740,7 +740,9 @@ export function ProductForm({
                     <Input
                       type="number"
                       min="0"
-                      {...form.register('min_stock', { valueAsNumber: true })}
+                      {...form.register('min_stock', {
+                        setValueAs: (v) => (v === '' || v == null ? undefined : isNaN(Number(v)) ? undefined : Number(v)),
+                      })}
                       className="font-mono"
                     />
                   </Field>
@@ -756,7 +758,9 @@ export function ProductForm({
                     <Input
                       type="number"
                       min="0"
-                      {...form.register('max_stock', { valueAsNumber: true })}
+                      {...form.register('max_stock', {
+                        setValueAs: (v) => (v === '' || v == null ? undefined : isNaN(Number(v)) ? undefined : Number(v)),
+                      })}
                       className="font-mono"
                     />
                   </Field>
@@ -772,7 +776,9 @@ export function ProductForm({
                     <Input
                       type="number"
                       min="0"
-                      {...form.register('reorder_quantity', { valueAsNumber: true })}
+                      {...form.register('reorder_quantity', {
+                        setValueAs: (v) => (v === '' || v == null ? undefined : isNaN(Number(v)) ? undefined : Number(v)),
+                      })}
                       className="font-mono"
                     />
                   </Field>
