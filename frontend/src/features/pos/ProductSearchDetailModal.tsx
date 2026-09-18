@@ -140,6 +140,8 @@ interface PriceTableRow {
   label: string;
   code?: string;
   isDefault?: boolean;
+  costBase: number;
+  costWithIva: number;
   netUsd: number;
   taxUsd: number;
   totalUsd: number;
@@ -279,6 +281,10 @@ export function ProductSearchDetailModal({
     const basePrice = Number(selectedProduct.base_price ?? 0);
     const existingPrices = selectedProduct.prices ?? [];
 
+    const cost = Number(selectedProduct.last_purchase_cost ?? selectedProduct.average_cost ?? 0);
+    const costBase = cost > 0 ? Math.round(cost * 100) / 100 : 0;
+    const costWithIva = costBase > 0 ? Math.round(costBase * (1 + IVA_RATE) * 100) / 100 : 0;
+
     const rows: PriceTableRow[] = [];
 
     // Helper para armar fila considerando que los precios del sistema ya incluyen IVA
@@ -308,6 +314,8 @@ export function ProductSearchDetailModal({
         label,
         code,
         isDefault,
+        costBase,
+        costWithIva,
         netUsd,
         taxUsd,
         totalUsd,
@@ -925,12 +933,10 @@ export function ProductSearchDetailModal({
                         <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
                           <tr>
                             <th className="px-4 py-3">Nivel / Lista de Precio</th>
-                            <th className="px-3 py-3 text-right">USD Neto</th>
-                            <th className="px-3 py-3 text-right">IVA</th>
-                            <th className="px-3 py-3 text-right text-primary font-bold">USD c/Imp</th>
-                            <th className="px-3 py-3 text-right">VES Neto</th>
-                            <th className="px-3 py-3 text-right">IVA VES</th>
-                            <th className="px-3 py-3 text-right text-primary font-bold">VES c/Imp</th>
+                            <th className="px-3 py-3 text-right">Costo Compra</th>
+                            <th className="px-3 py-3 text-right">Costo c/IVA</th>
+                            <th className="px-3 py-3 text-right text-primary font-bold">PVP USD</th>
+                            <th className="px-3 py-3 text-right text-primary font-bold">PVP VES</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/70">
@@ -955,20 +961,14 @@ export function ProductSearchDetailModal({
                                   )}
                                 </div>
                               </td>
-                              <td className="px-3 py-3.5 text-right font-mono text-text-secondary">
-                                {money(row.netUsd)}
+                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-muted">
+                                {row.costBase > 0 ? money(row.costBase) : '—'}
                               </td>
                               <td className="px-3 py-3.5 text-right font-mono text-text-muted">
-                                {money(row.taxUsd)}
+                                {row.costWithIva > 0 ? money(row.costWithIva) : '—'}
                               </td>
-                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary">
+                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary text-sm">
                                 {money(row.totalUsd)}
-                              </td>
-                              <td className="px-3 py-3.5 text-right font-mono text-text-secondary">
-                                {moneyVes(row.netVes)}
-                              </td>
-                              <td className="px-3 py-3.5 text-right font-mono text-text-muted">
-                                {moneyVes(row.taxVes)}
                               </td>
                               <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary">
                                 {moneyVes(row.totalVes)}
