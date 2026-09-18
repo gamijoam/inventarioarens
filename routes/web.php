@@ -55,7 +55,10 @@ Route::get('assets/{path}', function (string $path) {
     }
     $full = base_path("frontend/dist/assets/{$path}");
     if (! is_file($full)) {
-        abort(404);
+        return response('/* Asset not found */', 404, [
+            'Content-Type' => 'application/javascript; charset=UTF-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        ]);
     }
 
     $mime = match (strtolower(pathinfo($full, PATHINFO_EXTENSION))) {
