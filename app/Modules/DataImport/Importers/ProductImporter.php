@@ -95,9 +95,10 @@ class ProductImporter extends BaseImporter
         if (! $name) {
             $errors['name'] = 'name es obligatorio';
         }
-        if (! in_array($unitOfMeasure, ['unit', 'kg', 'lt', 'm'], true)) {
-            $errors['unit_of_measure'] = 'unit_of_measure debe ser unit, kg, lt o m';
+        if (! $unitOfMeasure || mb_strlen($unitOfMeasure) > 20) {
+            $errors['unit_of_measure'] = 'unit_of_measure no puede estar vacío ni superar 20 caracteres';
         }
+
         if (! in_array($trackingType, ['quantity', 'serialized'], true)) {
             $errors['tracking_type'] = 'tracking_type debe ser quantity o serialized';
         }

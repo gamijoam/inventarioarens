@@ -144,12 +144,25 @@ class Product extends Model
 
     public const UNIT_M = 'm';
 
+    public const UNIT_PAR = 'par';
+
     public const ALLOWED_UNITS = [
         self::UNIT_UNIT,
         self::UNIT_KG,
         self::UNIT_LT,
         self::UNIT_M,
+        self::UNIT_PAR,
+        'pair',
+        'caja',
+        'paquete',
+        'juego',
+        'servicio',
+        'rollo',
+        'saco',
+        'bulto',
+        'galon',
     ];
+
 
     protected function casts(): array
     {

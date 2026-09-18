@@ -1,20 +1,28 @@
 /**
- * ProductForm: formulario completo de producto (create + edit).
- * Renderiza todos los campos del backend (ver docs/INVENTORY_CATALOG_API.md,
- * docs/PRODUCT_IMAGES.md).
- * Usa react-hook-form + zodResolver via useProductForm().
+ * ProductForm: formulario completo de producto estilo ERP (create + edit).
+ * Renderiza todos los campos del backend organizados en pestañas de alta productividad:
+ *  1. Identificacion [F1] (name, sku, barcode, brand, unit_of_measure personalizable con soporte PAR, descripción)
+ *  2. Precios [F2] (modo automático/manual, costo, recargo %, precio base USD, IVA estimado, moneda)
+ *  3. Control de stock [F3] (tracking_type, track_stock, min/max/reorder)
+ *  4. Catálogos [F4] (categorías en árbol, tags con chips)
+ *  5. Imágenes [F5] (url externa y galería multi-foto en edit)
+ *  6. Garantía y estado [F6] (warranty_policy_id, long_description, is_active)
  *
- * Secciones:
- *  1. Identificacion (name, sku, barcode, image_url externa)
- *  2. Imagenes (galeria, SOLO si productId esta definido - modo edit)
- *  3. Catalogos (brand, categories, tags) — con inline create.
- *  4. Control de stock (tracking_type, unit_of_measure, track_stock, min/max/reorder)
-  *  5. Precios (costo, recargo, precio de venta, sale_currency)
- *  6. Garantia + Estado (warranty_policy_id, is_active, description, long_description)
+ * Incluye atajos de teclado F1-F6 para cambiar de pestaña rápidamente y desglose en vivo.
  */
-import { type UseFormReturn } from 'react-hook-form';
+import { type UseFormReturn, useController } from 'react-hook-form';
 import { useEffect, useMemo, useState } from 'react';
-import { Link2, Tag as TagIcon, Tags as TagsIcon } from 'lucide-react';
+import {
+  Boxes,
+  Check,
+  ClipboardList,
+  DollarSign,
+  Image as ImageIcon,
+  Link2,
+  ShieldCheck,
+  Tag as TagIcon,
+  Tags as TagsIcon,
+} from 'lucide-react';
 
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -25,13 +33,11 @@ import { TreeSelect } from '@/components/ui/TreeSelect';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
-import { Controller, useController } from 'react-hook-form';
 
 import {
   SALE_CURRENCIES,
   PRICING_MODES,
   TRACKING_TYPES,
-  UNITS_OF_MEASURE,
   type StoreProductInput,
   type StoreProductValues,
 } from '../schemas';
@@ -50,26 +56,26 @@ import { InlineCatalogCreate } from './InlineCatalogCreate';
 import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
 import { InlineWarrantyPolicyCreate } from './InlineWarrantyPolicyCreate';
 import { ImageGallery } from './ImageGallery';
+import { UnitOfMeasureSelector } from './UnitOfMeasureSelector';
+
+export type ProductFormTab =
+  | 'general'
+  | 'pricing'
+  | 'stock'
+  | 'catalogs'
+  | 'images'
+  | 'details';
 
 export interface ProductFormProps {
-  // Acepta cualquier UseFormReturn cuyo TFieldValues extienda nuestro schema.
   form: UseFormReturn<StoreProductInput, unknown, StoreProductValues>;
   tagOptions: { value: number; label: string; color?: string }[];
-  /** Modo "compact" oculta descripciones largas y reduce spacing. */
   compact?: boolean;
   onCancel?: () => void;
   submitLabel?: string;
   onSubmit: () => void;
   isSubmitting: boolean;
-  /**
-   * Si se pasa, se renderiza la seccion "Galeria de imagenes" (upload,
-   * reorder, set primary, delete). Solo aplica en modo edit (no tiene
-   * sentido antes de que el producto exista en el backend).
-   */
   productId?: number;
-  /** Configuración de visibilidad para ocultar campos no deseados. */
   visibility?: Partial<ProductFormVisibility>;
-  /** Si es true, muestra un botón para desplegar u ocultar campos adicionales. */
   showAdvancedToggle?: boolean;
 }
 
@@ -85,6 +91,7 @@ export function ProductForm({
   visibility,
   showAdvancedToggle = false,
 }: ProductFormProps) {
+  const [activeTab, setActiveTab] = useState<ProductFormTab>('general');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const activeVisibility = useMemo<ProductFormVisibility>(() => {
@@ -104,14 +111,17 @@ export function ProductForm({
   const { data: categoryTree = [] } = useCategoriesTree();
   const { data: warrantyPolicies = [] } = useWarrantyPolicies();
   const { data: rateTypes = [] } = useExchangeRateTypes();
-  // Galeria de imagenes (Sprint de imagenes Nivel 2). Solo se carga si
-  // hay productId (modo edit). El useQuery queda deshabilitado en create.
   const { data: galleryImages = [] } = useProductImages(productId ?? null);
+
   const pricingMode = form.watch('pricing_mode') ?? 'manual';
   const cost = Number(form.watch('last_purchase_cost'));
   const margin = Number(form.watch('profit_margin'));
+  const currentBasePrice = Number(form.watch('base_price') ?? 0);
+
   const calculatedSalePrice =
-    Number.isFinite(cost) && Number.isFinite(margin) ? (cost * (1 + margin / 100)).toFixed(2) : '';
+    Number.isFinite(cost) && Number.isFinite(margin)
+      ? (cost * (1 + margin / 100)).toFixed(2)
+      : '';
 
   useEffect(() => {
     if (pricingMode === 'automatic' && calculatedSalePrice && Number(calculatedSalePrice) > 0) {
@@ -123,7 +133,34 @@ export function ProductForm({
     }
   }, [pricingMode, calculatedSalePrice, form]);
 
-  // Convertir brand/warranty/rate a options.
+  // Atajos de teclado para pestañas ERP (F1 - F6)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setActiveTab('general');
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        setActiveTab('pricing');
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        setActiveTab('stock');
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        setActiveTab('catalogs');
+      } else if (e.key === 'F5') {
+        e.preventDefault();
+        setActiveTab('images');
+      } else if (e.key === 'F6') {
+        e.preventDefault();
+        setActiveTab('details');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const brandOptions = useMemo(
     () => [
       { value: '', label: '— Sin marca —' },
@@ -155,9 +192,24 @@ export function ProductForm({
     [categoryTree, categorySearch],
   );
 
-  // Tags son dinámicos; el form mantiene un array de IDs pero necesitamos los
-  // options disponibles (que vienen del padre via prop).
-  const tagSelectOptions = tagOptions;
+  // Cálculos ERP informativos de IVA sobre base_price
+  const effectivePrice = pricingMode === 'automatic' && calculatedSalePrice
+    ? Number(calculatedSalePrice)
+    : currentBasePrice;
+  const netEstimate = effectivePrice > 0 ? effectivePrice / 1.16 : 0;
+  const ivaEstimate = effectivePrice > 0 ? effectivePrice - netEstimate : 0;
+
+  // Detección de errores por pestaña
+  const errors = form.formState.errors;
+  const hasGeneralErrors = Boolean(errors.name || errors.sku || errors.barcode || errors.image_url || errors.description);
+  const hasPricingErrors = Boolean(errors.base_price || errors.last_purchase_cost || errors.profit_margin || errors.sale_currency || errors.sale_exchange_rate_type_id);
+  const hasStockErrors = Boolean(errors.min_stock || errors.max_stock || errors.reorder_quantity || errors.tracking_type || errors.unit_of_measure);
+  const hasCatalogErrors = Boolean(errors.category_ids || errors.tag_ids || errors.brand_id);
+  const hasDetailsErrors = Boolean(errors.warranty_policy_id || errors.long_description);
+
+  const showDetailsSection = Boolean(
+    activeVisibility.warranty_policy_id || activeVisibility.is_active || activeVisibility.long_description,
+  );
 
   return (
     <form
@@ -165,414 +217,710 @@ export function ProductForm({
         e.preventDefault();
         onSubmit();
       }}
-      className={cn('space-y-6', compact && 'space-y-3')}
+      className="flex flex-col h-full overflow-hidden"
     >
       {/* ============================================================ */}
-      {/* 1. Identificacion                                            */}
+      {/* Barra de Pestañas ERP con Atajos F1 - F6                     */}
       {/* ============================================================ */}
-      <fieldset className="space-y-3">
-        <SectionLegend>Identificacion</SectionLegend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field name="name" label="Nombre" required error={form.formState.errors.name?.message}>
-            <Input {...form.register('name')} placeholder="Ej. Nombre del producto" />
-          </Field>
-          {activeVisibility.sku && (
-            <Field name="sku" label="SKU" hint="Opcional, único por empresa" error={form.formState.errors.sku?.message}>
-              <Input {...form.register('sku')} placeholder="Ej. SKU-001" />
-            </Field>
-          )}
-          {activeVisibility.barcode && (
-            <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
-              <Input {...form.register('barcode')} placeholder="Ej. 7501234567890" />
-            </Field>
-          )}
-          {activeVisibility.image_url && (
-            <Field name="image_url" label="URL externa (opcional)" hint="Imagen del fabricante o proveedor. Para tus propias fotos, usa la galeria de abajo." error={form.formState.errors.image_url?.message}>
-              <Input {...form.register('image_url')} placeholder="https://..." />
-            </Field>
-          )}
-        </div>
-
-        {/* Galeria multi-imagen (Sprint de imagenes Nivel 2). Solo visible
-            cuando hay productId (modo edit). En create, el usuario primero
-            crea el producto y luego edita para subir fotos. */}
-        {productId !== undefined && (
-          <div className="space-y-2 rounded border border-border bg-bg/30 p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase text-text-muted">
-                Galería de imágenes
-              </p>
-              <p className="text-[10px] text-text-muted">
-                Sube hasta 10 fotos. WebP automatico, 3 variantes por imagen.
-              </p>
-            </div>
-            <ImageGallery productId={productId} images={galleryImages} canEdit />
-          </div>
+      <div className="border-b border-border bg-surface-subtle/30 px-4 pt-2 flex items-center gap-1.5 overflow-x-auto shrink-0 select-none">
+        <TabButton
+          active={activeTab === 'general'}
+          onClick={() => setActiveTab('general')}
+          shortcut="F1"
+          label="Datos Generales"
+          icon={<ClipboardList className="size-3.5" />}
+          hasError={hasGeneralErrors}
+        />
+        <TabButton
+          active={activeTab === 'pricing'}
+          onClick={() => setActiveTab('pricing')}
+          shortcut="F2"
+          label="Tarifas y PVP"
+          icon={<DollarSign className="size-3.5" />}
+          hasError={hasPricingErrors}
+        />
+        <TabButton
+          active={activeTab === 'stock'}
+          onClick={() => setActiveTab('stock')}
+          shortcut="F3"
+          label="Existencias y Medidas"
+          icon={<Boxes className="size-3.5" />}
+          hasError={hasStockErrors}
+        />
+        <TabButton
+          active={activeTab === 'catalogs'}
+          onClick={() => setActiveTab('catalogs')}
+          shortcut="F4"
+          label="Clasificación"
+          icon={<TagsIcon className="size-3.5" />}
+          hasError={hasCatalogErrors}
+        />
+        <TabButton
+          active={activeTab === 'images'}
+          onClick={() => setActiveTab('images')}
+          shortcut="F5"
+          label="Galería de Fotos"
+          icon={<ImageIcon className="size-3.5" />}
+        />
+        {showDetailsSection && (
+          <TabButton
+            active={activeTab === 'details'}
+            onClick={() => setActiveTab('details')}
+            shortcut="F6"
+            label="Garantías y Ficha"
+            icon={<ShieldCheck className="size-3.5" />}
+            hasError={hasDetailsErrors}
+          />
         )}
-
-        {activeVisibility.description && (
-          <Field name="description" label="Descripción corta" error={form.formState.errors.description?.message}>
-            <Textarea {...form.register('description')} rows={2} placeholder="Ej. Breve descripción o características principales..." />
-          </Field>
-        )}
-        {!compact && activeVisibility.long_description && (
-          <Field name="long_description" label="Descripción larga" hint="Hasta 50000 caracteres (HTML permitido)">
-            <Textarea {...form.register('long_description')} rows={4} placeholder="Descripción detallada, ficha técnica o especificaciones del producto..." />
-          </Field>
-        )}
-      </fieldset>
+      </div>
 
       {/* ============================================================ */}
-      {/* 2. Catalogos (con inline create)                             */}
+      {/* Contenedor de Paneles (Todos en DOM para evitar desmontaje)   */}
       {/* ============================================================ */}
-      {(activeVisibility.brand || activeVisibility.categories || activeVisibility.tags) && (
-        <fieldset className="space-y-3">
-          <SectionLegend>Catálogos</SectionLegend>
-          {activeVisibility.brand && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="brand_id">Marca</Label>
-                <InlineCatalogCreate
-                  kind="brand"
-                  onCreated={(id) => form.setValue('brand_id', id, { shouldValidate: true })}
-                />
-              </div>
-              <Select
-                id="brand_id"
-                value={form.watch('brand_id') ? String(form.watch('brand_id')) : ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  form.setValue('brand_id', v === '' ? undefined : Number(v), {
-                    shouldValidate: true,
-                  });
-                }}
-              >
-                {brandOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </Select>
-              {form.formState.errors.brand_id?.message && (
-                <p className="text-xs text-danger">{form.formState.errors.brand_id.message}</p>
-              )}
-            </div>
-          )}
-          {activeVisibility.categories && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label>Categorías</Label>
-                <InlineCatalogCreate
-                  kind="category"
-                  onCreated={() => {
-                    // Para categorias, append al array. El usuario tendra que
-                    // seleccionarla manualmente en el tree (siguiente iteracion
-                    // mejorar el auto-select en TreeSelect).
-                  }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Input
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                  placeholder="Buscar categoría por nombre..."
-                />
-                {categorySearch.trim() && (
-                  <p className="text-xs text-text-muted">
-                    Mostrando coincidencias para “{categorySearch.trim()}”.
-                  </p>
-                )}
-              </div>
-              <Controller
-                control={form.control}
-                name="category_ids"
-                render={({ field }) => (
-                  <TreeSelect
-                    nodes={filteredCategoryTree.map(toNode)}
-                    value={field.value ?? []}
-                    onChange={(v) => field.onChange(v)}
-                    emptyMessage={categorySearch.trim() ? 'No hay categorías que coincidan' : 'Sin categorías'}
-                  />
-                )}
-              />
-              <p className="text-xs text-text-muted">Jerárquicas: selecciona las hojas o ramas que apliquen</p>
-            </div>
-          )}
-          {activeVisibility.tags && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label>Tags</Label>
-                <InlineCatalogCreate
-                  kind="tag"
-                  onCreated={() => {
-                    // Auto-select requeriria que el Combobox soporte un nuevo value.
-                    // Por ahora el usuario debe volver a seleccionarlo.
-                  }}
-                />
-              </div>
-              <Controller
-                control={form.control}
-                name="tag_ids"
-                render={({ field }) => (
-                  <Combobox
-                    options={tagSelectOptions}
-                    value={field.value ?? []}
-                    onChange={field.onChange}
-                    placeholder="Buscar tags..."
-                  />
-                )}
-              />
-              <p className="text-xs text-text-muted">Selecciona varios (typeahead arriba)</p>
-            </div>
-          )}
-        </fieldset>
-      )}
-
-      {/* ============================================================ */}
-      {/* 3. Control de stock                                           */}
-      {/* ============================================================ */}
-      {(activeVisibility.tracking_type ||
-        activeVisibility.unit_of_measure ||
-        activeVisibility.track_stock ||
-        activeVisibility.min_stock ||
-        activeVisibility.max_stock ||
-        activeVisibility.reorder_quantity) && (
-        <fieldset className="space-y-3">
-          <SectionLegend>Control de stock</SectionLegend>
-          {(activeVisibility.tracking_type || activeVisibility.unit_of_measure) && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {activeVisibility.tracking_type && (
-                <Field name="tracking_type" label="Tipo de control" required>
-                  <Select {...form.register('tracking_type')}>
-                    {TRACKING_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t === 'quantity' ? 'Por cantidad' : 'Serializado (IMEI/serial)'}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              )}
-              {activeVisibility.unit_of_measure && (
-                <Field name="unit_of_measure" label="Unidad de medida">
-                  <Select {...form.register('unit_of_measure')}>
-                    {UNITS_OF_MEASURE.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              )}
-            </div>
-          )}
-          {activeVisibility.track_stock && (
-            <SwitchField form={form} name="track_stock" label="Trackear stock de este producto" />
-          )}
-          {(activeVisibility.min_stock || activeVisibility.max_stock || activeVisibility.reorder_quantity) && (
-            <div className="grid grid-cols-3 gap-3">
-              {activeVisibility.min_stock && (
-                <Field name="min_stock" label="Stock mínimo" error={form.formState.errors.min_stock?.message}>
-                  <Input type="number" min="0" {...form.register('min_stock', { valueAsNumber: true })} />
-                </Field>
-              )}
-              {activeVisibility.max_stock && (
-                <Field name="max_stock" label="Stock máximo" error={form.formState.errors.max_stock?.message}>
-                  <Input type="number" min="0" {...form.register('max_stock', { valueAsNumber: true })} />
-                </Field>
-              )}
-              {activeVisibility.reorder_quantity && (
-                <Field name="reorder_quantity" label="Cantidad a reordenar" error={form.formState.errors.reorder_quantity?.message}>
-                  <Input type="number" min="0" {...form.register('reorder_quantity', { valueAsNumber: true })} />
-                </Field>
-              )}
-            </div>
-          )}
-        </fieldset>
-      )}
-
-      {/* ============================================================ */}
-      {/* 4. Precios                                                    */}
-      {/* ============================================================ */}
-      {(activeVisibility.pricing_mode ||
-        activeVisibility.last_purchase_cost ||
-        activeVisibility.profit_margin ||
-        activeVisibility.base_price ||
-        activeVisibility.sale_currency ||
-        activeVisibility.sale_exchange_rate_type_id) && (
-        <fieldset className="space-y-3">
-          <SectionLegend>Precios</SectionLegend>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {activeVisibility.pricing_mode && (
-              <Field name="pricing_mode" label="Modo de precio">
-                <Select {...form.register('pricing_mode')}>
-                  <option value={PRICING_MODES[0]}>Automático por costo</option>
-                  <option value={PRICING_MODES[1]}>Precio manual</option>
-                </Select>
-              </Field>
-            )}
-            {activeVisibility.last_purchase_cost && (
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+        {/* Pestaña 1: Identificación [F1] */}
+        <div className={cn('space-y-4', activeTab !== 'general' && 'hidden')}>
+          <fieldset className="space-y-4">
+            <SectionLegend>Identificacion</SectionLegend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
-                name="last_purchase_cost"
-                label="Costo unitario"
-                error={form.formState.errors.last_purchase_cost?.message}
+                name="name"
+                label="Nombre"
+                required
+                error={form.formState.errors.name?.message}
+                hint="Identificador principal en ventas y comprobantes"
               >
                 <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  {...form.register('last_purchase_cost', { valueAsNumber: true })}
+                  {...form.register('name')}
+                  placeholder="Ej. Nombre del producto"
+                  className="font-medium"
+                  autoFocus
                 />
               </Field>
-            )}
-            {activeVisibility.profit_margin && (
-              <Field name="profit_margin" label="Recargo sobre costo (%)" error={form.formState.errors.profit_margin?.message}>
-                <Input type="number" min="0" max="999.99" step="0.01" {...form.register('profit_margin', { valueAsNumber: true })} />
-              </Field>
-            )}
-            {activeVisibility.base_price && (
-              <Field
-                name="base_price"
-                label={pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'}
-                error={form.formState.errors.base_price?.message}
-              >
-                {pricingMode === 'automatic' ? (
-                  <Input value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''} readOnly />
-                ) : (
-                  <Input type="number" min="0" step="0.01" {...form.register('base_price', { valueAsNumber: true })} />
-                )}
-              </Field>
-            )}
-            {activeVisibility.sale_currency && (
-              <Field name="sale_currency" label="Moneda de venta">
-                <Select {...form.register('sale_currency')}>
-                  {SALE_CURRENCIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            )}
-            {activeVisibility.sale_exchange_rate_type_id && (
-              <Field
-                name="sale_exchange_rate_type_id"
-                label="Tipo de tasa"
-                error={form.formState.errors.sale_exchange_rate_type_id?.message}
-              >
+
+              {activeVisibility.brand && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-muted">
-                      Asignar a este producto
-                    </span>
-                    <InlineExchangeRateTypeCreate
-                      onCreated={(id) =>
-                        form.setValue('sale_exchange_rate_type_id', id, { shouldValidate: true })
-                      }
+                    <Label htmlFor="brand_id">Marca</Label>
+                    <InlineCatalogCreate
+                      kind="brand"
+                      onCreated={(id) => form.setValue('brand_id', id, { shouldValidate: true })}
                     />
                   </div>
                   <Select
-                    value={form.watch('sale_exchange_rate_type_id') ? String(form.watch('sale_exchange_rate_type_id')) : ''}
+                    id="brand_id"
+                    value={form.watch('brand_id') ? String(form.watch('brand_id')) : ''}
                     onChange={(e) => {
                       const v = e.target.value;
-                      form.setValue('sale_exchange_rate_type_id', v === '' ? undefined : Number(v), {
+                      form.setValue('brand_id', v === '' ? undefined : Number(v), {
                         shouldValidate: true,
                       });
                     }}
                   >
-                    {rateTypeOptions.map((o) => (
+                    {brandOptions.map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
                       </option>
                     ))}
                   </Select>
                 </div>
+              )}
+
+              {activeVisibility.sku && (
+                <Field
+                  name="sku"
+                  label="SKU (Código interno)"
+                  hint="Opcional, identificador único de inventario"
+                  error={form.formState.errors.sku?.message}
+                >
+                  <Input
+                    {...form.register('sku')}
+                    placeholder="Ej. SKU-001"
+                    className="font-mono text-sm uppercase"
+                  />
+                </Field>
+              )}
+
+              {activeVisibility.barcode && (
+                <Field
+                  name="barcode"
+                  label="Código de barras"
+                  hint="Escanéalo con la lectora o ingrésalo manualmente"
+                >
+                  <Input
+                    {...form.register('barcode')}
+                    placeholder="Ej. 7501234567890"
+                    className="font-mono text-sm"
+                  />
+                </Field>
+              )}
+
+              {activeVisibility.unit_of_measure && (
+                <Field
+                  name="unit_of_measure"
+                  label="Unidad de Medida / Tipo de Producto"
+                  hint="Ej. Unidad, Par, Kilogramo o agrega una personalizada"
+                >
+                  <UnitOfMeasureField form={form} />
+                </Field>
+              )}
+
+              {activeVisibility.is_active && (
+                <div className="sm:col-span-2 rounded-lg border border-border bg-surface-subtle/40 p-3.5 flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="is_active" className="font-semibold text-text-primary">
+                      Producto Activo
+                    </Label>
+                    <p className="text-xs text-text-muted">
+                      Controla si este producto está visible y habilitado para facturar en el POS y ventas.
+                    </p>
+                  </div>
+                  <SwitchField form={form} name="is_active" label="" />
+                </div>
+              )}
+            </div>
+
+            {activeVisibility.description && (
+              <Field
+                name="description"
+                label="Descripción corta"
+                error={form.formState.errors.description?.message}
+                hint="Resumen rápido para comprobantes y visualización compacta"
+              >
+                <Textarea
+                  {...form.register('description')}
+                  rows={2}
+                  placeholder="Ej. Breve descripción o características principales..."
+                />
               </Field>
             )}
-          </div>
-        </fieldset>
-      )}
+          </fieldset>
+        </div>
 
-      {/* ============================================================ */}
-      {/* 5. Garantia + Estado                                          */}
-      {/* ============================================================ */}
-      {(activeVisibility.warranty_policy_id || activeVisibility.is_active) && (
-        <fieldset className="space-y-3">
-          <SectionLegend>Garantía y estado</SectionLegend>
-          {activeVisibility.warranty_policy_id && (
-            <Field
-              name="warranty_policy_id"
-              label="Política de garantía"
-              error={form.formState.errors.warranty_policy_id?.message}
-            >
-              <div className="flex items-start gap-2">
-                <Select
-                  value={form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    form.setValue('warranty_policy_id', v === '' ? undefined : Number(v), {
-                      shouldValidate: true,
-                    });
-                  }}
-                  className="flex-1"
+        {/* Pestaña 2: Precios y Costos [F2] */}
+        <div className={cn('space-y-4', activeTab !== 'pricing' && 'hidden')}>
+          <fieldset className="space-y-4">
+            <SectionLegend>Precios</SectionLegend>
+
+            {/* Tarjeta de Resumen ERP de Precios */}
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div>
+                <span className="text-[11px] uppercase font-bold text-text-muted">Costo Base</span>
+                <p className="text-sm font-semibold font-mono text-text-primary">
+                  ${cost > 0 ? cost.toFixed(2) : '0.00'}
+                </p>
+              </div>
+              <div>
+                <span className="text-[11px] uppercase font-bold text-text-muted">Margen</span>
+                <p className="text-sm font-semibold font-mono text-primary">
+                  {margin > 0 ? `+${margin.toFixed(1)}%` : '0%'}
+                </p>
+              </div>
+              <div>
+                <span className="text-[11px] uppercase font-bold text-text-muted">Neto Estimado</span>
+                <p className="text-sm font-semibold font-mono text-text-secondary">
+                  ${netEstimate.toFixed(2)}
+                </p>
+                <span className="text-[10px] text-text-muted">(Sin IVA)</span>
+              </div>
+              <div className="border-l border-primary/20 pl-2">
+                <span className="text-[11px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
+                  PVP Final
+                </span>
+                <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                  ${effectivePrice > 0 ? effectivePrice.toFixed(2) : '0.00'}
+                </p>
+                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+                  (IVA 16% incl. ${ivaEstimate.toFixed(2)})
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {activeVisibility.pricing_mode && (
+                <Field name="pricing_mode" label="Modo de precio" hint="Define cómo se calcula el PVP">
+                  <Select {...form.register('pricing_mode')}>
+                    <option value={PRICING_MODES[0]}>Automático por costo</option>
+                    <option value={PRICING_MODES[1]}>Precio manual</option>
+                  </Select>
+                </Field>
+              )}
+
+              {activeVisibility.last_purchase_cost && (
+                <Field
+                  name="last_purchase_cost"
+                  label="Costo unitario"
+                  hint="Costo base de reposición en USD"
+                  error={form.formState.errors.last_purchase_cost?.message}
                 >
-                  {warrantyOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-                <InlineWarrantyPolicyCreate
-                  onCreated={(id) =>
-                    form.setValue('warranty_policy_id', id, { shouldValidate: true })
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    {...form.register('last_purchase_cost', { valueAsNumber: true })}
+                    className="font-mono"
+                  />
+                </Field>
+              )}
+
+              {activeVisibility.profit_margin && (
+                <Field
+                  name="profit_margin"
+                  label="Recargo sobre costo (%)"
+                  hint="Porcentaje de utilidad deseado"
+                  error={form.formState.errors.profit_margin?.message}
+                >
+                  <Input
+                    type="number"
+                    min="0"
+                    max="999.99"
+                    step="0.01"
+                    {...form.register('profit_margin', { valueAsNumber: true })}
+                    className="font-mono"
+                  />
+                </Field>
+              )}
+
+              {activeVisibility.base_price && (
+                <Field
+                  name="base_price"
+                  label={pricingMode === 'automatic' ? 'Precio de venta calculado' : 'Precio de venta manual'}
+                  hint="Precio base final en dólares (con IVA)"
+                  error={form.formState.errors.base_price?.message}
+                >
+                  {pricingMode === 'automatic' ? (
+                    <Input
+                      value={calculatedSalePrice || form.getValues('base_price')?.toString() || ''}
+                      readOnly
+                      className="font-mono font-bold text-emerald-600 bg-surface-subtle"
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      {...form.register('base_price', { valueAsNumber: true })}
+                      className="font-mono font-bold text-emerald-600"
+                    />
+                  )}
+                </Field>
+              )}
+
+              {activeVisibility.sale_currency && (
+                <Field name="sale_currency" label="Moneda de venta" hint="Moneda de referencia de venta">
+                  <Select {...form.register('sale_currency')}>
+                    {SALE_CURRENCIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+
+              {activeVisibility.sale_exchange_rate_type_id && (
+                <Field
+                  name="sale_exchange_rate_type_id"
+                  label="Tipo de tasa anclada"
+                  hint="Tasa para conversión a VES"
+                  error={form.formState.errors.sale_exchange_rate_type_id?.message}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-text-muted">Asignar a este producto</span>
+                      <InlineExchangeRateTypeCreate
+                        onCreated={(id) =>
+                          form.setValue('sale_exchange_rate_type_id', id, { shouldValidate: true })
+                        }
+                      />
+                    </div>
+                    <Select
+                      value={form.watch('sale_exchange_rate_type_id') ? String(form.watch('sale_exchange_rate_type_id')) : ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        form.setValue('sale_exchange_rate_type_id', v === '' ? undefined : Number(v), {
+                          shouldValidate: true,
+                        });
+                      }}
+                    >
+                      {rateTypeOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </Field>
+              )}
+            </div>
+          </fieldset>
+        </div>
+
+        {/* Pestaña 3: Control de Stock [F3] */}
+        <div className={cn('space-y-4', activeTab !== 'stock' && 'hidden')}>
+          <fieldset className="space-y-4">
+            <SectionLegend>Control de stock</SectionLegend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {activeVisibility.tracking_type && (
+                <Field
+                  name="tracking_type"
+                  label="Tipo de control"
+                  required
+                  hint="Cantidad simple o control individual por serial/IMEI"
+                >
+                  <Select {...form.register('tracking_type')}>
+                    {TRACKING_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t === 'quantity' ? 'Por cantidad (estándar)' : 'Serializado (IMEI / Serial individual)'}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+
+              {activeVisibility.unit_of_measure && (
+                <Field
+                  name="unit_of_measure"
+                  label="Unidad de Medida / Presentación"
+                  hint="Personalizable: PAR, Unidad, KG, etc."
+                >
+                  <UnitOfMeasureField form={form} />
+                </Field>
+              )}
+            </div>
+
+            {activeVisibility.track_stock && (
+              <div className="rounded-lg border border-border bg-surface-subtle/30 p-3.5 flex items-center justify-between">
+                <div>
+                  <Label htmlFor="track_stock" className="font-semibold text-text-primary">
+                    Trackear stock de este producto
+                  </Label>
+                  <p className="text-xs text-text-muted">
+                    Si está desactivado, se comportará como un servicio o ítem sin límite de existencias.
+                  </p>
+                </div>
+                <SwitchField form={form} name="track_stock" label="" />
+              </div>
+            )}
+
+            {(activeVisibility.min_stock || activeVisibility.max_stock || activeVisibility.reorder_quantity) && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                {activeVisibility.min_stock && (
+                  <Field
+                    name="min_stock"
+                    label="Stock mínimo"
+                    hint="Alerta de reposición si baja de aquí"
+                    error={form.formState.errors.min_stock?.message}
+                  >
+                    <Input
+                      type="number"
+                      min="0"
+                      {...form.register('min_stock', { valueAsNumber: true })}
+                      className="font-mono"
+                    />
+                  </Field>
+                )}
+
+                {activeVisibility.max_stock && (
+                  <Field
+                    name="max_stock"
+                    label="Stock máximo"
+                    hint="Capacidad tope recomendada"
+                    error={form.formState.errors.max_stock?.message}
+                  >
+                    <Input
+                      type="number"
+                      min="0"
+                      {...form.register('max_stock', { valueAsNumber: true })}
+                      className="font-mono"
+                    />
+                  </Field>
+                )}
+
+                {activeVisibility.reorder_quantity && (
+                  <Field
+                    name="reorder_quantity"
+                    label="Cantidad a reordenar"
+                    hint="Lote sugerido en órdenes de compra"
+                    error={form.formState.errors.reorder_quantity?.message}
+                  >
+                    <Input
+                      type="number"
+                      min="0"
+                      {...form.register('reorder_quantity', { valueAsNumber: true })}
+                      className="font-mono"
+                    />
+                  </Field>
+                )}
+              </div>
+            )}
+          </fieldset>
+        </div>
+
+        {/* Pestaña 4: Catálogos y Etiquetas [F4] */}
+        <div className={cn('space-y-4', activeTab !== 'catalogs' && 'hidden')}>
+          <fieldset className="space-y-4">
+            <SectionLegend>Catálogos</SectionLegend>
+
+            {activeVisibility.categories && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Categorías</Label>
+                  <InlineCatalogCreate kind="category" onCreated={() => undefined} />
+                </div>
+                <Input
+                  type="text"
+                  placeholder="Buscar categoría..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="mb-2 text-sm"
+                />
+                <div className="max-h-60 overflow-y-auto rounded-lg border border-border p-3 bg-surface-subtle/20">
+                  <TreeSelect
+                    nodes={filteredCategoryTree.map(toNode)}
+                    value={form.watch('category_ids') ?? []}
+                    onChange={(ids) =>
+                      form.setValue('category_ids', ids.map(Number), { shouldValidate: true })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeVisibility.tags && (
+              <div className="space-y-2 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label>Tags</Label>
+                  <InlineCatalogCreate kind="tag" onCreated={() => undefined} />
+                </div>
+                <Combobox
+                  options={tagOptions}
+                  value={form.watch('tag_ids') ?? []}
+                  onChange={(ids) =>
+                    form.setValue('tag_ids', ids.map(Number), { shouldValidate: true })
                   }
+                  placeholder="Selecciona etiquetas..."
                 />
               </div>
-            </Field>
-          )}
-          {activeVisibility.is_active && (
-            <SwitchField form={form} name="is_active" label="Producto activo (visible en ventas)" />
-          )}
-        </fieldset>
-      )}
+            )}
+          </fieldset>
+        </div>
 
-      {/* Botón para desplegar campos adicionales */}
-      {showAdvancedToggle && hasHiddenFields && (
-        <div className="flex justify-center border-t border-dashed border-border pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAdvanced((prev) => !prev)}
-            className="text-xs text-text-muted hover:text-text-primary"
-            data-testid="toggle-advanced-product-fields"
-          >
-            {showAdvanced ? '− Ocultar campos adicionales' : '+ Mostrar más campos (avanzado)'}
+        {/* Pestaña 5: Imágenes [F5] */}
+        <div className={cn('space-y-4', activeTab !== 'images' && 'hidden')}>
+          <fieldset className="space-y-4">
+            <SectionLegend>Imágenes del producto</SectionLegend>
+            {activeVisibility.image_url && (
+              <Field
+                name="image_url"
+                label="URL externa de imagen (opcional)"
+                hint="Enlace directo a una imagen del fabricante o web externa"
+                error={form.formState.errors.image_url?.message}
+              >
+                <Input {...form.register('image_url')} placeholder="https://..." />
+              </Field>
+            )}
+
+            {productId !== undefined ? (
+              <div className="space-y-2 rounded-xl border border-border bg-surface-subtle/30 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase text-text-primary">
+                    Galería de imágenes
+                  </p>
+                  <p className="text-[11px] text-text-muted">
+                    Sube fotos en alta resolución. Formato WebP automático con miniaturas.
+                  </p>
+                </div>
+                <ImageGallery productId={productId} images={galleryImages} canEdit />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center text-text-muted">
+                <ImageIcon className="size-8 mx-auto mb-2 text-text-muted/60" />
+                <p className="text-sm font-medium">Subida de fotos disponible tras crear el producto</p>
+                <p className="text-xs text-text-muted mt-1">
+                  Puedes especificar una URL de imagen externa arriba o guardar el producto y adjuntar imágenes inmediatamente.
+                </p>
+              </div>
+            )}
+          </fieldset>
+        </div>
+
+        {/* Pestaña 6: Garantía y Ficha Técnica [F6] */}
+        {showDetailsSection && (
+          <div className={cn('space-y-4', activeTab !== 'details' && 'hidden')}>
+            <fieldset className="space-y-4">
+              <SectionLegend>Garantía y estado</SectionLegend>
+            {activeVisibility.warranty_policy_id && (
+              <Field
+                name="warranty_policy_id"
+                label="Política de garantía"
+                error={form.formState.errors.warranty_policy_id?.message}
+                hint="Garantía aplicable al emitir la venta o comprobante"
+              >
+                <div className="flex items-start gap-2">
+                  <Select
+                    value={form.watch('warranty_policy_id') ? String(form.watch('warranty_policy_id')) : ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      form.setValue('warranty_policy_id', v === '' ? undefined : Number(v), {
+                        shouldValidate: true,
+                      });
+                    }}
+                    className="flex-1"
+                  >
+                    {warrantyOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <InlineWarrantyPolicyCreate
+                    onCreated={(id) =>
+                      form.setValue('warranty_policy_id', id, { shouldValidate: true })
+                    }
+                  />
+                </div>
+              </Field>
+            )}
+
+            {!compact && activeVisibility.long_description && (
+              <Field
+                name="long_description"
+                label="Descripción larga / Ficha técnica"
+                hint="Especificaciones detalladas, componentes o ficha del producto"
+              >
+                <Textarea
+                  {...form.register('long_description')}
+                  rows={5}
+                  placeholder="Especificaciones completas, características técnicas..."
+                />
+              </Field>
+            )}
+          </fieldset>
+        </div>
+        )}
+
+        {/* Botón para desplegar campos adicionales */}
+        {showAdvancedToggle && hasHiddenFields && (
+          <div className="flex justify-center border-t border-dashed border-border pt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAdvanced((prev) => !prev)}
+              className="text-xs text-text-muted hover:text-text-primary"
+              data-testid="toggle-advanced-product-fields"
+            >
+              {showAdvanced ? '− Ocultar campos adicionales' : '+ Mostrar más campos (avanzado)'}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ============================================================ */}
+      {/* Barra Inferior ERP con Atajos y Acciones                     */}
+      {/* ============================================================ */}
+      <div className="border-t border-border bg-surface-subtle/50 px-4 py-3 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 text-[11px] text-text-muted font-mono hidden sm:flex">
+          <span className="inline-flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">F1-F6</kbd>
+            <span>Pestañas</span>
+          </span>
+          <span>•</span>
+          <span className="inline-flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">Enter</kbd>
+            <span>Guardar</span>
+          </span>
+          <span>•</span>
+          <span className="inline-flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">Esc</kbd>
+            <span>Cancelar</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+          )}
+          <Button type="submit" loading={isSubmitting} className="gap-1.5 font-semibold">
+            <Check className="size-4" />
+            <span>{submitLabel}</span>
           </Button>
         </div>
-      )}
-
-      {/* Botones de accion */}
-      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-            Cancelar
-          </Button>
-        )}
-        <Button type="submit" loading={isSubmitting}>
-          {submitLabel}
-        </Button>
       </div>
     </form>
   );
 }
 
-/**
- * SwitchField: renderiza un Switch conectado a un campo del form.
- *
- * Usa useController de RHF internamente (en lugar de <Controller>) para
- * evitar el bug "Cannot read properties of null (reading _names)" en
- * React 18 Strict Mode que sufria <Controller> (ver BrandsManager).
- */
+function TabButton({
+  active,
+  onClick,
+  shortcut,
+  label,
+  icon,
+  hasError,
+}: {
+  active: boolean;
+  onClick: () => void;
+  shortcut: string;
+  label: string;
+  icon: React.ReactNode;
+  hasError?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-all border-b-2 relative -mb-px',
+        active
+          ? 'bg-surface border-primary text-primary shadow-xs'
+          : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-surface/50',
+      )}
+    >
+      <span className={cn('text-text-muted transition-colors', active && 'text-primary')}>
+        {icon}
+      </span>
+      <span>{label}</span>
+      <span
+        className={cn(
+          'text-[10px] font-mono px-1 py-0.2 rounded bg-bg/80 border border-border text-text-muted',
+          active && 'border-primary/30 text-primary font-bold',
+        )}
+      >
+        {shortcut}
+      </span>
+      {hasError && (
+        <span
+          className="size-2 rounded-full bg-danger absolute top-1.5 right-1.5 ring-2 ring-surface animate-pulse"
+          title="Contiene errores de validación"
+        />
+      )}
+    </button>
+  );
+}
+
+function UnitOfMeasureField({
+  form,
+}: {
+  form: UseFormReturn<StoreProductInput, unknown, StoreProductValues>;
+}) {
+  const { field } = useController({ name: 'unit_of_measure', control: form.control });
+  return (
+    <UnitOfMeasureSelector
+      value={field.value ?? 'unit'}
+      onChange={field.onChange}
+    />
+  );
+}
+
 function SwitchField({
   form,
   name,
@@ -590,15 +938,12 @@ function SwitchField({
         checked={Boolean(field.value)}
         onCheckedChange={field.onChange}
       />
-      <Label htmlFor={name}>{label}</Label>
+      {label && <Label htmlFor={name}>{label}</Label>}
     </div>
   );
 }
 
-// ============================================================================
 // Helpers internos
-// ============================================================================
-
 interface TreeLike { id: number; name: string; children?: unknown[] }
 interface TreeNode { id: number; label: string; children?: TreeNode[] }
 
@@ -633,8 +978,8 @@ const toNode = (c: TreeLike): TreeNode => ({
 
 function SectionLegend({ children }: { children: React.ReactNode }) {
   return (
-    <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-      {children}
+    <legend className="text-xs font-bold uppercase tracking-wider text-text-muted border-b border-border/60 pb-1.5 mb-3 flex items-center gap-2">
+      <span>{children}</span>
     </legend>
   );
 }
@@ -651,16 +996,15 @@ interface FieldProps {
 function Field({ name, label, required, hint, error, children }: FieldProps) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={name} className="flex items-center gap-1">
+      <Label htmlFor={name} className="flex items-center gap-1 font-medium text-xs">
         {label}
-        {required && <span className="text-danger">*</span>}
+        {required && <span className="text-danger font-bold">*</span>}
       </Label>
       {children}
-      {hint && !error && <p className="text-xs text-text-muted">{hint}</p>}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {hint && !error && <p className="text-[11px] text-text-muted leading-tight">{hint}</p>}
+      {error && <p className="text-xs text-danger font-medium">{error}</p>}
     </div>
   );
 }
 
-// Re-export del icon para no importar lucide en cada page.
 export { Link2, TagIcon, TagsIcon };

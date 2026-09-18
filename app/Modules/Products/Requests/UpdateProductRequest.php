@@ -44,8 +44,9 @@ class UpdateProductRequest extends FormRequest
             'unit_of_measure' => [
                 'sometimes',
                 'string',
-                Rule::in(Product::ALLOWED_UNITS),
+                'max:20',
             ],
+
             'track_stock' => ['sometimes', 'boolean'],
             'tracking_type' => [
                 'sometimes',
@@ -120,7 +121,8 @@ class UpdateProductRequest extends FormRequest
             'sku.unique' => 'Ya existe un producto con este SKU en la empresa actual.',
             'barcode.unique' => 'Ya existe un producto con este codigo de barras en la empresa actual.',
             'tracking_type.in' => 'El tipo de control debe ser por cantidad o serializado/IMEI.',
-            'unit_of_measure.in' => 'La unidad de medida debe ser unit, kg, lt o m.',
+            'unit_of_measure.max' => 'La unidad de medida no puede superar 20 caracteres.',
+
             'base_price.gte' => 'El precio base no puede ser negativo.',
             'last_purchase_cost.gte' => 'El costo unitario no puede ser negativo.',
             'min_stock.gte' => 'El stock minimo no puede ser negativo.',

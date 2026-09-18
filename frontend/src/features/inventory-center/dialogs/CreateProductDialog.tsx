@@ -100,13 +100,18 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-          <DialogHeader>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-6">
+        <DialogContent className="max-h-[92vh] w-[95vw] max-w-5xl overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
+          <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-8">
               <div>
-                <DialogTitle>Nuevo producto</DialogTitle>
-                <DialogDescription>
-                  Completa los datos del producto. Los campos marcados con * son obligatorios.
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
+                    ERP
+                  </span>
+                  <DialogTitle className="text-base font-bold tracking-tight">Nuevo producto</DialogTitle>
+                </div>
+                <DialogDescription className="text-xs text-text-muted mt-0.5">
+                  Ficha maestra de artículo. Completa los datos requeridos (*) y navega con [F1 - F6].
                 </DialogDescription>
               </div>
               <Button
@@ -122,16 +127,18 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
               </Button>
             </div>
           </DialogHeader>
-          <ProductForm
-            form={form}
-            tagOptions={tagOptions}
-            onSubmit={onSubmit}
-            isSubmitting={isSubmitting}
-            onCancel={() => onOpenChange(false)}
-            submitLabel="Crear producto"
-            visibility={visibility}
-            showAdvancedToggle={true}
-          />
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <ProductForm
+              form={form}
+              tagOptions={tagOptions}
+              onSubmit={onSubmit}
+              isSubmitting={isSubmitting}
+              onCancel={() => onOpenChange(false)}
+              submitLabel="Crear producto"
+              visibility={visibility}
+              showAdvancedToggle={true}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 

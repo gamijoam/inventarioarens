@@ -60,22 +60,43 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     // precios, etc.) siempre se carguen desde el producto actual, sin
     // importar si el usuario lo abrió antes para el mismo producto.
     <Dialog key={`edit-${product.id}-${open ? 'open' : 'closed'}`} open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Editar producto</DialogTitle>
-          <DialogDescription>
-            Modifica los datos del producto. Los cambios se guardan al confirmar.
-          </DialogDescription>
+      <DialogContent className="max-h-[92vh] w-[95vw] max-w-5xl overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
+        <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
+          <div className="flex flex-col gap-1 pr-8">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
+                ERP
+              </span>
+              <DialogTitle className="text-base font-bold tracking-tight">
+                Editar: {product.name}
+              </DialogTitle>
+              {product.sku && (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
+                  SKU: {product.sku}
+                </span>
+              )}
+              {product.barcode && (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
+                  BAR: {product.barcode}
+                </span>
+              )}
+            </div>
+            <DialogDescription className="text-xs text-text-muted">
+              Modifica los datos del producto. Usa [F1 - F6] para alternar entre pestañas y [Enter] para guardar.
+            </DialogDescription>
+          </div>
         </DialogHeader>
-        <ProductForm
-          form={form}
-          tagOptions={tagOptions}
-          onSubmit={onSubmit}
-          isSubmitting={isSubmitting}
-          onCancel={() => onOpenChange(false)}
-          submitLabel="Guardar cambios"
-          productId={product.id}
-        />
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <ProductForm
+            form={form}
+            tagOptions={tagOptions}
+            onSubmit={onSubmit}
+            isSubmitting={isSubmitting}
+            onCancel={() => onOpenChange(false)}
+            submitLabel="Guardar cambios"
+            productId={product.id}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

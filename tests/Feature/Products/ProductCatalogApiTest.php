@@ -499,16 +499,31 @@ class ProductCatalogApiTest extends TestCase
         $tenant = $this->tenant();
         $admin = $this->admin($tenant);
 
+        // Maximo 20 caracteres
         $this
             ->actingAs($admin)
             ->withHeader('X-Tenant', $tenant->slug)
             ->postJson('/api/products', [
                 'name' => 'X',
-                'unit_of_measure' => 'invalid',
+                'unit_of_measure' => str_repeat('a', 25),
             ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['unit_of_measure']);
+
+        // Acepta unidades personalizables como 'par'
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/products', [
+                'name' => 'Zapatos de Seguridad',
+                'base_price' => 100,
+                'unit_of_measure' => 'par',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.unit_of_measure', 'par');
     }
+
+
 
     public function test_product_show_includes_new_fields(): void
     {
