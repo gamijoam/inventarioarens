@@ -7,6 +7,7 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Sales\Models\Sale;
 use App\Support\Tenancy\TenantManager;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -20,6 +21,7 @@ class DashboardSummaryService
         $metrics = $this->aggregatedMetrics($dateFrom, $dateTo, $threshold);
 
         $lowStockCount = (int) ($metrics['low_stock_count'] ?? 0);
+        $tz = BusinessDateRange::timezone();
 
         $salesTotal = (float) ($metrics['sales_total'] ?? 0);
         $salesCost = (float) ($metrics['sales_cost'] ?? 0);
@@ -29,8 +31,8 @@ class DashboardSummaryService
         return [
             'currency' => 'USD',
             'period' => [
-                'from' => $dateFrom->toDateString(),
-                'to' => $dateTo->toDateString(),
+                'from' => $dateFrom->copy()->timezone($tz)->toDateString(),
+                'to' => $dateTo->copy()->timezone($tz)->toDateString(),
             ],
             'sales' => [
                 'confirmed_count' => (int) ($metrics['sales_count'] ?? 0),
@@ -144,17 +146,27 @@ class DashboardSummaryService
     {
         if (($filters['date_from'] ?? null) && ($filters['date_to'] ?? null)) {
             return [
-                Carbon::parse($filters['date_from'])->startOfDay(),
-                Carbon::parse($filters['date_to'])->endOfDay(),
+                BusinessDateRange::startOfDay($filters['date_from']),
+                BusinessDateRange::endOfDay($filters['date_to']),
             ];
         }
 
-        $now = now();
+        $tz = BusinessDateRange::timezone();
+        $now = now($tz);
 
         return match ($filters['period'] ?? 'today') {
-            'week' => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
-            'month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
-            default => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'week' => [
+                $now->copy()->startOfWeek()->startOfDay()->utc(),
+                $now->copy()->endOfWeek()->endOfDay()->utc(),
+            ],
+            'month' => [
+                $now->copy()->startOfMonth()->startOfDay()->utc(),
+                $now->copy()->endOfMonth()->endOfDay()->utc(),
+            ],
+            default => [
+                BusinessDateRange::startOfDay($now),
+                BusinessDateRange::endOfDay($now),
+            ],
         };
     }
 

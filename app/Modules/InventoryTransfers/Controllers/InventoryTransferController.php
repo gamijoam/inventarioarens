@@ -15,6 +15,7 @@ use App\Modules\InventoryTransfers\Requests\StoreInventoryTransferRequest;
 use App\Modules\InventoryTransfers\Resources\InventoryTransferDriverResource;
 use App\Modules\InventoryTransfers\Resources\InventoryTransferResource;
 use App\Modules\InventoryTransfers\Services\InventoryTransferService;
+use App\Support\Time\BusinessDateRange;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,10 +40,10 @@ class InventoryTransferController extends Controller
             ->when($request->query('from_warehouse_id'), fn ($query, string $wid) => $query->where('from_warehouse_id', (int) $wid))
             ->when($request->query('to_warehouse_id'), fn ($query, string $wid) => $query->where('to_warehouse_id', (int) $wid))
             ->when($request->query('date_from'), function ($query, string $date): void {
-                $query->where('processed_at', '>=', Carbon::parse($date)->startOfDay());
+                $query->where('processed_at', '>=', BusinessDateRange::startOfDay($date));
             })
             ->when($request->query('date_to'), function ($query, string $date): void {
-                $query->where('processed_at', '<=', Carbon::parse($date)->endOfDay());
+                $query->where('processed_at', '<=', BusinessDateRange::endOfDay($date));
             })
             ->latest('processed_at');
 
