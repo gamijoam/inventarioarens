@@ -34,8 +34,10 @@ import {
   Wallet,
   ChevronDown,
   X,
+  Settings2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -429,6 +431,112 @@ interface PendingPromotionLoad {
   entries: PromotionLoadEntry[];
   nextIndex: number;
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// POS Color Themes — paleta de colores del panel de cobro (persistente)
+// ─────────────────────────────────────────────────────────────────────────────
+const POS_COLOR_STORAGE_KEY = 'pos-accent-color';
+
+interface PosColorTheme {
+  id: string;
+  label: string;
+  from: string;
+  to: string;
+  preview: string; // clase CSS de bg para el chip de previsualización
+}
+
+const POS_COLOR_THEMES: PosColorTheme[] = [
+  { id: 'indigo',  label: 'Índigo (predeterminado)', from: '#17112f', to: '#2f238f', preview: 'bg-[#2f238f]' },
+  { id: 'emerald', label: 'Esmeralda',                from: '#052e16', to: '#065f46', preview: 'bg-emerald-800' },
+  { id: 'rose',    label: 'Rosa Fucsia',              from: '#4a0020', to: '#9f1239', preview: 'bg-rose-800' },
+  { id: 'amber',   label: 'Ámbar Dorado',             from: '#451a03', to: '#92400e', preview: 'bg-amber-800' },
+  { id: 'sky',     label: 'Cielo Azul',               from: '#082f49', to: '#0369a1', preview: 'bg-sky-700' },
+  { id: 'violet',  label: 'Violeta',                  from: '#2e1065', to: '#7c3aed', preview: 'bg-violet-700' },
+  { id: 'teal',    label: 'Teal Jade',                from: '#042f2e', to: '#0f766e', preview: 'bg-teal-700' },
+  { id: 'orange',  label: 'Naranja',                  from: '#431407', to: '#c2410c', preview: 'bg-orange-700' },
+  { id: 'slate',   label: 'Grafito Oscuro',           from: '#0f172a', to: '#334155', preview: 'bg-slate-700' },
+  { id: 'crimson', label: 'Carmesí',                  from: '#3b0764', to: '#be185d', preview: 'bg-pink-700' },
+];
+
+function loadPosColorTheme(): PosColorTheme {
+  try {
+    const saved = localStorage.getItem(POS_COLOR_STORAGE_KEY);
+    if (saved) {
+      const found = POS_COLOR_THEMES.find((t) => t.id === saved);
+      if (found) return found;
+    }
+  } catch {
+    // localStorage no disponible (iframe, SSR, etc.)
+  }
+  return POS_COLOR_THEMES[0]!;
+}
+
+function savePosColorTheme(id: string) {
+  try {
+    localStorage.setItem(POS_COLOR_STORAGE_KEY, id);
+  } catch {
+    // ignore
+  }
+}
+
+/** Engranaje con paleta de colores para el panel de cobro del POS */
+function PosColorPicker({
+  current,
+  onChange,
+}: {
+  current: PosColorTheme;
+  onChange: (theme: PosColorTheme) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger asChild>
+        <button
+          type="button"
+          title="Personalizar color del POS"
+          className="inline-flex items-center justify-center size-9 rounded-lg border border-border bg-surface hover:bg-surface-subtle transition-colors shadow-xs text-text-secondary hover:text-text-primary"
+        >
+          <Settings2 className="size-4" />
+        </button>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="end"
+          sideOffset={8}
+          className="z-50 w-64 rounded-2xl border border-border bg-surface p-4 shadow-2xl animate-in fade-in-0 zoom-in-95"
+        >
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">
+            🎨 Color del panel de cobro
+          </p>
+          <div className="grid grid-cols-5 gap-2">
+            {POS_COLOR_THEMES.map((theme) => (
+              <button
+                key={theme.id}
+                type="button"
+                title={theme.label}
+                onClick={() => {
+                  onChange(theme);
+                  savePosColorTheme(theme.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'size-9 rounded-lg transition-all hover:scale-110 hover:shadow-md',
+                  theme.preview,
+                  current.id === theme.id
+                    ? 'ring-2 ring-offset-2 ring-offset-surface ring-white scale-110 shadow-md'
+                    : 'opacity-80 hover:opacity-100',
+                )}
+              />
+            ))}
+          </div>
+          <p className="mt-3 text-[10px] text-text-muted text-center">
+            {current.label}
+          </p>
+          <PopoverPrimitive.Arrow className="fill-border" />
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
+}
 
 export function PosTerminal() {
   const navigate = useNavigate();
@@ -436,6 +544,7 @@ export function PosTerminal() {
   const [exitingPos, setExitingPos] = useState(false);
   const [quotationOpen, setQuotationOpen] = useState(false);
   const [quotationsOpen, setQuotationsOpen] = useState(false);
+  const [posColorTheme, setPosColorTheme] = useState<PosColorTheme>(loadPosColorTheme);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
@@ -1999,6 +2108,9 @@ export function PosTerminal() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Engranaje de personalización de color */}
+            <PosColorPicker current={posColorTheme} onChange={setPosColorTheme} />
           </div>
         </header>
 
@@ -2120,7 +2232,10 @@ export function PosTerminal() {
           </section>
 
           <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
+            <div
+              className="border-border border-b p-4 text-white"
+              style={{ background: `linear-gradient(135deg, ${posColorTheme.from}, ${posColorTheme.to})` }}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
