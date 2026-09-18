@@ -912,31 +912,24 @@ export function ProductSearchDetailModal({
                   </TabsList>
 
                   {/* -------------------------------------------------------- */}
-                  {/* TAB 1: PRECIOS (TABLA COMPARATIVA PRECIO 1, 2 Y 3)       */}
+                  {/* TAB 1: PRECIOS (PVP USD Y PVP VES POR LISTA DE PRECIO)    */}
                   {/* -------------------------------------------------------- */}
                   <TabsContent
                     value="precios"
                     className="flex min-h-0 flex-1 flex-col overflow-hidden mt-3 space-y-3"
                   >
-                    {/* Barra de Tasa e IVA */}
-                    <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-border/70 bg-bg/40 px-4 py-3 text-xs">
-                      <span className="font-semibold text-text-primary">Tasa activa</span>
-                      <span className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 font-mono font-semibold text-primary">
-                        {activeRate ? `1 USD = ${moneyVes(activeRate.rate)} (${activeRate.name})` : 'Sin tasa definida'}
-                      </span>
-                      <span className="text-text-muted">IVA 16% incluido</span>
-                    </div>
-
-                    {/* Tabla Comparativa de Precios */}
+                    {/* Tabla de Precios de Venta */}
                     <div className="flex-1 overflow-auto rounded-2xl border border-border/70 bg-surface">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
                           <tr>
-                            <th className="px-4 py-3">Nivel / Lista de Precio</th>
-                            <th className="px-3 py-3 text-right">Costo Compra</th>
-                            <th className="px-3 py-3 text-right">Costo c/IVA</th>
-                            <th className="px-3 py-3 text-right text-primary font-bold">PVP USD</th>
-                            <th className="px-3 py-3 text-right text-primary font-bold">PVP VES</th>
+                            <th className="px-5 py-3.5">Nivel / Lista de Precio</th>
+                            <th className="px-5 py-3.5 text-right font-bold text-text-primary">
+                              PVP USD
+                            </th>
+                            <th className="px-5 py-3.5 text-right font-bold text-text-primary">
+                              PVP VES {activeRate?.rate ? `(Tasa Bs. ${activeRate.rate.toFixed(2)})` : ''}
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/70">
@@ -948,29 +941,23 @@ export function ProductSearchDetailModal({
                                 idx === 0 && 'bg-primary/5',
                               )}
                             >
-                              <td className="px-4 py-3.5 font-medium">
+                              <td className="px-5 py-4 font-medium text-sm">
                                 <div className="flex items-center gap-2">
-                                  <span>{row.label}</span>
+                                  <span className="text-text-primary font-semibold">{row.label}</span>
                                   {row.isDefault && (
                                     <Badge
-                                      variant="outline"
-                                      className="border-primary/40 px-1.5 py-0 text-[9px] text-primary"
+                                      variant="primary"
+                                      className="px-2 py-0.5 text-[10px]"
                                     >
-                                      Base
+                                      Principal
                                     </Badge>
                                   )}
                                 </div>
                               </td>
-                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-muted">
-                                {row.costBase > 0 ? money(row.costBase) : '—'}
-                              </td>
-                              <td className="px-3 py-3.5 text-right font-mono text-text-muted">
-                                {row.costWithIva > 0 ? money(row.costWithIva) : '—'}
-                              </td>
-                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary text-sm">
+                              <td className="px-5 py-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">
                                 {money(row.totalUsd)}
                               </td>
-                              <td className="px-3 py-3.5 text-right font-mono font-bold text-text-primary">
+                              <td className="px-5 py-4 text-right font-mono font-bold text-text-primary text-sm">
                                 {moneyVes(row.totalVes)}
                               </td>
                             </tr>
@@ -979,11 +966,11 @@ export function ProductSearchDetailModal({
                       </table>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-text-muted px-1">
-                      <span>* Precios con 16% de IVA incluido. Las columnas netas reflejan la base imponible desglosada.</span>
+                    <div className="flex items-center justify-between text-xs text-text-muted px-2 py-1">
+                      <span>Precios finales de venta al público.</span>
                       {selectedPriceList && (
                         <span>
-                          Lista actual del POS: <strong className="text-text-primary">{selectedPriceList.name}</strong>
+                          Lista activa en POS: <strong className="text-text-primary font-semibold">{selectedPriceList.name}</strong>
                         </span>
                       )}
                     </div>
