@@ -170,10 +170,14 @@ class ProductController extends Controller
                 ->whereColumn('stock_balances.product_id', 'products.id')
                 ->when($warehouseId, fn ($q) => $q->where('stock_balances.warehouse_id', $warehouseId));
 
+            $threshold = $request->filled('low_stock_threshold')
+                ? max((int) $request->input('low_stock_threshold'), 1)
+                : 5;
+
             match ($stockStatus) {
                 'available' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings()),
                 'low' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings())
-                    ->whereRaw("({$stockSubquery->toSql()}) <= COALESCE(products.min_stock, 5)", array_merge($stockSubquery->getBindings(), $stockSubquery->getBindings())),
+                    ->whereRaw("({$stockSubquery->toSql()}) <= COALESCE(products.min_stock, ?)", array_merge($stockSubquery->getBindings(), [$threshold])),
                 'critical' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings())
                     ->whereRaw("({$stockSubquery->toSql()}) <= 2", $stockSubquery->getBindings()),
                 'out' => $query->whereRaw("({$stockSubquery->toSql()}) <= 0", $stockSubquery->getBindings()),
