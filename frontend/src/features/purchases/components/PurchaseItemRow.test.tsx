@@ -146,4 +146,24 @@ describe('PurchaseItemRow', () => {
     fireEvent.click(screen.getByTestId('purchase-item-create-product-0'));
     expect(onCreateProduct).toHaveBeenCalled();
   });
+
+  it('permite eliminar la linea con un boton con nombre', () => {
+    const onRemove = vi.fn();
+
+    render(
+      <PurchaseItemRow
+        value={makeItemValue()}
+        onChange={vi.fn()}
+        onRemove={onRemove}
+        canRemove
+        index={0}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Eliminar')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('purchase-item-remove-0'));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
 });

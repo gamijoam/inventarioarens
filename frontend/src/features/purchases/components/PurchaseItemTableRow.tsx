@@ -353,55 +353,62 @@ export function PurchaseItemTableRow({
         </td>
 
         {/* 7. Acciones */}
-        <td className="p-3 align-middle w-[90px] text-center">
-          <div className="flex items-center justify-center gap-1">
+        <td className="p-3 align-middle w-[270px] text-center">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
             {value.product_id && onEditProduct && (
               <Button
                 type="button"
-                size="icon-sm"
-                variant="ghost"
+                size="sm"
+                variant="outline"
                 onClick={() => onEditProduct(value.product_id!)}
-                title="Editar producto"
-                className="size-8 text-text-muted hover:text-primary hover:bg-primary/10"
+                title="Editar producto en el inventario"
+                className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:text-primary"
                 data-testid={`purchase-table-edit-product-${index}`}
               >
-                <Pencil className="size-4" />
+                <Pencil className="size-3.5" /> Editar
               </Button>
             )}
             {onCreateProduct && (
               <Button
                 type="button"
-                size="icon-sm"
-                variant="ghost"
+                size="sm"
+                variant="outline"
                 onClick={() => onCreateProduct()}
-                title="Crear producto"
-                className="size-8 text-text-muted hover:text-primary hover:bg-primary/10"
+                title="Crear un producto nuevo"
+                className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:text-primary"
                 data-testid={`purchase-table-create-product-${index}`}
               >
-                <PackagePlus className="size-4" />
+                <PackagePlus className="size-3.5" /> Nuevo
               </Button>
             )}
             <Button
               type="button"
-              size="icon-sm"
-              variant="ghost"
+              size="sm"
+              variant="outline"
               onClick={() => onToggleExpand(index)}
               title={isExpanded ? 'Ocultar detalles' : 'Ver análisis y seriales'}
-              className={cn('size-8', isExpanded && 'text-primary bg-primary/10')}
+              className={cn(
+                'h-7 gap-1 px-2 text-[11px] font-semibold',
+                isExpanded
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'text-text-secondary hover:text-primary',
+              )}
+              data-testid={`purchase-table-detail-${index}`}
             >
-              <Lightbulb className="size-4" />
+              <Lightbulb className="size-3.5" /> Detalle
             </Button>
             {canRemove && (
               <Button
                 type="button"
-                size="icon-sm"
-                variant="ghost"
+                size="sm"
+                variant="outline"
                 onClick={onRemove}
                 disabled={disabled}
-                className="size-8 text-text-muted hover:text-danger hover:bg-danger/10"
-                title="Eliminar producto"
+                className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                title="Eliminar esta línea de la compra"
+                data-testid={`purchase-table-remove-${index}`}
               >
-                <Trash2 className="size-4" />
+                <Trash2 className="size-3.5" /> Eliminar
               </Button>
             )}
           </div>

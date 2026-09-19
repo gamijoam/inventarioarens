@@ -238,13 +238,15 @@ export function PurchaseItemRow({
         {canRemove && (
           <Button
             type="button"
-            size="icon-sm"
-            variant="ghost"
+            size="sm"
+            variant="outline"
             onClick={onRemove}
             disabled={disabled}
+            className="h-8 gap-1.5 px-2.5 text-xs font-semibold text-text-secondary hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
             aria-label={`Eliminar linea ${index + 1}`}
+            data-testid={`purchase-item-remove-${index}`}
           >
-            <Trash2 className="text-danger size-4" />
+            <Trash2 className="size-3.5" /> Eliminar
           </Button>
         )}
       </header>

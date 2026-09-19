@@ -708,7 +708,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                             }}
                             onChange={(next) => updateItem(index, next)}
                             onRemove={() => removeItem(index)}
-                            canRemove={items.length > 1}
+                            canRemove
                             disabled={submitting}
                             isExpanded={expandedTableRows.has(index)}
                             onToggleExpand={toggleTableExpand}
@@ -735,7 +735,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                       }}
                       onChange={(next) => updateItem(index, next)}
                       onRemove={() => removeItem(index)}
-                      canRemove={items.length > 1}
+                      canRemove
                       collapsed={collapsed.has(index)}
                       onToggleCollapse={toggleCollapse}
                       disabled={submitting}
