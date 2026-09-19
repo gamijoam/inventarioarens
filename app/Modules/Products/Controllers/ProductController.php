@@ -38,7 +38,7 @@ class ProductController extends Controller
 
         $search = trim((string) $request->query('search', ''));
         $normalizedSearch = mb_strtolower($search);
-        $limit = min(max((int) $request->query('limit', 25), 1), 100);
+        $limit = min(max((int) ($request->query('per_page') ?? $request->query('limit', 25)), 1), 150);
 
         $relations = ['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'];
         if ($request->boolean('with_images')) {
@@ -76,27 +76,33 @@ class ProductController extends Controller
         }
 
         if ($search !== '') {
+            $isPgsql = DB::connection()->getDriverName() === 'pgsql';
             $tokens = array_values(array_filter(
                 preg_split('/\s+/', $normalizedSearch),
                 fn ($token) => mb_strlen($token) > 0
             ));
 
-            $query->where(function ($q) use ($normalizedSearch, $tokens): void {
-                $q->where(function ($sub) use ($normalizedSearch): void {
-                    $sub->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
-                        ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"])
-                        ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$normalizedSearch}%"])
-                        ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ["%{$normalizedSearch}%"]);
+            $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+            $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
+            $barcodeExpr = $isPgsql ? 'unaccent(LOWER(barcode))' : 'LOWER(barcode)';
+            $descExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(description, \'\')))' : 'LOWER(COALESCE(description, \'\'))';
+
+            $query->where(function ($q) use ($normalizedSearch, $tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                $q->where(function ($sub) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                    $sub->whereRaw("{$nameExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$descExpr} LIKE ?", ["%{$normalizedSearch}%"]);
                 });
 
                 if (count($tokens) > 1) {
-                    $q->orWhere(function ($sub) use ($tokens): void {
+                    $q->orWhere(function ($sub) use ($tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
                         foreach ($tokens as $token) {
-                            $sub->where(function ($tokenQuery) use ($token): void {
-                                $tokenQuery->whereRaw('LOWER(name) LIKE ?', ["%{$token}%"])
-                                    ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$token}%"])
-                                    ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$token}%"])
-                                    ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ["%{$token}%"]);
+                            $sub->where(function ($tokenQuery) use ($token, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                                $tokenQuery->whereRaw("{$nameExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$descExpr} LIKE ?", ["%{$token}%"]);
                             });
                         }
                     });
@@ -104,15 +110,15 @@ class ProductController extends Controller
             });
 
             $query->orderByRaw(
-                'CASE
-                    WHEN LOWER(COALESCE(barcode, \'\')) = ? THEN 0
-                    WHEN LOWER(COALESCE(sku, \'\')) = ? THEN 1
-                    WHEN LOWER(COALESCE(name, \'\')) = ? THEN 2
-                    WHEN LOWER(COALESCE(barcode, \'\')) LIKE ? THEN 3
-                    WHEN LOWER(COALESCE(sku, \'\')) LIKE ? THEN 4
-                    WHEN LOWER(COALESCE(name, \'\')) LIKE ? THEN 5
+                "CASE
+                    WHEN {$barcodeExpr} = ? THEN 0
+                    WHEN {$skuExpr} = ? THEN 1
+                    WHEN {$nameExpr} = ? THEN 2
+                    WHEN {$barcodeExpr} LIKE ? THEN 3
+                    WHEN {$skuExpr} LIKE ? THEN 4
+                    WHEN {$nameExpr} LIKE ? THEN 5
                     ELSE 6
-                END',
+                END",
                 [
                     $normalizedSearch,
                     $normalizedSearch,
@@ -140,10 +146,45 @@ class ProductController extends Controller
             $query->where('tracking_type', $request->string('tracking_type'));
         }
 
-        if ($request->filled('is_active')) {
+        // Estado activo / inactivo / todos
+        $activeStatus = $request->query('active_status');
+        if ($activeStatus === 'inactive') {
+            $query->where('is_active', false);
+        } elseif ($activeStatus === 'all') {
+            // Mostrar todos (no filtrar por is_active)
+        } elseif ($activeStatus === 'active') {
+            $query->where('is_active', true);
+        } elseif ($request->has('is_active')) {
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         } else {
             $query->where('is_active', true);
+        }
+
+        // Filtro por estado de stock
+        if ($request->filled('stock_status') && $request->query('stock_status') !== 'all') {
+            $stockStatus = $request->query('stock_status');
+            $warehouseId = $request->filled('warehouse_id') ? $request->integer('warehouse_id') : null;
+
+            $stockSubquery = DB::table('stock_balances')
+                ->selectRaw('COALESCE(SUM(quantity_available), 0)')
+                ->whereColumn('stock_balances.product_id', 'products.id')
+                ->when($warehouseId, fn ($q) => $q->where('stock_balances.warehouse_id', $warehouseId));
+
+            $threshold = $request->filled('low_stock_threshold')
+                ? max((int) $request->input('low_stock_threshold'), 1)
+                : 5;
+
+            match ($stockStatus) {
+                'available' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings()),
+                'low' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings())
+                    ->whereRaw("({$stockSubquery->toSql()}) <= COALESCE(products.min_stock, ?)", array_merge($stockSubquery->getBindings(), [$threshold])),
+                'critical' => $query->whereRaw("({$stockSubquery->toSql()}) > 0", $stockSubquery->getBindings())
+                    ->whereRaw("({$stockSubquery->toSql()}) <= 2", $stockSubquery->getBindings()),
+                'out' => $query->whereRaw("({$stockSubquery->toSql()}) <= 0", $stockSubquery->getBindings()),
+                'overstock' => $query->whereNotNull('products.max_stock')
+                    ->whereRaw("({$stockSubquery->toSql()}) > products.max_stock", $stockSubquery->getBindings()),
+                default => null,
+            };
         }
 
         if ($search === '') {
@@ -409,6 +450,31 @@ class ProductController extends Controller
             $before = $product->only(array_keys($data));
             $product->update($data);
 
+            if (array_key_exists('base_price', $data) && $data['base_price'] !== null) {
+                // Sincronizar automaticamente la lista de precios por defecto (is_default = true)
+                // si tiene un registro en product_prices, para evitar que el POS y las cotizaciones
+                // queden con un precio desfasado del precio base actualizado.
+                $defaultPriceList = PriceList::query()
+                    ->where('tenant_id', $product->tenant_id)
+                    ->where('is_default', true)
+                    ->first();
+
+                if ($defaultPriceList) {
+                    $defaultProductPrice = ProductPrice::query()
+                        ->where('product_id', $product->id)
+                        ->where('price_list_id', $defaultPriceList->id)
+                        ->first();
+
+                    if ($defaultProductPrice) {
+                        $defaultProductPrice->update([
+                            'price' => $data['base_price'],
+                            'currency' => $data['sale_currency'] ?? $product->sale_currency ?? 'USD',
+                        ]);
+                        $syncCatalog->productPriceUpdated($defaultProductPrice);
+                    }
+                }
+            }
+
             // Sincronizar categorias y tags si vienen en el payload.
             // Antes el controller los descartaba (ver prepareProductData)
             // y solo se sincronizaban via endpoints dedicados, lo cual el
@@ -479,6 +545,65 @@ class ProductController extends Controller
             if ($product->isCatalogMaster()) {
                 $propagation->deactivateCopiesForMaster($product);
             }
+        });
+
+        return response()->noContent();
+    }
+
+    /**
+     * Eliminacion permanente e irreversible del producto.
+     * Solo permitido si el producto NO tiene ventas, movimientos de stock ni transferencias registradas.
+     */
+    public function forceDestroy(Product $product): Response
+    {
+        Gate::authorize('delete', $product);
+
+        if (
+            $this->modelBelongsToSharedCatalog($product)
+            && ! $this->canWriteSharedCatalog(request()->user())
+        ) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
+        // Verificar que no tenga ventas asociadas
+        $hasSales = DB::table('sale_items')
+            ->where('tenant_id', $product->tenant_id)
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if ($hasSales) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No se puede eliminar: el producto tiene ventas registradas.');
+        }
+
+        // Verificar que no tenga movimientos de stock (kardex)
+        $hasMovements = DB::table('stock_movements')
+            ->where('tenant_id', $product->tenant_id)
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if ($hasMovements) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No se puede eliminar: el producto tiene movimientos de inventario registrados.');
+        }
+
+        // Verificar que no tenga transferencias entre sucursales
+        $hasTransfers = DB::table('inventory_transfer_items')
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if ($hasTransfers) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No se puede eliminar: el producto tiene transferencias de inventario registradas.');
+        }
+
+        DB::transaction(function () use ($product): void {
+            // Limpiar relaciones pivot antes de eliminar
+            $product->categories()->detach();
+            $product->tags()->detach();
+            $product->prices()->delete();
+            $product->images()->delete();
+            $product->variants()->delete();
+            $product->stockBalances()->delete();
+            $product->audits()->delete();
+            $product->forceDelete();
         });
 
         return response()->noContent();
@@ -573,6 +698,11 @@ class ProductController extends Controller
         $margin = array_key_exists('profit_margin', $data)
             ? ($data['profit_margin'] === null ? null : (float) $data['profit_margin'])
             : $product?->effectiveProfitMargin();
+
+        // Si base_price ya fue calculado y enviado (ej. con IVA desde el formulario), respetarlo
+        if (isset($data['base_price']) && (float) $data['base_price'] > 0) {
+            return;
+        }
 
         if ($cost !== null && $margin !== null) {
             $data['base_price'] = round($cost * (1 + ($margin / 100)), 2);

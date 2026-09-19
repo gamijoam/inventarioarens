@@ -262,7 +262,12 @@ function InventoryListPage() {
         </div>
       }
     >
-      <InventoryKpis total={data?.meta.total ?? 0} alerts={alerts} />
+      <InventoryKpis
+        total={data?.meta.total ?? 0}
+        alerts={alerts}
+        currentStock={search.stock}
+        onSelectStock={(st) => updateSearch({ stock: st })}
+      />
 
       <BulkActionsMenu
         selectedIds={Array.from(selectedIds)}
@@ -809,15 +814,36 @@ function useColumns(
 function InventoryKpis({
   total,
   alerts,
+  currentStock,
+  onSelectStock,
 }: {
   total: number;
   alerts?: { out_count: number; low_count: number };
+  currentStock?: StockFilter;
+  onSelectStock?: (filter: StockFilter) => void;
 }) {
   return (
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-      <KpiCard label="Productos encontrados" value={total.toLocaleString('es-VE')} />
-      <KpiCard label="Sin stock" value={String(alerts?.out_count ?? '-')} tone="danger" />
-      <KpiCard label="Stock bajo" value={String(alerts?.low_count ?? '-')} tone="warning" />
+      <KpiCard
+        label="Productos encontrados"
+        value={total.toLocaleString('es-VE')}
+        active={currentStock === 'all'}
+        onClick={onSelectStock ? () => onSelectStock('all') : undefined}
+      />
+      <KpiCard
+        label="Sin stock"
+        value={String(alerts?.out_count ?? '-')}
+        tone="danger"
+        active={currentStock === 'out'}
+        onClick={onSelectStock ? () => onSelectStock(currentStock === 'out' ? 'all' : 'out') : undefined}
+      />
+      <KpiCard
+        label="Stock bajo"
+        value={String(alerts?.low_count ?? '-')}
+        tone="warning"
+        active={currentStock === 'low'}
+        onClick={onSelectStock ? () => onSelectStock(currentStock === 'low' ? 'all' : 'low') : undefined}
+      />
     </div>
   );
 }
@@ -826,13 +852,24 @@ function KpiCard({
   label,
   value,
   tone = 'default',
+  active = false,
+  onClick,
 }: {
   label: string;
   value: string;
   tone?: 'default' | 'danger' | 'warning';
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card
+      onClick={onClick}
+      className={cn(
+        'transition-all',
+        onClick && 'cursor-pointer hover:shadow-md hover:border-primary/50',
+        active && 'ring-2 ring-primary border-primary bg-primary/5',
+      )}
+    >
       <CardContent className="flex items-center justify-between p-4 sm:p-5">
         <div>
           <span className="text-slate-400 text-xs font-bold tracking-wider uppercase block">{label}</span>
