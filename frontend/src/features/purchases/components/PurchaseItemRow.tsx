@@ -171,8 +171,15 @@ export function PurchaseItemRow({
           {index + 1}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-text-muted text-xs font-semibold uppercase">Producto de la compra</p>
-          <p className="truncate text-sm font-semibold">
+          <div className="flex items-center gap-2">
+            <span className="text-text-muted text-[10px] font-semibold uppercase">Línea {index + 1}</span>
+            {value.product_info?.sku && (
+              <code className="bg-bg text-text-secondary rounded px-1.5 py-0.5 text-[11px] font-mono font-bold">
+                {value.product_info.sku}
+              </code>
+            )}
+          </div>
+          <p className="truncate text-sm font-semibold text-text-primary">
             {value.product_info?.name ?? 'Pendiente por seleccionar'}
           </p>
           {collapsed && (
@@ -192,9 +199,34 @@ export function PurchaseItemRow({
             </p>
           )}
         </div>
+
+        {/* Indicador destacado de CANTIDAD agregada en esta tarjeta */}
+        <div className="flex items-center gap-2">
+          {Number(value.quantity) > 0 ? (
+            <Badge variant="primary" className="text-xs px-2.5 py-1 font-bold flex items-center gap-1 shadow-xs">
+              <Boxes className="size-3.5" />
+              <span>{value.quantity} {value.product_info?.unit_of_measure ?? 'uds'}</span>
+            </Badge>
+          ) : (
+            <Badge variant="warning" className="text-xs px-2 py-0.5 font-medium">
+              ⚠️ Sin cantidad (0)
+            </Badge>
+          )}
+
+          {hasValidCost && (
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-text-secondary font-mono">
+              <span>x ${numericCost.toFixed(2)}</span>
+              <span>=</span>
+              <strong className="text-sm font-black text-text-primary">
+                ${subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </strong>
+            </div>
+          )}
+        </div>
+
         {value.product_info?.tracking_type === 'serialized' && (
-          <Badge variant="info" className="shrink-0">
-            IMEI / serial
+          <Badge variant="info" className="shrink-0 text-xs">
+            IMEI ({value.serial_units.length}/{Number(value.quantity) || 0})
           </Badge>
         )}
         {canRemove && (
