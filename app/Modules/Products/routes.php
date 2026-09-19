@@ -15,6 +15,7 @@ Route::get('products/{product}/price-history', [ProductController::class, 'price
 Route::put('products/{product}/prices', [ProductController::class, 'syncPrices']);
 Route::patch('products/{product}/categories', [ProductController::class, 'syncCategories']);
 Route::patch('products/{product}/tags', [ProductController::class, 'syncTags']);
+Route::delete('products/{product}/force', [ProductController::class, 'forceDestroy']);
 Route::apiResource('products', ProductController::class);
 
 // Imagenes propias de producto (galeria multi-imagen, Nivel 2).

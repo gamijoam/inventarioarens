@@ -11,7 +11,7 @@
  * Incluye atajos de teclado F1-F6 para cambiar de pestaña rápidamente y desglose en vivo.
  */
 import { type UseFormReturn, useController } from 'react-hook-form';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Boxes,
   Check,
@@ -130,8 +130,9 @@ export function ProductForm({
   const margin = Number(form.watch('profit_margin'));
   const currentBasePrice = Number(form.watch('base_price') ?? 0);
 
-  const [applyIva, setApplyIva] = useState(!productId); // false en edición: evita desglose confuso del precio existente
+  const [applyIva, setApplyIva] = useState(true); // Siempre marcado por defecto para evitar confusión visual
   const [ivaRate, setIvaRate] = useState(16);
+  const isInitialMount = useRef(true);
 
   const netSubtotal =
     Number.isFinite(cost) && cost > 0 && Number.isFinite(margin) && margin >= 0
@@ -145,6 +146,10 @@ export function ProductForm({
   }, [netSubtotal, applyIva, ivaRate]);
 
   useEffect(() => {
+    if (productId && isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (pricingMode === 'automatic' && calculatedSalePrice && Number(calculatedSalePrice) > 0) {
       const current = form.getValues('base_price');
       const next = Number(calculatedSalePrice);
@@ -152,7 +157,7 @@ export function ProductForm({
         form.setValue('base_price', next, { shouldValidate: true });
       }
     }
-  }, [pricingMode, calculatedSalePrice, form]);
+  }, [pricingMode, calculatedSalePrice, form, productId]);
 
   // Atajos de teclado para pestañas ERP (F1 - F9)
   useEffect(() => {
@@ -226,15 +231,16 @@ export function ProductForm({
   const costBase = Number.isFinite(cost) && cost > 0 ? cost : 0;
   const costWithIva = applyIva && costBase > 0 ? Math.round(costBase * (1 + ivaRate / 100) * 100) / 100 : costBase;
   const effectivePrice =
-    pricingMode === 'automatic' && calculatedSalePrice
+    pricingMode === 'automatic' && calculatedSalePrice && (!productId || !isInitialMount.current)
       ? Number(calculatedSalePrice)
       : currentBasePrice;
 
-  // Ganancia real estimada entre precio de venta y costo
-  const grossProfitUsd = effectivePrice > 0 && costBase > 0 ? Math.round((effectivePrice - costBase) * 100) / 100 : 0;
+  // Ganancia real estimada entre precio de venta y costo con IVA (o costo base si exento)
+  const comparisonCost = applyIva && costWithIva > 0 ? costWithIva : costBase;
+  const grossProfitUsd = effectivePrice > 0 && comparisonCost > 0 ? Math.round((effectivePrice - comparisonCost) * 100) / 100 : 0;
   const actualProfitMarginPercent =
-    costBase > 0 && effectivePrice > 0
-      ? Math.round(((effectivePrice - costBase) / costBase) * 1000) / 10
+    comparisonCost > 0 && effectivePrice > 0
+      ? Math.round(((effectivePrice - comparisonCost) / comparisonCost) * 1000) / 10
       : margin > 0 ? margin : 0;
 
   // Detección de errores por pestaña

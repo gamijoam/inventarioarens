@@ -540,6 +540,65 @@ class ProductController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * Eliminacion permanente e irreversible del producto.
+     * Solo permitido si el producto NO tiene ventas, movimientos de stock ni transferencias registradas.
+     */
+    public function forceDestroy(Product $product): Response
+    {
+        Gate::authorize('delete', $product);
+
+        if (
+            $this->modelBelongsToSharedCatalog($product)
+            && ! $this->canWriteSharedCatalog(request()->user())
+        ) {
+            abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
+        }
+
+        // Verificar que no tenga ventas asociadas
+        $hasSales = DB::table('sale_items')
+            ->where('tenant_id', $product->tenant_id)
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if ($hasSales) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No se puede eliminar: el producto tiene ventas registradas.');
+        }
+
+        // Verificar que no tenga movimientos de stock (kardex)
+        $hasMovements = DB::table('stock_movements')
+            ->where('tenant_id', $product->tenant_id)
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if ($hasMovements) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No se puede eliminar: el producto tiene movimientos de inventario registrados.');
+        }
+
+        // Verificar que no tenga transferencias entre sucursales
+        $hasTransfers = DB::table('inventory_transfer_items')
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if ($hasTransfers) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No se puede eliminar: el producto tiene transferencias de inventario registradas.');
+        }
+
+        DB::transaction(function () use ($product): void {
+            // Limpiar relaciones pivot antes de eliminar
+            $product->categories()->detach();
+            $product->tags()->detach();
+            $product->prices()->delete();
+            $product->images()->delete();
+            $product->variants()->delete();
+            $product->stockBalances()->delete();
+            $product->audits()->delete();
+            $product->forceDelete();
+        });
+
+        return response()->noContent();
+    }
+
     public function syncCategories(Request $request, Product $product): JsonResponse
     {
         Gate::authorize('update', $product);
