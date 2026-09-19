@@ -100,6 +100,124 @@ class PurchaseOrderService
         });
     }
 
+    public function update(PurchaseOrder $purchaseOrder, User $user, array $data): PurchaseOrder
+    {
+        return DB::transaction(function () use ($purchaseOrder, $user, $data): PurchaseOrder {
+            $purchaseOrder = PurchaseOrder::query()
+                ->lockForUpdate()
+                ->findOrFail($purchaseOrder->id);
+
+            if ($purchaseOrder->status === PurchaseOrder::STATUS_CANCELLED) {
+                throw ValidationException::withMessages([
+                    'status' => 'No se pueden editar compras canceladas.',
+                ]);
+            }
+
+            // Caso 1: Factura ya recibida o parcialmente recibida -> solo editar metadatos comerciales/fiscales
+            if (in_array($purchaseOrder->status, [PurchaseOrder::STATUS_RECEIVED, PurchaseOrder::STATUS_PARTIALLY_RECEIVED], true)) {
+                $fieldsToUpdate = [];
+                if (array_key_exists('supplier_id', $data)) {
+                    $fieldsToUpdate['supplier_id'] = $data['supplier_id'];
+                }
+                if (array_key_exists('document_number', $data) && ! empty($data['document_number'])) {
+                    $fieldsToUpdate['document_number'] = $data['document_number'];
+                }
+                if (array_key_exists('issued_at', $data)) {
+                    $fieldsToUpdate['issued_at'] = $data['issued_at'];
+                }
+                if (array_key_exists('due_date', $data)) {
+                    $fieldsToUpdate['due_date'] = $data['due_date'];
+                }
+
+                if (! empty($fieldsToUpdate)) {
+                    $purchaseOrder->update($fieldsToUpdate);
+                }
+
+                // Sincronizar metadatos con la cuenta por pagar asociada si existe
+                app(AccountsPayableService::class)->syncPurchaseMetadata($purchaseOrder->refresh());
+
+                return $purchaseOrder->refresh()->load([
+                    'supplier',
+                    'accountPayable',
+                    'items.product',
+                    'items.productVariant',
+                    'items.warehouse',
+                    'items.stockMovement',
+                ]);
+            }
+
+            // Caso 2: Compra en borrador (draft) -> edición total de cabecera e items
+            $currency = $data['purchase_currency'] ?? $purchaseOrder->purchase_currency;
+            [$rateType, $exchangeRate] = $this->rateSnapshot($currency, $data['exchange_rate_type_id'] ?? null);
+
+            $purchaseOrder->update([
+                'supplier_id' => $data['supplier_id'] ?? null,
+                'document_number' => $data['document_number'] ?? $purchaseOrder->document_number ?? $this->nextDocumentNumber(),
+                'issued_at' => $data['issued_at'] ?? null,
+                'due_date' => $data['due_date'] ?? null,
+                'purchase_currency' => $currency,
+                'exchange_rate_type_id' => $rateType?->id,
+                'exchange_rate_type_code' => $rateType?->code,
+                'exchange_rate' => $exchangeRate,
+            ]);
+
+            if (! $purchaseOrder->document_number) {
+                $purchaseOrder->document_number = $this->nextDocumentNumber();
+                $purchaseOrder->save();
+            }
+
+            // Eliminar items anteriores y recrear con los nuevos
+            $purchaseOrder->items()->delete();
+
+            $totalBase = 0.0;
+            $totalLocal = 0.0;
+
+            foreach ($data['items'] as $item) {
+                $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
+                $product = Product::query()->findOrFail($item['product_id']);
+                $variant = $this->resolveVariant($product, $item['product_variant_id'] ?? null);
+                $quantity = (float) $item['quantity'];
+                $serialUnits = $item['serial_units'] ?? [];
+                $this->validateSerialUnits($product, $quantity, $serialUnits);
+                $unitCost = (float) $item['unit_cost'];
+                $totalCost = round($unitCost * $quantity, 4);
+                $baseUnitCost = $this->baseUnitCost($currency, $unitCost, $exchangeRate);
+                $baseTotalCost = round($baseUnitCost * $quantity, 4);
+
+                PurchaseItem::create([
+                    'purchase_order_id' => $purchaseOrder->id,
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'product_variant_id' => $variant?->id,
+                    'quantity' => $quantity,
+                    'unit_cost' => $unitCost,
+                    'total_cost' => $totalCost,
+                    'base_unit_cost' => $baseUnitCost,
+                    'base_total_cost' => $baseTotalCost,
+                    'new_sale_price' => isset($item['new_sale_price']) && is_numeric($item['new_sale_price']) ? (float) $item['new_sale_price'] : null,
+                    'serial_units' => $serialUnits ?: null,
+                ]);
+
+                $totalBase += $baseTotalCost;
+                $totalLocal += $currency === PurchaseOrder::CURRENCY_VES
+                    ? $totalCost
+                    : ($exchangeRate === null ? 0.0 : round($totalCost * $exchangeRate, 4));
+            }
+
+            $purchaseOrder->update([
+                'total_base_amount' => $totalBase,
+                'total_local_amount' => $totalLocal,
+            ]);
+
+            $po = $purchaseOrder->refresh()->load(['supplier', 'accountPayable', 'items.product', 'items.productVariant', 'items.warehouse']);
+
+            // Notificar outbox de sincronización con la versión actualizada del borrador
+            $this->syncCatalog->purchaseOrderCreated($po);
+
+            return $po;
+        });
+    }
+
     public function receive(PurchaseOrder $purchaseOrder, User $user, array $data = []): PurchaseOrder
     {
         return DB::transaction(function () use ($purchaseOrder, $user, $data): PurchaseOrder {

@@ -6,7 +6,7 @@
  * acciones "Recibir" y "Cancelar" estan en el detalle (FASE 3).
  */
 import { useState } from 'react';
-import { Plus, Search, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Search, XCircle, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/Button';
@@ -27,6 +27,13 @@ import {
 import { PurchaseSummary } from './components/PurchaseSummary';
 import { QuickActionsBar } from './components/QuickActionsBar';
 import { usePurchase } from '@/features/purchases/api';
+import { useSessionStore } from '@/stores/session';
+
+interface PurchasesManagerProps {
+  onNew?: () => void;
+  onReceive?: (purchaseId: number) => void;
+  onEdit?: (purchase: Purchase) => void;
+}
 
 const STATUS_FILTER_OPTIONS: { value: PurchaseListFilters['status']; label: string }[] = [
   { value: 'all', label: 'Todos' },
@@ -72,12 +79,7 @@ function formatMoney(value: number | string | null | undefined): string {
   return n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-interface PurchasesManagerProps {
-  onNew?: () => void;
-  onReceive?: (purchaseId: number) => void;
-}
-
-export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {}) {
+export function PurchasesManager({ onNew, onReceive, onEdit }: PurchasesManagerProps = {}) {
   const [filters, setFilters] = useState<PurchaseListFilters>({
     search: '',
     status: 'all',
@@ -201,6 +203,9 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
                 <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Almacén
                 </th>
+                <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -220,6 +225,7 @@ export function PurchasesManager({ onNew, onReceive }: PurchasesManagerProps = {
                     onReceive={onReceive ? () => onReceive(p.id) : undefined}
                     onCancel={() => undefined /* QuickActionsBar maneja su propio dialog */}
                     onPayPayable={() => navigate({ to: '/payables' })}
+                    onEdit={onEdit ? () => onEdit(p) : undefined}
                   />
                 );
               })}
@@ -244,6 +250,7 @@ function Row({
   onReceive,
   onCancel,
   onPayPayable,
+  onEdit,
 }: {
   purchase: Purchase;
   isExpanded: boolean;
@@ -252,7 +259,11 @@ function Row({
   onReceive?: () => void;
   onCancel: (purchase: Purchase) => void;
   onPayPayable?: () => void;
+  onEdit?: () => void;
 }) {
+  const permissions = useSessionStore((s) => s.permissions);
+  const canCreate = permissions.has('purchases.create');
+
   return (
     <>
       <tr
@@ -322,16 +333,35 @@ function Row({
             <span className="text-text-muted/60 text-xs">Sin almacén</span>
           )}
         </td>
+        <td className="px-3 py-2 text-right">
+          {purchase.status !== 'cancelled' && canCreate && onEdit && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              leftIcon={<Pencil className="size-3.5" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              data-testid={`purchase-edit-btn-${purchase.id}`}
+              title={purchase.status === 'draft' ? 'Editar orden de compra' : 'Editar factura / proveedor'}
+            >
+              Editar
+            </Button>
+          )}
+        </td>
       </tr>
       {isExpanded && (
         <tr className="border-border bg-bg/20 border-b">
-          <td colSpan={10} className="px-3 py-4">
+          <td colSpan={11} className="px-3 py-4">
             <ExpandedDetail
               purchaseId={purchase.id}
               purchase={purchase}
               onReceive={onReceive}
               onCancel={() => onCancel(purchase)}
               onPayPayable={onPayPayable}
+              onEdit={onEdit}
             />
           </td>
         </tr>
@@ -351,12 +381,14 @@ function ExpandedDetail({
   onReceive,
   onCancel,
   onPayPayable,
+  onEdit,
 }: {
   purchaseId: number;
   purchase: Purchase;
   onReceive?: () => void;
   onCancel: () => void;
   onPayPayable?: () => void;
+  onEdit?: () => void;
 }) {
   const { data: detail, isLoading } = usePurchase(purchaseId);
 
@@ -373,6 +405,7 @@ function ExpandedDetail({
           onReceive={onReceive}
           onPayPayable={onPayPayable}
           onPrint={undefined}
+          onEdit={onEdit}
         />
       </div>
       <PurchaseSummary purchase={detail ?? purchase} showItems />

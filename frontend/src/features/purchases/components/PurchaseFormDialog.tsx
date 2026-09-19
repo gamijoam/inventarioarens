@@ -37,9 +37,9 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog';
 import { Label } from '@/components/ui/Label';
-import { useCreatePurchase } from '@/features/purchases/api';
+import { useCreatePurchase, useUpdatePurchase } from '@/features/purchases/api';
 import { useExchangeRateTypes, useWarehouses } from '@/features/inventory-center/api';
-import { StorePurchaseSchema, type PurchaseItemInput } from '@/features/purchases/schemas';
+import { StorePurchaseSchema, type Purchase, type PurchaseItemInput } from '@/features/purchases/schemas';
 import { SupplierAutocomplete, type SupplierOption } from './SupplierAutocomplete';
 import { PurchaseItemRow, type PurchaseItemRowValue } from './PurchaseItemRow';
 import { PurchaseItemTableRow } from './PurchaseItemTableRow';
@@ -52,6 +52,7 @@ interface PurchaseFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (purchaseId: number) => void;
+  purchase?: Purchase | null;
 }
 
 function emptyItem(warehouseId: number | null = null): PurchaseItemRowValue {
@@ -68,8 +69,9 @@ function emptyItem(warehouseId: number | null = null): PurchaseItemRowValue {
   };
 }
 
-export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFormDialogProps) {
+export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: PurchaseFormDialogProps) {
   const create = useCreatePurchase();
+  const update = useUpdatePurchase();
   const { data: rateTypes = [] } = useExchangeRateTypes();
   const { data: warehouses = [] } = useWarehouses();
 
@@ -136,6 +138,38 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
     setExpandedTableRows(new Set());
     setFieldErrors({});
   }
+
+  useEffect(() => {
+    if (open && purchase) {
+      setSupplierId(purchase.supplier_id ?? null);
+      setDocumentNumber(purchase.document_number ?? '');
+      setIssuedAt(purchase.issued_at ?? todayDateString());
+      setDueDate(purchase.due_date ?? '');
+      setCurrency((purchase.purchase_currency as 'USD' | 'VES') ?? 'USD');
+      setRateTypeId(purchase.exchange_rate_type_id ?? null);
+
+      if (purchase.items && purchase.items.length > 0) {
+        setItems(
+          purchase.items.map((it) => ({
+            warehouse_id: it.warehouse_id,
+            product_id: it.product_id,
+            product_variant_id: it.product_variant_id ?? null,
+            product_info: (it.product as ProductAutocompleteOption | null) ?? null,
+            quantity: String(it.quantity ?? ''),
+            unit_cost: it.unit_cost !== null && it.unit_cost !== undefined ? String(it.unit_cost) : '',
+            new_sale_price: it.new_sale_price ? String(it.new_sale_price) : '',
+            update_sale_price: Boolean(it.new_sale_price),
+            serial_units: Array.isArray(it.serial_units)
+              ? (it.serial_units as ImeiInput[])
+              : [],
+          })),
+        );
+      }
+      setFieldErrors({});
+    } else if (open && !purchase) {
+      reset();
+    }
+  }, [open, purchase]);
 
   function addItem() {
     const targetWh = defaultWarehouseId ?? (warehouses[0]?.id ?? null);
@@ -311,16 +345,22 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
 
     setSubmitting(true);
     try {
-      const result = await create.mutateAsync(parsed.data);
-      toast.success('Compra creada en borrador exitosamente.');
-      onCreated?.((result as { id: number }).id);
+      if (purchase) {
+        const result = await update.mutateAsync({ id: purchase.id, values: parsed.data });
+        toast.success('Orden de compra actualizada exitosamente.');
+        onCreated?.((result as { id: number }).id);
+      } else {
+        const result = await create.mutateAsync(parsed.data);
+        toast.success('Compra creada en borrador exitosamente.');
+        onCreated?.((result as { id: number }).id);
+      }
       reset();
       onOpenChange(false);
     } catch (err) {
       if (err instanceof Error) {
         toast.error(err.message);
       } else {
-        toast.error('Error al crear la compra.');
+        toast.error(purchase ? 'Error al actualizar la compra.' : 'Error al crear la compra.');
       }
     } finally {
       setSubmitting(false);
@@ -338,9 +378,15 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
                 <PackagePlus className="size-5" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-bold">Nueva Orden de Compra</DialogTitle>
+                <DialogTitle className="text-lg font-bold">
+                  {purchase
+                    ? `Editar Orden de Compra ${purchase.document_number ? `(${purchase.document_number})` : `#${purchase.id}`}`
+                    : 'Nueva Orden de Compra'}
+                </DialogTitle>
                 <DialogDescription className="text-xs text-text-muted mt-0.5">
-                  Registra los productos que ingresarán al inventario con su costo de reposición.
+                  {purchase
+                    ? 'Modifica productos, cantidades, costos de compra o datos de la orden en borrador.'
+                    : 'Registra los productos que ingresarán al inventario con su costo de reposición.'}
                 </DialogDescription>
               </div>
             </div>
@@ -691,7 +737,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated }: PurchaseFo
                 Cancelar
               </Button>
               <Button type="submit" loading={submitting} className="font-bold px-5">
-                Crear borrador de compra
+                {purchase ? 'Guardar Cambios' : 'Crear borrador de compra'}
               </Button>
             </div>
           </DialogFooter>

@@ -252,6 +252,25 @@ export const ReceivePurchaseSchema = z
   }));
 export type ReceivePurchaseValues = z.output<typeof ReceivePurchaseSchema>;
 
+/**
+ * Schema para actualizar metadatos comerciales/fiscales de facturas de compra recibidas.
+ */
+export const UpdatePurchaseInvoiceSchema = z
+  .object({
+    supplier_id: z.coerce.number().int().positive().nullable().optional(),
+    document_number: trimmedOptionalString(100),
+    issued_at: isoDate,
+    due_date: isoDate,
+  })
+  .transform((data) => ({
+    supplier_id: data.supplier_id ?? null,
+    document_number: data.document_number ?? null,
+    issued_at: data.issued_at ?? null,
+    due_date: data.due_date ?? null,
+  }));
+export type UpdatePurchaseInvoiceValues = z.output<typeof UpdatePurchaseInvoiceSchema>;
+export type UpdatePurchaseInvoiceInput = z.input<typeof UpdatePurchaseInvoiceSchema>;
+
 // =====================================================================
 // Filtros del listado
 // =====================================================================

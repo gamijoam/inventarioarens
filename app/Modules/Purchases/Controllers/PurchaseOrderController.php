@@ -5,6 +5,7 @@ namespace App\Modules\Purchases\Controllers;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Requests\ReceivePurchaseOrderRequest;
 use App\Modules\Purchases\Requests\StorePurchaseOrderRequest;
+use App\Modules\Purchases\Requests\UpdatePurchaseOrderRequest;
 use App\Modules\Purchases\Resources\PurchaseOrderResource;
 use App\Modules\Purchases\Services\PurchaseOrderService;
 use App\Support\Time\BusinessDateRange;
@@ -90,6 +91,18 @@ class PurchaseOrderController extends Controller
 
         return PurchaseOrderResource::make(
             $purchaseOrder->load(['supplier', 'accountPayable', 'items.product', 'items.productVariant', 'items.warehouse', 'items.stockMovement'])
+        );
+    }
+
+    public function update(
+        UpdatePurchaseOrderRequest $request,
+        PurchaseOrder $purchaseOrder,
+        PurchaseOrderService $purchases,
+    ): PurchaseOrderResource {
+        Gate::authorize('update', $purchaseOrder);
+
+        return PurchaseOrderResource::make(
+            $purchases->update($purchaseOrder, $request->user(), $request->validated())
         );
     }
 

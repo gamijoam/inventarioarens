@@ -7,6 +7,7 @@ Route::prefix('purchases')->group(function (): void {
     Route::get('/', [PurchaseOrderController::class, 'index']);
     Route::post('/', [PurchaseOrderController::class, 'store'])->middleware('idempotency');
     Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show']);
+    Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->middleware('idempotency');
     Route::patch('/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->middleware('idempotency');
     Route::patch('/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->middleware('idempotency');
 });

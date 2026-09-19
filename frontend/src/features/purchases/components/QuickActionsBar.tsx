@@ -7,7 +7,7 @@
  * - cancelled: ninguna accion
  */
 import { useState } from 'react';
-import { CreditCard, Package, Printer, XCircle } from 'lucide-react';
+import { CreditCard, Package, Pencil, Printer, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -21,6 +21,7 @@ interface QuickActionsBarProps {
   onReceive?: () => void;
   onPayPayable?: () => void;
   onPrint?: () => void;
+  onEdit?: () => void;
 }
 
 export function QuickActionsBar({
@@ -28,6 +29,7 @@ export function QuickActionsBar({
   onReceive,
   onPayPayable,
   onPrint,
+  onEdit,
 }: QuickActionsBarProps) {
   const cancel = useCancelPurchase();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -62,6 +64,17 @@ export function QuickActionsBar({
             {purchase.status === 'partially_received'
               ? 'Recibir lo que falta'
               : 'Recibir mercancia'}
+          </Button>
+        )}
+        {canCreate && onEdit && (
+          <Button
+            size="sm"
+            variant="outline"
+            leftIcon={<Pencil className="size-4" />}
+            onClick={onEdit}
+            data-testid={`purchase-edit-${purchase.id}`}
+          >
+            Editar
           </Button>
         )}
         {showCancel && (

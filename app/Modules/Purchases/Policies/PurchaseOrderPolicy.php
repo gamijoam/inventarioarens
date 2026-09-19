@@ -24,6 +24,12 @@ class PurchaseOrderPolicy
         return $this->hasTenantPermission($user, 'purchases.create');
     }
 
+    public function update(User $user, PurchaseOrder $purchaseOrder): bool
+    {
+        return $this->ownsResource($purchaseOrder)
+            && $this->hasTenantPermission($user, 'purchases.create');
+    }
+
     public function receive(User $user, PurchaseOrder $purchaseOrder): bool
     {
         return $this->ownsResource($purchaseOrder)

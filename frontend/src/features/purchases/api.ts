@@ -13,7 +13,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { getMany, getOne, patchOne, postOne } from '@/api/client';
+import { getMany, getOne, patchOne, postOne, putOne } from '@/api/client';
 import {
   PurchaseSchema,
   type Purchase,
@@ -132,6 +132,20 @@ export function useReceivePurchase() {
       // CRITICO: tras recibir mercancia, el stock del producto y el WAC
       // cambian. Invalidar TODAS las queries de producto afectadas para
       // que el detalle en /inventory/$productId muestre el stock nuevo.
+      invalidateAffectedProducts(qc, data);
+    },
+  });
+}
+
+export function useUpdatePurchase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, values }: { id: number; values: unknown }) =>
+      putOne<unknown, Purchase>(`/purchases/${id}`, values),
+    onSuccess: (data, { id }) => {
+      void qc.invalidateQueries({ queryKey: purchaseKeys.lists() });
+      void qc.invalidateQueries({ queryKey: purchaseKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: ['accounts-payable'] });
       invalidateAffectedProducts(qc, data);
     },
   });

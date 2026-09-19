@@ -9,7 +9,9 @@ import { createFileRoute } from '@tanstack/react-router';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { PurchasesManager } from '@/features/purchases/PurchasesManager';
 import { PurchaseFormDialog } from '@/features/purchases/components/PurchaseFormDialog';
+import { EditPurchaseInvoiceDialog } from '@/features/purchases/components/EditPurchaseInvoiceDialog';
 import { ReceiveDialog } from '@/features/purchases/components/ReceiveDialog';
+import type { Purchase } from '@/features/purchases/schemas';
 
 export const Route = createFileRoute('/_authed/purchases')({
   component: PurchasesPage,
@@ -18,6 +20,16 @@ export const Route = createFileRoute('/_authed/purchases')({
 function PurchasesPage() {
   const [creating, setCreating] = useState(false);
   const [receivingId, setReceivingId] = useState<number | null>(null);
+  const [editingDraft, setEditingDraft] = useState<Purchase | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<Purchase | null>(null);
+
+  function handleEdit(purchase: Purchase) {
+    if (purchase.status === 'draft') {
+      setEditingDraft(purchase);
+    } else if (purchase.status === 'received' || purchase.status === 'partially_received') {
+      setEditingInvoice(purchase);
+    }
+  }
 
   return (
     <PageLayout
@@ -25,16 +37,35 @@ function PurchasesPage() {
       description="Gestion de ordenes de compra. El flujo es: crear borrador -> recibir mercancia -> pagar CxP."
     >
       <PurchasesManager
-        onNew={() => setCreating(true)}
+        onNew={() => {
+          setEditingDraft(null);
+          setCreating(true);
+        }}
         onReceive={(id) => setReceivingId(id)}
+        onEdit={handleEdit}
       />
       <PurchaseFormDialog
-        open={creating}
-        onOpenChange={setCreating}
-        onCreated={(id) => {
-          // Auto-abrir el dialog de Recibir para ofrecer el siguiente paso.
-          setReceivingId(id);
+        open={creating || Boolean(editingDraft)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreating(false);
+            setEditingDraft(null);
+          }
         }}
+        purchase={editingDraft}
+        onCreated={(id) => {
+          if (!editingDraft) {
+            // Auto-abrir el dialog de Recibir para ofrecer el siguiente paso solo en nuevas compras.
+            setReceivingId(id);
+          }
+        }}
+      />
+      <EditPurchaseInvoiceDialog
+        open={Boolean(editingInvoice)}
+        onOpenChange={(open) => {
+          if (!open) setEditingInvoice(null);
+        }}
+        purchase={editingInvoice}
       />
       <ReceiveDialog
         open={receivingId !== null}

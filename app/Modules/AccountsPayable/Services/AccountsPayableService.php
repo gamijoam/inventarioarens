@@ -68,6 +68,31 @@ class AccountsPayableService
         });
     }
 
+    public function syncPurchaseMetadata(PurchaseOrder $purchaseOrder): ?AccountsPayable
+    {
+        return DB::transaction(function () use ($purchaseOrder): ?AccountsPayable {
+            $account = AccountsPayable::query()
+                ->where('purchase_order_id', $purchaseOrder->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $account) {
+                return null;
+            }
+
+            $account->fill([
+                'supplier_id' => $purchaseOrder->supplier_id,
+                'document_number' => $purchaseOrder->document_number,
+                'due_date' => $purchaseOrder->due_date,
+            ]);
+
+            $this->recalculate($account);
+            $account->save();
+
+            return $account->refresh();
+        });
+    }
+
     public function applyPurchaseReturn(PurchaseReturn $purchaseReturn): ?AccountsPayable
     {
         return DB::transaction(function () use ($purchaseReturn): ?AccountsPayable {

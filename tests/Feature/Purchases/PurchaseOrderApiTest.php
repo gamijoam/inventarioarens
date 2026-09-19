@@ -901,6 +901,167 @@ class PurchaseOrderApiTest extends TestCase
         return [$warehouse, $product, $rateType];
     }
 
+    public function test_can_update_draft_purchase_order_items_and_metadata(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Edit Draft', 'slug' => 'empresa-edit-draft']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'PROD-DRAFT-01');
+        $supplier1 = $this->supplier($tenant, 'Proveedor Original', 'J-1001');
+        $supplier2 = $this->supplier($tenant, 'Proveedor Nuevo', 'J-1002');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras editor', ['purchases.create', 'purchases.view', 'finance.costs.view']);
+
+        // 1. Crear borrador
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier1->id,
+                'document_number' => 'FACT-ORIG-001',
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 5,
+                    'unit_cost' => 10,
+                ]],
+            ]);
+        $response->assertCreated();
+        $purchaseId = $response->json('data.id');
+
+        // 2. Actualizar borrador
+        $updateResponse = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->putJson("/api/purchases/{$purchaseId}", [
+                'supplier_id' => $supplier2->id,
+                'document_number' => 'FACT-EDITADA-001',
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 10,
+                    'unit_cost' => 15,
+                ]],
+            ]);
+
+        $updateResponse->assertOk();
+        $this->assertSame('FACT-EDITADA-001', $updateResponse->json('data.document_number'));
+        $this->assertSame($supplier2->id, $updateResponse->json('data.supplier_id'));
+        $this->assertEquals(150.0, (float) $updateResponse->json('data.total_base_amount'));
+        $this->assertCount(1, $updateResponse->json('data.items'));
+        $this->assertEquals(10, (float) $updateResponse->json('data.items.0.quantity'));
+        $this->assertEquals(15, (float) $updateResponse->json('data.items.0.unit_cost'));
+    }
+
+    public function test_can_update_received_purchase_order_metadata_and_syncs_accounts_payable(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Edit Recibida', 'slug' => 'empresa-edit-recibida']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'PROD-REC-01');
+        $supplier1 = $this->supplier($tenant, 'Proveedor Inicial', 'J-2001');
+        $supplier2 = $this->supplier($tenant, 'Proveedor Corregido', 'J-2002');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras admin', ['purchases.create', 'purchases.approve', 'purchases.view']);
+
+        // 1. Crear y recibir compra
+        $postRes = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier1->id,
+                'document_number' => 'FACT-REC-001',
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 4,
+                    'unit_cost' => 25,
+                ]],
+            ]);
+        $purchaseId = $postRes->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->assertOk();
+
+        // Verificar que existe CxP inicial
+        $this->assertDatabaseHas('accounts_payables', [
+            'purchase_order_id' => $purchaseId,
+            'supplier_id' => $supplier1->id,
+            'document_number' => 'FACT-REC-001',
+        ]);
+
+        // 2. Actualizar metadatos de la factura recibida (ej. corregir número de factura y proveedor)
+        $putRes = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->putJson("/api/purchases/{$purchaseId}", [
+                'supplier_id' => $supplier2->id,
+                'document_number' => 'FACT-CORREGIDA-999',
+                'due_date' => '2026-10-30',
+            ]);
+
+        $putRes->assertOk();
+        $this->assertSame('FACT-CORREGIDA-999', $putRes->json('data.document_number'));
+        $this->assertSame($supplier2->id, $putRes->json('data.supplier_id'));
+
+        // Verificar que la CxP se sincronizó automáticamente
+        $this->assertDatabaseHas('accounts_payables', [
+            'purchase_order_id' => $purchaseId,
+            'supplier_id' => $supplier2->id,
+            'document_number' => 'FACT-CORREGIDA-999',
+            'due_date' => '2026-10-30 00:00:00',
+        ]);
+    }
+
+    public function test_cannot_modify_items_on_received_purchase_order(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Block Items', 'slug' => 'empresa-block-items']);
+        [$warehouse, $product] = $this->product($tenant, Product::TRACKING_QUANTITY, 'PROD-BLOCK-01');
+        $supplier = $this->supplier($tenant, 'Proveedor', 'J-3001');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Compras admin', ['purchases.create', 'purchases.approve', 'purchases.view']);
+
+        $postRes = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/purchases', [
+                'supplier_id' => $supplier->id,
+                'purchase_currency' => PurchaseOrder::CURRENCY_USD,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_cost' => 50,
+                ]],
+            ]);
+        $purchaseId = $postRes->json('data.id');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/purchases/{$purchaseId}/receive")
+            ->assertOk();
+
+        // Intentar mandar items en la actualización
+        $putRes = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->putJson("/api/purchases/{$purchaseId}", [
+                'document_number' => 'NUEVO-DOC',
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 10,
+                    'unit_cost' => 50,
+                ]],
+            ]);
+
+        $putRes->assertStatus(422);
+        $putRes->assertJsonValidationErrors(['items']);
+    }
+
     private function supplier(Tenant $tenant, string $name, string $documentNumber): Supplier
     {
         $this->useTenant($tenant);
@@ -935,3 +1096,4 @@ class PurchaseOrderApiTest extends TestCase
         setPermissionsTeamId($tenant->id);
     }
 }
+
