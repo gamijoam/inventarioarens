@@ -121,4 +121,29 @@ describe('PurchaseItemRow', () => {
       }),
     );
   });
+
+  it('permite editar o crear producto sin salir de la compra', () => {
+    const onEditProduct = vi.fn();
+    const onCreateProduct = vi.fn();
+
+    render(
+      <PurchaseItemRow
+        value={makeItemValue()}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        canRemove={false}
+        index={0}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        onEditProduct={onEditProduct}
+        onCreateProduct={onCreateProduct}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('purchase-item-edit-product-0'));
+    expect(onEditProduct).toHaveBeenCalledWith(10);
+
+    fireEvent.click(screen.getByTestId('purchase-item-create-product-0'));
+    expect(onCreateProduct).toHaveBeenCalled();
+  });
 });

@@ -38,12 +38,20 @@ import {
 } from '@/components/ui/Dialog';
 import { Label } from '@/components/ui/Label';
 import { useCreatePurchase, useUpdatePurchase } from '@/features/purchases/api';
-import { useExchangeRateTypes, useWarehouses } from '@/features/inventory-center/api';
+import { useExchangeRateTypes, useProduct, useWarehouses } from '@/features/inventory-center/api';
+import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
+import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
+import type { Product } from '@/features/inventory-center/schemas';
+import { useQueryClient } from '@tanstack/react-query';
 import { StorePurchaseSchema, type Purchase, type PurchaseItemInput } from '@/features/purchases/schemas';
 import { SupplierAutocomplete, type SupplierOption } from './SupplierAutocomplete';
 import { PurchaseItemRow, type PurchaseItemRowValue } from './PurchaseItemRow';
 import { PurchaseItemTableRow } from './PurchaseItemTableRow';
-import { ProductAutocomplete, type ProductAutocompleteOption } from './ProductAutocomplete';
+import {
+  ProductAutocomplete,
+  productToOption,
+  type ProductAutocompleteOption,
+} from './ProductAutocomplete';
 import type { ImeiInput } from './ImeiListInput';
 import { cn } from '@/lib/cn';
 import { todayDateString } from '@/lib/format';
@@ -74,6 +82,14 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
   const update = useUpdatePurchase();
   const { data: rateTypes = [] } = useExchangeRateTypes();
   const { data: warehouses = [] } = useWarehouses();
+  const queryClient = useQueryClient();
+
+  // Crear/editar productos sin salir del formulario de compra (reutiliza los
+  // dialogos del inventario).
+  const [createProductOpen, setCreateProductOpen] = useState(false);
+  const [createProductName, setCreateProductName] = useState('');
+  const [editProductId, setEditProductId] = useState<number | null>(null);
+  const { data: editProduct } = useProduct(editProductId ?? 0);
 
   // Almacén por defecto de la orden (para agilizar la adición masiva)
   const [defaultWarehouseId, setDefaultWarehouseId] = useState<number | null>(null);
@@ -210,6 +226,36 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
     });
 
     toast.success(`"${product.name}" agregado a la compra (1 ud).`);
+  }
+
+  function openCreateProduct(initialName?: string) {
+    setCreateProductName(initialName?.trim() ?? '');
+    setCreateProductOpen(true);
+  }
+
+  function handleProductCreated(product?: Product) {
+    setCreateProductOpen(false);
+    setCreateProductName('');
+    if (!product) return;
+    void queryClient.invalidateQueries({ queryKey: ['purchases', 'products-lookup'] });
+    addProductQuick(productToOption(product));
+  }
+
+  function openEditProduct(productId: number) {
+    setEditProductId(productId);
+  }
+
+  function handleProductEdited(product?: Product) {
+    setEditProductId(null);
+    if (!product) return;
+    void queryClient.invalidateQueries({ queryKey: ['purchases', 'products-lookup'] });
+    const option = productToOption(product);
+    setItems((prev) =>
+      prev.map((item) =>
+        item.product_id === product.id ? { ...item, product_info: option } : item,
+      ),
+    );
+    toast.success(`"${product.name}" actualizado.`);
   }
 
   function updateItem(index: number, next: PurchaseItemRowValue) {
@@ -597,6 +643,16 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                   >
                     <Plus className="size-3.5" /> Línea en blanco
                   </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openCreateProduct()}
+                    className="h-8 text-xs font-semibold"
+                    data-testid="purchase-create-product"
+                  >
+                    <PackagePlus className="size-3.5" /> Nuevo producto
+                  </Button>
                 </div>
               </div>
 
@@ -608,6 +664,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                     onChange={(_, product) => {
                       if (product) addProductQuick(product);
                     }}
+                    onProductNotFound={(query) => openCreateProduct(query)}
                     placeholder="⚡ Escanear código de barras o buscar repuesto para agregar a la compra (Enter)..."
                   />
                 </div>
@@ -655,6 +712,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                             disabled={submitting}
                             isExpanded={expandedTableRows.has(index)}
                             onToggleExpand={toggleTableExpand}
+                            onEditProduct={openEditProduct}
+                            onCreateProduct={openCreateProduct}
                           />
                         ))}
                       </tbody>
@@ -680,6 +739,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                       collapsed={collapsed.has(index)}
                       onToggleCollapse={toggleCollapse}
                       disabled={submitting}
+                      onEditProduct={openEditProduct}
+                      onCreateProduct={openCreateProduct}
                     />
                   ))}
                 </div>
@@ -743,6 +804,27 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <CreateProductDialog
+        open={createProductOpen}
+        onOpenChange={(next) => {
+          setCreateProductOpen(next);
+          if (!next) setCreateProductName('');
+        }}
+        initialName={createProductName}
+        onSuccess={handleProductCreated}
+      />
+
+      {editProduct && (
+        <EditProductDialog
+          product={editProduct}
+          open={editProductId !== null}
+          onOpenChange={(next) => {
+            if (!next) setEditProductId(null);
+          }}
+          onSuccess={handleProductEdited}
+        />
+      )}
     </Dialog>
   );
 }

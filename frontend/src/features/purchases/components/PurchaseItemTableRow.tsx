@@ -8,6 +8,8 @@ import {
   ChevronDown,
   ChevronUp,
   Lightbulb,
+  PackagePlus,
+  Pencil,
   RefreshCw,
   Trash2,
 } from 'lucide-react';
@@ -33,6 +35,8 @@ interface PurchaseItemTableRowProps {
   index: number;
   isExpanded: boolean;
   onToggleExpand: (index: number) => void;
+  onEditProduct?: (productId: number) => void;
+  onCreateProduct?: (initialName?: string) => void;
 }
 
 export function PurchaseItemTableRow({
@@ -44,6 +48,8 @@ export function PurchaseItemTableRow({
   index,
   isExpanded,
   onToggleExpand,
+  onEditProduct,
+  onCreateProduct,
 }: PurchaseItemTableRowProps) {
   const { data: warehouses = [] } = useWarehouses();
   const { data: variants = [], isLoading: variantsLoading } = useProductVariants(
@@ -236,6 +242,7 @@ export function PurchaseItemTableRow({
                   serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
                 });
               }}
+              onProductNotFound={(query) => onCreateProduct?.(query)}
             />
           )}
         </td>
@@ -348,6 +355,32 @@ export function PurchaseItemTableRow({
         {/* 7. Acciones */}
         <td className="p-3 align-middle w-[90px] text-center">
           <div className="flex items-center justify-center gap-1">
+            {value.product_id && onEditProduct && (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => onEditProduct(value.product_id!)}
+                title="Editar producto"
+                className="size-8 text-text-muted hover:text-primary hover:bg-primary/10"
+                data-testid={`purchase-table-edit-product-${index}`}
+              >
+                <Pencil className="size-4" />
+              </Button>
+            )}
+            {onCreateProduct && (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => onCreateProduct()}
+                title="Crear producto"
+                className="size-8 text-text-muted hover:text-primary hover:bg-primary/10"
+                data-testid={`purchase-table-create-product-${index}`}
+              >
+                <PackagePlus className="size-4" />
+              </Button>
+            )}
             <Button
               type="button"
               size="icon-sm"

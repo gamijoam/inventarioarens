@@ -94,4 +94,25 @@ describe('ProductAutocomplete', () => {
     const results = screen.getByTestId('purchase-product-results');
     expect(results.querySelector('.overflow-y-auto')).toBeInTheDocument();
   });
+
+  it('ofrece crear el producto cuando no hay resultados', async () => {
+    mockUseProductsForPurchase.mockReturnValue({ data: [], isFetching: false });
+    const onProductNotFound = vi.fn();
+
+    render(
+      <ProductAutocomplete
+        value={null}
+        onChange={vi.fn()}
+        onProductNotFound={onProductNotFound}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'REPUESTO NUEVO' } });
+
+    fireEvent.click(await screen.findByText('Crear producto con este nombre'));
+
+    expect(onProductNotFound).toHaveBeenCalledWith('REPUESTO NUEVO');
+  });
 });

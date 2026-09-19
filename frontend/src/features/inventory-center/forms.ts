@@ -66,10 +66,9 @@ export function useProductForm({
   const formId = mode === 'edit' && productId !== undefined ? productId : null;
 
   const stableDefaults = useMemo<StoreProductValues>(() => {
-    if (mode === 'edit' && initialValues) {
-      return { ...CREATE_DEFAULTS, ...initialValues };
-    }
-    return CREATE_DEFAULTS;
+    // En create permitimos precargar valores (ej: nombre desde el buscador de
+    // compras); en edit se combinan con los del producto a editar.
+    return initialValues ? { ...CREATE_DEFAULTS, ...initialValues } : CREATE_DEFAULTS;
     // Solo recalcular si cambia el id del producto en modo edit. Si el
     // padre pasa initialValues con referencia nueva cada render, sera
     // responsabilidad del padre memoizarlo (recomendado).

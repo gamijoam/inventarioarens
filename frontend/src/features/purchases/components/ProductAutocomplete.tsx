@@ -4,6 +4,7 @@ import { LoaderCircle, PackageSearch, Search, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { useProductsForPurchase } from '@/features/purchases/api';
+import type { Product } from '@/features/inventory-center/schemas';
 import { cn } from '@/lib/cn';
 
 export interface ProductAutocompleteOption {
@@ -18,6 +19,26 @@ export interface ProductAutocompleteOption {
   last_purchase_cost?: number | string | null;
   profit_margin?: number | string | null;
   pricing_mode?: 'manual' | 'automatic' | null;
+}
+
+/**
+ * Convierte un Product del inventario al option del autocompletado de compras,
+ * para reutilizar el mismo shape tras crear o editar un producto.
+ */
+export function productToOption(product: Product): ProductAutocompleteOption {
+  return {
+    id: product.id,
+    name: product.name,
+    sku: product.sku ?? null,
+    barcode: product.barcode ?? null,
+    tracking_type: product.tracking_type,
+    unit_of_measure: product.unit_of_measure,
+    base_price: product.base_price ?? null,
+    average_cost: product.average_cost ?? null,
+    last_purchase_cost: product.last_purchase_cost ?? null,
+    profit_margin: product.profit_margin ?? null,
+    pricing_mode: product.pricing_mode ?? null,
+  };
 }
 
 interface ProductAutocompleteProps {

@@ -9,6 +9,8 @@ import {
   ChevronUp,
   Lightbulb,
   Package,
+  PackagePlus,
+  Pencil,
   RefreshCw,
   Sparkles,
   Trash2,
@@ -48,6 +50,8 @@ interface PurchaseItemRowProps {
   index: number;
   collapsed: boolean;
   onToggleCollapse: (index: number) => void;
+  onEditProduct?: (productId: number) => void;
+  onCreateProduct?: (initialName?: string) => void;
 }
 
 export function PurchaseItemRow({
@@ -59,6 +63,8 @@ export function PurchaseItemRow({
   index,
   collapsed,
   onToggleCollapse,
+  onEditProduct,
+  onCreateProduct,
 }: PurchaseItemRowProps) {
   const { data: warehouses = [] } = useWarehouses();
   const { data: variants = [], isLoading: variantsLoading } = useProductVariants(
@@ -271,7 +277,36 @@ export function PurchaseItemRow({
                   serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
                 });
               }}
+              onProductNotFound={(query) => onCreateProduct?.(query)}
             />
+            {(onEditProduct || onCreateProduct) && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {value.product_id && onEditProduct && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-[11px] text-text-muted hover:text-primary"
+                    onClick={() => onEditProduct(value.product_id!)}
+                    data-testid={`purchase-item-edit-product-${index}`}
+                  >
+                    <Pencil className="size-3.5" /> Editar producto
+                  </Button>
+                )}
+                {onCreateProduct && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-[11px] text-text-muted hover:text-primary"
+                    onClick={() => onCreateProduct()}
+                    data-testid={`purchase-item-create-product-${index}`}
+                  >
+                    <PackagePlus className="size-3.5" /> Nuevo producto
+                  </Button>
+                )}
+              </div>
+            )}
             {value.product_info && (
               <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
                 <div className="text-text-muted flex items-center gap-1.5">

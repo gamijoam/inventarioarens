@@ -24,7 +24,7 @@ export interface EditProductDialogProps {
   product: Product;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void;
+  onSuccess?: (product?: Product) => void;
 }
 
 export function EditProductDialog({ product, open, onOpenChange, onSuccess }: EditProductDialogProps) {
@@ -45,9 +45,10 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     mode: 'edit',
     productId: product.id,
     initialValues,
-    onSuccess: () => {
+    onSuccess: (data) => {
       onOpenChange(false);
-      onSuccess?.();
+      const updated = data && typeof data === 'object' && 'id' in data ? (data as Product) : undefined;
+      onSuccess?.(updated);
     },
   });
 

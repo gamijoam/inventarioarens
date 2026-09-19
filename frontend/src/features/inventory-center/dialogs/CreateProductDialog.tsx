@@ -23,6 +23,7 @@ import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-set
 import { useProductForm } from '../forms';
 import { ProductForm } from '../components/ProductForm';
 import { useTags } from '../api';
+import type { Product } from '../schemas';
 import {
   type ProductFormVisibility,
   getStoredProductFormVisibility,
@@ -34,10 +35,12 @@ import { CustomizeProductFieldsDialog } from './CustomizeProductFieldsDialog';
 export interface CreateProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void;
+  onSuccess?: (product?: Product) => void;
+  /** Nombre precargado (ej: lo que el usuario escribio en el buscador de compras). */
+  initialName?: string;
 }
 
-export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreateProductDialogProps) {
+export function CreateProductDialog({ open, onOpenChange, onSuccess, initialName }: CreateProductDialogProps) {
   const navigate = useNavigate();
   const tenant = useSessionStore((state) => state.tenant);
   const { data: tags = [] } = useTags();
@@ -81,15 +84,17 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
 
   const { form, onSubmit, isSubmitting } = useProductForm({
     mode: 'create',
+    initialValues: initialName ? { name: initialName } : undefined,
     onSuccess: (data) => {
-      // Cierra el dialog, navega al detalle del nuevo producto.
+      // Cierra el dialog y entrega el producto creado (si el padre lo pidio).
       onOpenChange(false);
+      const created = data && typeof data === 'object' && 'id' in data ? (data as Product) : undefined;
       if (onSuccess) {
-        onSuccess();
-      } else if (data && typeof data === 'object' && 'id' in data) {
+        onSuccess(created);
+      } else if (created) {
         void navigate({
           to: '/inventory/$productId',
-          params: { productId: String((data as { id: number }).id) },
+          params: { productId: String(created.id) },
         });
       }
     },
@@ -99,7 +104,11 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess }: CreatePro
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog
+        key={open ? `create-${initialName ?? ''}` : 'create-closed'}
+        open={open}
+        onOpenChange={onOpenChange}
+      >
         <DialogContent className="h-[95vh] max-h-[95vh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
           <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-8">
