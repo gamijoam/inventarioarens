@@ -38,7 +38,7 @@ class ProductController extends Controller
 
         $search = trim((string) $request->query('search', ''));
         $normalizedSearch = mb_strtolower($search);
-        $limit = min(max((int) ($request->query('per_page') ?? $request->query('limit', 25)), 1), 100);
+        $limit = min(max((int) ($request->query('per_page') ?? $request->query('limit', 25)), 1), 150);
 
         $relations = ['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'];
         if ($request->boolean('with_images')) {
@@ -76,27 +76,33 @@ class ProductController extends Controller
         }
 
         if ($search !== '') {
+            $isPgsql = DB::connection()->getDriverName() === 'pgsql';
             $tokens = array_values(array_filter(
                 preg_split('/\s+/', $normalizedSearch),
                 fn ($token) => mb_strlen($token) > 0
             ));
 
-            $query->where(function ($q) use ($normalizedSearch, $tokens): void {
-                $q->where(function ($sub) use ($normalizedSearch): void {
-                    $sub->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
-                        ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"])
-                        ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$normalizedSearch}%"])
-                        ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ["%{$normalizedSearch}%"]);
+            $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+            $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
+            $barcodeExpr = $isPgsql ? 'unaccent(LOWER(barcode))' : 'LOWER(barcode)';
+            $descExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(description, \'\')))' : 'LOWER(COALESCE(description, \'\'))';
+
+            $query->where(function ($q) use ($normalizedSearch, $tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                $q->where(function ($sub) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                    $sub->whereRaw("{$nameExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$descExpr} LIKE ?", ["%{$normalizedSearch}%"]);
                 });
 
                 if (count($tokens) > 1) {
-                    $q->orWhere(function ($sub) use ($tokens): void {
+                    $q->orWhere(function ($sub) use ($tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
                         foreach ($tokens as $token) {
-                            $sub->where(function ($tokenQuery) use ($token): void {
-                                $tokenQuery->whereRaw('LOWER(name) LIKE ?', ["%{$token}%"])
-                                    ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$token}%"])
-                                    ->orWhereRaw('LOWER(barcode) LIKE ?', ["%{$token}%"])
-                                    ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', ["%{$token}%"]);
+                            $sub->where(function ($tokenQuery) use ($token, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                                $tokenQuery->whereRaw("{$nameExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$descExpr} LIKE ?", ["%{$token}%"]);
                             });
                         }
                     });
@@ -104,15 +110,15 @@ class ProductController extends Controller
             });
 
             $query->orderByRaw(
-                'CASE
-                    WHEN LOWER(COALESCE(barcode, \'\')) = ? THEN 0
-                    WHEN LOWER(COALESCE(sku, \'\')) = ? THEN 1
-                    WHEN LOWER(COALESCE(name, \'\')) = ? THEN 2
-                    WHEN LOWER(COALESCE(barcode, \'\')) LIKE ? THEN 3
-                    WHEN LOWER(COALESCE(sku, \'\')) LIKE ? THEN 4
-                    WHEN LOWER(COALESCE(name, \'\')) LIKE ? THEN 5
+                "CASE
+                    WHEN {$barcodeExpr} = ? THEN 0
+                    WHEN {$skuExpr} = ? THEN 1
+                    WHEN {$nameExpr} = ? THEN 2
+                    WHEN {$barcodeExpr} LIKE ? THEN 3
+                    WHEN {$skuExpr} LIKE ? THEN 4
+                    WHEN {$nameExpr} LIKE ? THEN 5
                     ELSE 6
-                END',
+                END",
                 [
                     $normalizedSearch,
                     $normalizedSearch,

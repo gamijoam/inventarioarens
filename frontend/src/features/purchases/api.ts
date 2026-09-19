@@ -53,7 +53,7 @@ export function useProductsForPurchase(search = '') {
   return useQuery({
     queryKey: ['purchases', 'products-lookup', normalizedSearch] as const,
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
+      const params = new URLSearchParams({ limit: '150', tracking_type: 'all' });
       if (normalizedSearch) params.set('search', normalizedSearch);
 
       // El endpoint busca por nombre, SKU y codigo de barras, incluyendo

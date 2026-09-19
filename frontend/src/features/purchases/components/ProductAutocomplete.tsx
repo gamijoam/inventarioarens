@@ -52,26 +52,61 @@ export function ProductAutocomplete({
     return products.find((product) => product.id === value) ?? null;
   }, [pickedProduct, products, selectedProduct, value]);
 
+  // Helper para normalizar texto: minusculas, sin acentos ni diacriticos
+  const cleanStr = (str: string) =>
+    str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
   const matches = useMemo(() => {
     if (!query.trim()) return products.slice(0, 30);
 
-    const normalizedQuery = query.toLowerCase().trim();
-    return products
-      .filter((product) => {
-        const sku = (product.sku ?? '').toLowerCase();
-        const barcode = (product.barcode ?? '').toLowerCase();
-        const name = product.name.toLowerCase();
-        return (
-          sku.includes(normalizedQuery) ||
-          barcode.includes(normalizedQuery) ||
-          name.includes(normalizedQuery)
-        );
+    const normQuery = cleanStr(query);
+    const tokens = normQuery.split(/\s+/).filter(Boolean);
+
+    // Filtrado inteligente multi-palabra (token-based):
+    // El producto coincide si cada uno de los tokens escritos esta presente en el nombre, SKU o codigo de barras.
+    const filtered = products.filter((product) => {
+      const normName = cleanStr(product.name);
+      const normSku = cleanStr(product.sku ?? '');
+      const normBarcode = cleanStr(product.barcode ?? '');
+      const combined = `${normName} ${normSku} ${normBarcode}`;
+
+      return tokens.every((token) => combined.includes(token));
+    });
+
+    // Ordenamiento por relevancia:
+    // 1. SKU o Codigo de barras exacto primero
+    // 2. Nombre que empieza exactamente con la busqueda
+    // 3. Coincidencia continua de la frase completa
+    // 4. Coincidencias multi-palabra
+    return filtered
+      .sort((a, b) => {
+        const aSku = cleanStr(a.sku ?? '');
+        const bSku = cleanStr(b.sku ?? '');
+        const aBar = cleanStr(a.barcode ?? '');
+        const bBar = cleanStr(b.barcode ?? '');
+        const aName = cleanStr(a.name);
+        const bName = cleanStr(b.name);
+
+        if (aSku === normQuery || aBar === normQuery) return -1;
+        if (bSku === normQuery || bBar === normQuery) return 1;
+
+        if (aName.startsWith(normQuery) && !bName.startsWith(normQuery)) return -1;
+        if (!aName.startsWith(normQuery) && bName.startsWith(normQuery)) return 1;
+
+        if (aName.includes(normQuery) && !bName.includes(normQuery)) return -1;
+        if (!aName.includes(normQuery) && bName.includes(normQuery)) return 1;
+
+        return 0;
       })
       .slice(0, 50);
   }, [products, query]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSearchTerm(query.trim()), 180);
+    const timer = window.setTimeout(() => setSearchTerm(query.trim()), 120);
     return () => window.clearTimeout(timer);
   }, [query]);
 
