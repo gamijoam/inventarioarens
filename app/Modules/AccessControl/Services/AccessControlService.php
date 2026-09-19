@@ -97,6 +97,47 @@ class AccessControlService
         return $user;
     }
 
+    public function accessibleTenantIdsForActor(User $actor): array
+    {
+        $currentTenant = app(TenantManager::class)->current();
+        $tenantIds = $currentTenant ? [(int) $currentTenant->id] : [];
+
+        try {
+            $group = $this->ownedGroupForCurrentTenant($actor);
+            $orgIds = $this->organizationTenantIds($group);
+            $tenantIds = array_values(array_unique(array_merge($tenantIds, $orgIds)));
+        } catch (\Throwable) {
+            // Si el actor no es Owner o el tenant no tiene grupo, se limita al tenant actual
+        }
+
+        return $tenantIds;
+    }
+
+    public function findAccessibleUser(int $userId, User $actor): User
+    {
+        $tenantIds = $this->accessibleTenantIdsForActor($actor);
+
+        $user = User::query()
+            ->whereKey($userId)
+            ->whereHas('tenants', fn (Builder $query) => $query->whereIn('tenants.id', $tenantIds))
+            ->with([
+                'roles.permissions',
+                'tenants' => fn ($query) => $query
+                    ->whereIn('tenants.id', $tenantIds)
+                    ->orderByDesc('tenants.is_group')
+                    ->orderBy('tenants.name'),
+            ])
+            ->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages([
+                'user' => 'El usuario no pertenece a la empresa activa ni a su organizacion.',
+            ]);
+        }
+
+        return $user;
+    }
+
     public function organizationUsers(object $filters, int $perPage = 25): LengthAwarePaginator
     {
         $group = $this->ownedGroupForCurrentTenant($filters->user());
@@ -216,15 +257,23 @@ class AccessControlService
 
     public function updateUser(User $user, array $data, User $actor): User
     {
-        $oldValues = ['name' => $user->name];
+        $oldValues = [
+            'name' => $user->name,
+            'email' => $user->email,
+        ];
+
+        if (isset($data['email'])) {
+            $data['email'] = Str::lower(trim($data['email']));
+        }
 
         $user->fill($data);
         $user->save();
 
-        $user = $this->tenantUser($user->id);
+        $user = $this->findAccessibleUser($user->id, $actor);
 
         $this->audit->record('access.user.updated', $user, $actor, $oldValues, [
             'name' => $user->name,
+            'email' => $user->email,
         ]);
 
         return $user;
@@ -232,25 +281,23 @@ class AccessControlService
 
     public function updatePassword(User $user, string $newPassword, User $actor): User
     {
-        if ($user->is($actor)) {
-            throw ValidationException::withMessages([
-                'new_password' => 'No puedes cambiar tu propia contrasena desde la administracion de usuarios. Usa el perfil.',
-            ]);
-        }
-
         $user->fill(['password' => $newPassword]);
         $user->save();
 
         // Revoca tokens activos del usuario para forzar re-login con la nueva clave.
-        AuthToken::query()
-            ->where('user_id', $user->id)
-            ->update(['revoked_at' => now()]);
+        // Si el actor se cambia la clave a si mismo, mantiene la sesion actual activa
+        $currentToken = request()->attributes->get('auth_token');
+        $tokenQuery = AuthToken::query()->where('user_id', $user->id);
+        if ($user->is($actor) && $currentToken instanceof AuthToken) {
+            $tokenQuery->where('id', '!=', $currentToken->id);
+        }
+        $tokenQuery->update(['revoked_at' => now()]);
 
         $this->audit->record('access.user.password_changed', $user, $actor, [], [
             'email' => $user->email,
         ]);
 
-        return $this->tenantUser($user->id);
+        return $this->findAccessibleUser($user->id, $actor);
     }
 
     public function updateStatus(User $user, string $status, User $actor): User
@@ -273,7 +320,7 @@ class AccessControlService
         $tenant->users()
             ->updateExistingPivot($user->id, ['status' => $status]);
 
-        $user = $this->tenantUser($user->id);
+        $user = $this->findAccessibleUser($user->id, $actor);
 
         $this->audit->record('access.user.status_updated', $user, $actor, [
             'status' => $oldStatus,

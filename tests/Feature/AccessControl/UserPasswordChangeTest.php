@@ -81,7 +81,7 @@ class UserPasswordChangeTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_cannot_change_own_password(): void
+    public function test_admin_can_change_own_password(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa PW4', 'slug' => 'empresa-pw4']);
         $admin = $this->userInTenant($tenant, 'admin4@pw.test', 'password', true);
@@ -93,8 +93,78 @@ class UserPasswordChangeTest extends TestCase
                 'new_password' => 'NuevaClave123',
                 'confirm_password' => 'NuevaClave123',
             ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['new_password']);
+            ->assertOk();
+
+        $this->assertTrue(Hash::check('NuevaClave123', $admin->fresh()->password));
+    }
+
+    public function test_user_can_change_own_password_via_auth_endpoint(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa PW Auth', 'slug' => 'empresa-pw-auth']);
+        $user = $this->userInTenant($tenant, 'user@auth.test', 'ClaveVieja123');
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/auth/change-password', [
+                'current_password' => 'ClaveVieja123',
+                'new_password' => 'ClaveNueva456',
+                'confirm_password' => 'ClaveNueva456',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.message', 'Contrasena actualizada exitosamente.');
+
+        $this->assertTrue(Hash::check('ClaveNueva456', $user->fresh()->password));
+    }
+
+    public function test_admin_can_update_user_name_and_email(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Edit User', 'slug' => 'empresa-edit-user']);
+        $admin = $this->userInTenant($tenant, 'admin@edit.test', 'password', true);
+        $target = $this->userInTenant($tenant, 'original@edit.test', 'password');
+
+        $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->putJson('/api/users/'.$target->id, [
+                'name' => 'Nombre Modificado',
+                'email' => 'modificado@edit.test',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Nombre Modificado')
+            ->assertJsonPath('data.email', 'modificado@edit.test');
+
+        $this->assertSame('modificado@edit.test', $target->fresh()->email);
+        $this->assertSame('Nombre Modificado', $target->fresh()->name);
+    }
+
+    public function test_owner_can_change_password_of_spinoff_user(): void
+    {
+        $group = Tenant::create(['name' => 'Grupo Danubio', 'slug' => 'danubio', 'is_group' => true]);
+        $spinoff = Tenant::create([
+            'name' => 'Danubio Empresa',
+            'slug' => 'danubio-empresa',
+            'parent_id' => $group->id,
+            'is_group' => false,
+        ]);
+        $owner = $this->userInTenant($group, 'owner@danubio.test', 'password');
+        $this->useTenant($group);
+        $ownerRole = Role::findOrCreate('Owner', 'web');
+        $ownerRole->syncPermissions(['users.view', 'users.update']);
+        $owner->assignRole($ownerRole);
+
+        $spinoffUser = $this->userInTenant($spinoff, 'empleado@spinoff.test', 'ClaveVieja123');
+
+        $this
+            ->actingAs($owner)
+            ->withHeader('X-Tenant', $group->slug)
+            ->postJson('/api/users/'.$spinoffUser->id.'/password', [
+                'new_password' => 'ClaveNueva999',
+                'confirm_password' => 'ClaveNueva999',
+            ])
+            ->assertOk();
+
+        $this->assertTrue(Hash::check('ClaveNueva999', $spinoffUser->fresh()->password));
     }
 
     private function userInTenant(Tenant $tenant, string $email, string $password, bool $isAdmin = false): User

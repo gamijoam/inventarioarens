@@ -60,13 +60,7 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.view');
 
-        $scope = $request->string('scope')->toString() === 'organization'
-            ? 'organization'
-            : 'tenant';
-
-        $user = $scope === 'organization'
-            ? $this->service->organizationUser($tenantUser, $request)
-            : $this->service->tenantUserOrFail($tenantUser);
+        $user = $this->service->findAccessibleUser($tenantUser, $request->user());
 
         return TenantUserResource::make($user);
     }
@@ -75,8 +69,10 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.update');
 
+        $user = $this->service->findAccessibleUser($tenantUser, $request->user());
+
         return TenantUserResource::make(
-            $this->service->updateUser($this->service->tenantUser($tenantUser), $request->validated(), $request->user())
+            $this->service->updateUser($user, $request->validated(), $request->user())
         );
     }
 
@@ -84,7 +80,7 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.update');
 
-        $user = $this->service->tenantUser($tenantUser);
+        $user = $this->service->findAccessibleUser($tenantUser, $request->user());
 
         return TenantUserResource::make(
             $this->service->updatePassword(
@@ -99,9 +95,11 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.update');
 
+        $user = $this->service->findAccessibleUser($tenantUser, $request->user());
+
         return TenantUserResource::make(
             $this->service->updateStatus(
-                $this->service->tenantUser($tenantUser),
+                $user,
                 $request->validated('status'),
                 $request->user()
             )
@@ -115,7 +113,7 @@ class TenantUserController extends Controller
         $tenant = $this->resolveTargetTenant($request->user(), $request->validated('tenant_id'));
         $user = $tenant
             ? $this->service->tenantUserIn($tenant, $tenantUser)
-            : $this->service->tenantUser($tenantUser);
+            : $this->service->findAccessibleUser($tenantUser, $request->user());
 
         return TenantUserResource::make(
             $this->service->updateUserRoles($user, $request->validated('roles'), $request->user(), $tenant)
@@ -125,7 +123,7 @@ class TenantUserController extends Controller
     public function permissions(Request $request, int $tenantUser): JsonResponse
     {
         $this->authorizePermission($request, 'users.view');
-        $user = $this->service->tenantUser($tenantUser);
+        $user = $this->service->findAccessibleUser($tenantUser, $request->user());
 
         return response()->json([
             'data' => [

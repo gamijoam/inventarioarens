@@ -159,9 +159,10 @@ describe('CreateUserDialog', () => {
 });
 
 describe('EditUserDialog', () => {
-  it('abre con el nombre del user pre-cargado', () => {
+  it('abre con el nombre y email del user pre-cargados', () => {
     render(<EditUserDialog open onOpenChange={vi.fn()} user={fakeUser} />, { wrapper: makeWrapper() });
     expect(screen.getByTestId('edit-user-name')).toHaveValue('Lucia Perez');
+    expect(screen.getByTestId('edit-user-email')).toHaveValue('lucia@test.test');
   });
 
   it('muestra error si se borra el nombre', async () => {
@@ -172,11 +173,13 @@ describe('EditUserDialog', () => {
     expect(screen.getByText('Requerido.')).toBeTruthy();
   });
 
-  it('llama a useUpdateUser al guardar', async () => {
+  it('llama a useUpdateUser al guardar con nombre y email', async () => {
     const onUpdated = vi.fn();
     render(<EditUserDialog open onOpenChange={vi.fn()} user={fakeUser} onUpdated={onUpdated} />, { wrapper: makeWrapper() });
     await userEvent.clear(screen.getByTestId('edit-user-name'));
     await userEvent.type(screen.getByTestId('edit-user-name'), 'Lucia Modificada');
+    await userEvent.clear(screen.getByTestId('edit-user-email'));
+    await userEvent.type(screen.getByTestId('edit-user-email'), 'lucia.nueva@empresa-demo.com');
     await userEvent.click(screen.getByTestId('edit-user-submit'));
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalled();
@@ -184,6 +187,7 @@ describe('EditUserDialog', () => {
     const payload = mockMutateAsync.mock.calls[0]?.[0];
     expect(payload.id).toBe(5);
     expect(payload.values.name).toBe('Lucia Modificada');
+    expect(payload.values.email).toBe('lucia.nueva@empresa-demo.com');
   });
 });
 

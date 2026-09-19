@@ -4,6 +4,7 @@ namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Middleware\AuthenticateApiToken;
 use App\Modules\Auth\Models\AuthToken;
+use App\Modules\Auth\Requests\ChangeOwnPasswordRequest;
 use App\Modules\Auth\Requests\LoginRequest;
 use App\Modules\Auth\Requests\PlatformLoginRequest;
 use App\Modules\Auth\Requests\SwitchTenantRequest;
@@ -273,6 +274,23 @@ class AuthController extends Controller
         $this->auth->revokeCurrentToken($token);
 
         return response()->json(['data' => ['revoked' => true, 'token_id' => $token->id]]);
+    }
+
+    public function changePassword(ChangeOwnPasswordRequest $request): JsonResponse
+    {
+        $currentToken = $request->attributes->get('auth_token');
+        $this->auth->changePassword(
+            $request->user(),
+            $request->validated('current_password'),
+            $request->validated('new_password'),
+            $currentToken
+        );
+
+        return response()->json([
+            'data' => [
+                'message' => 'Contrasena actualizada exitosamente.',
+            ],
+        ]);
     }
 
     /**

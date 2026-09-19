@@ -427,6 +427,32 @@ class AuthService
         Hash::check(Str::random(32), Hash::make(Str::random(32)));
     }
 
+    public function changePassword(User $user, string $currentPassword, string $newPassword, ?AuthToken $currentToken = null): void
+    {
+        if (! Hash::check($currentPassword, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'La contrasena actual no es correcta.',
+            ]);
+        }
+
+        $user->password = Hash::make($newPassword);
+        $user->save();
+
+        // Revoca las demas sesiones activas, manteniendo la actual
+        $query = AuthToken::query()->where('user_id', $user->id);
+        if ($currentToken) {
+            $query->where('id', '!=', $currentToken->id);
+        }
+        $query->update(['revoked_at' => now()]);
+
+        $this->audit->record(
+            action: 'auth.password.changed',
+            user: $user,
+            oldValues: null,
+            newValues: ['email' => $user->email]
+        );
+    }
+
     private function roles(User $user): array
     {
         return $user->roles()

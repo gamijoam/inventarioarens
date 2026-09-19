@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  KeyRound,
   Loader2,
   LogOut,
   RefreshCw,
@@ -18,6 +19,7 @@ import { useAuth, useAvailableTenants } from '@/auth/useAuth';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { AppVersionBadge } from '@/components/layout/AppVersionBadge';
+import { ChangeOwnPasswordDialog } from '@/components/layout/ChangeOwnPasswordDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +52,7 @@ export function Topbar() {
   const { signOut, refreshSession } = useAuth();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
+  const [changingOwnPassword, setChangingOwnPassword] = useState(false);
   const grantedPermissions = permissions ?? new Set<string>();
   const canViewProducts = grantedPermissions.has(PERMISSIONS.PRODUCTS_VIEW);
   const canViewCurrency = grantedPermissions.has(PERMISSIONS.CURRENCY_VIEW);
@@ -161,6 +164,17 @@ export function Topbar() {
             <DropdownMenuItem
               onSelect={(e) => {
                 e.preventDefault();
+                setChangingOwnPassword(true);
+              }}
+              data-testid="change-own-password-trigger"
+            >
+              <KeyRound className="size-4" aria-hidden="true" />
+              Cambiar mi contraseña
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
                 void handleSignOut();
               }}
               disabled={signingOut}
@@ -171,6 +185,11 @@ export function Topbar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <ChangeOwnPasswordDialog
+          open={changingOwnPassword}
+          onOpenChange={setChangingOwnPassword}
+        />
       </div>
     </header>
   );

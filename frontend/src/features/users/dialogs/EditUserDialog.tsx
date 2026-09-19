@@ -38,12 +38,14 @@ interface EditUserDialogProps {
 
 export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUserDialogProps) {
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && user) {
       setName(user.name);
+      setEmail(user.email);
       setError(null);
     }
   }, [open, user]);
@@ -58,10 +60,21 @@ export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUser
       setError('Requerido.');
       return;
     }
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setError('Email inválido.');
+      return;
+    }
     setSubmitting(true);
     try {
-      await update.mutateAsync({ id: user.id, values: { name: name.trim() } });
-      toast.success('Nombre actualizado.');
+      await update.mutateAsync({
+        id: user.id,
+        values: {
+          name: name.trim(),
+          email: cleanEmail,
+        },
+      });
+      toast.success('Usuario actualizado.');
       onUpdated?.();
       onOpenChange(false);
     } catch (err) {
@@ -76,10 +89,9 @@ export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUser
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar nombre</DialogTitle>
+          <DialogTitle>Editar usuario</DialogTitle>
           <DialogDescription>
-            Cambia el nombre visible del usuario. El email no se puede editar
-            (por seguridad). Para cambiar roles, usa &quot;Cambiar roles&quot;.
+            Modifica los datos principales del usuario (nombre y correo electrónico). Para cambiar roles, usa &quot;Cambiar roles&quot;.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,10 +106,20 @@ export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUser
                 maxLength={150}
                 data-testid="edit-user-name"
               />
-              {error && <p className="text-xs text-danger">{error}</p>}
+              {error && error === 'Requerido.' && <p className="text-xs text-danger">{error}</p>}
             </div>
-            <div className="text-xs text-text-muted">
-              Email: <code className="rounded bg-bg px-1 py-0.5">{user.email}</code>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-email">Correo electrónico *</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                maxLength={255}
+                data-testid="edit-user-email"
+              />
+              {error && error.includes('Email') && <p className="text-xs text-danger">{error}</p>}
             </div>
 
             <DialogFooter>

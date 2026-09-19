@@ -95,3 +95,15 @@ export function getPublicTenant(slugOrDomain?: string) {
     headers: slugOrDomain ? { 'X-Tenant': slugOrDomain } : undefined,
   });
 }
+
+export interface ChangeOwnPasswordRequest {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+/** POST /api/auth/change-password — Cambia la contraseña del usuario actual en sesión. */
+export function changeOwnPassword(payload: ChangeOwnPasswordRequest) {
+  return postOne<ChangeOwnPasswordRequest, { message: string }>('/auth/change-password', payload);
+}
+
