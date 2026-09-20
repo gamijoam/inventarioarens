@@ -26,7 +26,7 @@ import { cn } from '@/lib/cn';
 
 import type { ImeiInput } from './ImeiListInput';
 import { ImeiListInput } from './ImeiListInput';
-import { ProductAutocomplete, type ProductAutocompleteOption } from './ProductAutocomplete';
+import { ProductActiveBadge, ProductAutocomplete, type ProductAutocompleteOption } from './ProductAutocomplete';
 
 export interface PurchaseItemRowValue {
   warehouse_id: number | null;
@@ -181,9 +181,10 @@ export function PurchaseItemRow({
             <span className="text-text-muted text-[10px] font-semibold uppercase">Línea {index + 1}</span>
             {value.product_info?.sku && (
               <code className="bg-bg text-text-secondary rounded px-1.5 py-0.5 text-[11px] font-mono font-bold">
-                {value.product_info.sku}
+                 {value.product_info.sku}
               </code>
             )}
+            <ProductActiveBadge isActive={value.product_info?.is_active} />
           </div>
           <p className="truncate text-sm font-semibold text-text-primary">
             {value.product_info?.name ?? 'Pendiente por seleccionar'}

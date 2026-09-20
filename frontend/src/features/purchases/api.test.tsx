@@ -49,7 +49,7 @@ describe('useProductsForPurchase', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(mockGetMany).toHaveBeenCalledWith(
-      '/products?limit=150&tracking_type=all&search=IPHONE+20',
+      '/products?limit=150&tracking_type=all&active_status=all&search=IPHONE+20',
     );
     expect(result.current.data?.[0]).toMatchObject({
       id: 20,

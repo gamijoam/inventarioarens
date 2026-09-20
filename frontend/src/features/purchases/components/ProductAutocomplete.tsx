@@ -19,6 +19,22 @@ export interface ProductAutocompleteOption {
   last_purchase_cost?: number | string | null;
   profit_margin?: number | string | null;
   pricing_mode?: 'manual' | 'automatic' | null;
+  is_active?: boolean | null;
+}
+
+/** Indicador de estado del producto para el flujo de compras. */
+export function ProductActiveBadge({ isActive }: { isActive?: boolean | null }) {
+  if (isActive === undefined || isActive === null) return null;
+
+  return isActive ? (
+    <Badge variant="success" className="text-[10px] font-semibold">
+      Activo
+    </Badge>
+  ) : (
+    <Badge variant="danger" className="text-[10px] font-semibold">
+      Inactivo
+    </Badge>
+  );
 }
 
 /**
@@ -38,6 +54,7 @@ export function productToOption(product: Product): ProductAutocompleteOption {
     last_purchase_cost: product.last_purchase_cost ?? null,
     profit_margin: product.profit_margin ?? null,
     pricing_mode: product.pricing_mode ?? null,
+    is_active: product.is_active,
   };
 }
 
@@ -163,6 +180,7 @@ export function ProductAutocomplete({
             >
               {selected.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
             </Badge>
+            <ProductActiveBadge isActive={selected.is_active} />
           </div>
         </div>
         <button
@@ -287,12 +305,15 @@ export function ProductAutocomplete({
                           {product.base_price != null && <span>Base: {product.base_price}</span>}
                         </div>
                       </div>
-                      <Badge
-                        variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
-                        className="shrink-0 text-[10px]"
-                      >
-                        {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
-                      </Badge>
+                      <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                        <ProductActiveBadge isActive={product.is_active} />
+                        <Badge
+                          variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
+                          className="text-[10px]"
+                        >
+                          {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
+                        </Badge>
+                      </div>
                     </button>
                   </li>
                 ))}

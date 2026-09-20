@@ -115,4 +115,20 @@ describe('ProductAutocomplete', () => {
 
     expect(onProductNotFound).toHaveBeenCalledWith('REPUESTO NUEVO');
   });
+
+  it('indica si el producto esta activo o inactivo', async () => {
+    mockUseProductsForPurchase.mockReturnValue({
+      data: [
+        { id: 1, name: 'PRODUCTO ACTIVO', sku: 'ACT-1', barcode: null, tracking_type: 'quantity', is_active: true },
+        { id: 2, name: 'PRODUCTO INACTIVO', sku: 'INA-1', barcode: null, tracking_type: 'quantity', is_active: false },
+      ],
+      isFetching: false,
+    });
+
+    render(<ProductAutocomplete value={null} onChange={vi.fn()} />);
+    fireEvent.focus(screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...'));
+
+    expect(await screen.findByText('Activo')).toBeInTheDocument();
+    expect(screen.getByText('Inactivo')).toBeInTheDocument();
+  });
 });

@@ -166,4 +166,24 @@ describe('PurchaseItemRow', () => {
     fireEvent.click(screen.getByTestId('purchase-item-remove-0'));
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
+
+  it('muestra el indicador de producto inactivo', () => {
+    const value = makeItemValue({
+      product_info: { ...makeItemValue().product_info!, is_active: false },
+    });
+
+    render(
+      <PurchaseItemRow
+        value={value}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        canRemove
+        index={0}
+        collapsed
+        onToggleCollapse={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Inactivo')).toBeInTheDocument();
+  });
 });

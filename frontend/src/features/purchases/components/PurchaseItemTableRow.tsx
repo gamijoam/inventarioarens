@@ -23,7 +23,7 @@ import { useProductVariants } from '@/features/inventory-center/variantApi';
 import { cn } from '@/lib/cn';
 
 import { ImeiListInput } from './ImeiListInput';
-import { ProductAutocomplete } from './ProductAutocomplete';
+import { ProductActiveBadge, ProductAutocomplete } from './ProductAutocomplete';
 import type { PurchaseItemRowValue } from './PurchaseItemRow';
 
 interface PurchaseItemTableRowProps {
@@ -180,6 +180,7 @@ export function PurchaseItemTableRow({
                     IMEI ({serialsCount}/{quantityNum})
                   </Badge>
                 )}
+                <ProductActiveBadge isActive={value.product_info?.is_active} />
               </div>
 
               <div className="flex items-center gap-2 text-xs text-text-muted">
