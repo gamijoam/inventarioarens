@@ -186,4 +186,27 @@ describe('PurchaseItemRow', () => {
 
     expect(screen.getByText('Inactivo')).toBeInTheDocument();
   });
+
+  it('muestra el stock y permite desactivar desde la tarjeta', () => {
+    const onToggleActive = vi.fn();
+
+    render(
+      <PurchaseItemRow
+        value={makeItemValue({
+          product_info: { ...makeItemValue().product_info!, available_stock: 4, is_active: true },
+        })}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        canRemove
+        index={0}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        onToggleActive={onToggleActive}
+      />,
+    );
+
+    expect(screen.getAllByText(/Stock: 4/).length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(screen.getByTestId('product-toggle-active-10'));
+    expect(onToggleActive).toHaveBeenCalledWith(10, false);
+  });
 });

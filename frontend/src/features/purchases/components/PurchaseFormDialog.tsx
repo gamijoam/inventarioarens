@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/Dialog';
 import { Label } from '@/components/ui/Label';
 import { useCreatePurchase, useUpdatePurchase } from '@/features/purchases/api';
-import { useExchangeRateTypes, useProduct, useWarehouses } from '@/features/inventory-center/api';
+import { useExchangeRateTypes, useProduct, useUpdateProduct, useWarehouses } from '@/features/inventory-center/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import type { Product } from '@/features/inventory-center/schemas';
@@ -90,6 +90,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
   const [createProductName, setCreateProductName] = useState('');
   const [editProductId, setEditProductId] = useState<number | null>(null);
   const { data: editProduct } = useProduct(editProductId ?? 0);
+  const updateProduct = useUpdateProduct();
 
   // Almacén por defecto de la orden (para agilizar la adición masiva)
   const [defaultWarehouseId, setDefaultWarehouseId] = useState<number | null>(null);
@@ -256,6 +257,25 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
       ),
     );
     toast.success(`"${product.name}" actualizado.`);
+  }
+
+  async function handleToggleProductActive(productId: number, nextActive: boolean) {
+    try {
+      await updateProduct.mutateAsync({ id: productId, is_active: nextActive });
+      void queryClient.invalidateQueries({ queryKey: ['purchases', 'products-lookup'] });
+      setItems((prev) =>
+        prev.map((item) =>
+          item.product_id === productId && item.product_info
+            ? { ...item, product_info: { ...item.product_info, is_active: nextActive } }
+            : item,
+        ),
+      );
+      toast.success(nextActive ? 'Producto activado.' : 'Producto desactivado.');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'No se pudo cambiar el estado del producto.',
+      );
+    }
   }
 
   function updateItem(index: number, next: PurchaseItemRowValue) {
@@ -714,6 +734,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                             onToggleExpand={toggleTableExpand}
                             onEditProduct={openEditProduct}
                             onCreateProduct={openCreateProduct}
+                            onToggleActive={handleToggleProductActive}
                           />
                         ))}
                       </tbody>
@@ -741,6 +762,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                       disabled={submitting}
                       onEditProduct={openEditProduct}
                       onCreateProduct={openCreateProduct}
+                      onToggleActive={handleToggleProductActive}
                     />
                   ))}
                 </div>

@@ -96,4 +96,19 @@ describe('PurchaseItemTableRow', () => {
     expect(screen.getByText('Nuevo')).toBeInTheDocument();
     expect(screen.getByText('Eliminar')).toBeInTheDocument();
   });
+
+  it('muestra el stock y permite desactivar el producto', () => {
+    const onToggleActive = vi.fn();
+
+    renderRow({
+      onToggleActive,
+      value: makeItemValue({
+        product_info: { ...makeItemValue().product_info!, available_stock: 3, is_active: true },
+      }),
+    });
+
+    expect(screen.getByText(/Stock:/)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('purchase-table-toggle-active-0'));
+    expect(onToggleActive).toHaveBeenCalledWith(10, false);
+  });
 });

@@ -45,6 +45,7 @@ const ProductLookupSchema = z.object({
   profit_margin: z.union([z.number(), z.string()]).nullable().optional(),
   pricing_mode: z.enum(['manual', 'automatic']).nullable().optional(),
   is_active: z.boolean().optional(),
+  available_stock: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
 export function useProductsForPurchase(search = '') {

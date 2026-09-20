@@ -52,6 +52,7 @@ interface PurchaseItemRowProps {
   onToggleCollapse: (index: number) => void;
   onEditProduct?: (productId: number) => void;
   onCreateProduct?: (initialName?: string) => void;
+  onToggleActive?: (productId: number, nextActive: boolean) => void;
 }
 
 export function PurchaseItemRow({
@@ -65,6 +66,7 @@ export function PurchaseItemRow({
   onToggleCollapse,
   onEditProduct,
   onCreateProduct,
+  onToggleActive,
 }: PurchaseItemRowProps) {
   const { data: warehouses = [] } = useWarehouses();
   const { data: variants = [], isLoading: variantsLoading } = useProductVariants(
@@ -281,6 +283,7 @@ export function PurchaseItemRow({
                 });
               }}
               onProductNotFound={(query) => onCreateProduct?.(query)}
+              onToggleActive={onToggleActive}
             />
             {(onEditProduct || onCreateProduct) && (
               <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -316,6 +319,14 @@ export function PurchaseItemRow({
                   <Package className="size-3.5" />
                   <span>Unidad: {value.product_info.unit_of_measure ?? 'unidad'}</span>
                 </div>
+
+                <span className="text-border">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-text-secondary font-medium">Stock:</span>
+                  <code className="bg-bg text-text-primary rounded px-1.5 py-0.5 font-semibold">
+                    {Number(value.product_info.available_stock ?? 0)}
+                  </code>
+                </span>
 
                 <span className="text-border">|</span>
                 <span className="inline-flex items-center gap-1">

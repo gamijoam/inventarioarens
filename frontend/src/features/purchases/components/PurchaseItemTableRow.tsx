@@ -10,6 +10,7 @@ import {
   Lightbulb,
   PackagePlus,
   Pencil,
+  Power,
   RefreshCw,
   Trash2,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ interface PurchaseItemTableRowProps {
   onToggleExpand: (index: number) => void;
   onEditProduct?: (productId: number) => void;
   onCreateProduct?: (initialName?: string) => void;
+  onToggleActive?: (productId: number, nextActive: boolean) => void;
 }
 
 export function PurchaseItemTableRow({
@@ -50,6 +52,7 @@ export function PurchaseItemTableRow({
   onToggleExpand,
   onEditProduct,
   onCreateProduct,
+  onToggleActive,
 }: PurchaseItemTableRowProps) {
   const { data: warehouses = [] } = useWarehouses();
   const { data: variants = [], isLoading: variantsLoading } = useProductVariants(
@@ -185,6 +188,7 @@ export function PurchaseItemTableRow({
 
               <div className="flex items-center gap-2 text-xs text-text-muted">
                 <span>Unidad: <strong className="text-text-secondary">{value.product_info?.unit_of_measure ?? 'unidad'}</strong></span>
+                <span>· Stock: <strong className="text-text-primary">{Number(value.product_info?.available_stock ?? 0)}</strong></span>
                 {previousCost != null && (
                   <span>· Último costo: <strong className="text-text-secondary">${previousCost.toFixed(2)}</strong></span>
                 )}
@@ -382,6 +386,23 @@ export function PurchaseItemTableRow({
                 <PackagePlus className="size-3.5" /> Nuevo
               </Button>
             )}
+            {value.product_id &&
+              onToggleActive &&
+              value.product_info?.is_active !== undefined &&
+              value.product_info?.is_active !== null && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onToggleActive(value.product_id!, !value.product_info?.is_active)}
+                  title={value.product_info.is_active ? 'Desactivar producto' : 'Activar producto'}
+                  className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:text-primary"
+                  data-testid={`purchase-table-toggle-active-${index}`}
+                >
+                  <Power className="size-3.5" />
+                  {value.product_info.is_active ? 'Desactivar' : 'Activar'}
+                </Button>
+              )}
             <Button
               type="button"
               size="sm"

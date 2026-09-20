@@ -20,6 +20,7 @@ export interface ProductAutocompleteOption {
   profit_margin?: number | string | null;
   pricing_mode?: 'manual' | 'automatic' | null;
   is_active?: boolean | null;
+  available_stock?: number | string | null;
 }
 
 /** Indicador de estado del producto para el flujo de compras. */
@@ -55,6 +56,7 @@ export function productToOption(product: Product): ProductAutocompleteOption {
     profit_margin: product.profit_margin ?? null,
     pricing_mode: product.pricing_mode ?? null,
     is_active: product.is_active,
+    available_stock: product.available_stock ?? null,
   };
 }
 
@@ -64,6 +66,7 @@ interface ProductAutocompleteProps {
   onChange: (productId: number | null, product?: ProductAutocompleteOption) => void;
   placeholder?: string;
   onProductNotFound?: (query: string) => void;
+  onToggleActive?: (productId: number, nextActive: boolean) => void;
   invalid?: boolean;
 }
 
@@ -73,6 +76,7 @@ export function ProductAutocomplete({
   onChange,
   placeholder = 'Buscar por SKU, codigo de barras o nombre...',
   onProductNotFound,
+  onToggleActive,
   invalid,
 }: ProductAutocompleteProps) {
   const resultsId = useId();
@@ -174,6 +178,9 @@ export function ProductAutocomplete({
           <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
             {selected.sku && <code className="bg-surface rounded px-1 py-0.5">{selected.sku}</code>}
             {selected.barcode && <span>Codigo: {selected.barcode}</span>}
+            <span className="inline-flex items-center gap-1 rounded bg-bg px-1.5 py-0.5 font-semibold text-text-primary">
+              Stock: {Number(selected.available_stock ?? 0)}
+            </span>
             <Badge
               variant={selected.tracking_type === 'serialized' ? 'info' : 'default'}
               className="text-[10px]"
@@ -183,6 +190,22 @@ export function ProductAutocomplete({
             <ProductActiveBadge isActive={selected.is_active} />
           </div>
         </div>
+        {onToggleActive && selected.is_active !== undefined && selected.is_active !== null && (
+          <button
+            type="button"
+            onClick={() => onToggleActive(selected.id, !selected.is_active)}
+            className={cn(
+              'rounded border px-2 py-1 text-[11px] font-semibold transition-colors',
+              selected.is_active
+                ? 'border-danger/40 text-danger hover:bg-danger/10'
+                : 'border-success/40 text-success hover:bg-success/10',
+            )}
+            title={selected.is_active ? 'Desactivar producto' : 'Activar producto'}
+            data-testid={`product-toggle-active-${selected.id}`}
+          >
+            {selected.is_active ? 'Desactivar' : 'Activar'}
+          </button>
+        )}
         <button
           type="button"
           onClick={clear}
@@ -303,6 +326,9 @@ export function ProductAutocomplete({
                           {product.sku && <code>SKU: {product.sku}</code>}
                           {product.barcode && <span>Codigo: {product.barcode}</span>}
                           {product.base_price != null && <span>Base: {product.base_price}</span>}
+                          <span className="font-semibold text-text-primary">
+                            Stock: {Number(product.available_stock ?? 0)}
+                          </span>
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">

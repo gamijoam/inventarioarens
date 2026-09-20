@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProductAutocomplete } from './ProductAutocomplete';
+import { ProductAutocomplete, type ProductAutocompleteOption } from './ProductAutocomplete';
 
 const { mockUseProductsForPurchase } = vi.hoisted(() => ({
   mockUseProductsForPurchase: vi.fn(),
@@ -130,5 +130,53 @@ describe('ProductAutocomplete', () => {
 
     expect(await screen.findByText('Activo')).toBeInTheDocument();
     expect(screen.getByText('Inactivo')).toBeInTheDocument();
+  });
+
+  it('muestra el stock y permite activar/desactivar el producto', async () => {
+    mockUseProductsForPurchase.mockReturnValue({
+      data: [
+        {
+          id: 30,
+          name: 'ACEITE 20W50',
+          sku: 'ACE-20',
+          barcode: null,
+          tracking_type: 'quantity',
+          is_active: true,
+          available_stock: 7,
+        },
+      ],
+      isFetching: false,
+    });
+    const onToggleActive = vi.fn();
+
+    function Controlled() {
+      const [value, setValue] = useState<number | null>(null);
+      const [product, setProduct] = useState<ProductAutocompleteOption | null>(null);
+
+      return (
+        <ProductAutocomplete
+          value={value}
+          selectedProduct={product}
+          onToggleActive={onToggleActive}
+          onChange={(nextValue, nextProduct) => {
+            setValue(nextValue);
+            setProduct(nextProduct ?? null);
+          }}
+        />
+      );
+    }
+
+    render(<Controlled />);
+    fireEvent.focus(screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...'));
+
+    expect(await screen.findByText(/Stock: 7/)).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('option', { name: /ACEITE 20W50/i }));
+
+    const toggle = await screen.findByTestId('product-toggle-active-30');
+    expect(toggle).toHaveTextContent('Desactivar');
+
+    fireEvent.click(toggle);
+    expect(onToggleActive).toHaveBeenCalledWith(30, false);
   });
 });
