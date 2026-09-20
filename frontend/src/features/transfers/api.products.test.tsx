@@ -38,4 +38,17 @@ describe('useProductsForTransfer', () => {
 
     expect(getMany).toHaveBeenCalledWith('/products?limit=100&tracking_type=all&search=IPHONE+20');
   });
+
+  it('incluye productos desactivados cuando se solicita', async () => {
+    const { result } = renderHook(
+      () => useProductsForTransfer('', { includeInactive: true }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(getMany).toHaveBeenCalledWith(
+      '/products?limit=100&tracking_type=all&active_status=all',
+    );
+  });
 });

@@ -50,7 +50,7 @@ export function CreateManualMovementDialog({
     return () => window.clearTimeout(handle);
   }, [productSearch]);
 
-  const { data: products = [] } = useProductsForTransfer(debouncedSearch);
+  const { data: products = [] } = useProductsForTransfer(debouncedSearch, { includeInactive: true });
   const create = useCreateManualMovement();
   const [warehouseId, setWarehouseId] = useState(0);
   const [productId, setProductId] = useState<number | null>(null);
@@ -85,9 +85,16 @@ export function CreateManualMovementDialog({
       products.map((product) => ({
         value: product.id,
         label: product.name,
-        hint: [product.sku ? `SKU: ${product.sku}` : null, product.barcode ? `BC: ${product.barcode}` : null]
-          .filter(Boolean)
-          .join(' · ') || undefined,
+        hint:
+          [
+            product.sku ? `SKU: ${product.sku}` : null,
+            product.barcode ? `BC: ${product.barcode}` : null,
+            `Stock: ${Number(product.available_stock ?? 0)}`,
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined,
+        badge: product.is_active === false ? 'Inactivo' : undefined,
+        badgeVariant: 'danger' as const,
       })),
     [products],
   );

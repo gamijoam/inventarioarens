@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 
-import { Badge } from './Badge';
+import { Badge, type BadgeProps } from './Badge';
 import { Input } from './Input';
 import { cn } from '@/lib/cn';
 
@@ -13,6 +13,7 @@ export interface SingleSelectOption {
   label: string;
   hint?: string;
   badge?: string;
+  badgeVariant?: BadgeProps['variant'];
 }
 
 interface SingleSelectComboboxProps {
@@ -100,7 +101,7 @@ export function SingleSelectCombobox({
               <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
                 {selected.hint && <span className="truncate">{selected.hint}</span>}
                 {selected.badge && (
-                  <Badge variant="info" className="text-[10px]">
+                  <Badge variant={selected.badgeVariant ?? 'info'} className="text-[10px]">
                     {selected.badge}
                   </Badge>
                 )}
@@ -178,7 +179,7 @@ export function SingleSelectCombobox({
                       )}
                     </div>
                     {option.badge && (
-                      <Badge variant="info" className="shrink-0 text-[10px]">
+                      <Badge variant={option.badgeVariant ?? 'info'} className="shrink-0 text-[10px]">
                         {option.badge}
                       </Badge>
                     )}
