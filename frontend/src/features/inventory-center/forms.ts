@@ -150,10 +150,18 @@ export function useProductForm({
     }
   });
 
+  const resetForm = useCallback(
+    (values?: Partial<StoreProductValues>) => {
+      form.reset({ ...CREATE_DEFAULTS, ...(values ?? {}) });
+    },
+    [form],
+  );
+
   return {
     form,
     onSubmit,
     isSubmitting: mutation.isPending,
     error: mutation.error,
+    resetForm,
   };
 }

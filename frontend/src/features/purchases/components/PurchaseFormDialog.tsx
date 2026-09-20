@@ -806,6 +806,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
       </DialogContent>
 
       <CreateProductDialog
+        key={createProductOpen ? `create-${createProductName}` : 'create-closed'}
         open={createProductOpen}
         onOpenChange={(next) => {
           setCreateProductOpen(next);

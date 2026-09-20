@@ -82,7 +82,7 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess, initialName
     });
   };
 
-  const { form, onSubmit, isSubmitting } = useProductForm({
+  const { form, onSubmit, isSubmitting, resetForm } = useProductForm({
     mode: 'create',
     initialValues: initialName ? { name: initialName } : undefined,
     onSuccess: (data) => {
@@ -99,6 +99,15 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess, initialName
       }
     },
   });
+
+  // Al abrir, reinicia el formulario para no arrastrar los datos del producto
+  // creado anteriormente (el componente no se desmonta al cerrarse).
+  useEffect(() => {
+    if (open) {
+      resetForm(initialName ? { name: initialName } : undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialName]);
 
   const tagOptions = tags.map((t) => ({ value: t.id, label: t.name, color: t.color ?? undefined }));
 
