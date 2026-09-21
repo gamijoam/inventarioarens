@@ -92,7 +92,15 @@
     @if($profile['show_cashier'] ?? true)<div>Cajero: {{ $ticket['pos_order']['cashier_name'] ?? '-' }}</div>@endif
     @if($profile['show_cash_register'] ?? true)<div>Caja: {{ $ticket['pos_order']['cash_register_name'] ?? '-' }}</div>@endif
     @if($profile['show_branch'] ?? true)<div>Sucursal: {{ $ticket['pos_order']['branch_name'] ?? '-' }}</div>@endif
-    @if($profile['show_customer'] ?? true)<div>Cliente: {{ $ticket['pos_order']['customer_name'] ?? 'Consumidor Final' }}</div>@endif
+    @if($profile['show_customer'] ?? true)
+        <div>Cliente: {{ $ticket['pos_order']['customer_name'] ?? 'Consumidor Final' }}</div>
+        @if(!empty($ticket['pos_order']['customer_document']))
+            <div>CI/RIF: {{ $ticket['pos_order']['customer_document'] }}</div>
+        @endif
+        @if(!empty($ticket['pos_order']['customer_phone']))
+            <div>Telf: {{ $ticket['pos_order']['customer_phone'] }}</div>
+        @endif
+    @endif
 
     @if(!empty($ticket['promotions']))
         <div class="line"></div>
