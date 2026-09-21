@@ -380,6 +380,12 @@ class PrinterServer
         }
         if (($profile['show_customer'] ?? true)) {
             $lines[] = 'Cliente: '.($ticket['pos_order']['customer_name'] ?? 'Consumidor Final');
+            if (! empty($ticket['pos_order']['customer_document'])) {
+                $lines[] = 'CI/RIF: '.$ticket['pos_order']['customer_document'];
+            }
+            if (! empty($ticket['pos_order']['customer_phone'])) {
+                $lines[] = 'Telf: '.$ticket['pos_order']['customer_phone'];
+            }
         }
 
         if (! empty($ticket['promotions'])) {

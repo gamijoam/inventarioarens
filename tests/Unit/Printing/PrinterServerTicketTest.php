@@ -50,6 +50,8 @@ class PrinterServerTicketTest extends TestCase
                 'sale_id' => 5,
                 'paid_at' => '2026-08-13T10:00:00Z',
                 'customer_name' => 'Consumidor Final',
+                'customer_document' => 'V-12345678',
+                'customer_phone' => '0414-1234567',
                 'cashier_name' => 'Ana',
                 'branch_name' => 'Principal',
                 'cash_register_name' => 'Mostrador 1',
@@ -102,6 +104,8 @@ class PrinterServerTicketTest extends TestCase
         $this->assertStringContainsString('Caja: Mostrador 1', $text);
         $this->assertStringContainsString('Sucursal: Principal', $text);
         $this->assertStringContainsString('Cliente: Consumidor Final', $text);
+        $this->assertStringContainsString('CI/RIF: V-12345678', $text);
+        $this->assertStringContainsString('Telf: 0414-1234567', $text);
         $this->assertStringContainsString('ACC-001', $text);
         $this->assertStringContainsString('IMEI/Serial: IMEI-001', $text);
         $this->assertStringContainsString('Total USD: $7.33', $text);
@@ -138,6 +142,8 @@ class PrinterServerTicketTest extends TestCase
         $this->assertStringNotContainsString('Ref:', $text);
         $this->assertStringNotContainsString('Documento no fiscal', $text);
         $this->assertStringNotContainsString('Cliente:', $text);
+        $this->assertStringNotContainsString('CI/RIF:', $text);
+        $this->assertStringNotContainsString('Telf:', $text);
         // Los datos esenciales del ticket siempre se mantienen.
         $this->assertStringContainsString('Ticket POS #10', $text);
         $this->assertStringContainsString('Total USD: $7.33', $text);
