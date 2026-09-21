@@ -10,6 +10,26 @@ class SaleItemResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $canViewCosts = (bool) ($request->user()?->can('finance.costs.view') ?? false);
+        $resolvedUnitCost = null;
+        $baseTotalCost = null;
+        $profitBaseAmount = null;
+        $profitMarginPercent = null;
+
+        if ($canViewCosts) {
+            $costVal = $this->base_unit_cost;
+            if ($costVal === null && $this->relationLoaded('product') && $this->product) {
+                $costVal = $this->product->last_purchase_cost ?? $this->product->average_cost;
+            }
+            if ($costVal !== null) {
+                $resolvedUnitCost = round((float) $costVal, 4);
+                $baseTotalCost = round($resolvedUnitCost * (float) $this->quantity, 4);
+                $itemTotalBase = (float) $this->base_total_amount;
+                $profitBaseAmount = round($itemTotalBase - $baseTotalCost, 4);
+                $profitMarginPercent = $itemTotalBase > 0 ? round(($profitBaseAmount / $itemTotalBase) * 100, 2) : 0.0;
+            }
+        }
+
         return [
             'id' => $this->id,
             'tenant_id' => $this->tenant_id,
@@ -43,7 +63,10 @@ class SaleItemResource extends JsonResource
             'total_amount' => (float) $this->total_amount,
             'base_unit_price' => (float) $this->base_unit_price,
             'base_total_amount' => (float) $this->base_total_amount,
-            'base_unit_cost' => $this->when($request->user()?->can('finance.costs.view'), $this->base_unit_cost === null ? null : (float) $this->base_unit_cost),
+            'base_unit_cost' => $resolvedUnitCost,
+            'base_total_cost' => $baseTotalCost,
+            'profit_base_amount' => $profitBaseAmount,
+            'profit_margin_percent' => $profitMarginPercent,
             'discount_type' => $this->discount_type,
             'discount_value' => (float) $this->discount_value,
             'discount_amount' => (float) $this->discount_amount,

@@ -195,6 +195,7 @@ export function SalesManager() {
   const canReverse = useCan(PERMISSIONS.SALES_REVERSE);
   const canCreateReturn = useCan(PERMISSIONS.SALES_RETURNS_CREATE);
   const canCreateWarranty = useCan(PERMISSIONS.WARRANTIES_CREATE);
+  const canViewCosts = useCan(PERMISSIONS.FINANCE_COSTS_VIEW);
   const cancelSale = useCancelSale();
   const sales = data?.data ?? [];
   const meta = data?.meta;
@@ -207,6 +208,10 @@ export function SalesManager() {
           acc.confirmed_base_total += sale.total_base_amount;
           acc.confirmed_local_total += sale.total_local_amount;
           acc.confirmed_count += 1;
+          if (sale.cost_base_amount !== null && sale.cost_base_amount !== undefined) {
+            acc.confirmed_cost_base_total = (acc.confirmed_cost_base_total ?? 0) + Number(sale.cost_base_amount);
+            acc.confirmed_profit_base_total = (acc.confirmed_profit_base_total ?? 0) + Number(sale.profit_base_amount ?? 0);
+          }
         } else if (sale.status === 'draft') {
           acc.draft_count += 1;
         } else if (sale.status === 'cancelled' || sale.status === 'voided') {
@@ -241,6 +246,9 @@ export function SalesManager() {
         draft_count: 0,
         cancelled_count: 0,
         pos_count: 0,
+        confirmed_cost_base_total: 0,
+        confirmed_profit_base_total: 0,
+        confirmed_profit_margin_percent: 0,
       },
     );
   }, [sales, meta?.total]);
@@ -251,10 +259,14 @@ export function SalesManager() {
     }
     const netBase = Math.max(0, fallbackTotals.confirmed_base_total - fallbackTotals.refund_base_total);
     const netLocal = Math.max(0, fallbackTotals.confirmed_local_total - fallbackTotals.refund_local_total);
+    const margin = fallbackTotals.confirmed_base_total > 0
+      ? Math.round(((fallbackTotals.confirmed_profit_base_total ?? 0) / fallbackTotals.confirmed_base_total) * 1000) / 10
+      : 0;
     return {
       ...fallbackTotals,
       net_base_total: netBase,
       net_local_total: netLocal,
+      confirmed_profit_margin_percent: margin,
     };
   }, [summary, fallbackTotals]);
 
@@ -348,7 +360,7 @@ export function SalesManager() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+      <div className={`grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 ${canViewCosts ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}>
         <InfoTile
           label="Venta Neta (período)"
           value={formatMoney(metrics.net_base_total)}
@@ -360,6 +372,23 @@ export function SalesManager() {
           }
           tone="success"
         />
+        {canViewCosts && (
+          <InfoTile
+            label="Ganancia Confirmada"
+            value={formatMoney(metrics.confirmed_profit_base_total)}
+            subvalue={
+              metrics.confirmed_profit_margin_percent !== null && metrics.confirmed_profit_margin_percent !== undefined
+                ? `Margen: ${Number(metrics.confirmed_profit_margin_percent).toFixed(1)}%`
+                : undefined
+            }
+            helper={
+              metrics.confirmed_cost_base_total
+                ? `Costo base: ${formatMoney(metrics.confirmed_cost_base_total)}`
+                : 'Margen sobre ventas'
+            }
+            tone="success"
+          />
+        )}
         <InfoTile
           label="Venta Bruta Confirmada"
           value={formatMoney(metrics.confirmed_base_total)}
@@ -422,6 +451,9 @@ export function SalesManager() {
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Origen</th>
                   <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Total USD</th>
                   <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Total VES</th>
+                  {canViewCosts && (
+                    <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Ganancia</th>
+                  )}
                   <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Items</th>
                 </tr>
               </thead>
@@ -437,6 +469,7 @@ export function SalesManager() {
                     activeSession={activeSession}
                     canCreateReturn={canCreateReturn}
                     canCreateWarranty={canCreateWarranty}
+                    canViewCosts={canViewCosts}
                     cancelling={cancelSale.isPending}
                     onToggle={() => setExpandedId((current) => (current === sale.id ? null : sale.id))}
                     onCancel={() => void handleCancel(sale.id)}
@@ -487,6 +520,7 @@ function SaleRow({
   activeSession,
   canCreateReturn,
   canCreateWarranty,
+  canViewCosts = false,
   cancelling,
   onToggle,
   onCancel,
@@ -499,6 +533,7 @@ function SaleRow({
   activeSession: CashRegisterSession | null;
   canCreateReturn: boolean;
   canCreateWarranty: boolean;
+  canViewCosts?: boolean;
   cancelling: boolean;
   onToggle: () => void;
   onCancel: () => void;
@@ -544,11 +579,27 @@ function SaleRow({
         </td>
         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_base_amount)}</td>
         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_local_amount, 'Bs ')}</td>
+        {canViewCosts && (
+          <td className="px-3 py-2 text-right tabular-nums">
+            {sale.profit_base_amount !== null && sale.profit_base_amount !== undefined ? (
+              <div className="flex flex-col items-end">
+                <span className={`font-semibold ${Number(sale.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  {Number(sale.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(sale.profit_base_amount)}
+                </span>
+                <span className="text-[11px] text-text-muted">
+                  {Number(sale.profit_margin_percent ?? 0).toFixed(1)}%
+                </span>
+              </div>
+            ) : (
+              <span className="text-text-muted">-</span>
+            )}
+          </td>
+        )}
         <td className="px-3 py-2 text-right tabular-nums">{sale.items_count ?? sale.items?.length ?? '-'}</td>
       </tr>
       {expanded && (
         <tr className="border-b border-border bg-bg/20">
-          <td colSpan={10} className="px-4 py-4">
+          <td colSpan={canViewCosts ? 11 : 10} className="px-4 py-4">
             <SaleDetail
               saleId={sale.id}
               sale={sale}
@@ -557,6 +608,7 @@ function SaleRow({
               activeSession={activeSession}
               canCreateReturn={canCreateReturn}
               canCreateWarranty={canCreateWarranty}
+              canViewCosts={canViewCosts}
               cancelling={cancelling}
               onCancel={onCancel}
             />
@@ -575,6 +627,7 @@ function SaleDetail({
   activeSession,
   canCreateReturn,
   canCreateWarranty,
+  canViewCosts = false,
   cancelling,
   onCancel,
 }: {
@@ -585,6 +638,7 @@ function SaleDetail({
   activeSession: CashRegisterSession | null;
   canCreateReturn: boolean;
   canCreateWarranty: boolean;
+  canViewCosts?: boolean;
   cancelling: boolean;
   onCancel: () => void;
 }) {
@@ -640,20 +694,27 @@ function SaleDetail({
               <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Almacén</th>
               <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Cant.</th>
               <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Precio</th>
+              {canViewCosts && (
+                <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Costo Unit.</th>
+              )}
               <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Desc.</th>
               <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Total</th>
+              {canViewCosts && (
+                <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Ganancia</th>
+              )}
               <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Tasa/Seriales</th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-text-muted">Sin items cargados en el detalle.</td>
+                <td colSpan={canViewCosts ? 9 : 7} className="px-3 py-6 text-center text-text-muted">Sin items cargados en el detalle.</td>
               </tr>
             ) : items.map((item) => (
               <SaleItemRow
                 key={item.id}
                 item={item}
+                canViewCosts={canViewCosts}
                 canCreateWarranty={canCreateWarranty && current.status === 'confirmed'}
                 onCreateWarranty={() => setWarrantyItem(item)}
               />
@@ -709,6 +770,20 @@ function SaleDetail({
           Total: <strong className="text-text-primary">{formatMoney(current.total_base_amount)}</strong>
           <span className="mx-2">·</span>
           {formatMoney(current.total_local_amount, 'Bs ')}
+          {canViewCosts && current.profit_base_amount !== null && current.profit_base_amount !== undefined && (
+            <>
+              <span className="mx-2">·</span>
+              Costo: <span className="font-medium text-text-secondary">{formatMoney(current.cost_base_amount)}</span>
+              <span className="mx-2">·</span>
+              Ganancia:{' '}
+              <strong className={Number(current.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                {Number(current.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(current.profit_base_amount)}
+              </strong>{' '}
+              <span className="text-xs text-text-muted">
+                ({Number(current.profit_margin_percent ?? 0).toFixed(1)}%)
+              </span>
+            </>
+          )}
           {returnLabel && (
             <>
               <span className="mx-2">·</span>
@@ -1010,10 +1085,12 @@ function Metric({ label, value, strong }: { label: string; value: string; strong
 
 function SaleItemRow({
   item,
+  canViewCosts = false,
   canCreateWarranty = false,
   onCreateWarranty,
 }: {
   item: SaleItem;
+  canViewCosts?: boolean;
   canCreateWarranty?: boolean;
   onCreateWarranty?: () => void;
 }) {
@@ -1031,8 +1108,29 @@ function SaleItemRow({
       <td className="px-3 py-2 text-text-muted">{item.warehouse_name ?? `#${item.warehouse_id}`}</td>
       <td className="px-3 py-2 text-right tabular-nums">{item.quantity}</td>
       <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.unit_price, item.sale_currency === 'VES' ? 'Bs ' : '$')}</td>
+      {canViewCosts && (
+        <td className="px-3 py-2 text-right tabular-nums text-text-muted">
+          {item.base_unit_cost !== null && item.base_unit_cost !== undefined ? formatMoney(item.base_unit_cost) : '-'}
+        </td>
+      )}
       <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.discount_amount)}</td>
       <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.total_base_amount)}</td>
+      {canViewCosts && (
+        <td className="px-3 py-2 text-right tabular-nums">
+          {item.profit_base_amount !== null && item.profit_base_amount !== undefined ? (
+            <div className="flex flex-col items-end">
+              <span className={`font-medium ${Number(item.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                {Number(item.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(item.profit_base_amount)}
+              </span>
+              <span className="text-[10px] text-text-muted">
+                {Number(item.profit_margin_percent ?? 0).toFixed(1)}%
+              </span>
+            </div>
+          ) : (
+            <span className="text-text-muted">-</span>
+          )}
+        </td>
+      )}
       <td className="px-3 py-2 text-xs text-text-muted">
         <div>{rate}</div>
         {serials && <div>Seriales: {serials}</div>}

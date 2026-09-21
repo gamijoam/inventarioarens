@@ -140,6 +140,29 @@ class SaleController extends Controller
         $netBaseTotal = max(0, $confirmedBaseTotal - $refundBaseTotal);
         $netLocalTotal = max(0, $confirmedLocalTotal - $refundLocalTotal);
 
+        $canViewCosts = (bool) ($request->user()?->can('finance.costs.view') ?? false);
+        $confirmedCostBaseTotal = 0.0;
+        $confirmedProfitBaseTotal = 0.0;
+        $confirmedProfitMarginPercent = 0.0;
+
+        if ($canViewCosts) {
+            $costRow = DB::table('sale_items')
+                ->join('products', 'products.id', '=', 'sale_items.product_id')
+                ->whereIn('sale_items.sale_id', $matchingSaleIds)
+                ->selectRaw('
+                    COALESCE(SUM(
+                        sale_items.quantity * COALESCE(sale_items.base_unit_cost, products.last_purchase_cost, products.average_cost, 0)
+                    ), 0) as total_cost
+                ')
+                ->first();
+
+            $confirmedCostBaseTotal = (float) ($costRow->total_cost ?? 0);
+            $confirmedProfitBaseTotal = round($confirmedBaseTotal - $confirmedCostBaseTotal, 4);
+            $confirmedProfitMarginPercent = $confirmedBaseTotal > 0
+                ? round(($confirmedProfitBaseTotal / $confirmedBaseTotal) * 100, 2)
+                : 0.0;
+        }
+
         $perPage = min(max($request->integer('per_page', 25), 1), 100);
 
         $paginated = (clone $query)
@@ -175,6 +198,9 @@ class SaleController extends Controller
                 'draft_count' => (int) ($summaryRow->draft_count ?? 0),
                 'cancelled_count' => (int) ($summaryRow->cancelled_count ?? 0),
                 'pos_count' => $posCount,
+                'confirmed_cost_base_total' => $canViewCosts ? round($confirmedCostBaseTotal, 4) : null,
+                'confirmed_profit_base_total' => $canViewCosts ? round($confirmedProfitBaseTotal, 4) : null,
+                'confirmed_profit_margin_percent' => $canViewCosts ? $confirmedProfitMarginPercent : null,
             ],
         ]);
     }
