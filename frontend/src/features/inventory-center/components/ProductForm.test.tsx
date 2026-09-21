@@ -221,4 +221,43 @@ describe('<ProductForm>', () => {
     expect(screen.queryByText('Garantía y estado')).not.toBeInTheDocument();
     expect(screen.getByText('+ Mostrar más campos (avanzado)')).toBeInTheDocument();
   });
+
+  it('no duplica IVA sobre el PVP al editar un producto cuyo margen ya da el precio de venta (caso V018)', async () => {
+    const user = userEvent.setup();
+    const form = makeForm({
+      name: 'ARBO DE LEVA CG150 NORMAL MS',
+      sku: 'V018',
+      last_purchase_cost: 3.52,
+      profit_margin: 240.62,
+      base_price: 11.99,
+      pricing_mode: 'automatic',
+    });
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductForm
+          form={form}
+          tagOptions={[]}
+          onSubmit={() => undefined}
+          isSubmitting={false}
+          submitLabel="Guardar cambios"
+          productId={2177}
+        />
+      </QueryClientProvider>,
+    );
+
+    // Cambiar a la pestaña de Precios (F2)
+    const pricingTabBtn = screen.getByRole('button', { name: /Tarifas y PVP/i });
+    await user.click(pricingTabBtn);
+
+    // El checkbox de IVA debe estar desmarcado porque el margen ya cubre el PVP final de 11.99
+    const ivaCheckbox = screen.getByRole('checkbox', { name: /Aplica IVA/i });
+    expect(ivaCheckbox).not.toBeChecked();
+
+    // El precio de venta calculado debe ser 11.99 y NO 13.91
+    const basePriceInput = screen.getByDisplayValue('11.99');
+    expect(basePriceInput).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('13.91')).not.toBeInTheDocument();
+  });
 });
+

@@ -130,7 +130,18 @@ export function ProductForm({
   const margin = Number(form.watch('profit_margin'));
   const currentBasePrice = Number(form.watch('base_price') ?? 0);
 
-  const [applyIva, setApplyIva] = useState(true); // Siempre marcado por defecto para evitar confusión visual
+  // Si el producto existente ya tiene un base_price que concuerda con cost * (1 + margin/100),
+  // significa que el margen guardado en el sistema ya incluye el precio final con IVA,
+  // por lo que no debemos duplicar el IVA al abrir el formulario.
+  const [applyIva, setApplyIva] = useState(() => {
+    if (productId && Number.isFinite(cost) && cost > 0 && Number.isFinite(margin) && margin > 0 && currentBasePrice > 0) {
+      const directCalc = Math.round(cost * (1 + margin / 100) * 100) / 100;
+      if (Math.abs(directCalc - currentBasePrice) <= 0.05) {
+        return false; // El margen ya lleva el precio directo al PVP final
+      }
+    }
+    return true;
+  });
   const [ivaRate, setIvaRate] = useState(16);
   const isInitialMount = useRef(true);
 
