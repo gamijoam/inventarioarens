@@ -9,7 +9,9 @@ use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Inventory\Services\InventoryValuationService;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Purchases\Models\PurchaseItem;
 use App\Modules\Purchases\Models\PurchaseOrder;
@@ -291,6 +293,30 @@ class PurchaseOrderService
                     }
                 }
                 $item->product->save();
+
+                // Sincronizar automaticamente la lista de precios por defecto (is_default = true)
+                // si tiene un registro en product_prices, manteniendo paridad con base_price.
+                if ($item->product->base_price !== null) {
+                    $defaultPriceList = PriceList::query()
+                        ->where('tenant_id', $item->product->tenant_id)
+                        ->where('is_default', true)
+                        ->first();
+
+                    if ($defaultPriceList) {
+                        $defaultProductPrice = ProductPrice::query()
+                            ->where('product_id', $item->product->id)
+                            ->where('price_list_id', $defaultPriceList->id)
+                            ->first();
+
+                        if ($defaultProductPrice) {
+                            $defaultProductPrice->update([
+                                'price' => $item->product->base_price,
+                                'currency' => $item->product->sale_currency ?? 'USD',
+                            ]);
+                            $this->syncCatalog->productPriceUpdated($defaultProductPrice);
+                        }
+                    }
+                }
             }
 
             [$receivedBase, $receivedLocal] = $this->receivedTotals($purchaseOrder->refresh()->load('items'));

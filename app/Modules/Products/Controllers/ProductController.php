@@ -236,6 +236,29 @@ class ProductController extends Controller
             $this->recordAudit($created, ProductAudit::ACTION_CREATED, [], $created->only($this->auditedFields()), $userId);
             $syncCatalog->productCreated($created);
 
+            if ($created->base_price !== null && (float) $created->base_price > 0) {
+                $defaultPriceList = PriceList::query()
+                    ->where('tenant_id', $created->tenant_id)
+                    ->where('is_default', true)
+                    ->first();
+
+                if ($defaultPriceList) {
+                    $createdPrice = ProductPrice::firstOrCreate(
+                        [
+                            'tenant_id' => $created->tenant_id,
+                            'product_id' => $created->id,
+                            'price_list_id' => $defaultPriceList->id,
+                        ],
+                        [
+                            'price' => $created->base_price,
+                            'currency' => $created->sale_currency ?? 'USD',
+                            'is_active' => true,
+                        ]
+                    );
+                    $syncCatalog->productPriceCreated($createdPrice);
+                }
+            }
+
             if ($created->isCatalogMaster()) {
                 // Propaga el producto maestro a cada spinoff. Tambien propaga
                 // los catalogos referenciados (brand/categorias/tags) si
