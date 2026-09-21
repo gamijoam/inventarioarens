@@ -3,7 +3,13 @@
     $fontSize = $width === 58 ? '10px' : '11px';
     $money = fn ($value) => '$'.number_format((float) $value, 2, '.', ',');
     $bs = fn ($value) => 'Bs '.number_format((float) $value, 2, ',', '.');
-    $dt = fn ($value) => $value ? \Illuminate\Support\Carbon::parse($value)->format('d/m/Y H:i') : '-';
+    $tz = 'America/Caracas';
+    try {
+        $tz = (string) config('app.business_timezone', 'America/Caracas');
+    } catch (\Throwable) {
+        $tz = 'America/Caracas';
+    }
+    $dt = fn ($value) => $value ? \Illuminate\Support\Carbon::parse($value)->setTimezone($tz ?: 'America/Caracas')->format('d/m/Y H:i') : '-';
 @endphp
 <!doctype html>
 <html lang="es">

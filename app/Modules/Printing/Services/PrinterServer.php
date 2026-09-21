@@ -355,7 +355,19 @@ class PrinterServer
             $lines[] = 'Venta #'.$ticket['pos_order']['sale_id'];
         }
         if (($profile['show_paid_at'] ?? true) && ! empty($ticket['pos_order']['paid_at'])) {
-            $lines[] = 'Fecha: '.$ticket['pos_order']['paid_at'];
+            $rawPaidAt = (string) $ticket['pos_order']['paid_at'];
+            try {
+                $tz = 'America/Caracas';
+                try {
+                    $tz = (string) config('app.business_timezone', 'America/Caracas');
+                } catch (\Throwable) {
+                    $tz = 'America/Caracas';
+                }
+                $formattedPaidAt = \Illuminate\Support\Carbon::parse($rawPaidAt)->setTimezone($tz ?: 'America/Caracas')->format('d/m/Y h:i A');
+            } catch (\Throwable) {
+                $formattedPaidAt = $rawPaidAt;
+            }
+            $lines[] = 'Fecha: '.$formattedPaidAt;
         }
         if (($profile['show_cashier'] ?? true) && ! empty($ticket['pos_order']['cashier_name'])) {
             $lines[] = 'Cajero: '.$ticket['pos_order']['cashier_name'];
