@@ -188,6 +188,12 @@ class PosTicketPrintService
         $payments = $order->payments;
         $promotionApplications = $sale?->promotionApplications ?? collect();
         $company = CompanySettings::getForTenant($tenant);
+        $customer = $order->customer ?? $sale?->customer;
+        $customerDocument = null;
+        if ($customer && ! empty($customer->document_number)) {
+            $type = ! empty($customer->document_type) ? strtoupper(trim($customer->document_type)).'-' : '';
+            $customerDocument = $type.trim($customer->document_number);
+        }
         $promotionLabel = static fn (string $scope): string => match ($scope) {
             'combo' => 'COMBO',
             'invoice' => 'PROMOCION FACTURA',
@@ -237,7 +243,9 @@ class PosTicketPrintService
                 'status' => $order->status,
                 'paid_at' => $order->paid_at ? $order->paid_at->copy()->setTimezone(config('app.business_timezone', 'America/Caracas'))->format('d/m/Y h:i A') : null,
                 'paid_at_iso' => $order->paid_at?->toISOString(),
-                'customer_name' => $order->customer?->name ?? $order->customer_name ?? 'Consumidor Final',
+                'customer_name' => $customer?->name ?? $order->customer_name ?? 'Consumidor Final',
+                'customer_document' => $customerDocument,
+                'customer_phone' => $customer?->phone,
                 'cashier_name' => $order->cashier?->name,
                 'branch_name' => $order->cashRegisterSession?->branch?->name,
                 'cash_register_name' => $order->cashRegisterSession?->cashRegister?->name,
@@ -311,6 +319,8 @@ class PosTicketPrintService
                 'paid_at' => now()->setTimezone(config('app.business_timezone', 'America/Caracas'))->format('d/m/Y h:i A'),
                 'paid_at_iso' => now()->toISOString(),
                 'customer_name' => 'Cliente de prueba',
+                'customer_document' => 'V-12345678',
+                'customer_phone' => '0414-1234567',
                 'cashier_name' => 'Cajero Demo',
                 'branch_name' => 'Sucursal Principal',
                 'cash_register_name' => 'Mostrador 1',

@@ -588,7 +588,17 @@ function TicketPreview({ profile }: { profile: PrintProfilePayload }) {
       {p.show_cashier && <p>Cajero: {ticket.pos_order.cashier_name}</p>}
       {p.show_cash_register && <p>Caja: {ticket.pos_order.cash_register_name}</p>}
       {p.show_branch && <p>Sucursal: {ticket.pos_order.branch_name}</p>}
-      {p.show_customer && <p>Cliente: {ticket.pos_order.customer_name}</p>}
+      {p.show_customer && (
+        <>
+          <p>Cliente: {ticket.pos_order.customer_name}</p>
+          {(ticket.pos_order as { customer_document?: string }).customer_document && (
+            <p className="text-[10px]">CI/RIF: {(ticket.pos_order as { customer_document?: string }).customer_document}</p>
+          )}
+          {(ticket.pos_order as { customer_phone?: string }).customer_phone && (
+            <p className="text-[10px]">Telf: {(ticket.pos_order as { customer_phone?: string }).customer_phone}</p>
+          )}
+        </>
+      )}
       <Dash />
       {ticket.items.map((item) => (
         <div key={item.product_name} className="mb-2">

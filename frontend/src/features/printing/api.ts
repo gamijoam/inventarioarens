@@ -456,6 +456,8 @@ export function exampleTicketPayload(profile: PrintProfilePayload | PrintProfile
       sale_id: 'PRUEBA',
       paid_at: new Date().toISOString(),
       customer_name: 'Cliente de prueba',
+      customer_document: 'V-12345678',
+      customer_phone: '0414-1234567',
       cashier_name: 'Cajero Demo',
       branch_name: 'Sucursal Principal',
       cash_register_name: 'Mostrador 1',
