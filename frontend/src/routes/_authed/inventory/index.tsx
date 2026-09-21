@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Store, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -37,6 +37,7 @@ import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateP
 import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
 import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/ExportInventoryDialog';
 import { InventoryErpWorkspace } from '@/features/inventory-center/components/InventoryErpWorkspace';
+import { InventoryCatalogWorkspace } from '@/features/inventory-center/components/InventoryCatalogWorkspace';
 import {
   DEFAULT_INVENTORY_TABLE_COLUMNS,
   getStoredInventoryColumnsVisibility,
@@ -145,11 +146,25 @@ function InventoryListPage() {
       stock_status: search.stock,
       active_status: search.status,
       warehouse_id: search.warehouse_id,
+      category_id: search.category_id,
+      brand_id: search.brand_id,
+      tag_id: search.tag_id,
       page: search.page,
       per_page: 25,
       with_prices: 1 as const,
+      with_images: 1 as const,
     }),
-    [search.search, search.tracking, search.stock, search.status, search.warehouse_id, search.page],
+    [
+      search.search,
+      search.tracking,
+      search.stock,
+      search.status,
+      search.warehouse_id,
+      search.category_id,
+      search.brand_id,
+      search.tag_id,
+      search.page,
+    ],
   );
 
   const { data, isLoading, isError } = useProducts(filters);
@@ -188,15 +203,15 @@ function InventoryListPage() {
   const [customizeColumnsOpen, setCustomizeColumnsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
-  const [viewMode, setViewMode] = useState<'erp' | 'table'>(() => {
+  const [viewMode, setViewMode] = useState<'erp' | 'table' | 'catalog'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('inventory_view_mode');
-      if (saved === 'table' || saved === 'erp') return saved;
+      if (saved === 'table' || saved === 'erp' || saved === 'catalog') return saved;
     }
     return 'erp';
   });
 
-  const handleViewModeChange = (mode: 'erp' | 'table') => {
+  const handleViewModeChange = (mode: 'erp' | 'table' | 'catalog') => {
     setViewMode(mode);
     if (typeof window !== 'undefined') {
       localStorage.setItem('inventory_view_mode', mode);
@@ -290,6 +305,21 @@ function InventoryListPage() {
               <SlidersHorizontal className="size-3.5" />
               Vista Tabla
             </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('catalog')}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all',
+                viewMode === 'catalog'
+                  ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                  : 'text-text-muted hover:text-text-primary',
+              )}
+              title="Vista catálogo visual con fotos y precios de venta"
+              data-testid="view-mode-catalog"
+            >
+              <Store className="size-3.5" />
+              Catálogo
+            </button>
           </div>
 
           {viewMode === 'table' && (
@@ -330,6 +360,31 @@ function InventoryListPage() {
           isLoading={isLoading}
           search={search.search}
           onSearchChange={(s) => updateSearch({ search: s })}
+          warehouseId={search.warehouse_id}
+          onWarehouseChange={(w) => updateSearch({ warehouse_id: w })}
+          tracking={search.tracking}
+          onTrackingChange={(t) => updateSearch({ tracking: t })}
+          stock={search.stock}
+          onStockChange={(s) => updateSearch({ stock: s })}
+          status={search.status}
+          onStatusChange={(st) => updateSearch({ status: st })}
+          onPageChange={goToPage}
+          warehouses={warehouses}
+          priceLists={priceLists}
+          activeRate={activeRate}
+          onNewProduct={() => setCreateOpen(true)}
+        />
+      ) : viewMode === 'catalog' ? (
+        <InventoryCatalogWorkspace
+          products={data?.data ?? []}
+          totalProducts={data?.meta.total ?? 0}
+          totalPages={data?.meta.last_page ?? 1}
+          currentPage={data?.meta.current_page ?? 1}
+          isLoading={isLoading}
+          search={search.search}
+          onSearchChange={(s) => updateSearch({ search: s })}
+          categoryId={search.category_id}
+          onCategoryChange={(cId) => updateSearch({ category_id: cId })}
           warehouseId={search.warehouse_id}
           onWarehouseChange={(w) => updateSearch({ warehouse_id: w })}
           tracking={search.tracking}
