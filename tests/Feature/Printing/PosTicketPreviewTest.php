@@ -208,4 +208,37 @@ class PosTicketPreviewTest extends TestCase
         app(TenantManager::class)->set($tenant);
         setPermissionsTeamId($tenant->id);
     }
+
+    public function test_ticket_preview_displays_date_in_business_timezone_not_utc(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $branch = $this->branch($tenant);
+        $register = $this->cashRegister($tenant, $branch);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.view']);
+
+        $order = $this->paidPosOrder($tenant, $user, $branch, $register);
+        // 11:27 UTC equivale a 07:27 AM en Venezuela
+        $order->update(['paid_at' => '2026-09-21 11:27:00']);
+
+        $this->useTenant($tenant);
+        PrintProfile::create([
+            'name' => 'POS 80mm',
+            'paper_width_mm' => 80,
+            'characters_per_line' => 48,
+            'is_default' => true,
+            'is_active' => true,
+            'show_paid_at' => true,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/pos/orders/{$order->id}/ticket-preview")
+            ->assertOk();
+
+        $html = (string) $response->json('data.html');
+        $this->assertStringContainsString('21/09/2026 07:27 AM', $html);
+        $this->assertStringNotContainsString('11:27:00', $html);
+    }
 }
