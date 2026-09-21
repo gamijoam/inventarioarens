@@ -4,6 +4,20 @@
     $fontSize = $width === 58 ? '10px' : '11px';
     $money = fn ($value) => '$'.number_format((float) $value, 2, '.', ',');
     $bs = fn ($value) => 'Bs '.number_format((float) $value, 2, ',', '.');
+    $tz = 'America/Caracas';
+    try {
+        $tz = (string) config('app.business_timezone', 'America/Caracas');
+    } catch (\Throwable) {
+        $tz = 'America/Caracas';
+    }
+    $formatDate = function ($value) use ($tz) {
+        if (empty($value)) return '';
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->setTimezone($tz ?: 'America/Caracas')->format('d/m/Y h:i A');
+        } catch (\Throwable) {
+            return (string) $value;
+        }
+    };
 @endphp
 <!doctype html>
 <html lang="es">
@@ -74,7 +88,7 @@
 
     <div class="line"></div>
     <div>Ticket POS #{{ $ticket['pos_order']['id'] ?? '' }} @if(($profile['show_sale_number'] ?? true) && !empty($ticket['pos_order']['sale_id'])) - Venta #{{ $ticket['pos_order']['sale_id'] }} @endif</div>
-    @if($profile['show_paid_at'] ?? true)<div>Fecha: {{ $ticket['pos_order']['paid_at'] ?? '' }}</div>@endif
+    @if($profile['show_paid_at'] ?? true)<div>Fecha: {{ $formatDate($ticket['pos_order']['paid_at'] ?? '') }}</div>@endif
     @if($profile['show_cashier'] ?? true)<div>Cajero: {{ $ticket['pos_order']['cashier_name'] ?? '-' }}</div>@endif
     @if($profile['show_cash_register'] ?? true)<div>Caja: {{ $ticket['pos_order']['cash_register_name'] ?? '-' }}</div>@endif
     @if($profile['show_branch'] ?? true)<div>Sucursal: {{ $ticket['pos_order']['branch_name'] ?? '-' }}</div>@endif
