@@ -44,6 +44,7 @@ import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProdu
 import type { Product } from '@/features/inventory-center/schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import { StorePurchaseSchema, type Purchase, type PurchaseItemInput } from '@/features/purchases/schemas';
+import { isPurchaseFormDirty } from '@/features/purchases/purchaseFormDirty';
 import { SupplierAutocomplete, type SupplierOption } from './SupplierAutocomplete';
 import { PurchaseItemRow, type PurchaseItemRowValue } from './PurchaseItemRow';
 import { PurchaseItemTableRow } from './PurchaseItemTableRow';
@@ -91,6 +92,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
   const [editProductId, setEditProductId] = useState<number | null>(null);
   const { data: editProduct } = useProduct(editProductId ?? 0);
   const updateProduct = useUpdateProduct();
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
   // Almacén por defecto de la orden (para agilizar la adición masiva)
   const [defaultWarehouseId, setDefaultWarehouseId] = useState<number | null>(null);
@@ -141,6 +143,23 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
     }
     return { base, totalUnits, validProducts };
   }, [items]);
+
+  // Hay datos cargados que se perderian al cerrar/cancelar.
+  const isDirty = isPurchaseFormDirty({ items, supplierId, documentNumber, dueDate });
+
+  function handleOpenChange(next: boolean) {
+    if (!next && isDirty) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    onOpenChange(next);
+  }
+
+  function confirmDiscard() {
+    setConfirmDiscardOpen(false);
+    reset();
+    onOpenChange(false);
+  }
 
   function reset() {
     setSupplierId(null);
@@ -434,7 +453,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex h-[min(96vh,1100px)] max-w-[1450px] flex-col gap-0 overflow-hidden p-0">
         {/* Cabecera Principal del Dialog */}
         <DialogHeader className="border-border shrink-0 border-b px-6 py-4 bg-surface">
@@ -814,7 +833,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 disabled={submitting}
               >
                 Cancelar
@@ -826,6 +845,37 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Confirmacion para no perder los productos ya cargados */}
+      <Dialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Descartar la compra?</DialogTitle>
+            <DialogDescription>
+              Tienes {totals.validProducts} producto(s) cargado(s) en el ticket. Si sales ahora,
+              se perderán.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmDiscardOpen(false)}
+              data-testid="purchase-discard-cancel"
+            >
+              Seguir editando
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={confirmDiscard}
+              data-testid="purchase-discard-confirm"
+            >
+              Descartar compra
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CreateProductDialog
         key={createProductOpen ? `create-${createProductName}` : 'create-closed'}
