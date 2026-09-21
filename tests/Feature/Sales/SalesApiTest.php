@@ -743,6 +743,92 @@ class SalesApiTest extends TestCase
         $response->assertJsonPath('summary.net_local_total', 130000);
     }
 
+    public function test_sale_detail_and_items_include_profit_when_user_has_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Profit', 'slug' => 'empresa-profit']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'PARALELO', 600);
+        $product->update([
+            'last_purchase_cost' => 40.00,
+            'base_price' => 100.00,
+        ]);
+        $customer = $this->customer($tenant, 'Cliente Profit', Customer::DOCUMENT_V, '999');
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Administrador', ['sales.view', 'sales.create', 'finance.costs.view']);
+
+        $res = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer->id,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $product->id,
+                        'quantity' => 2,
+                    ],
+                ],
+            ])
+            ->assertCreated();
+
+        // 2 units * $100 = $200 total base
+        // 2 units * $40 cost = $80 total cost
+        // Profit = $200 - $80 = $120. Margin = (120 / 200) * 100 = 60%
+        $res->assertJsonPath('data.total_base_amount', 200);
+        $res->assertJsonPath('data.cost_base_amount', 80);
+        $res->assertJsonPath('data.profit_base_amount', 120);
+        $res->assertJsonPath('data.profit_margin_percent', 60);
+
+        // Check in index
+        $listRes = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales')
+            ->assertOk();
+
+        $listRes->assertJsonPath('data.0.cost_base_amount', 80);
+        $listRes->assertJsonPath('data.0.profit_base_amount', 120);
+        $listRes->assertJsonPath('data.0.profit_margin_percent', 60);
+        $listRes->assertJsonPath('data.0.items.0.base_unit_cost', 40);
+        $listRes->assertJsonPath('data.0.items.0.base_total_cost', 80);
+        $listRes->assertJsonPath('data.0.items.0.profit_base_amount', 120);
+        $listRes->assertJsonPath('data.0.items.0.profit_margin_percent', 60);
+    }
+
+    public function test_sale_profit_and_cost_are_null_when_user_lacks_permission(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa No Cost', 'slug' => 'empresa-no-cost']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, 'PARALELO', 600);
+        $product->update([
+            'last_purchase_cost' => 40.00,
+            'base_price' => 100.00,
+        ]);
+        $customer = $this->customer($tenant, 'Cliente Normal', Customer::DOCUMENT_V, '888');
+        $user = $this->userInTenant($tenant);
+
+        // Granted only sales.view and sales.create, WITHOUT finance.costs.view
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.view', 'sales.create']);
+
+        $res = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer->id,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $product->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ])
+            ->assertCreated();
+
+        $res->assertJsonPath('data.cost_base_amount', null);
+        $res->assertJsonPath('data.profit_base_amount', null);
+        $res->assertJsonPath('data.profit_margin_percent', null);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

@@ -45,6 +45,9 @@ export interface SalesSummaryTotals {
   draft_count: number;
   cancelled_count: number;
   pos_count: number;
+  confirmed_cost_base_total?: number | null;
+  confirmed_profit_base_total?: number | null;
+  confirmed_profit_margin_percent?: number | null;
 }
 
 export interface PaginatedSales extends Paginated<Sale> {

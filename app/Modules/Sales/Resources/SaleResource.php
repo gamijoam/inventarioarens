@@ -13,6 +13,35 @@ class SaleResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $canViewCosts = (bool) ($request->user()?->can('finance.costs.view') ?? false);
+        $costBaseAmount = null;
+        $profitBaseAmount = null;
+        $profitMarginPercent = null;
+
+        if ($canViewCosts) {
+            $items = $this->relationLoaded('items') ? $this->items : null;
+            if ($items !== null) {
+                $totalCost = 0.0;
+                $hasCalculatedCost = false;
+                foreach ($items as $item) {
+                    $unitCost = $item->base_unit_cost;
+                    if ($unitCost === null && $item->relationLoaded('product') && $item->product) {
+                        $unitCost = $item->product->last_purchase_cost ?? $item->product->average_cost;
+                    }
+                    if ($unitCost !== null) {
+                        $hasCalculatedCost = true;
+                        $totalCost += round((float) $unitCost * (float) $item->quantity, 4);
+                    }
+                }
+                if ($hasCalculatedCost || $items->isEmpty()) {
+                    $costBaseAmount = round($totalCost, 4);
+                    $totalBase = (float) $this->total_base_amount;
+                    $profitBaseAmount = round($totalBase - $costBaseAmount, 4);
+                    $profitMarginPercent = $totalBase > 0 ? round(($profitBaseAmount / $totalBase) * 100, 2) : 0.0;
+                }
+            }
+        }
+
         return [
             'id' => $this->id,
             'tenant_id' => $this->tenant_id,
@@ -20,6 +49,9 @@ class SaleResource extends JsonResource
             'customer_id' => $this->customer_id,
             'total_base_amount' => (float) $this->total_base_amount,
             'total_local_amount' => (float) $this->total_local_amount,
+            'cost_base_amount' => $costBaseAmount,
+            'profit_base_amount' => $profitBaseAmount,
+            'profit_margin_percent' => $profitMarginPercent,
             'created_by' => $this->created_by,
             'created_by_name' => $this->whenLoaded('creator', fn () => $this->creator?->name),
             'items_count' => $this->items_count ?? $this->whenLoaded('items', fn () => $this->items->count()),

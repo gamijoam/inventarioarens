@@ -73,6 +73,8 @@ class SaleService
                 $netBaseTotal = $promotionApplied ? $baseTotal : round($baseTotal - $discount['base_amount'], 4);
                 $netLocalTotal = $promotionApplied ? $localTotal : round($localTotal - $discount['local_amount'], 4);
 
+                $unitCost = $product->last_purchase_cost ?? $product->average_cost;
+
                 $createdItems[$itemIndex] = SaleItem::create([
                     'sale_id' => $sale->id,
                     'warehouse_id' => $warehouse->id,
@@ -87,6 +89,7 @@ class SaleService
                     'total_amount' => $netTotalAmount,
                     'base_unit_price' => $baseUnitPrice,
                     'base_total_amount' => $netBaseTotal,
+                    'base_unit_cost' => $unitCost,
                     'discount_type' => $discount['type'],
                     'discount_value' => $discount['value'],
                     'discount_amount' => $discount['amount'],
@@ -219,9 +222,7 @@ class SaleService
 
                 $item->update([
                     'stock_movement_id' => $movement?->id,
-                    'base_unit_cost' => $item->base_unit_cost === null
-                        ? $item->product->last_purchase_cost
-                        : $item->base_unit_cost,
+                    'base_unit_cost' => $item->base_unit_cost ?? $item->product->last_purchase_cost ?? $item->product->average_cost,
                 ]);
                 if ($movement !== null) {
                     $this->markProductUnitsAsSold($productUnits, $movement->id);
