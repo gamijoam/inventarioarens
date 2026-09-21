@@ -179,4 +179,31 @@ describe('ProductAutocomplete', () => {
     fireEvent.click(toggle);
     expect(onToggleActive).toHaveBeenCalledWith(30, false);
   });
+
+  it('muestra completo el nombre de productos con nombres largos', async () => {
+    const longName =
+      'ACEITE SINTETICO DE ALTO RENDIMIENTO PARA MOTOR 4T 20W50 MARCA MOTUL 1 LITRO';
+
+    mockUseProductsForPurchase.mockReturnValue({
+      data: [
+        {
+          id: 99,
+          name: longName,
+          sku: 'LONG-1',
+          barcode: null,
+          tracking_type: 'quantity',
+          is_active: true,
+          available_stock: 3,
+        },
+      ],
+      isFetching: false,
+    });
+
+    render(<ProductAutocomplete value={null} onChange={vi.fn()} />);
+    fireEvent.focus(screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...'));
+
+    const name = await screen.findByText(longName);
+    expect(name.className).not.toContain('truncate');
+    expect(name.className).toContain('break-words');
+  });
 });

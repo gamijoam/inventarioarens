@@ -169,12 +169,14 @@ export function ProductAutocomplete({
 
   if (selected) {
     return (
-      <div className="border-primary/25 bg-primary/5 flex min-h-14 items-center gap-3 rounded-md border px-3 py-2">
-        <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-md">
+      <div className="border-primary/25 bg-primary/5 flex min-h-14 items-start gap-3 rounded-md border px-3 py-2">
+        <div className="bg-primary/10 text-primary mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md">
           <PackageSearch className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold">{selected.name}</div>
+          <div className="text-sm leading-snug font-semibold break-words whitespace-normal">
+            {selected.name}
+          </div>
           <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
             {selected.sku && <code className="bg-surface rounded px-1 py-0.5">{selected.sku}</code>}
             {selected.barcode && <span>Codigo: {selected.barcode}</span>}
@@ -274,7 +276,7 @@ export function ProductAutocomplete({
             {isFetching && <LoaderCircle className="text-primary size-4 animate-spin" />}
           </div>
 
-          <div className="max-h-60 overflow-y-auto overscroll-contain" tabIndex={-1}>
+          <div className="max-h-80 overflow-y-auto overscroll-contain" tabIndex={-1}>
             {isFetching && matches.length === 0 ? (
               <div className="text-text-muted flex items-center gap-2 p-4 text-sm">
                 <LoaderCircle className="text-primary size-4 animate-spin" />
@@ -291,8 +293,8 @@ export function ProductAutocomplete({
               <div className="p-4 text-sm">
                 <p className="text-text-primary font-medium">No encontramos ese producto.</p>
                 <p className="text-text-muted mt-1 text-xs">
-                  Busca por nombre, SKU o codigo de barras. El producto debe estar activo en esta
-                  empresa.
+                  Busca por nombre, SKU o codigo de barras. Tambien se muestran los productos
+                  inactivos.
                 </p>
                 {onProductNotFound && (
                   <button
@@ -315,30 +317,32 @@ export function ProductAutocomplete({
                       onClick={() => pick(product as ProductAutocompleteOption)}
                       onMouseEnter={() => setHighlight(index)}
                       className={cn(
-                        'flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors',
+                        'flex w-full flex-col gap-1.5 px-3 py-2.5 text-left transition-colors',
                         'hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none',
                         index === highlight && 'bg-primary/10',
                       )}
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold">{product.name}</div>
-                        <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
-                          {product.sku && <code>SKU: {product.sku}</code>}
-                          {product.barcode && <span>Codigo: {product.barcode}</span>}
-                          {product.base_price != null && <span>Base: {product.base_price}</span>}
-                          <span className="font-semibold text-text-primary">
-                            Stock: {Number(product.available_stock ?? 0)}
-                          </span>
+                      <div className="flex w-full items-start justify-between gap-2">
+                        <span className="min-w-0 flex-1 text-sm leading-snug font-semibold break-words whitespace-normal">
+                          {product.name}
+                        </span>
+                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                          <ProductActiveBadge isActive={product.is_active} />
+                          <Badge
+                            variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
+                            className="text-[10px]"
+                          >
+                            {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-                        <ProductActiveBadge isActive={product.is_active} />
-                        <Badge
-                          variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
-                          className="text-[10px]"
-                        >
-                          {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
-                        </Badge>
+                      <div className="text-text-muted flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        {product.sku && <code>SKU: {product.sku}</code>}
+                        {product.barcode && <span>Codigo: {product.barcode}</span>}
+                        {product.base_price != null && <span>Base: {product.base_price}</span>}
+                        <span className="font-semibold text-text-primary">
+                          Stock: {Number(product.available_stock ?? 0)}
+                        </span>
                       </div>
                     </button>
                   </li>
