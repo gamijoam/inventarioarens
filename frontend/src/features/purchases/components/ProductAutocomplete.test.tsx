@@ -94,4 +94,48 @@ describe('ProductAutocomplete', () => {
     const results = screen.getByTestId('purchase-product-results');
     expect(results.querySelector('.overflow-y-auto')).toBeInTheDocument();
   });
+
+  it('encuentra productos cuando los terminos no son contiguos (busqueda compuesta)', async () => {
+    mockUseProductsForPurchase.mockReturnValue({
+      data: [
+        {
+          id: 30,
+          name: 'ACEITE MOTUL 20W50',
+          sku: 'AC-20W50',
+          barcode: null,
+          tracking_type: 'quantity',
+        },
+      ],
+    });
+
+    render(<ProductAutocomplete value={null} onChange={vi.fn()} />);
+    const input = screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...');
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'aceite 20w50' } });
+
+    expect(await screen.findByRole('option', { name: /ACEITE MOTUL 20W50/i })).toBeInTheDocument();
+  });
+
+  it('encuentra productos por coincidencia parcial de una palabra', async () => {
+    mockUseProductsForPurchase.mockReturnValue({
+      data: [
+        {
+          id: 31,
+          name: 'FILTRO DE AIRE',
+          sku: 'FLT-AIR',
+          barcode: null,
+          tracking_type: 'quantity',
+        },
+      ],
+    });
+
+    render(<ProductAutocomplete value={null} onChange={vi.fn()} />);
+    const input = screen.getByPlaceholderText('Buscar por SKU, codigo de barras o nombre...');
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'filt' } });
+
+    expect(await screen.findByRole('option', { name: /FILTRO DE AIRE/i })).toBeInTheDocument();
+  });
 });

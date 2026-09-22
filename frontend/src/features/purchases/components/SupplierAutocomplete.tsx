@@ -107,7 +107,7 @@ export function SupplierAutocomplete({
               setOpen(true);
               setHighlight(0);
             }}
-            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();

@@ -53,19 +53,14 @@ export function ProductAutocomplete({
   }, [pickedProduct, products, selectedProduct, value]);
 
   const matches = useMemo(() => {
-    if (!query.trim()) return products.slice(0, 30);
+    const term = query.toLowerCase().trim();
+    if (!term) return products.slice(0, 30);
 
-    const normalizedQuery = query.toLowerCase().trim();
+    const tokens = term.split(/\s+/).filter(Boolean);
     return products
       .filter((product) => {
-        const sku = (product.sku ?? '').toLowerCase();
-        const barcode = (product.barcode ?? '').toLowerCase();
-        const name = product.name.toLowerCase();
-        return (
-          sku.includes(normalizedQuery) ||
-          barcode.includes(normalizedQuery) ||
-          name.includes(normalizedQuery)
-        );
+        const haystack = `${product.name} ${product.sku ?? ''} ${product.barcode ?? ''}`.toLowerCase();
+        return tokens.every((token) => haystack.includes(token));
       })
       .slice(0, 50);
   }, [products, query]);
