@@ -45,6 +45,12 @@ import type { Product } from '@/features/inventory-center/schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import { StorePurchaseSchema, type Purchase, type PurchaseItemInput } from '@/features/purchases/schemas';
 import { isPurchaseFormDirty } from '@/features/purchases/purchaseFormDirty';
+import {
+  clearPurchaseDraft,
+  loadPurchaseDraft,
+  savePurchaseDraft,
+} from '@/features/purchases/purchaseFormDraft';
+import { useSessionStore } from '@/stores/session';
 import { SupplierAutocomplete, type SupplierOption } from './SupplierAutocomplete';
 import { PurchaseItemRow, type PurchaseItemRowValue } from './PurchaseItemRow';
 import { PurchaseItemTableRow } from './PurchaseItemTableRow';
@@ -92,7 +98,9 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
   const [editProductId, setEditProductId] = useState<number | null>(null);
   const { data: editProduct } = useProduct(editProductId ?? 0);
   const updateProduct = useUpdateProduct();
+  const tenantId = useSessionStore((state) => state.tenant?.id ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null);
 
   // Almacén por defecto de la orden (para agilizar la adición masiva)
   const [defaultWarehouseId, setDefaultWarehouseId] = useState<number | null>(null);
@@ -157,6 +165,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
 
   function confirmDiscard() {
     setConfirmDiscardOpen(false);
+    clearPurchaseDraft(tenantId);
+    setRestoredDraftAt(null);
     reset();
     onOpenChange(false);
   }
@@ -203,9 +213,58 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
       }
       setFieldErrors({});
     } else if (open && !purchase) {
-      reset();
+      const draft = loadPurchaseDraft(tenantId);
+      if (draft) {
+        setSupplierId(draft.supplierId ?? null);
+        setDocumentNumber(draft.documentNumber ?? '');
+        setIssuedAt(draft.issuedAt || todayDateString());
+        setDueDate(draft.dueDate ?? '');
+        setCurrency(draft.currency ?? 'USD');
+        setRateTypeId(draft.rateTypeId ?? null);
+        setDefaultWarehouseId(draft.defaultWarehouseId ?? null);
+        setItems(draft.items.length > 0 ? draft.items : [emptyItem(draft.defaultWarehouseId)]);
+        setRestoredDraftAt(draft.savedAt);
+      } else {
+        reset();
+        setRestoredDraftAt(null);
+      }
+      setFieldErrors({});
     }
-  }, [open, purchase]);
+  }, [open, purchase, tenantId]);
+
+  // Autosave: guarda un borrador del formulario (solo compras nuevas) para no
+  // perder la factura en curso si se cierra la sesion o el cliente.
+  useEffect(() => {
+    if (!open || purchase || !isDirty) return;
+
+    const handle = window.setTimeout(() => {
+      savePurchaseDraft(tenantId, {
+        supplierId,
+        documentNumber,
+        issuedAt,
+        dueDate,
+        currency,
+        rateTypeId,
+        defaultWarehouseId,
+        items,
+      });
+    }, 400);
+
+    return () => window.clearTimeout(handle);
+  }, [
+    open,
+    purchase,
+    isDirty,
+    tenantId,
+    supplierId,
+    documentNumber,
+    issuedAt,
+    dueDate,
+    currency,
+    rateTypeId,
+    defaultWarehouseId,
+    items,
+  ]);
 
   function addItem() {
     const targetWh = defaultWarehouseId ?? (warehouses[0]?.id ?? null);
@@ -440,6 +499,8 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
         onCreated?.((result as { id: number }).id);
       }
       reset();
+      clearPurchaseDraft(tenantId);
+      setRestoredDraftAt(null);
       onOpenChange(false);
     } catch (err) {
       if (err instanceof Error) {
@@ -491,6 +552,27 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
             </div>
           </div>
         </DialogHeader>
+
+        {restoredDraftAt && !purchase && (
+          <div className="border-warning/30 bg-warning/10 text-warning flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-6 py-2.5 text-xs">
+            <span className="font-medium">
+              Se restauró una compra sin guardar (guardada{' '}
+              {new Date(restoredDraftAt).toLocaleString('es-VE')}).
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                clearPurchaseDraft(tenantId);
+                setRestoredDraftAt(null);
+                reset();
+              }}
+              className="hover:text-warning/80 font-semibold underline"
+              data-testid="purchase-discard-draft"
+            >
+              Descartar borrador
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 flex flex-col overflow-y-auto">

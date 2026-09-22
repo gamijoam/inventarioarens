@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import type * as ReactQuery from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual<typeof ReactQuery>('@tanstack/react-query');
@@ -39,6 +39,10 @@ vi.mock('./SupplierAutocomplete', () => ({
 import { PurchaseFormDialog } from './PurchaseFormDialog';
 
 describe('PurchaseFormDialog descartar', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('pide confirmacion antes de descartar una compra con datos y permite seguir editando', () => {
     const onOpenChange = vi.fn();
     render(<PurchaseFormDialog open onOpenChange={onOpenChange} />);
@@ -57,5 +61,38 @@ describe('PurchaseFormDialog descartar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     fireEvent.click(screen.getByTestId('purchase-discard-confirm'));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('restaura un borrador guardado al abrir una compra nueva', () => {
+    window.localStorage.setItem(
+      'inventory_purchase_draft_none',
+      JSON.stringify({
+        version: 1,
+        savedAt: new Date('2026-09-21T10:00:00Z').toISOString(),
+        supplierId: null,
+        documentNumber: 'BORRADOR-1',
+        issuedAt: '2026-09-21',
+        dueDate: '',
+        currency: 'USD',
+        rateTypeId: null,
+        defaultWarehouseId: 1,
+        items: [
+          {
+            warehouse_id: 1,
+            product_id: null,
+            product_variant_id: null,
+            product_info: null,
+            quantity: '',
+            unit_cost: '',
+            serial_units: [],
+          },
+        ],
+      }),
+    );
+
+    render(<PurchaseFormDialog open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByDisplayValue('BORRADOR-1')).toBeInTheDocument();
+    expect(screen.getByText(/Se restauró una compra sin guardar/i)).toBeInTheDocument();
   });
 });
