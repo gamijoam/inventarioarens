@@ -782,7 +782,7 @@ export function ProductSearchDetailModal({
                           <div className="col-span-6 min-w-0" title={p.name}>
                             <div
                               className={cn(
-                                'truncate text-sm',
+                                'text-sm leading-snug break-words whitespace-normal',
                                 isSelected ? 'font-bold text-text-primary' : 'text-text-secondary',
                               )}
                             >

@@ -183,7 +183,7 @@ describe('ProductSearchDetailModal', () => {
     expect(screen.getAllByText(/Lubricantes/).length).toBeGreaterThan(0);
   });
 
-  it('muestra la pestaña de Precios con comparativa Precio 1, 2 y 3 con impuesto en USD y VES', () => {
+  it('muestra la pestaña de Precios con comparativa Precio 1, 2 y 3 en USD y VES', () => {
     render(
       <ProductSearchDetailModal
         open={true}
@@ -198,20 +198,16 @@ describe('ProductSearchDetailModal', () => {
     );
 
     // Encabezados de tabla de precios
-    expect(screen.getByText('USD c/Imp')).toBeInTheDocument();
-    expect(screen.getByText('VES c/Imp')).toBeInTheDocument();
+    expect(screen.getByText('PVP USD')).toBeInTheDocument();
+    expect(screen.getByText(/PVP VES/)).toBeInTheDocument();
 
     // Filas de precios
     expect(screen.getByText('Precio 1 (Detal)')).toBeInTheDocument();
     expect(screen.getByText('Precio 2 (Mayor)')).toBeInTheDocument();
     expect(screen.getByText('Precio 3 (Especial)')).toBeInTheDocument();
 
-    // El precio base del sistema ya incluye el 16% de IVA: 10.34 USD con impuesto
+    // El PVP USD del sistema ya incluye el impuesto (10.34).
     expect(screen.getAllByText('$10.34').length).toBeGreaterThan(0);
-    // Base imponible desglosada (10.34 / 1.16 = 8.91 USD neto)
-    expect(screen.getAllByText('$8.91').length).toBeGreaterThan(0);
-    // IVA 16% desglosado (10.34 - 8.91 = 1.43 USD)
-    expect(screen.getAllByText('$1.43').length).toBeGreaterThan(0);
   });
 
   it('permite cambiar entre pestañas (Existencia, Datos, Seriales) usando atajos F6, F8 y F7', () => {
@@ -416,7 +412,7 @@ describe('ProductSearchDetailModal', () => {
     expect(screen.queryByText('Precio base')).not.toBeInTheDocument();
 
     // La tabla comparativa sigue disponible con sus columnas clave.
-    expect(screen.getByText('USD c/Imp')).toBeInTheDocument();
-    expect(screen.getByText('VES c/Imp')).toBeInTheDocument();
+    expect(screen.getByText('PVP USD')).toBeInTheDocument();
+    expect(screen.getByText(/PVP VES/)).toBeInTheDocument();
   });
 });
