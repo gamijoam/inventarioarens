@@ -18,6 +18,7 @@ class ReversePosSaleRequest extends FormRequest
             'type' => ['required', Rule::in(['void', 'reversal'])],
             'reason' => ['required', 'string', 'min:5', 'max:2000'],
             'cash_register_session_id' => ['required', 'integer', 'exists:cash_register_sessions,id'],
+            'refund_reference' => ['nullable', 'string', 'max:200'],
         ];
     }
 }

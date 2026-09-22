@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'created_by',
     'type',
     'reason',
+    'refund_reference',
     'original_paid_at',
     'effective_at',
     'reversed_base_amount',

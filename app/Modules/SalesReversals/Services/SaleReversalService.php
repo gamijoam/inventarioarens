@@ -80,6 +80,20 @@ class SaleReversalService
                 ]);
             }
 
+            $hasExternalPayment = $capturedPayments->contains(
+                fn (PosPayment $payment): bool => ! in_array(
+                    $payment->method,
+                    [PosPayment::METHOD_CASH, PosPayment::METHOD_CUSTOMER_CREDIT],
+                    true,
+                )
+            );
+            $refundReference = trim((string) ($data['refund_reference'] ?? ''));
+            if ($hasExternalPayment && $refundReference === '') {
+                throw ValidationException::withMessages([
+                    'refund_reference' => 'Indica la referencia del reembolso externo (pago movil, transferencia, etc.) antes de anular la venta.',
+                ]);
+            }
+
             $reversal = SaleReversal::create([
                 'sale_id' => $order->sale_id,
                 'pos_order_id' => $order->id,
@@ -87,6 +101,7 @@ class SaleReversalService
                 'created_by' => $user->id,
                 'type' => $type,
                 'reason' => $data['reason'],
+                'refund_reference' => $hasExternalPayment ? $refundReference : null,
                 'original_paid_at' => $paidAt,
                 'effective_at' => now(),
                 'reversed_base_amount' => $capturedPayments->sum(fn (PosPayment $payment): float => (float) $payment->amount_base),
@@ -151,9 +166,7 @@ class SaleReversalService
                 }
 
                 if ($payment->method !== PosPayment::METHOD_CASH) {
-                    throw ValidationException::withMessages([
-                        'payments' => 'Los pagos externos requieren conciliación de reembolso antes de revertir la venta.',
-                    ]);
+                    continue;
                 }
 
                 $this->cashRegister->recordSaleReversal($session, $payment, $reversal, $user);

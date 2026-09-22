@@ -12,6 +12,8 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\Products\Models\Product;
 use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Models\SaleItem;
+use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\Suppliers\Models\Supplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -50,6 +52,62 @@ class DashboardSummaryApiTest extends TestCase
             ->assertJsonPath('data.inventory.low_stock_items.0.product_name', 'Samsung A06')
             ->assertJsonPath('data.finance.accounts_receivable_balance_base_amount', 120)
             ->assertJsonPath('data.finance.accounts_payable_balance_base_amount', 45);
+    }
+
+    public function test_dashboard_summary_nets_processed_sales_returns(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->dashboardUser($tenant);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'BR-RET']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen', 'code' => 'WH-RET']);
+        $product = Product::create([
+            'name' => 'Producto Devuelto',
+            'sku' => 'RET-001',
+            'tracking_type' => 'quantity',
+            'base_price' => 100,
+            'sale_currency' => 'USD',
+        ]);
+        $sale = Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 100,
+            'confirmed_at' => now(),
+        ]);
+        $saleItem = SaleItem::create([
+            'sale_id' => $sale->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 2,
+            'sale_currency' => 'USD',
+            'unit_price' => 50,
+            'total_amount' => 100,
+            'base_unit_price' => 50,
+            'base_total_amount' => 100,
+        ]);
+        $salesReturn = SalesReturn::create([
+            'sale_id' => $sale->id,
+            'status' => SalesReturn::STATUS_PROCESSED,
+            'reason' => 'Devolucion',
+            'processed_at' => now(),
+        ]);
+        $salesReturn->items()->create([
+            'sale_item_id' => $saleItem->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'condition' => 'sellable',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/dashboard/summary?period=today')
+            ->assertOk()
+            ->assertJsonPath('data.sales.total_base_amount', 100)
+            ->assertJsonPath('data.sales.returned_base_amount', 50)
+            ->assertJsonPath('data.sales.net_base_amount', 50)
+            ->assertJsonPath('data.returns.processed_count', 1);
     }
 
     public function test_dashboard_summary_does_not_mix_companies(): void
