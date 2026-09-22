@@ -218,10 +218,14 @@ function buildLaravelEnvironment(config, rendererOrigin) {
     DB_CONNECTION: 'sqlite',
     DB_DATABASE: config.databasePath,
     DB_FOREIGN_KEYS: 'true',
-    DB_BUSY_TIMEOUT: '5000',
+    DB_BUSY_TIMEOUT: '15000',
     DB_JOURNAL_MODE: 'WAL',
     DB_SYNCHRONOUS: 'NORMAL',
     DB_TRANSACTION_MODE: 'IMMEDIATE',
+    // Mas workers del servidor embebido de PHP: mientras una request espera el
+    // lock de escritura de SQLite (o una transaccion larga), las demas pueden
+    // seguir atendiendo. En Windows PHP lo ignora y sigue siendo 1 worker.
+    PHP_CLI_SERVER_WORKERS: '8',
     FILESYSTEM_DISK: 'local',
     LARAVEL_STORAGE_PATH: config.storagePath,
     LOCAL_TECHNICAL_CONSOLE_ENABLED: 'true',

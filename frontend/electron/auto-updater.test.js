@@ -100,3 +100,10 @@ describe('auto-updater tolerates missing electron-updater', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   });
 });
+
+describe('auto-updater check interval', () => {
+  it('chequea actualizaciones cada 5 minutos para no saturar la red', () => {
+    const updater = loadAutoUpdaterModule();
+    expect(updater.UPDATE_CHECK_INTERVAL_MS).toBe(5 * 60 * 1000);
+  });
+});

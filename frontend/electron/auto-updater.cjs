@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const { resolveUpdateChannel, shouldEnableAutoUpdater } = require('./update-policy.cjs');
 
-const UPDATE_CHECK_INTERVAL_MS = 1 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 function createUpdaterLogger(logPath, logger = console) {
   const write = (level, message) => {
@@ -149,6 +149,7 @@ function setupAutoUpdater({ app, appMode, appClient = appMode, isRuntimeSupervis
 }
 
 module.exports = {
+  UPDATE_CHECK_INTERVAL_MS,
   createUpdateCheckScheduler,
   createUpdaterLogger,
   setupAutoUpdater,

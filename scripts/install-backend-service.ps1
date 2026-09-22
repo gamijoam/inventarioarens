@@ -167,7 +167,7 @@ function Write-Launcher([string]$Path, [string]$Php, [string]$Backend, [string]$
         "set DB_CONNECTION=sqlite",
         "set DB_DATABASE=$DataRoot\inventario.sqlite",
         "set DB_FOREIGN_KEYS=true",
-        "set DB_BUSY_TIMEOUT=5000",
+        "set DB_BUSY_TIMEOUT=15000",
         "set DB_JOURNAL_MODE=WAL",
         "set DB_SYNCHRONOUS=NORMAL",
         "set DB_TRANSACTION_MODE=IMMEDIATE",

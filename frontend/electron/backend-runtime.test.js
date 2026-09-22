@@ -323,6 +323,8 @@ describe('Local Laravel runtime configuration', () => {
     const environment = buildLaravelEnvironment(config, 'http://127.0.0.1:5173');
 
     expect(environment.DB_CONNECTION).toBe('sqlite');
+    expect(environment.DB_BUSY_TIMEOUT).toBe('15000');
+    expect(environment.PHP_CLI_SERVER_WORKERS).toBe('8');
     expect(environment.DB_DATABASE.replace(/\\/g, '/')).toBe(
       '/shared/InventarioArens/inventario.sqlite',
     );

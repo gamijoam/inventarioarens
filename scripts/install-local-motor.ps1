@@ -282,7 +282,7 @@ function Set-LaravelEnvironment([string]$Php, [string]$Backend, [string]$AppKey,
     $env:DB_CONNECTION = 'sqlite'
     $env:DB_DATABASE = Join-Path $DataRoot 'inventario.sqlite'
     $env:DB_FOREIGN_KEYS = 'true'
-    $env:DB_BUSY_TIMEOUT = '5000'
+    $env:DB_BUSY_TIMEOUT = '15000'
     $env:DB_JOURNAL_MODE = 'WAL'
     $env:DB_SYNCHRONOUS = 'NORMAL'
     $env:DB_TRANSACTION_MODE = 'IMMEDIATE'
@@ -351,7 +351,7 @@ function Install-Motor {
         SYNC_PUBLIC_BASE = $CloudBase
         APP_ALLOWED_ORIGINS_FOR_CSRF = 'http://127.0.0.1:8788,http://127.0.0.1:8789,http://127.0.0.1:8790,http://127.0.0.1:8791,http://127.0.0.1:8792,http://127.0.0.1:8793,http://localhost:8788,http://localhost:8789,http://localhost:8790,http://localhost:8791,http://localhost:8792,http://localhost:8793'
         CORS_ALLOWED_ORIGINS_LOCAL = 'http://127.0.0.1:8788'
-        DB_CONNECTION = 'sqlite'; DB_DATABASE = $database; DB_FOREIGN_KEYS = 'true'; DB_BUSY_TIMEOUT = '5000'
+        DB_CONNECTION = 'sqlite'; DB_DATABASE = $database; DB_FOREIGN_KEYS = 'true'; DB_BUSY_TIMEOUT = '15000'
         DB_JOURNAL_MODE = 'WAL'; DB_SYNCHRONOUS = 'NORMAL'; DB_TRANSACTION_MODE = 'IMMEDIATE'
         FILESYSTEM_DISK = 'local'; LARAVEL_STORAGE_PATH = (Join-Path $DataRoot 'storage')
         LOCAL_TECHNICAL_CONSOLE_ENABLED = 'true'; LOG_CHANNEL = 'stack'; LOG_LEVEL = 'warning'
