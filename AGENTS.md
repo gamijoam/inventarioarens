@@ -1109,8 +1109,17 @@ bundles renderer de los otros clientes.
 ### Auto-update y workers
 
 - El updater descarga en background y pregunta antes de reiniciar. El check corre al arrancar y cada
-  **1 minuto** (`UPDATE_CHECK_INTERVAL_MS` en `frontend/electron/auto-updater.cjs`) — corto para
-  verificar cambios rápido durante desarrollo.
+  **5 minutos** (`UPDATE_CHECK_INTERVAL_MS` en `frontend/electron/auto-updater.cjs`). Antes era 1 min,
+  pero se bajó para no golpear la red/IO constantemente en instalaciones de producción.
+- **Cliente de datos local-first (2026-09-22)**: la SPA usa `createAppQueryClient()`
+  (`frontend/src/lib/queryClient.ts`). Cuando el backend es loopback (Electron / Motor), las
+  queries y mutaciones usan `networkMode: 'always'` y desactivan `refetchOnReconnect` /
+  `refetchOnWindowFocus`; esto evita que una venta quede pausada sin resolver cuando Chromium
+  cree que no hay internet. La web de nube conserva el modo `online`. No volver a crear un
+  `QueryClient` con los defaults de TanStack en el Electron.
+- **SQLite local**: `DB_BUSY_TIMEOUT` es 15000ms (antes 5000) en `backend-runtime.cjs` y en los
+  scripts del Motor (`install-local-motor.ps1`, `install-backend-service.ps1`) para tolerar mejor la
+  contención entre el POS y el daemon de sync.
 - La sincronización de escritorio corre en el servicio Windows **`SistemaInventarioSync`** del Motor
   Local, independiente de las aplicaciones abiertas. Un solo supervisor procesa todas las empresas;
   Electron no crea tareas ni lanza daemons.
