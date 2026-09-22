@@ -178,6 +178,36 @@ class ProductCatalogApiTest extends TestCase
         $this->assertCount(1, $response->json('data'));
     }
 
+    public function test_search_matches_accented_product_names(): void
+    {
+        $tenant = $this->tenant();
+        $admin = $this->admin($tenant);
+
+        Product::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'CIGUEÑAL CHEVROLET',
+            'sku' => 'CIG-001',
+            'tracking_type' => 'quantity',
+        ]);
+
+        $accented = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?search='.urlencode('cigüeñal'));
+
+        $accented->assertOk();
+        $this->assertCount(1, $accented->json('data'));
+        $this->assertSame('CIGUEÑAL CHEVROLET', $accented->json('data.0.name'));
+
+        $plain = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/products?search=ciguenal');
+
+        $plain->assertOk();
+        $this->assertCount(1, $plain->json('data'));
+    }
+
     public function test_product_detail_can_return_stock_for_a_specific_warehouse(): void
     {
         $tenant = $this->tenant();

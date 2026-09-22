@@ -86,23 +86,28 @@ class ProductController extends Controller
             $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
             $barcodeExpr = $isPgsql ? 'unaccent(LOWER(barcode))' : 'LOWER(barcode)';
             $descExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(description, \'\')))' : 'LOWER(COALESCE(description, \'\'))';
+            // El termino tambien se normaliza con unaccent: las columnas ya estan
+            // sin acento, asi que escribir con ñ/acentos (ej. "cigüeñal") debe
+            // seguir encontrando el producto. Sin esto, solo funcionaba el termino
+            // sin acento.
+            $termExpr = $isPgsql ? 'unaccent(?)' : '?';
 
-            $query->where(function ($q) use ($normalizedSearch, $tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
-                $q->where(function ($sub) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
-                    $sub->whereRaw("{$nameExpr} LIKE ?", ["%{$normalizedSearch}%"])
-                        ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$normalizedSearch}%"])
-                        ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$normalizedSearch}%"])
-                        ->orWhereRaw("{$descExpr} LIKE ?", ["%{$normalizedSearch}%"]);
+            $query->where(function ($q) use ($normalizedSearch, $tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
+                $q->where(function ($sub) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
+                    $sub->whereRaw("{$nameExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$descExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"]);
                 });
 
                 if (count($tokens) > 1) {
-                    $q->orWhere(function ($sub) use ($tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                    $q->orWhere(function ($sub) use ($tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
                         foreach ($tokens as $token) {
-                            $sub->where(function ($tokenQuery) use ($token, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
-                                $tokenQuery->whereRaw("{$nameExpr} LIKE ?", ["%{$token}%"])
-                                    ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$token}%"])
-                                    ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$token}%"])
-                                    ->orWhereRaw("{$descExpr} LIKE ?", ["%{$token}%"]);
+                            $sub->where(function ($tokenQuery) use ($token, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
+                                $tokenQuery->whereRaw("{$nameExpr} LIKE {$termExpr}", ["%{$token}%"])
+                                    ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", ["%{$token}%"])
+                                    ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", ["%{$token}%"])
+                                    ->orWhereRaw("{$descExpr} LIKE {$termExpr}", ["%{$token}%"]);
                             });
                         }
                     });
@@ -111,12 +116,12 @@ class ProductController extends Controller
 
             $query->orderByRaw(
                 "CASE
-                    WHEN {$barcodeExpr} = ? THEN 0
-                    WHEN {$skuExpr} = ? THEN 1
-                    WHEN {$nameExpr} = ? THEN 2
-                    WHEN {$barcodeExpr} LIKE ? THEN 3
-                    WHEN {$skuExpr} LIKE ? THEN 4
-                    WHEN {$nameExpr} LIKE ? THEN 5
+                    WHEN {$barcodeExpr} = {$termExpr} THEN 0
+                    WHEN {$skuExpr} = {$termExpr} THEN 1
+                    WHEN {$nameExpr} = {$termExpr} THEN 2
+                    WHEN {$barcodeExpr} LIKE {$termExpr} THEN 3
+                    WHEN {$skuExpr} LIKE {$termExpr} THEN 4
+                    WHEN {$nameExpr} LIKE {$termExpr} THEN 5
                     ELSE 6
                 END",
                 [
