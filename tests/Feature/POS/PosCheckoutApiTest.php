@@ -1531,6 +1531,62 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pending_pos_order_whose_sale_is_already_cancelled_can_be_closed(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout', 'pos.cancel']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $checkout = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_EXTERNAL_FINANCING,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                    'status' => PosPayment::STATUS_PENDING,
+                    'external_provider' => 'Financiadora Demo',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_OPEN);
+
+        $orderId = $checkout->json('data.id');
+
+        $this->useTenant($tenant);
+        $order = PosOrder::query()->findOrFail($orderId);
+        // Simula la inconsistencia: la venta se cancela por otro camino y la
+        // orden POS queda huerfana en 'open'.
+        $order->sale->update(['status' => Sale::STATUS_CANCELLED]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', PosOrder::STATUS_CANCELLED);
+
+        $this->assertDatabaseHas('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'id' => $orderId,
+            'status' => PosOrder::STATUS_CANCELLED,
+        ]);
+    }
+
     public function test_pending_pos_order_rejects_serialized_product_without_selected_imei(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

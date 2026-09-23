@@ -554,6 +554,29 @@ class PosCheckoutService
                     ]);
                 }
 
+                // Auto-reparacion / idempotencia: si la venta ya fue cancelada por
+                // otro proceso, la orden POS quedo huerfana en 'open'. La cerramos
+                // igual (liberando reserva) en vez de trabarla para siempre.
+                if ($order->sale && $order->sale->status === Sale::STATUS_CANCELLED) {
+                    $this->releaseOrderReservation($order, $cashier);
+
+                    $order->update([
+                        'status' => PosOrder::STATUS_CANCELLED,
+                        'closed_at' => now(),
+                    ]);
+                    $this->recordOrderSyncEvent($order->refresh(), 'pos.order.cancelled');
+
+                    return $order->refresh()->load([
+                        'cashRegisterSession',
+                        'customer',
+                        'sale.customer',
+                        'sale.items.product',
+                        'sale.items.variant',
+                        'sale.items.warehouse',
+                        'payments',
+                    ]);
+                }
+
                 if (! $order->sale || $order->sale->status !== Sale::STATUS_DRAFT) {
                     throw ValidationException::withMessages([
                         'order' => 'La venta asociada ya no esta disponible para cancelar.',
