@@ -135,6 +135,15 @@ async function prepare() {
                     iniContent = iniContent.replace(new RegExp(`;\\s*extension\\s*=\\s*${ext}`, "g"), `extension = ${ext}`);
                 }
 
+                // OPcache: imprescindible para que el Motor no recompile el framework
+                // en cada request (Tanto el server embebido como el CLI usan SAPI CLI).
+                iniContent = iniContent.replace(/;+\s*zend_extension\s*=\s*opcache/gi, "zend_extension=opcache");
+                iniContent = iniContent.replace(/;+\s*opcache\.enable\s*=\s*\d/gi, "opcache.enable=1");
+                iniContent = iniContent.replace(/;+\s*opcache\.enable_cli\s*=\s*\d/gi, "opcache.enable_cli=1");
+                iniContent = iniContent.replace(/;+\s*opcache\.memory_consumption\s*=\s*\d+/gi, "opcache.memory_consumption=192");
+                iniContent = iniContent.replace(/;+\s*opcache\.max_accelerated_files\s*=\s*\d+/gi, "opcache.max_accelerated_files=20000");
+                iniContent = iniContent.replace(/;+\s*opcache\.validate_timestamps\s*=\s*\d/gi, "opcache.validate_timestamps=0");
+
                 fs.writeFileSync(phpIniPath, iniContent, "utf8");
             }
 
