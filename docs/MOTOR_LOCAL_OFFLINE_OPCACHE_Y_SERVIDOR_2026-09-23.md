@@ -191,3 +191,66 @@ LAN.
   `Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8787/up` con `Diagnostics.Stopwatch`.
 - Verificar OPcache:
   `& "...\runtime\php\php.exe" -r "var_dump(function_exists('opcache_get_status'));"` → `true`.
+
+
+## 8. FrankenPHP implementado (servidor multi-hilo) — 2026-09-23
+
+Se reemplazó `php artisan serve` (monohilo) por **FrankenPHP** como servidor del
+Motor Local, sin tocar el código de la aplicación ni la base de datos.
+
+### 8.1 Por qué FrankenPHP
+
+- Un **solo binario** (`frankenphp.exe`) con Caddy + PHP embebido (ZTS,
+  multi-hilo). Corre Laravel sin paquetes nuevos (a diferencia de RoadRunner,
+  cuyo bridge puede no soportar Laravel 13).
+- Usa **PHP 8.5.10** embebido con las extensiones que necesita la app.
+- Se probó en el VPS (Linux) y en la PC (Windows): **atiende requests en paralelo**.
+
+### 8.2 Qué se hizo
+
+1. Se descargó `frankenphp-windows-x86_64.zip` (v1.12.7) y se extrajo.
+2. Se copió a `C:\ProgramData\InventarioArens\runtime\frankenphp\` (carpeta de
+   datos, no se borra al actualizar el Motor).
+3. Se creó `php.ini` con `extension_dir` absoluto y extensiones:
+   `pdo_sqlite, sqlite3, mbstring, fileinfo, openssl, curl, zip, gd, intl, sodium`
+   (+ OPcache). Sin este ini, el PHP embebido arranca **sin extensiones**.
+4. Se respaldó y reescribió el servicio WinSW
+   `...\service\SistemaInventarioBackend.xml`:
+   - `executable` → `C:\ProgramData\InventarioArens\runtime\frankenphp\frankenphp.exe`
+   - `arguments` → `php-server --root "...\backend\public" --listen 127.0.0.1:8787`
+   - `<env name="PHPRC" value="...\frankenphp" />` (para que cargue el php.ini)
+   - Se conservó **todo** el bloque `<env>` original (DB, storage, app key, etc.).
+5. Se reinició el servicio.
+
+Respaldo del XML original:
+`SistemaInventarioBackend.xml.bak-20260922-204106`
+(rollback: restaurarlo y reiniciar `SistemaInventarioBackend`).
+
+### 8.3 Resultados
+
+- `/up` = 200; API con SQLite = 200.
+- FrankenPHP arranca con `num_threads: 8, max_threads: 8`.
+- **Concurrencia medida** (`/api/local-support/status`):
+  - 6 requests **secuenciales**: ~1754 ms (~292 ms c/u)
+  - 6 requests **concurrentes**: **~469 ms** → **en paralelo** ✅
+- Servicios `SistemaInventarioBackend` (FrankenPHP), `Printer` y `Sync`: running.
+
+### 8.4 Script reproducible
+
+Se agregó `scripts/local-motor-frankenphp.ps1` que automatiza todo lo anterior
+(copia, `php.ini`, backup + edición del XML, reinicio). Requiere administrador y
+la carpeta de FrankenPHP ya extraída.
+
+### 8.5 Consideraciones
+
+- **El cambio se pierde si se reinstala/actualiza el Motor**: el instalador
+  regenera el XML del servicio. Hay que volver a correr
+  `scripts/local-motor-frankenphp.ps1` (o, mejor, bundlear FrankenPHP en el
+  release del Motor).
+- Para **baked-in** hay que incluir el binario en el payload del Motor
+  (`scripts/build-local-motor.ps1` / `install-local-motor.ps1` / `.iss`) y en el
+  workflow `release-motor.yml`.
+- SQLite sigue igual (WAL, 1 escritor). Concurrencia de escritura corta → sin
+  cambios; `busy_timeout=15000` protege los picos.
+- Para **varias PC** falta además: bind `0.0.0.0` en `frankenphp ... --listen`
+  + firewall puerto 8787.
