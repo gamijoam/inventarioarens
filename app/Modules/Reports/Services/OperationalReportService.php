@@ -503,6 +503,7 @@ class OperationalReportService
     {
         $query = DB::table('sales')
             ->where('sales.tenant_id', $tenantId)
+            ->where('sales.status', Sale::STATUS_CONFIRMED)
             ->whereBetween('sales.confirmed_at', [$from, $to]);
 
         if ($filters['warehouse_id'] ?? null) {

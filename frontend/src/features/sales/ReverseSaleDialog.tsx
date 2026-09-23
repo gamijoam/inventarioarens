@@ -44,14 +44,25 @@ export function ReverseSaleDialog({
   const sameDay = isSameCalendarDay(paidAt);
   const [reason, setReason] = useState('');
   const [type, setType] = useState<ReversePosSalePayload['type']>(sameDay ? 'void' : 'reversal');
+  const [refundReference, setRefundReference] = useState('');
   const reverse = useReversePosSale();
   const reasonIsValid = reason.trim().length >= 5;
-  const canSubmit = Boolean(sale.pos_order?.id && activeSession?.id && reasonIsValid);
+  const hasExternalPayment = (sale.pos_order?.payments ?? []).some(
+    (payment) => payment.method !== 'cash' && payment.method !== 'customer_credit',
+  );
+  const refundReferenceIsValid = !hasExternalPayment || refundReference.trim().length >= 3;
+  const canSubmit = Boolean(
+    sale.pos_order?.id && activeSession?.id && reasonIsValid && refundReferenceIsValid,
+  );
 
   async function submit(): Promise<void> {
     if (!sale.pos_order?.id || !activeSession?.id) return;
     if (!reasonIsValid) {
       toast.error('El motivo debe tener al menos 5 caracteres.');
+      return;
+    }
+    if (!refundReferenceIsValid) {
+      toast.error('Indica la referencia del reembolso externo (mínimo 3 caracteres).');
       return;
     }
 
@@ -62,10 +73,12 @@ export function ReverseSaleDialog({
           type,
           reason: reason.trim(),
           cash_register_session_id: activeSession.id,
+          refund_reference: hasExternalPayment ? refundReference.trim() : null,
         },
       });
       toast.success(type === 'void' ? 'Venta anulada.' : 'Venta revertida.');
       setReason('');
+      setRefundReference('');
       onOpenChange(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo revertir la venta.');
@@ -117,6 +130,25 @@ export function ReverseSaleDialog({
               </p>
             )}
           </div>
+
+          {hasExternalPayment && (
+            <div>
+              <Label htmlFor="reverse-sale-refund-reference">Referencia de reembolso</Label>
+              <Input
+                id="reverse-sale-refund-reference"
+                aria-label="Referencia de reembolso"
+                value={refundReference}
+                onChange={(event) => setRefundReference(event.target.value)}
+                placeholder="Ej: referencia del pago movil o transferencia"
+                maxLength={200}
+                className="mt-1"
+              />
+              <p className="text-text-muted mt-1 text-xs">
+                Esta venta se cobró con un pago externo. Registra la referencia del reembolso ya
+                conciliado por fuera de la caja.
+              </p>
+            </div>
+          )}
 
           {!activeSession && (
             <p className="border-warning/30 bg-warning/10 text-warning rounded border p-2 text-sm">

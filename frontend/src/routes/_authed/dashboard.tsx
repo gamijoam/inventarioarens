@@ -63,6 +63,8 @@ interface DashboardSummary {
   sales: {
     confirmed_count: number;
     total_base_amount: number;
+    returned_base_amount?: number;
+    net_base_amount?: number;
   };
   profit?: {
     gross_profit_base_amount: number;
@@ -416,10 +418,14 @@ function TenantDashboardSummary({
         <section className={gridClasses}>
           {visibility.sales && (
             <MetricCard
-              title="Ventas"
+              title="Ventas netas"
               icon={ShoppingCart}
-              value={formatMoney(data.sales.total_base_amount)}
-              helper={`${data.sales.confirmed_count} confirmadas`}
+              value={formatMoney(data.sales.net_base_amount ?? data.sales.total_base_amount)}
+              helper={
+                (data.sales.returned_base_amount ?? 0) > 0
+                  ? `${data.sales.confirmed_count} confirmadas · Dev. ${formatMoney(data.sales.returned_base_amount ?? 0)}`
+                  : `${data.sales.confirmed_count} confirmadas`
+              }
               tone="primary"
               cardCount={kpiCount}
               isMasked={isMasked}
