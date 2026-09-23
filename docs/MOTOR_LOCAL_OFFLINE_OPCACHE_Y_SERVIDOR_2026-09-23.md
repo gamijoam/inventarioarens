@@ -314,3 +314,44 @@ Notas:
 1. `Motor-Local-Sistema-Inventario-0.1.2.exe` → motor con FrankenPHP + OPcache.
 2. Cliente `BalanzaPro-{POS,Administrativo,Soporte-Tecnico}-0.2.64.exe`.
 3. (Si son varias cajas) habilitar LAN en el Motor + apuntar los clientes.
+
+## 11. Publicación en GitHub (2026-09-23)
+
+Se publicó todo en `gamijoam/inventarioarens`:
+
+- **Push de `main`**: `a7f8880c..bf51587f` (fast-forward). Quedan en GitHub los
+  commits de esta intervención (`87bc2b6a` fix offline 0.2.64, `940c172b`
+  FrankenPHP, `5953a2a2` OPcache, docs).
+- **Release del Motor** `motor-v0.1.2-balanzapro`:
+  `Motor-Local-Sistema-Inventario-0.1.2.exe` (+ `.sha256`).
+- **Release de clientes** `v0.2.64-balanzapro` (es el **latest**): incluye los 3
+  clientes juntos (`BalanzaPro-{POS,Administrativo,Soporte-Tecnico}-0.2.64.exe`,
+  sus `.blockmap` y sus `*.yml`).
+
+### Descargas
+
+- Motor:
+  `https://github.com/gamijoam/inventarioarens/releases/download/motor-v0.1.2-balanzapro/Motor-Local-Sistema-Inventario-0.1.2.exe`
+- POS:
+  `https://github.com/gamijoam/inventarioarens/releases/download/v0.2.64-balanzapro/BalanzaPro-POS-0.2.64.exe`
+- Administrativo:
+  `https://github.com/gamijoam/inventarioarens/releases/download/v0.2.64-balanzapro/BalanzaPro-Administrativo-0.2.64.exe`
+- Soporte:
+  `https://github.com/gamijoam/inventarioarens/releases/download/v0.2.64-balanzapro/BalanzaPro-Soporte-Tecnico-0.2.64.exe`
+
+### Auto-update
+
+- El proveedor GitHub de `electron-updater` toma el **release más reciente** y
+  busca allí `<channel>.yml`. Como el latest (`v0.2.64-balanzapro`) contiene los
+  **tres** `.yml`, los tres clientes actualizan de 0.2.63 → 0.2.64.
+- ⚠️ **Regla**: no publicar otro release *después* del de clientes, o el nuevo
+  release queda como "latest" y los clientes vuelven a recibir 404 de su `.yml`.
+  Si se republica el Motor, volver a "refrescar" el release de clientes después.
+  Mejor solución a futuro: migrar el updater a `provider: generic` apuntando a una
+  URL propia (p. ej. `https://app.balanzapro.com/downloads/<channel>/`).
+
+### Notas
+
+- La subida de assets se hace contra `https://uploads.github.com/...` (con
+  `api.github.com` devuelve 404).
+- El token usado se recomienda **revocarlo/regenerarlo** por haber circulado.
