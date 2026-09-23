@@ -428,3 +428,20 @@ el Motor no tiene auto-update). Commit del hash de FrankenPHP: `0f5e2711`
 (el asset upstream fue republicado; se actualizo el SHA-256).
 
 Nota: los releases del **Motor** se mantienen como *pre-release* a proposito.
+
+## 14. Auto-arranque del Motor al encender (2026-09-23)
+
+El instalador creaba los servicios con **inicio automatico RETRASADO**
+(`<delayedAutoStart>true</delayedAutoStart>`). Tras reiniciar la PC, los tres
+servicios (`Backend`, `Printer`, `Sync`) **no arrancaban** (a los ~2 min seguian
+detenidos y la app mostraba "sin conexion"). Al iniciarlos a mano funcionaban.
+
+Fix:
+
+- En la PC: `sc config <servicio> start= auto` para los tres (inicio inmediato).
+- En el repo: `scripts/install-local-motor.ps1` ahora genera
+  `<delayedAutoStart>false</delayedAutoStart>`, para que las instalaciones
+  nuevas arranquen el Motor apenas enciende la PC.
+
+Sintoma a recordar: "sin conexion" apenas se enciende la PC = el Motor todavia
+no arranco. Verificar con `Get-Service SistemaInventario*` y `/up`.

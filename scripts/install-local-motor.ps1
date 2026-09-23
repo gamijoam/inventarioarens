@@ -228,7 +228,7 @@ function Write-ServiceXml(
   <workingdirectory>$(ConvertTo-XmlValue $Backend)</workingdirectory>
 $envLines
   <startmode>Automatic</startmode>
-  <delayedAutoStart>true</delayedAutoStart>
+  <delayedAutoStart>false</delayedAutoStart>
   <hidewindow>true</hidewindow>
   <stoptimeout>20 sec</stoptimeout>
   <onfailure action="restart" delay="5 sec" />
