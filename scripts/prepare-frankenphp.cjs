@@ -12,7 +12,7 @@ const ARTIFACT = Object.freeze({
     version: "1.12.7",
     fileName: "frankenphp-windows-x86_64.zip",
     url: "https://github.com/dunglas/frankenphp/releases/download/v1.12.7/frankenphp-windows-x86_64.zip",
-    sha256: "86edbf807a905f4ba5e746f09dc0ca3d11e16f7dc23ba61f9a9e6feb4c43bfe8",
+    sha256: "07cf35e0a36ff237179c847a6c878605dd9d8230f5ac5bd37b86f69096545421",
 });
 
 const repoRoot = path.resolve(__dirname, "..");
