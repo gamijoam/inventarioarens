@@ -1,7 +1,8 @@
 param(
     [string]$Version = '0.1.0',
     [string]$CloudUrl = 'https://app.miinventariofacil.com/api',
-    [switch]$StageOnly
+    [switch]$StageOnly,
+    [switch]$SkipFrankenPhp
 )
 
 Set-StrictMode -Version Latest
@@ -26,6 +27,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar PHP portable.' }
     & node scripts/prepare-winsw.cjs
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar WinSW.' }
+    if (-not $SkipFrankenPhp) {
+        & node scripts/prepare-frankenphp.cjs
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar FrankenPHP.' }
+    }
     & node scripts/stage-local-motor.cjs
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar el payload del Motor Local.' }
 

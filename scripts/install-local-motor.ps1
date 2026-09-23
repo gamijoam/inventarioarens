@@ -359,7 +359,38 @@ function Install-Motor {
         INVENTARIO_SERVICE_MODE = '1'; PHP_INI_SCAN_DIR = (Join-Path $DataRoot 'php-cert-scan')
     }
 
-    Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioBackend.xml') $BackendService 'Sistema de Inventario - Backend' 'Motor local de inventario y sincronizacion.' $Php $Backend 'artisan serve --host=127.0.0.1 --port=8787' $environment (Join-Path $DataRoot 'logs\services\backend')
+    # Backend: usar FrankenPHP (multi-hilo) si el payload lo incluye; si no, artisan serve.
+    $frankenPhpDir = Join-Path $PayloadRoot 'runtime\frankenphp'
+    $frankenPhpExe = Join-Path $frankenPhpDir 'frankenphp.exe'
+    $backendEnvironment = $environment.Clone()
+    if ((Test-Path -LiteralPath $frankenPhpExe) -and (Test-Path -LiteralPath (Join-Path $frankenPhpDir 'ext\php_pdo_sqlite.dll'))) {
+        Write-Info 'Motor backend: FrankenPHP (multi-hilo).'
+        $frankenPhpIni = @"
+extension_dir = "$frankenPhpDir\ext"
+extension=pdo_sqlite
+extension=sqlite3
+extension=mbstring
+extension=fileinfo
+extension=openssl
+extension=curl
+extension=zip
+extension=gd
+extension=intl
+extension=sodium
+opcache.enable=1
+opcache.enable_cli=1
+memory_limit=512M
+"@
+        [IO.File]::WriteAllText((Join-Path $frankenPhpDir 'php.ini'), $frankenPhpIni, [Text.UTF8Encoding]::new($false))
+        $backendEnvironment['PHPRC'] = $frankenPhpDir
+        $backendExecutable = $frankenPhpExe
+        $backendArguments = 'php-server --root "' + (Join-Path $Backend 'public') + '" --listen 127.0.0.1:8787'
+    } else {
+        Write-Info 'Motor backend: PHP built-in server (artisan serve).'
+        $backendExecutable = $Php
+        $backendArguments = 'artisan serve --host=127.0.0.1 --port=8787'
+    }
+    Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioBackend.xml') $BackendService 'Sistema de Inventario - Backend' 'Motor local de inventario y sincronizacion.' $backendExecutable $Backend $backendArguments $backendEnvironment (Join-Path $DataRoot 'logs\services\backend')
     Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioPrinter.xml') $PrinterService 'Sistema de Inventario - Impresion' 'Agente local de impresion termica.' $Php $Backend 'artisan printer:serve --port=17777 --bind=127.0.0.1' $environment (Join-Path $DataRoot 'logs\services\printer')
     Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioSync.xml') $SyncService 'Sistema de Inventario - Sincronizacion' 'Sincronizacion continua de todas las empresas locales.' $Php $Backend 'artisan sync:daemon-all --interval=15' $environment (Join-Path $DataRoot 'logs\services\sync')
 

@@ -20,6 +20,18 @@ function stageLocalMotor({
     path.join(repoRoot, 'scripts', 'install-local-motor.ps1'),
     path.join(serviceRoot, 'install-local-motor.ps1'),
   );
+
+  // FrankenPHP (servidor multi-hilo) es opcional: si el binario fue preparado
+  // (scripts/prepare-frankenphp.cjs) se incluye en el payload como
+  // runtime/frankenphp. El instalador lo usa para el servicio backend cuando
+  // esta presente; si no, cae a `php artisan serve`.
+  const frankenPhpSource = path.join(repoRoot, 'build', 'windows-runtime', 'frankenphp');
+  if (fs.existsSync(path.join(frankenPhpSource, 'frankenphp.exe'))) {
+    const frankenPhpTarget = path.join(stageRoot, 'runtime', 'frankenphp');
+    fs.rmSync(frankenPhpTarget, { recursive: true, force: true });
+    fs.cpSync(frankenPhpSource, frankenPhpTarget, { recursive: true });
+  }
+
   fs.writeFileSync(
     path.join(stageRoot, 'MOTOR_README.txt'),
     'Motor Local de Sistema de Inventario. Los datos persistentes no se almacenan aqui.\n',

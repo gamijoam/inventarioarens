@@ -254,3 +254,23 @@ la carpeta de FrankenPHP ya extraída.
   cambios; `busy_timeout=15000` protege los picos.
 - Para **varias PC** falta además: bind `0.0.0.0` en `frankenphp ... --listen`
   + firewall puerto 8787.
+
+## 9. Baked-in de FrankenPHP en el Motor (CI)
+
+Para que el próximo instalador del Motor ya incluya FrankenPHP (y no haya que
+correr `local-motor-frankenphp.ps1` a mano) se modificó:
+
+- `scripts/prepare-frankenphp.cjs` (nuevo): descarga y verifica (SHA-256) el zip
+  `frankenphp-windows-x86_64.zip` v1.12.7 y lo extrae en
+  `build/windows-runtime/frankenphp`.
+- `scripts/build-local-motor.ps1`: llama a `prepare-frankenphp.cjs` (omitible con
+  `-SkipFrankenPhp`).
+- `scripts/stage-local-motor.cjs`: copia FrankenPHP al payload como
+  `runtime/frankenphp` si está presente.
+- `scripts/install-local-motor.ps1`: si el payload trae `runtime/frankenphp`,
+  escribe su `php.ini` y usa FrankenPHP para el servicio backend
+  (`php-server --root ".../public" --listen 127.0.0.1:8787` + env `PHPRC`);
+  si no, cae a `php artisan serve` (compatibilidad).
+
+Falta ejecutar el workflow `release-motor.yml` (windows-latest) para generar el
+`.exe` del Motor con FrankenPHP incluido.
