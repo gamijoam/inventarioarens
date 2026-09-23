@@ -98,6 +98,7 @@ export interface ReversePosSalePayload {
   type: 'void' | 'reversal';
   reason: string;
   cash_register_session_id: number;
+  refund_reference?: string | null;
 }
 
 export async function reversePosSale(

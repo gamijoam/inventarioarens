@@ -13,6 +13,7 @@ class SaleReversalResource extends JsonResource
             'id' => $this->id,
             'type' => $this->type,
             'reason' => $this->reason,
+            'refund_reference' => $this->refund_reference,
             'original_sale_id' => $this->sale_id,
             'original_pos_order_id' => $this->pos_order_id,
             'cash_register_session_id' => $this->cash_register_session_id,

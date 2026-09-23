@@ -190,7 +190,7 @@ class PosSaleReversalApiTest extends TestCase
             ->assertJsonPath('data.type', 'reversal');
     }
 
-    public function test_non_cash_payment_is_rejected_atomically_until_external_refund_exists(): void
+    public function test_non_cash_payment_requires_refund_reference_before_reversal(): void
     {
         [$tenant, $user, $session, $warehouse, $product] = $this->fixture();
         $order = $this->paidOrder($tenant, $user, $session, $warehouse, $product);
@@ -205,7 +205,7 @@ class PosSaleReversalApiTest extends TestCase
                 'cash_register_session_id' => $session->id,
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('payments');
+            ->assertJsonValidationErrors('refund_reference');
 
         $this->assertDatabaseCount('sale_reversals', 0);
         $this->assertDatabaseHas('pos_orders', [
@@ -216,6 +216,45 @@ class PosSaleReversalApiTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'quantity_available' => '0.0000',
+        ]);
+    }
+
+    public function test_non_cash_payment_can_be_reversed_with_refund_reference_without_cash_movement(): void
+    {
+        [$tenant, $user, $session, $warehouse, $product] = $this->fixture();
+        $order = $this->paidOrder($tenant, $user, $session, $warehouse, $product);
+        $order->payments()->update(['method' => PosPayment::METHOD_CARD]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$order->id}/reverse", [
+                'type' => 'void',
+                'reason' => 'Reembolso por pago movil conciliado',
+                'cash_register_session_id' => $session->id,
+                'refund_reference' => 'REF-PM-0001',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.refund_reference', 'REF-PM-0001');
+
+        $reversalId = $response->json('data.id');
+
+        $this->assertDatabaseHas('sale_reversals', [
+            'id' => $reversalId,
+            'refund_reference' => 'REF-PM-0001',
+        ]);
+        $this->assertDatabaseHas('pos_orders', [
+            'id' => $order->id,
+            'status' => PosOrder::STATUS_VOIDED,
+        ]);
+        $this->assertDatabaseHas('stock_balances', [
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '1.0000',
+        ]);
+        $this->assertDatabaseMissing('cash_register_movements', [
+            'source_type' => 'sale_reversal',
+            'source_id' => $reversalId,
         ]);
     }
 

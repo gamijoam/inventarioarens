@@ -97,6 +97,8 @@ export const DailyOperationsSchema = z.object({
   sales: z.object({
     confirmed_count: z.number(),
     confirmed_base_amount: z.number(),
+    returned_base_amount: z.number().optional(),
+    net_base_amount: z.number().optional(),
     pos_paid_count: z.number(),
     pos_paid_base_amount: z.number(),
     pos_open_count: z.number(),
@@ -107,6 +109,7 @@ export const DailyOperationsSchema = z.object({
   returns: z.object({
     requested_count: z.number(),
     processed_count: z.number(),
+    processed_base_amount: z.number().optional(),
   }),
   cash: z.object({
     open_count: z.number(),

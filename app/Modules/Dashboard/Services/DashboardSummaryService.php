@@ -23,6 +23,10 @@ class DashboardSummaryService
         $lowStockCount = (int) ($metrics['low_stock_count'] ?? 0);
         $tz = BusinessDateRange::timezone();
 
+        $salesTotal = (float) ($metrics['sales_total'] ?? 0);
+        $returnedBase = (float) ($metrics['returned_base_amount'] ?? 0);
+        $netSales = $salesTotal - $returnedBase;
+
         return [
             'currency' => 'USD',
             'period' => [
@@ -31,7 +35,13 @@ class DashboardSummaryService
             ],
             'sales' => [
                 'confirmed_count' => (int) ($metrics['sales_count'] ?? 0),
-                'total_base_amount' => round((float) ($metrics['sales_total'] ?? 0), 4),
+                'total_base_amount' => round($salesTotal, 4),
+                'returned_base_amount' => round($returnedBase, 4),
+                'net_base_amount' => round($netSales, 4),
+            ],
+            'returns' => [
+                'processed_count' => (int) ($metrics['returns_count'] ?? 0),
+                'processed_base_amount' => round($returnedBase, 4),
             ],
             'pos' => [
                 'paid_orders_count' => (int) ($metrics['pos_count'] ?? 0),
@@ -100,6 +110,21 @@ class DashboardSummaryService
             select 'stock_retail_value' as metric, cast(coalesce(sum(sb.quantity_available * coalesce(p.base_price, 0)), 0) as text) as val_num from stock_balances sb join products p on p.id = sb.product_id and p.tenant_id = sb.tenant_id where sb.tenant_id = ?
             union all
             select 'stock_total_units' as metric, cast(coalesce(sum(sb.quantity_available), 0) as text) as val_num from stock_balances sb where sb.tenant_id = ?
+            union all
+            select 'returns_count' as metric, cast(count(*) as text) as val_num from sales_returns sr where sr.tenant_id = ? and sr.status = 'processed' and sr.processed_at between ? and ?
+            union all
+            select 'returned_base_amount' as metric, cast(coalesce(sum(case when si.quantity > 0 then si.base_total_amount / si.quantity * sri.quantity else 0 end), 0) as text) as val_num
+                from sales_returns sr
+                join sales_return_items sri on sri.sales_return_id = sr.id and sri.tenant_id = sr.tenant_id
+                join sale_items si on si.id = sri.sale_item_id and si.tenant_id = sri.tenant_id
+                where sr.tenant_id = ? and sr.status = 'processed' and sr.processed_at between ? and ?
+            union all
+            select 'returned_cost_base_amount' as metric, cast(coalesce(sum(case when si.quantity > 0 then coalesce(nullif(si.base_unit_cost, 0), p.last_purchase_cost, p.average_cost, 0) * sri.quantity else 0 end), 0) as text) as val_num
+                from sales_returns sr
+                join sales_return_items sri on sri.sales_return_id = sr.id and sri.tenant_id = sr.tenant_id
+                join sale_items si on si.id = sri.sale_item_id and si.tenant_id = sri.tenant_id
+                left join products p on p.id = si.product_id and p.tenant_id = si.tenant_id
+                where sr.tenant_id = ? and sr.status = 'processed' and sr.processed_at between ? and ?
         ";
 
         $bindings = [
@@ -116,6 +141,15 @@ class DashboardSummaryService
             $tenantId,
             $tenantId,
             $tenantId,
+            $tenantId,
+            $dateFromStr,
+            $dateToStr,
+            $tenantId,
+            $dateFromStr,
+            $dateToStr,
+            $tenantId,
+            $dateFromStr,
+            $dateToStr,
         ];
 
         $rows = DB::select($sql, $bindings);
