@@ -405,3 +405,26 @@ https://github.com/gamijoam/inventarioarens/releases/download/motor-v0.1.2-balan
 
 Recordatorio: el release **latest** debe seguir conteniendo los 3 `.yml` para que
 el auto-update funcione (ver seccion 11).
+
+## 13. Fix POS: cancelar orden pendiente idempotente (Motor 0.1.3)
+
+**Sintoma**: una orden POS podia quedar **huerfana en `open`** si su venta ya
+estaba `cancelled`. El backend exige que la venta este en `draft` para cancelar
+o cobrar, asi que la orden quedaba trabada para siempre (ni cancelar ni cobrar).
+
+**Fix** (`PosCheckoutService::cancelPending`, commit `4c27bd0d`): si la venta ya
+esta `cancelled`, la orden se cierra igual (libera la reserva de stock, marca
+`cancelled` y registra el evento). Test:
+`test_pending_pos_order_whose_sale_is_already_cancelled_can_be_closed`.
+Suite POS: 101 tests OK.
+
+**Reparacion puntual**: en la PC del local se corrigio la orden **#165**
+(estaba `open` con venta `cancelled` y un pago capturado). Se hizo backup
+(`backups/inventario-before-fix165-*.sqlite`) y se marco la orden `cancelled`.
+
+**Release**: `motor-v0.1.3-balanzapro` → `Motor-Local-Sistema-Inventario-0.1.3.exe`
+(se publica como **pre-release** para no desplazar el `latest` de los clientes;
+el Motor no tiene auto-update). Commit del hash de FrankenPHP: `0f5e2711`
+(el asset upstream fue republicado; se actualizo el SHA-256).
+
+Nota: los releases del **Motor** se mantienen como *pre-release* a proposito.
