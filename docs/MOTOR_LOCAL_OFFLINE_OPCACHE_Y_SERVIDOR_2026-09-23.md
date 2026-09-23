@@ -355,3 +355,53 @@ Se publicó todo en `gamijoam/inventarioarens`:
 - La subida de assets se hace contra `https://uploads.github.com/...` (con
   `api.github.com` devuelve 404).
 - El token usado se recomienda **revocarlo/regenerarlo** por haber circulado.
+
+## 12. Configuracion inicial offline + clientes pantalla completa (0.2.65)
+
+### 12.1 Script "Configurar BalanzaPro" (primer usuario offline)
+
+`scripts/Configurar-BalanzaPro.ps1` (+ `.cmd` para doble clic) crea el primer
+administrador y la primera empresa en una instalacion **nueva**, sin nube y sin
+escribir URLs:
+
+1. Verifica que el Motor responda en `127.0.0.1:8787`.
+2. Consulta `GET /api/bootstrap/status`.
+3. Si la base **ya tiene** usuarios/empresas → avisa y sale (no pide admin).
+4. Si esta vacia: pide datos (nombre, email, contrasena, empresa) y hace
+   `POST /api/bootstrap` con el token leido de
+   `C:\ProgramData\InventarioArens\bootstrap.token` (requiere admin, por eso
+   el `.ps1` se auto-eleva).
+5. Muestra el resultado y recuerda iniciar sesion en el cliente.
+
+El token vive en `C:\ProgramData\InventarioArens\bootstrap.token` (ACL: solo
+SYSTEM y Administradores). `bootstrap/app.php` lo mapea a `APP_BOOTSTRAP_TOKEN`.
+El endpoint solo funciona con la base vacia (defensa en profundidad).
+
+### 12.2 Clientes a pantalla completa sin bordes
+
+`frontend/electron/main.cjs`: la ventana abre con `fullscreen: true` y el menu
+oculto (sin bordes, como F11 del navegador).
+
+Salidas:
+
+- **F11** alterna pantalla completa.
+- **Esc** sale de pantalla completa (queda en ventana).
+- **Ctrl+Shift+Q** cierra la aplicacion.
+- El POS conserva su boton "Salir del POS".
+
+### 12.3 Releases publicados
+
+- `motor-v0.1.2-balanzapro` → `Motor-Local-Sistema-Inventario-0.1.2.exe` (FrankenPHP + OPcache).
+- `v0.2.65-balanzapro` (**latest**) → clientes POS/Admin/Soporte 0.2.65 (pantalla completa) con `.blockmap` y `.yml`.
+
+Descargas:
+
+```
+https://github.com/gamijoam/inventarioarens/releases/download/v0.2.65-balanzapro/BalanzaPro-POS-0.2.65.exe
+https://github.com/gamijoam/inventarioarens/releases/download/v0.2.65-balanzapro/BalanzaPro-Administrativo-0.2.65.exe
+https://github.com/gamijoam/inventarioarens/releases/download/v0.2.65-balanzapro/BalanzaPro-Soporte-Tecnico-0.2.65.exe
+https://github.com/gamijoam/inventarioarens/releases/download/motor-v0.1.2-balanzapro/Motor-Local-Sistema-Inventario-0.1.2.exe
+```
+
+Recordatorio: el release **latest** debe seguir conteniendo los 3 `.yml` para que
+el auto-update funcione (ver seccion 11).
