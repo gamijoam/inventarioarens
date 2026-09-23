@@ -274,3 +274,43 @@ correr `local-motor-frankenphp.ps1` a mano) se modificó:
 
 Falta ejecutar el workflow `release-motor.yml` (windows-latest) para generar el
 `.exe` del Motor con FrankenPHP incluido.
+
+## 10. Instalador del Motor "todo incluido" (validado 2026-09-23)
+
+Se generó y probó un instalador del Motor que en una PC **desde cero** deja todo
+optimizado sin pasos manuales.
+
+- Archivo: `Motor-Local-Sistema-Inventario-0.1.2.exe` (~67 MB, Inno Setup).
+- Contenido del payload: backend Laravel + PHP portable (`php.ini` con **OPcache**)
+  + **FrankenPHP** (multi-hilo) + WinSW + `install-local-motor.ps1` parchado.
+- `install-local-motor.ps1` usa **FrankenPHP** automáticamente para el backend si
+  el payload lo trae (le escribe su `php.ini` propio y define `PHPRC`); Printer y
+  Sync siguen usando el PHP portable (también con OPcache).
+
+Prueba real (misma PC, instalación silenciosa `--VERYSILENT`):
+
+- `installer exit=0`; servicios Backend / Printer / Sync **Running**.
+- `SistemaInventarioBackend.xml` → `frankenphp.exe php-server --root
+  "...\versions\0.1.2\backend\public" --listen 127.0.0.1:8787` + `env PHPRC`.
+- `runtime\php\php.ini` con `zend_extension=opcache` y `opcache.enable_cli=1`.
+- `runtime\frankenphp\php.ini` con `extension_dir` absoluto a la versión instalada.
+- `/up` ~50 ms; `function_exists('opcache_get_status')` = true.
+- `motor-install.log`: "Motor backend: FrankenPHP (multi-hilo). Motor Local 0.1.2
+  instalado. La base de datos y los tokens existentes se conservaron."
+
+Notas:
+
+- El `.exe` **no está firmado** → Windows SmartScreen puede advertir (Más
+  información → Ejecutar de todas formas).
+- Se construyó **nativamente en Windows con Inno Setup 6.7.3**; el CI
+  `release-motor.yml` hace lo mismo en `windows-latest` a partir de los scripts
+  del repo (`prepare-portable-php.cjs`, `prepare-frankenphp.cjs`,
+  `stage-local-motor.cjs`, `install-local-motor.ps1`).
+- Pendiente: publicar el instalador como release de GitHub (requiere token) para
+  que sea descargable por todos y para el auto-update.
+
+### Experiencia final del técnico (PC desde cero)
+
+1. `Motor-Local-Sistema-Inventario-0.1.2.exe` → motor con FrankenPHP + OPcache.
+2. Cliente `BalanzaPro-{POS,Administrativo,Soporte-Tecnico}-0.2.64.exe`.
+3. (Si son varias cajas) habilitar LAN en el Motor + apuntar los clientes.
