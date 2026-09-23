@@ -110,11 +110,36 @@ async function createWindow() {
     height: 900,
     minWidth: appMode === 'pos' ? 1024 : 1100,
     minHeight: 700,
+    // Pantalla completa sin bordes (como F11 del navegador).
+    // Salir: F11 (alternar), Esc (salir de pantalla completa) o Ctrl+Shift+Q (cerrar).
+    fullscreen: true,
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+
+  if (typeof window.setMenuBarVisibility === 'function') {
+    window.setMenuBarVisibility(false);
+  }
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F11') {
+      window.setFullScreen(!window.isFullScreen());
+      event.preventDefault();
+      return;
+    }
+    if (input.key === 'Escape' && window.isFullScreen()) {
+      window.setFullScreen(false);
+      event.preventDefault();
+      return;
+    }
+    if (input.control && input.shift && String(input.key).toLowerCase() === 'q') {
+      app.quit();
+      event.preventDefault();
+    }
   });
 
   await window.loadURL(url);
