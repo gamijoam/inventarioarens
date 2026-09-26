@@ -183,10 +183,16 @@ class ProductImageService
      */
     private function downloadToTemp(string $url): array
     {
-        try {
-            $response = Http::timeout(30)->get($url);
-        } catch (\Throwable) {
-            throw new RuntimeException('No se pudo descargar la imagen de la URL proporcionada.');
+        $response = $this->fetch($url);
+
+        if ($this->isHtmlResponse($response->header('Content-Type'), $response->body())) {
+            $imageUrl = $this->extractMainImageUrl($response->body(), $url);
+            if ($imageUrl === null) {
+                throw new RuntimeException('La URL es una pagina web y no se encontro una imagen principal en ella. Pega el enlace directo de la imagen (debe terminar en .jpg, .png o .webp).');
+            }
+
+            $response = $this->fetch($imageUrl);
+            $url = $imageUrl;
         }
 
         if ($response->failed()) {
@@ -213,6 +219,86 @@ class ProductImageService
         }
 
         return ['path' => $tmp, 'name' => $name];
+    }
+
+    private function fetch(string $url): \Illuminate\Http\Client\Response
+    {
+        try {
+            return Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (compatible; InventarioArensBot/1.0)',
+                'Accept' => 'text/html,image/avif,image/webp,image/*,*/*;q=0.8',
+            ])->timeout(30)->get($url);
+        } catch (\Throwable) {
+            throw new RuntimeException('No se pudo descargar la imagen de la URL proporcionada.');
+        }
+    }
+
+    private function isHtmlResponse(?string $contentType, string $body): bool
+    {
+        if ($contentType !== null && str_contains(strtolower($contentType), 'text/html')) {
+            return true;
+        }
+
+        $start = strtolower(substr(ltrim($body), 0, 120));
+
+        return str_contains($start, '<!doctype html') || str_contains($start, '<html');
+    }
+
+    /**
+     * Extrae la imagen principal de una pagina HTML: primero og:image (o
+     * og:image:secure_url / twitter:image) y, si no hay, el primer <img> con
+     * extension de imagen. Devuelve la URL absoluta o null.
+     */
+    private function extractMainImageUrl(string $html, string $baseUrl): ?string
+    {
+        $patterns = [
+            '/<meta[^>]+(?:property|name)=["\']og:image(?::secure_url)?["\'][^>]*content=["\']([^"\']+)["\']/i',
+            '/<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\']og:image(?::secure_url)?["\']/i',
+            '/<meta[^>]+(?:property|name)=["\']twitter:image["\'][^>]*content=["\']([^"\']+)["\']/i',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $html, $matches) === 1) {
+                $candidate = html_entity_decode(trim($matches[1]));
+                if ($candidate !== '') {
+                    return $this->absolutizeUrl($candidate, $baseUrl);
+                }
+            }
+        }
+
+        if (preg_match_all('/<img[^>]+src=["\']([^"\']+)["\']/i', $html, $matches) !== false) {
+            foreach ($matches[1] as $src) {
+                $src = html_entity_decode(trim($src));
+                if ($src !== '' && preg_match('/\.(jpe?g|png|webp)(\?|#|$)/i', $src) === 1) {
+                    return $this->absolutizeUrl($src, $baseUrl);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function absolutizeUrl(string $src, string $base): string
+    {
+        if (preg_match('#^https?://#i', $src) === 1) {
+            return $src;
+        }
+
+        $parts = parse_url($base);
+        $scheme = $parts['scheme'] ?? 'https';
+        $host = $parts['host'] ?? '';
+
+        if (str_starts_with($src, '//')) {
+            return $scheme.':'.$src;
+        }
+        if (str_starts_with($src, '/')) {
+            return $scheme.'://'.$host.$src;
+        }
+
+        $path = $parts['path'] ?? '/';
+        $directory = substr($path, 0, (int) strrpos($path, '/') + 1);
+
+        return $scheme.'://'.$host.$directory.$src;
     }
 
     /**
