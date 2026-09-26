@@ -71,6 +71,56 @@ class ProductImageFromUrlTest extends TestCase
         ]);
     }
 
+    public function test_page_url_with_og_image_downloads_main_image(): void
+    {
+        [$tenant, $user] = $this->seedTenantWithOwner();
+        $product = $this->seedProduct($tenant);
+        Storage::fake('product-images');
+
+        $pageUrl = 'https://frigilux.com/producto/nevera-338l/';
+        $imageUrl = 'https://frigilux.com/wp-content/uploads/2025/08/01-NFR-338G.jpg';
+        $html = '<!doctype html><html><head>'
+            .'<meta property="og:image" content="'.$imageUrl.'" />'
+            .'</head><body><h1>Nevera 338L</h1></body></html>';
+
+        Http::fake([
+            $pageUrl => Http::response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']),
+            $imageUrl => Http::response($this->jpegBytes(800, 600), 200, ['Content-Type' => 'image/jpeg']),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/products/{$product->id}/images/from-url", ['url' => $pageUrl])
+            ->assertCreated();
+
+        Http::assertSent(fn (Request $r) => $r->url() === $imageUrl);
+        $this->assertSame(1, ProductImage::query()->where('product_id', $product->id)->count());
+    }
+
+    public function test_page_url_without_image_returns_422_with_helpful_message(): void
+    {
+        [$tenant, $user] = $this->seedTenantWithOwner();
+        $product = $this->seedProduct($tenant);
+        Storage::fake('product-images');
+
+        $pageUrl = 'https://frigilux.com/producto/sin-foto/';
+        $html = '<!doctype html><html><head><title>Sin imagen</title></head><body>Nada</body></html>';
+
+        Http::fake([
+            $pageUrl => Http::response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/products/{$product->id}/images/from-url", ['url' => $pageUrl])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.url.0', 'La URL es una pagina web y no se encontro una imagen principal en ella. Pega el enlace directo de la imagen (debe terminar en .jpg, .png o .webp).');
+
+        $this->assertSame(0, ProductImage::query()->where('product_id', $product->id)->count());
+    }
+
     public function test_failed_remote_url_returns_422(): void
     {
         [$tenant, $user] = $this->seedTenantWithOwner();
