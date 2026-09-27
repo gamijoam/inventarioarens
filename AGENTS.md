@@ -339,9 +339,12 @@ Suite de servicios y utilidades en Go puro (sin CGO) en `tools/` para acelerar t
 - `tools/printer-agent`: Servidor HTTP en `:17777` para impresión térmica ESC/POS y gaveta (< 5.5 MB RAM).
 - `tools/scale-agent`: Agente para balanzas y básculas en `:19999` con SSE en tiempo real (< 5.1 MB RAM).
 - `tools/catalog-search`: Buscador de catálogo multitenant en memoria en `:18888` (< 0.1 ms de respuesta, 1.4 MB RAM).
+- `tools/ws-hub`: Servidor WebSocket multitenant para eventos en tiempo real en `:16666` (1.6 MB RAM).
 - Compilación unificada para Linux y Windows mediante `scripts/build-go-tools.sh`.
-- Integración en instaladores y servicios Windows (`SistemaInventarioPrinter`, `SistemaInventarioSync`) vía WinSW en `scripts/install-local-motor.ps1`.
-- En el VPS corre `balanzapro-catalog-search.service` en `127.0.0.1:18888` (systemd).
+- Integración en instaladores y servicios Windows (`SistemaInventarioPrinter`, `SistemaInventarioSync`, `SistemaInventarioWsHub`) vía WinSW en `scripts/install-local-motor.ps1`.
+- En el VPS corren como servicios permanentes de systemd:
+  - `balanzapro-catalog-search.service` en `127.0.0.1:18888`
+  - `balanzapro-ws-hub.service` en `127.0.0.1:16666`
 
 ---
 
