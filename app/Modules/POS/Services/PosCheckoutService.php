@@ -33,6 +33,7 @@ use App\Modules\Sync\Services\SyncOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Cache\TenantReferenceCache;
 use App\Support\Performance\PerformanceProbe;
+use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -224,6 +225,16 @@ class PosCheckoutService
                     ]);
                     $this->commissions->recordPaidOrder($order->refresh());
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.paid');
+                    WsHub::publishTenant($order->tenant_id, 'pos.order.paid', [
+                        'order_id' => $order->id,
+                        'sale_id' => $sale->id,
+                        'customer_id' => $order->customer_id,
+                        'customer_name' => $order->customer_name,
+                        'total_base_amount' => (float) $order->total_base_amount,
+                        'total_local_amount' => (float) $order->total_local_amount,
+                        'cashier_id' => $cashier->id,
+                        'paid_at' => $order->paid_at?->toIso8601String(),
+                    ]);
                 } else {
                     PerformanceProbe::measure(
                         'POS reservar inventario pendiente',
@@ -232,6 +243,12 @@ class PosCheckoutService
                         ['order_id' => $order->id, 'items' => count($items)]
                     );
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.pending');
+                    WsHub::publishTenant($order->tenant_id, 'pos.order.pending', [
+                        'order_id' => $order->id,
+                        'sale_id' => $sale->id,
+                        'customer_id' => $order->customer_id,
+                        'total_base_amount' => (float) $order->total_base_amount,
+                    ]);
                 }
 
                 return PerformanceProbe::measure(

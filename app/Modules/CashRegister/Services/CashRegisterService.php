@@ -15,6 +15,7 @@ use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Modules\SalesReversals\Models\SaleReversal;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -142,6 +143,15 @@ class CashRegisterService
 
             $this->recordSessionSyncEvent($session->refresh(), 'cash.session.opened');
 
+            WsHub::publishTenant($session->tenant_id, 'cash_register.opened', [
+                'session_id' => $session->id,
+                'cashier_id' => $session->cashier_id,
+                'cashier_name' => $cashier->name,
+                'branch_id' => $branch->id,
+                'cash_register_id' => $physicalRegister?->id,
+                'opened_at' => $session->opened_at?->toIso8601String(),
+            ]);
+
             return $session->refresh()->load(['branch', 'cashRegister', 'movements']);
         });
     }
@@ -208,6 +218,15 @@ class CashRegisterService
             app(ReportZService::class)->assignZNumber($session);
 
             $this->recordSessionSyncEvent($session->refresh(), 'cash.session.closed');
+
+            WsHub::publishTenant($session->tenant_id, 'cash_register.closed', [
+                'session_id' => $session->id,
+                'cashier_id' => $session->cashier_id,
+                'closed_by' => $session->closed_by,
+                'counted_base_amount' => (float) $session->counted_base_amount,
+                'counted_local_amount' => (float) $session->counted_local_amount,
+                'closed_at' => $session->closed_at?->toIso8601String(),
+            ]);
 
             return $session->refresh()->load(['branch', 'cashRegister', 'movements', 'counts']);
         });
