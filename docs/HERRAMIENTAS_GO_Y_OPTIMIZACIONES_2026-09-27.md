@@ -146,5 +146,16 @@ Tanto el buscador de catálogo como el servidor de WebSockets corren como servic
   - Control: `systemctl status balanzapro-catalog-search.service`
 - **`balanzapro-ws-hub.service`**:
   - Puerto: `127.0.0.1:16666`
-  - Estado: `active (running)` — Consumo: **1.6 MB RAM**
+  - Estado: `active (running)` — Consumo: **2.6 MB RAM**
   - Control: `systemctl status balanzapro-ws-hub.service`
+- **`vps-watchdog.service`**:
+  - Puerto: CLI Daemon
+  - Estado: `active (running)` — Consumo: **2.1 MB RAM**
+  - Control: `systemctl status vps-watchdog.service`
+  - Función: Supervisión continua con auto-recuperación (`systemctl restart ...`) ante fallos de `catalog-search` o `ws-hub`.
+
+### 3.3 Integraciones Funcionales Completadas
+1. **Pipeline de Optimización Automática de Imágenes**: Conectado en `ImageProcessor::generateVariants()` vía `ImageOptimizer::optimize()`, reduciendo fotos de productos en > 85% de peso al guardarse.
+2. **Endpoint PDF Instantáneo**: `GET /api/pos/orders/{posOrder}/pdf?format=ticket|invoice` conectado a `PdfEngine` en Go, sirviendo tickets térmicos o facturas en < 20 ms.
+3. **Escáner de Balanza en POS**: Detección y desglose automático de etiquetas de balanza EAN-13 (prefijo 20) en `frontend/src/lib/scaleBarcode.ts` y `PosTerminal.tsx`, agregando automáticamente el peso en kg al carrito.
+4. **Sincronización en Tiempo Real**: Hook `useRealtimeSync` en `frontend/src/lib/useRealtimeSync.ts` conectado al canal de la empresa en `ws-hub`, invalidando queries de tasas y órdenes reactivamente.

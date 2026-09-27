@@ -351,6 +351,7 @@ Suite de servicios y utilidades en Go puro (sin CGO) en `tools/` para acelerar t
 - En el VPS corren como servicios permanentes de systemd:
   - `balanzapro-catalog-search.service` en `127.0.0.1:18888`
   - `balanzapro-ws-hub.service` en `127.0.0.1:16666`
+  - `vps-watchdog.service` (auto-healing de microservicios)
 
 ---
 
