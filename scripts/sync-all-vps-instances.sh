@@ -38,6 +38,15 @@ for target_entry in "${TARGETS[@]}"; do
     chown -R "$target_user:$target_group" "$target_dir/frontend/dist"
   fi
 
+  # 2.5 Sincronizar binarios compilados de tools/
+  for tool_bin in "$SOURCE_DIR"/tools/*/bin; do
+    if [ -d "$tool_bin" ]; then
+      rel_path="${tool_bin#$SOURCE_DIR/}"
+      mkdir -p "$target_dir/$rel_path"
+      rsync -a "$tool_bin/" "$target_dir/$rel_path/"
+    fi
+  done
+
   # 3. Migraciones de DB pendientes
   php "$target_dir/artisan" migrate --force
 

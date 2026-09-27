@@ -8,7 +8,7 @@
 
 Tradicionalmente, las tareas de fondo del Motor Local en Windows y del VPS corrían mediante procesos CLI de Laravel (`php artisan`). Aunque funcionales, cada proceso en bucle continuo consumía entre 60 y 85 MB de RAM, con riesgos de fugas de memoria (*memory leaks*) y latencias de arranque de ~1.5 segundos.
 
-Se implementó una suite de **7 herramientas nativas en Go puro (sin CGO)**, desarrolladas bajo **TDD estricto (Red-Green-Refactor)**, que se compilan como binarios estáticos tanto para Linux como para Windows (`.exe` de 64 bits):
+Se implementó una suite de **9 herramientas nativas en Go puro (sin CGO)**, desarrolladas bajo **TDD estricto (Red-Green-Refactor)**, que se compilan como binarios estáticos tanto para Linux como para Windows (`.exe` de 64 bits):
 
 | Herramienta | Ruta en Repo | Puerto | Consumo RAM en Reposo | Función Principal |
 |---|---|---|---|---|
@@ -19,6 +19,8 @@ Se implementó una suite de **7 herramientas nativas en Go puro (sin CGO)**, des
 | **`ws-hub`** | `tools/ws-hub` | `16666` | **1.6 MB** (en VPS) | Servidor WebSocket multitenant para eventos en tiempo real |
 | **`image-optimizer`**| `tools/image-optimizer`| `14444` / CLI | **< 4.0 MB** | Redimensionamiento y optimización de imágenes |
 | **`pdf-engine`** | `tools/pdf-engine` | `15555` / CLI | **< 3.0 MB** | Generación de facturas y tickets PDF en < 20 ms |
+| **`barcode-engine`**| `tools/barcode-engine`| `13333` / CLI | **< 3.0 MB** | Códigos de barras (Code128, QR, EAN-13 Balanza) |
+| **`watchdog`** | `tools/watchdog` | CLI / Daemon | **< 2.5 MB** | Supervisor y guardián autónomo de microservicios |
 
 ---
 
@@ -93,16 +95,41 @@ Se implementó una suite de **7 herramientas nativas en Go puro (sin CGO)**, des
   - Generación vectorial pura mediante `github.com/jung-kurt/gofpdf` (sin CGO, sin WebKit ni Chrome).
   - Tiempo de generación: **< 20 milisegundos** por documento.
   - Doble moneda integrada (USD y VES con desglose de tasa de cambio).
-  - Modos de ejecución: CLI con entrada JSON y microservicio HTTP en `:15555` (`POST /ticket`, `POST /invoice`).
-  - Integración en Laravel mediante el helper [`App\Support\Pdf\PdfEngine`](file:///opt/inventarioarens-cloud/app/Support/Pdf/PdfEngine.php).
-- **Pruebas unitarias**: `pkg/ticket`, `pkg/invoice` (100% PASS) y `tests/Unit/Support/PdfEngineTest.php` (100% PASS).
+### 2.8 Generador de Códigos de Barras y QR (`tools/barcode-engine`)
+- **Objetivo**: Generar etiquetas de códigos de barra (Code128), códigos QR y códigos EAN-13 especiales para balanzas de pesaje en charcuterías y carnicerías.
+- **Solución en Go**:
+  - Implementación vectorial y raster PNG sin dependencias de fuentes externas ni CGO.
+  - Soporte de **EAN-13 de Balanza**: estructura estandarizada `20 <item: 5 dígitos> <peso en gramos: 5 dígitos> <checksum mod-10>`.
+  - Servidor HTTP en el puerto `:13333` (`/barcode/code128`, `/barcode/qr`, `/barcode/scale-ean13`) y CLI ejecutable.
+  - Integración en Laravel mediante el helper [`App\Support\Barcode\BarcodeEngine`](file:///opt/inventarioarens-cloud/app/Support/Barcode/BarcodeEngine.php).
+- **Pruebas unitarias**: `pkg/barcode` (100% PASS) y `tests/Unit/Support/BarcodeEngineTest.php` (100% PASS).
+
+### 2.9 Guardián y Supervisor Autónomo (`tools/watchdog`)
+- **Objetivo**: Monitorear continuamente los microservicios y agentes en segundo plano (Go y PHP), verificando sus endpoints de salud (`/health`) y ejecutando comandos de auto-recuperación si fallan reiteradamente.
+- **Solución en Go**:
+  - Comprobación concurrente de salud mediante goroutines con backoff y umbral configurable de fallos consecutivos (`failureThreshold`).
+  - Capacidad de reiniciar servicios caídos (`systemctl restart ...` en Linux o `net start ...` en Windows) sin intervención humana.
+  - Modo CLI y daemon en segundo plano (`watchdog -config=... -daemon`).
+- **Pruebas unitarias**: `pkg/monitor` (100% PASS).
+
+### 2.10 Emisión de Eventos en Tiempo Real (Laravel $\rightarrow$ WsHub)
+- Helper centralizado [`App\Support\Realtime\WsHub`](file:///opt/inventarioarens-cloud/app/Support/Realtime/WsHub.php) con métodos `publish()` y `publishTenant()`.
+- Disparo automático de eventos:
+  - `rate.updated`: Al activar una nueva tasa de cambio (`ExchangeRateActivationService`).
+  - `cash_register.opened` y `cash_register.closed`: Apertura y cierre de caja en POS (`CashRegisterService`).
+  - `pos.order.paid` y `pos.order.pending`: Facturación y retención de tickets en el POS (`PosCheckoutService`).
+- Cobertura de tests: [`tests/Feature/Realtime/WsHubEventBroadcastingTest.php`](file:///opt/inventarioarens-cloud/tests/Feature/Realtime/WsHubEventBroadcastingTest.php) (100% PASS).
+
+### 2.11 Clientes Frontend en TypeScript (SPA / Electron)
+- **`frontend/src/lib/wsHub.ts`**: Cliente WebSocket ligero con auto-reconexión exponencial, suscripción dinámica a canales y listener tipado para refresco de interfaz reactiva. Cobertura: [`frontend/src/lib/__tests__/wsHub.test.ts`](file:///opt/inventarioarens-cloud/frontend/src/lib/__tests__/wsHub.test.ts) (100% PASS).
+- **`frontend/src/lib/catalogSearch.ts`**: Cliente de búsqueda instantánea contra el motor en memoria (`:18888`) con fallback defensivo al API de Laravel en caso de indisponibilidad. Cobertura: [`frontend/src/lib/__tests__/catalogSearch.test.ts`](file:///opt/inventarioarens-cloud/frontend/src/lib/__tests__/catalogSearch.test.ts) (100% PASS).
 
 ---
 
 ## 3. Integración en Windows y en el VPS
 
 ### 3.1 Empaquetado del Motor Local de Windows
-- **`scripts/build-go-tools.sh`**: Compila las 7 herramientas en paralelo para Linux y Windows (`.exe` estáticos sin dependencias externas).
+- **`scripts/build-go-tools.sh`**: Compila las 9 herramientas en paralelo para Linux y Windows (`.exe` estáticos sin dependencias externas).
 - **`scripts/stage-local-motor.cjs`**: Copia automáticamente los binarios `.exe` compilados dentro de la carpeta `tools/` de la distribución del Motor Local.
 - **`scripts/install-local-motor.ps1`**: Registra los servicios de Windows mediante WinSW:
   - `SistemaInventarioBackend`: FrankenPHP (servidor web multi-hilo Caddy + PHP ZTS con OPcache en puerto `8787`).

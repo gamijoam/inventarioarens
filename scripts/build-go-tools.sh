@@ -61,5 +61,21 @@ go build -ldflags="-s -w" -o bin/pdf-engine ./cmd/pdf-engine
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/pdf-engine.exe ./cmd/pdf-engine
 echo "    [OK] pdf-engine (Linux & Windows .exe)"
 
+# 8. barcode-engine (Generador de codigos de barra y QR)
+echo "--> Compilando barcode-engine..."
+cd "${ROOT_DIR}/tools/barcode-engine"
+mkdir -p bin
+go build -ldflags="-s -w" -o bin/barcode-engine ./cmd/barcode-engine
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/barcode-engine.exe ./cmd/barcode-engine
+echo "    [OK] barcode-engine (Linux & Windows .exe)"
+
+# 9. watchdog (Guardian y auto-recuperador de procesos en memoria)
+echo "--> Compilando watchdog..."
+cd "${ROOT_DIR}/tools/watchdog"
+mkdir -p bin
+go build -ldflags="-s -w" -o bin/watchdog ./cmd/watchdog
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/watchdog.exe ./cmd/watchdog
+echo "    [OK] watchdog (Linux & Windows .exe)"
+
 echo "==> Compilación finalizada con éxito."
 ls -lh "${ROOT_DIR}"/tools/*/bin/*
