@@ -20,6 +20,24 @@ function stageLocalMotor({
     path.join(repoRoot, 'scripts', 'install-local-motor.ps1'),
     path.join(serviceRoot, 'install-local-motor.ps1'),
   );
+  // Herramientas nativas en Go de alto rendimiento (si estan compiladas)
+  const toolsRoot = path.join(stageRoot, 'tools');
+  fs.mkdirSync(toolsRoot, { recursive: true });
+
+  const syncDaemonBin = path.join(repoRoot, 'tools', 'sync-daemon', 'bin', 'sync-daemon.exe');
+  if (fs.existsSync(syncDaemonBin)) {
+    const syncDestDir = path.join(toolsRoot, 'sync-daemon');
+    fs.mkdirSync(syncDestDir, { recursive: true });
+    fs.copyFileSync(syncDaemonBin, path.join(syncDestDir, 'sync-daemon.exe'));
+  }
+
+  const printerAgentBin = path.join(repoRoot, 'tools', 'printer-agent', 'bin', 'printer-agent.exe');
+  if (fs.existsSync(printerAgentBin)) {
+    const printerDestDir = path.join(toolsRoot, 'printer-agent');
+    fs.mkdirSync(printerDestDir, { recursive: true });
+    fs.copyFileSync(printerAgentBin, path.join(printerDestDir, 'printer-agent.exe'));
+  }
+
   fs.writeFileSync(
     path.join(stageRoot, 'MOTOR_README.txt'),
     'Motor Local de Sistema de Inventario. Los datos persistentes no se almacenan aqui.\n',

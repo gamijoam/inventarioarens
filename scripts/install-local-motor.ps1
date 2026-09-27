@@ -360,8 +360,21 @@ function Install-Motor {
     }
 
     Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioBackend.xml') $BackendService 'Sistema de Inventario - Backend' 'Motor local de inventario y sincronizacion.' $Php $Backend 'artisan serve --host=127.0.0.1 --port=8787' $environment (Join-Path $DataRoot 'logs\services\backend')
-    Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioPrinter.xml') $PrinterService 'Sistema de Inventario - Impresion' 'Agente local de impresion termica.' $Php $Backend 'artisan printer:serve --port=17777 --bind=127.0.0.1' $environment (Join-Path $DataRoot 'logs\services\printer')
-    Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioSync.xml') $SyncService 'Sistema de Inventario - Sincronizacion' 'Sincronizacion continua de todas las empresas locales.' $Php $Backend 'artisan sync:daemon-all --interval=15' $environment (Join-Path $DataRoot 'logs\services\sync')
+    $printerAgentExe = Join-Path $PayloadRoot 'tools\printer-agent\printer-agent.exe'
+    $syncDaemonExe = Join-Path $PayloadRoot 'tools\sync-daemon\sync-daemon.exe'
+
+    if (Test-Path -LiteralPath $printerAgentExe) {
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioPrinter.xml') $PrinterService 'Sistema de Inventario - Impresion' 'Agente local de impresion termica (Go nativo).' $printerAgentExe $Backend '-port 17777 -bind 127.0.0.1' $environment (Join-Path $DataRoot 'logs\services\printer')
+    } else {
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioPrinter.xml') $PrinterService 'Sistema de Inventario - Impresion' 'Agente local de impresion termica.' $Php $Backend 'artisan printer:serve --port=17777 --bind=127.0.0.1' $environment (Join-Path $DataRoot 'logs\services\printer')
+    }
+
+    if (Test-Path -LiteralPath $syncDaemonExe) {
+        $syncConfigPath = Join-Path $DataRoot 'storage\app\sync-worker\sync-config.json'
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioSync.xml') $SyncService 'Sistema de Inventario - Sincronizacion' 'Sincronizacion continua de todas las empresas locales (Go nativo).' $syncDaemonExe $Backend "-config `"$syncConfigPath`" -database `"$database`" -php `"$Php`" -backend-root `"$Backend`" -interval 15" $environment (Join-Path $DataRoot 'logs\services\sync')
+    } else {
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioSync.xml') $SyncService 'Sistema de Inventario - Sincronizacion' 'Sincronizacion continua de todas las empresas locales.' $Php $Backend 'artisan sync:daemon-all --interval=15' $environment (Join-Path $DataRoot 'logs\services\sync')
+    }
 
     try {
         Write-Info 'Deteniendo temporalmente el runtime anterior.'
