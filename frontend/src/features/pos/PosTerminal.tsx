@@ -6,6 +6,8 @@ import {
   usePosCartPersistence,
   type Panel,
 } from './cartStore';
+import { parseScaleBarcode } from '@/lib/scaleBarcode';
+import { useRealtimeSync } from '@/lib/useRealtimeSync';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowDownToLine,
@@ -547,6 +549,8 @@ export function PosTerminal() {
   const [posColorTheme, setPosColorTheme] = useState<PosColorTheme>(loadPosColorTheme);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
+  const activeTenantId = useSessionStore((state) => state.tenant?.id);
+  useRealtimeSync(activeTenantId);
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
   const canCheckout = permissions.has(PERMISSIONS.POS_CHECKOUT);
   const canHold = permissions.has(PERMISSIONS.POS_ORDERS_HOLD);
@@ -3267,7 +3271,13 @@ export function PosTerminal() {
     const term = query.trim();
     if (term.length < 2) return;
     isHandlingBarcodeEnterRef.current = true;
-    const normalized = term.toLowerCase();
+
+    // Detección automática de códigos de balanza (charcutería/carnicería/pesables EAN-13 con prefijo 20)
+    const scaleInfo = parseScaleBarcode(term);
+    const effectiveSearchTerm = scaleInfo ? scaleInfo.itemCode : term;
+    const requestedQty = scaleInfo ? scaleInfo.weightKg : 1;
+
+    const normalized = effectiveSearchTerm.toLowerCase();
     const normalizedNoLeadingZeros = normalized.replace(/^0+/, '');
 
     const matchesCode = (val?: string | null): boolean => {
@@ -3292,8 +3302,11 @@ export function PosTerminal() {
         );
 
       if (inMemoryExact) {
-        const added = await addProduct(inMemoryExact);
+        const added = await addProduct(inMemoryExact, undefined, requestedQty);
         if (added) {
+          if (scaleInfo) {
+            toast.success(`Balanza: ${scaleInfo.weightKg} kg de ${inMemoryExact.name}`);
+          }
           setQuery('');
           setQuickSearchIndex(0);
         }
@@ -3302,14 +3315,17 @@ export function PosTerminal() {
 
       // 2. Búsqueda directa e inmediata al backend (omite debounce para lectores de código de barras)
       try {
-        const directResults = await fetchPosProductsDirect(term, effectiveWarehouseId);
+        const directResults = await fetchPosProductsDirect(effectiveSearchTerm, effectiveWarehouseId);
         const directExact = directResults.find(
           (product) => matchesCode(product.barcode) || matchesCode(product.sku),
         );
 
         if (directExact) {
-          const added = await addProduct(directExact);
+          const added = await addProduct(directExact, undefined, requestedQty);
           if (added) {
+            if (scaleInfo) {
+              toast.success(`Balanza: ${scaleInfo.weightKg} kg de ${directExact.name}`);
+            }
             setQuery('');
             setQuickSearchIndex(0);
           }
@@ -3318,8 +3334,11 @@ export function PosTerminal() {
 
         // Si la consulta directa devolvió productos, agregar el primero directamente sin abrir modal
         if (directResults.length >= 1 && directResults[0]) {
-          const added = await addProduct(directResults[0]);
+          const added = await addProduct(directResults[0], undefined, requestedQty);
           if (added) {
+            if (scaleInfo) {
+              toast.success(`Balanza: ${scaleInfo.weightKg} kg de ${directResults[0].name}`);
+            }
             setQuery('');
             setQuickSearchIndex(0);
           }
