@@ -21,5 +21,21 @@ go build -ldflags="-s -w" -o bin/printer-agent ./cmd/printer-agent
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/printer-agent.exe ./cmd/printer-agent
 echo "    [OK] printer-agent (Linux & Windows .exe)"
 
+# 3. scale-agent (BalanzaPro)
+echo "--> Compilando scale-agent (BalanzaPro)..."
+cd "${ROOT_DIR}/tools/scale-agent"
+mkdir -p bin
+go build -ldflags="-s -w" -o bin/scale-agent ./cmd/scale-agent
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/scale-agent.exe ./cmd/scale-agent
+echo "    [OK] scale-agent (Linux & Windows .exe)"
+
+# 4. catalog-search (Buscador ultrarrapido en memoria)
+echo "--> Compilando catalog-search..."
+cd "${ROOT_DIR}/tools/catalog-search"
+mkdir -p bin
+go build -ldflags="-s -w" -o bin/catalog-search ./cmd/catalog-search
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/catalog-search.exe ./cmd/catalog-search
+echo "    [OK] catalog-search (Linux & Windows .exe)"
+
 echo "==> Compilación finalizada con éxito."
 ls -lh "${ROOT_DIR}"/tools/*/bin/*

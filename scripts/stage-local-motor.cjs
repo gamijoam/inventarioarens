@@ -49,6 +49,20 @@ function stageLocalMotor({
     fs.copyFileSync(printerAgentBin, path.join(printerDestDir, 'printer-agent.exe'));
   }
 
+  const scaleAgentBin = path.join(repoRoot, 'tools', 'scale-agent', 'bin', 'scale-agent.exe');
+  if (fs.existsSync(scaleAgentBin)) {
+    const scaleDestDir = path.join(toolsRoot, 'scale-agent');
+    fs.mkdirSync(scaleDestDir, { recursive: true });
+    fs.copyFileSync(scaleAgentBin, path.join(scaleDestDir, 'scale-agent.exe'));
+  }
+
+  const catalogSearchBin = path.join(repoRoot, 'tools', 'catalog-search', 'bin', 'catalog-search.exe');
+  if (fs.existsSync(catalogSearchBin)) {
+    const searchDestDir = path.join(toolsRoot, 'catalog-search');
+    fs.mkdirSync(searchDestDir, { recursive: true });
+    fs.copyFileSync(catalogSearchBin, path.join(searchDestDir, 'catalog-search.exe'));
+  }
+
   fs.writeFileSync(
     path.join(stageRoot, 'MOTOR_README.txt'),
     'Motor Local de Sistema de Inventario. Los datos persistentes no se almacenan aqui.\n',
