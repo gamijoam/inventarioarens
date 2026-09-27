@@ -14,6 +14,8 @@ use App\Modules\POS\Services\PosCheckoutService;
 use App\Modules\Printing\Services\PosTicketPrintService;
 use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Promotions\Models\SalePromotionApplication;
+use App\Support\Pdf\PdfEngine;
+use App\Support\Tenancy\TenantManager;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,6 +96,82 @@ class PosOrderController extends Controller
                 'html' => $preview['html'],
                 'paper_width_mm' => $preview['paper_width_mm'],
             ],
+        ]);
+    }
+
+    public function pdf(PosOrder $posOrder, Request $request): Response
+    {
+        Gate::authorize('view', $posOrder);
+
+        $posOrder->loadMissing([
+            'branch',
+            'customer',
+            'seller',
+            'sale.customer',
+            'sale.items.product',
+            'payments.paymentMethod',
+        ]);
+
+        $tenant = app(TenantManager::class)->current();
+        $format = $request->query('format', 'ticket');
+        $width = (float) $request->query('paper_width_mm', 80);
+
+        $items = ($posOrder->sale?->items ?? collect())->map(function ($item): array {
+            return [
+                'description' => $item->product?->name ?? $item->description ?? 'Producto',
+                'quantity' => (float) $item->quantity,
+                'unit_price' => (float) $item->unit_price,
+                'total' => (float) $item->total_amount,
+            ];
+        })->values()->all();
+
+        $payments = ($posOrder->payments ?? collect())->map(function ($p): array {
+            return [
+                'method' => $p->paymentMethod?->name ?? 'Pago',
+                'amount_usd' => (float) ($p->amount_usd ?? 0),
+                'amount_ves' => (float) ($p->amount_ves ?? 0),
+            ];
+        })->values()->all();
+
+        $totalUsd = (float) $posOrder->total_usd;
+        $totalVes = (float) $posOrder->total_ves;
+        $rate = $totalUsd > 0 ? round($totalVes / $totalUsd, 4) : 0.0;
+
+        $payload = [
+            'company_name' => $tenant?->name ?? 'Empresa',
+            'company_rif' => $tenant?->rif ?? '',
+            'branch_name' => $posOrder->branch?->name ?? 'Sede Principal',
+            'phone' => $posOrder->branch?->phone ?? '',
+            'document_no' => $posOrder->order_number,
+            'date' => $posOrder->created_at?->format('d/m/Y H:i') ?? date('d/m/Y H:i'),
+            'cashier_name' => $posOrder->seller?->name ?? 'Caja',
+            'customer_name' => $posOrder->customer?->name ?? $posOrder->sale?->customer?->name ?? 'Consumidor Final',
+            'customer_doc' => $posOrder->customer?->document ?? $posOrder->sale?->customer?->document ?? '',
+            'items' => $items,
+            'subtotal_usd' => $totalUsd,
+            'tax_usd' => 0.0,
+            'total_usd' => $totalUsd,
+            'exchange_rate' => $rate,
+            'total_ves' => $totalVes,
+            'payments' => $payments,
+            'footer_notes' => 'Gracias por su compra.',
+            'width_mm' => $width,
+        ];
+
+        $pdfPath = $format === 'invoice'
+            ? PdfEngine::generateInvoice($payload)
+            : PdfEngine::generateTicket($payload);
+
+        if ($pdfPath === false || ! file_exists($pdfPath)) {
+            abort(500, 'Error al generar el documento PDF.');
+        }
+
+        $pdfBytes = file_get_contents($pdfPath);
+        @unlink($pdfPath);
+
+        return response($pdfBytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.($format === 'invoice' ? 'factura' : 'ticket').'-'.$posOrder->order_number.'.pdf"',
         ]);
     }
 

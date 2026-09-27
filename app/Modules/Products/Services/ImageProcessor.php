@@ -131,6 +131,8 @@ class ImageProcessor
                     throw new RuntimeException("GD no pudo escribir variante {$key} en {$path}.");
                 }
 
+                \App\Support\Media\ImageOptimizer::optimize($path, $variantConfig['width'], $variantConfig['quality']);
+
                 $size = filesize($path) ?: 0;
                 [$w, $h] = \getimagesize($path) ?: [0, 0];
 
