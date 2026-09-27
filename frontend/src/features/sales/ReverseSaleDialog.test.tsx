@@ -15,7 +15,10 @@ vi.mock('sonner', () => ({
 
 import { ReverseSaleDialog } from './ReverseSaleDialog';
 
-function makeSale(paidAt: string): Sale {
+function makeSale(
+  paidAt: string,
+  payments: NonNullable<Sale['pos_order']>['payments'] = [],
+): Sale {
   return {
     id: 15,
     status: 'confirmed',
@@ -30,6 +33,7 @@ function makeSale(paidAt: string): Sale {
       paid_base_amount: 100,
       paid_local_amount: 6000,
       paid_at: paidAt,
+      payments,
     },
     receivable: null,
   };
@@ -61,6 +65,51 @@ describe('ReverseSaleDialog', () => {
           type: 'void',
           reason: 'Error de cobro',
           cash_register_session_id: 31,
+          refund_reference: null,
+        },
+      });
+    });
+  });
+
+  it('exige referencia de reembolso cuando hay pagos externos y la envia', async () => {
+    render(
+      <ReverseSaleDialog
+        sale={makeSale(new Date().toISOString(), [
+          {
+            id: 1,
+            method: 'mobile_payment',
+            currency: 'USD',
+            amount: 100,
+            amount_base: 100,
+            amount_local: 0,
+            exchange_rate: 0,
+            status: 'captured',
+          },
+        ])}
+        activeSession={{ id: 31 } as unknown as CashRegisterSession}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'Reembolso movil' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar anulación' }));
+
+    expect(mutateAsync).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Referencia de reembolso'), {
+      target: { value: 'REF-PM-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar anulación' }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        posOrderId: 22,
+        payload: {
+          type: 'void',
+          reason: 'Reembolso movil',
+          cash_register_session_id: 31,
+          refund_reference: 'REF-PM-1',
         },
       });
     });

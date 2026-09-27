@@ -3646,10 +3646,20 @@ class SyncEventApplier
                 ->value('id')
             : null;
 
-        $existing = DB::table('accounts_receivables')
-            ->where('tenant_id', $tenant->id)
-            ->where('document_number', $documentNumber)
-            ->first();
+        $existing = null;
+        if ($saleId !== null && (int) $saleId > 0) {
+            $existing = DB::table('accounts_receivables')
+                ->where('tenant_id', $tenant->id)
+                ->where('sale_id', (int) $saleId)
+                ->first();
+        }
+
+        if (! $existing && $documentNumber !== null && $documentNumber !== '') {
+            $existing = DB::table('accounts_receivables')
+                ->where('tenant_id', $tenant->id)
+                ->where('document_number', $documentNumber)
+                ->first();
+        }
 
         $values = [
             'customer_id' => $customerId,
@@ -3672,8 +3682,18 @@ class SyncEventApplier
         ];
 
         if ($existing) {
-            if ($saleId !== null) {
-                $values['sale_id'] = (int) $saleId;
+            if ($saleId !== null && (int) $saleId > 0) {
+                // Si existe otro registro con este sale_id, actualizar ese para no violar el indice unico
+                $conflict = DB::table('accounts_receivables')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('sale_id', (int) $saleId)
+                    ->where('id', '!=', $existing->id)
+                    ->first();
+                if ($conflict) {
+                    $existing = $conflict;
+                } else {
+                    $values['sale_id'] = (int) $saleId;
+                }
             }
 
             DB::table('accounts_receivables')

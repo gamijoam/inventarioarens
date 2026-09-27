@@ -228,7 +228,7 @@ function Write-ServiceXml(
   <workingdirectory>$(ConvertTo-XmlValue $Backend)</workingdirectory>
 $envLines
   <startmode>Automatic</startmode>
-  <delayedAutoStart>false</delayedAutoStart>
+  <delayedAutoStart>true</delayedAutoStart>
   <hidewindow>true</hidewindow>
   <stoptimeout>20 sec</stoptimeout>
   <onfailure action="restart" delay="5 sec" />
@@ -282,7 +282,7 @@ function Set-LaravelEnvironment([string]$Php, [string]$Backend, [string]$AppKey,
     $env:DB_CONNECTION = 'sqlite'
     $env:DB_DATABASE = Join-Path $DataRoot 'inventario.sqlite'
     $env:DB_FOREIGN_KEYS = 'true'
-    $env:DB_BUSY_TIMEOUT = '15000'
+    $env:DB_BUSY_TIMEOUT = '5000'
     $env:DB_JOURNAL_MODE = 'WAL'
     $env:DB_SYNCHRONOUS = 'NORMAL'
     $env:DB_TRANSACTION_MODE = 'IMMEDIATE'
@@ -351,7 +351,7 @@ function Install-Motor {
         SYNC_PUBLIC_BASE = $CloudBase
         APP_ALLOWED_ORIGINS_FOR_CSRF = 'http://127.0.0.1:8788,http://127.0.0.1:8789,http://127.0.0.1:8790,http://127.0.0.1:8791,http://127.0.0.1:8792,http://127.0.0.1:8793,http://localhost:8788,http://localhost:8789,http://localhost:8790,http://localhost:8791,http://localhost:8792,http://localhost:8793'
         CORS_ALLOWED_ORIGINS_LOCAL = 'http://127.0.0.1:8788'
-        DB_CONNECTION = 'sqlite'; DB_DATABASE = $database; DB_FOREIGN_KEYS = 'true'; DB_BUSY_TIMEOUT = '15000'
+        DB_CONNECTION = 'sqlite'; DB_DATABASE = $database; DB_FOREIGN_KEYS = 'true'; DB_BUSY_TIMEOUT = '5000'
         DB_JOURNAL_MODE = 'WAL'; DB_SYNCHRONOUS = 'NORMAL'; DB_TRANSACTION_MODE = 'IMMEDIATE'
         FILESYSTEM_DISK = 'local'; LARAVEL_STORAGE_PATH = (Join-Path $DataRoot 'storage')
         LOCAL_TECHNICAL_CONSOLE_ENABLED = 'true'; LOG_CHANNEL = 'stack'; LOG_LEVEL = 'warning'
@@ -391,8 +391,21 @@ memory_limit=512M
         $backendArguments = 'artisan serve --host=127.0.0.1 --port=8787'
     }
     Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioBackend.xml') $BackendService 'Sistema de Inventario - Backend' 'Motor local de inventario y sincronizacion.' $backendExecutable $Backend $backendArguments $backendEnvironment (Join-Path $DataRoot 'logs\services\backend')
-    Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioPrinter.xml') $PrinterService 'Sistema de Inventario - Impresion' 'Agente local de impresion termica.' $Php $Backend 'artisan printer:serve --port=17777 --bind=127.0.0.1' $environment (Join-Path $DataRoot 'logs\services\printer')
-    Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioSync.xml') $SyncService 'Sistema de Inventario - Sincronizacion' 'Sincronizacion continua de todas las empresas locales.' $Php $Backend 'artisan sync:daemon-all --interval=15' $environment (Join-Path $DataRoot 'logs\services\sync')
+    $printerAgentExe = Join-Path $PayloadRoot 'tools\printer-agent\printer-agent.exe'
+    $syncDaemonExe = Join-Path $PayloadRoot 'tools\sync-daemon\sync-daemon.exe'
+
+    if (Test-Path -LiteralPath $printerAgentExe) {
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioPrinter.xml') $PrinterService 'Sistema de Inventario - Impresion' 'Agente local de impresion termica (Go nativo).' $printerAgentExe $Backend '-port 17777 -bind 127.0.0.1' $environment (Join-Path $DataRoot 'logs\services\printer')
+    } else {
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioPrinter.xml') $PrinterService 'Sistema de Inventario - Impresion' 'Agente local de impresion termica.' $Php $Backend 'artisan printer:serve --port=17777 --bind=127.0.0.1' $environment (Join-Path $DataRoot 'logs\services\printer')
+    }
+
+    if (Test-Path -LiteralPath $syncDaemonExe) {
+        $syncConfigPath = Join-Path $DataRoot 'storage\app\sync-worker\sync-config.json'
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioSync.xml') $SyncService 'Sistema de Inventario - Sincronizacion' 'Sincronizacion continua de todas las empresas locales (Go nativo).' $syncDaemonExe $Backend "-config `"$syncConfigPath`" -database `"$database`" -php `"$Php`" -backend-root `"$Backend`" -interval 15" $environment (Join-Path $DataRoot 'logs\services\sync')
+    } else {
+        Write-ServiceXml (Join-Path $PayloadRoot 'service\SistemaInventarioSync.xml') $SyncService 'Sistema de Inventario - Sincronizacion' 'Sincronizacion continua de todas las empresas locales.' $Php $Backend 'artisan sync:daemon-all --interval=15' $environment (Join-Path $DataRoot 'logs\services\sync')
+    }
 
     try {
         Write-Info 'Deteniendo temporalmente el runtime anterior.'
