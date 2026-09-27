@@ -35,6 +35,7 @@ use App\Support\Cache\TenantReferenceCache;
 use App\Support\Performance\PerformanceProbe;
 use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
+use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -225,7 +226,7 @@ class PosCheckoutService
                     ]);
                     $this->commissions->recordPaidOrder($order->refresh());
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.paid');
-                    WsHub::publishTenant($order->tenant_id, 'pos.order.paid', [
+                    $paidData = [
                         'order_id' => $order->id,
                         'sale_id' => $sale->id,
                         'customer_id' => $order->customer_id,
@@ -234,7 +235,19 @@ class PosCheckoutService
                         'total_local_amount' => (float) $order->total_local_amount,
                         'cashier_id' => $cashier->id,
                         'paid_at' => $order->paid_at?->toIso8601String(),
-                    ]);
+                    ];
+
+                    WsHub::publishTenant($order->tenant_id, 'pos.order.paid', $paidData);
+
+                    $orderTenant = $order->tenant ?? Tenant::find($order->tenant_id);
+                    $groupId = $orderTenant?->parent_id ?? ($orderTenant?->isGroup() ? $orderTenant->id : null);
+                    if ($groupId) {
+                        WsHub::publish("group:{$groupId}", 'pos.order.paid', array_merge($paidData, [
+                            'tenant_id' => $order->tenant_id,
+                            'tenant_name' => $orderTenant?->name,
+                            'cashier_name' => $cashier->name,
+                        ]));
+                    }
                 } else {
                     PerformanceProbe::measure(
                         'POS reservar inventario pendiente',

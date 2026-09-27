@@ -3,6 +3,7 @@
 namespace App\Modules\Currency\Services;
 
 use App\Modules\Currency\Models\ExchangeRate;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Realtime\WsHub;
 use Illuminate\Support\Facades\DB;
 
@@ -23,7 +24,7 @@ class ExchangeRateActivationService
             return $rate->refresh()->load('type');
         });
 
-        WsHub::publishTenant($activated->tenant_id, 'rate.updated', [
+        $data = [
             'id' => $activated->id,
             'type_code' => $activated->type?->code,
             'type_name' => $activated->type?->name,
@@ -31,7 +32,25 @@ class ExchangeRateActivationService
             'quote_currency' => $activated->quote_currency,
             'rate' => (float) $activated->rate,
             'effective_at' => $activated->effective_at?->toIso8601String(),
-        ]);
+        ];
+
+        // 1. Notificar al tenant actual
+        WsHub::publishTenant($activated->tenant_id, 'rate.updated', $data);
+
+        // 2. Difusion a grupo e hijas si aplica
+        $tenant = Tenant::find($activated->tenant_id);
+        if ($tenant) {
+            $groupId = $tenant->parent_id ?? ($tenant->isGroup() ? $tenant->id : null);
+            if ($groupId) {
+                WsHub::publish("group:{$groupId}", 'rate.updated', $data);
+            }
+            if ($tenant->isGroup()) {
+                $childIds = $tenant->children()->pluck('id')->all();
+                foreach ($childIds as $childId) {
+                    WsHub::publishTenant($childId, 'rate.updated', $data);
+                }
+            }
+        }
 
         return $activated;
     }
