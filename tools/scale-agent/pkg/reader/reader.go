@@ -117,9 +117,16 @@ func NewMockReader(weight float64, unit string, interval time.Duration) *MockRea
 		interval = 100 * time.Millisecond
 	}
 	return &MockReader{
-		weight:      weight,
-		unit:        unit,
-		interval:    interval,
+		weight:   weight,
+		unit:     unit,
+		interval: interval,
+		latest: &protocol.ScaleReading{
+			Weight:    weight,
+			Unit:      unit,
+			IsStable:  true,
+			Raw:       "MOCK_SCALE",
+			Timestamp: time.Now(),
+		},
 		subscribers: make(map[chan *protocol.ScaleReading]struct{}),
 	}
 }
