@@ -342,6 +342,10 @@ Suite de servicios y utilidades en Go puro (sin CGO) en `tools/` para acelerar t
 - `tools/ws-hub`: Servidor WebSocket multitenant para eventos en tiempo real en `:16666` (1.6 MB RAM).
 - `tools/image-optimizer`: Optimizador y redimensionador de imágenes JPEG/PNG para catálogo y POS (< 4 MB RAM).
 - `tools/pdf-engine`: Generador vectorial ultrarrápido de tickets y facturas PDF en < 20 ms (< 3 MB RAM).
+- `tools/barcode-engine`: Generador de códigos de barra Code128, QR y EAN-13 para balanzas de pesaje en `:13333` (< 3 MB RAM).
+- `tools/watchdog`: Guardián y supervisor de microservicios con auto-recuperación (< 2.5 MB RAM).
+- Helper de emisión de eventos de Laravel a `ws-hub`: `App\Support\Realtime\WsHub` (`rate.updated`, `cash_register.*`, `pos.order.*`).
+- Clientes frontend TS: `frontend/src/lib/wsHub.ts` y `frontend/src/lib/catalogSearch.ts`.
 - Compilación unificada para Linux y Windows mediante `scripts/build-go-tools.sh`.
 - Integración en instaladores y servicios Windows (`SistemaInventarioPrinter`, `SistemaInventarioSync`, `SistemaInventarioWsHub`) vía WinSW en `scripts/install-local-motor.ps1`.
 - En el VPS corren como servicios permanentes de systemd:
