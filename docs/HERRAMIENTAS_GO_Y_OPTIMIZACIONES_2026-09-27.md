@@ -16,6 +16,7 @@ Se implementó una suite de **4 herramientas nativas en Go puro (sin CGO)**, des
 | **`printer-agent`**| `tools/printer-agent` | `17777` | **< 5.5 MB** (vs ~75 MB PHP) | Impresión térmica ESC/POS y apertura de gaveta |
 | **`scale-agent`** | `tools/scale-agent` | `19999` | **< 5.1 MB** | Lectura de balanzas en tiempo real (SSE) |
 | **`catalog-search`**| `tools/catalog-search`| `18888` | **1.4 MB** (en VPS) | Búsqueda y escaneo en memoria en < 0.1 ms |
+| **`ws-hub`** | `tools/ws-hub` | `16666` | **1.6 MB** (en VPS) | Servidor WebSocket multitenant para eventos en tiempo real |
 
 ---
 
@@ -59,21 +60,43 @@ Se implementó una suite de **4 herramientas nativas en Go puro (sin CGO)**, des
   - **Prueba en vivo en VPS**: Tiempo de respuesta medido de **55 a 94 microsegundos** (0.05 a 0.09 ms).
 - **Pruebas unitarias**: `pkg/index`, `pkg/server` (100% PASS).
 
+### 2.5 Servidor WebSocket Multitenant de Tiempo Real (`tools/ws-hub`)
+- **Objetivo**: Proveer una capa de transporte bidireccional en tiempo real para eventos del sistema (actualización de tasas de cambio BCV/Paralelo, cambios de stock de inventario, alertas de caja y notificaciones de ventas) hacia el frontend web y los clientes Electron POS / Administrativo sin sobrecargar PHP ni recurrir a servicios externos de pago (como Pusher).
+- **Arquitectura Multi-Tenant**:
+  - Un único proceso en Go atiende todas las conexiones en `127.0.0.1:16666`.
+  - **Aislamiento por canales**: El cliente se conecta especificando canales de interés en la URL (`ws://host:16666/ws?channels=tenant:4,global`) o enviando comandos JSON dinámicos (`{"action":"subscribe","channel":"tenant:4"}`).
+  - **Consumo de memoria**: **1.6 MB de RAM** en el VPS.
+  - **Endpoint REST `/publish`**: Permite al backend de Laravel o a cualquier microservicio emitir eventos hacia cualquier canal mediante una simple llamada HTTP POST interna:
+    ```bash
+    curl -X POST http://127.0.0.1:16666/publish \
+      -H "Content-Type: application/json" \
+      -d '{"channel":"tenant:4","event":"rate.updated","data":{"currency":"USD","rate":45.50}}'
+    ```
+  - Soporta autenticación opcional de publicación mediante clave secreta (`X-Auth-Key` / `WS_HUB_AUTH_KEY`).
+  - Goroutines dedicadas por cliente (`readPump` y `writePump`) con ping/pong automático cada 30 segundos y prevención de caídas por desconexión abrupta.
+- **Pruebas unitarias**: `pkg/hub`, `pkg/server` (100% PASS, cobertura de registro, unregister, suscripción dinámica, auth key y entrega).
+
 ---
 
 ## 3. Integración en Windows y en el VPS
 
 ### 3.1 Empaquetado del Motor Local de Windows
-- **`scripts/build-go-tools.sh`**: Compila las 4 herramientas en paralelo para Linux y Windows (`.exe` estáticos sin dependencias externas).
+- **`scripts/build-go-tools.sh`**: Compila las 5 herramientas en paralelo para Linux y Windows (`.exe` estáticos sin dependencias externas).
 - **`scripts/stage-local-motor.cjs`**: Copia automáticamente los binarios `.exe` compilados dentro de la carpeta `tools/` de la distribución del Motor Local.
 - **`scripts/install-local-motor.ps1`**: Registra los servicios de Windows mediante WinSW:
   - `SistemaInventarioBackend`: FrankenPHP (servidor web multi-hilo Caddy + PHP ZTS con OPcache en puerto `8787`).
   - `SistemaInventarioPrinter`: `printer-agent.exe` (puerto `17777`).
   - `SistemaInventarioSync`: `sync-daemon.exe`.
+  - `SistemaInventarioWsHub`: `ws-hub.exe` (puerto `16666`).
   - Mantiene compatibilidad total hacia atrás: si los binarios no estuvieran presentes, realiza fallback automático a `php artisan`.
 
-### 3.2 Servicio en el VPS Linux (Balanza Pro)
-- El buscador de catálogo corre como servicio permanente de systemd:
-  - Archivo: `/etc/systemd/system/balanzapro-catalog-search.service`
-  - Estado: `active (running)`, consumo de 1.4 MB de RAM, puerto `127.0.0.1:18888`.
-  - Comando de control: `systemctl status balanzapro-catalog-search.service`.
+### 3.2 Servicios Activos en el VPS Linux
+Tanto el buscador de catálogo como el servidor de WebSockets corren como servicios permanentes de systemd en el VPS:
+- **`balanzapro-catalog-search.service`**:
+  - Puerto: `127.0.0.1:18888`
+  - Estado: `active (running)` — Consumo: **1.4 MB RAM**
+  - Control: `systemctl status balanzapro-catalog-search.service`
+- **`balanzapro-ws-hub.service`**:
+  - Puerto: `127.0.0.1:16666`
+  - Estado: `active (running)` — Consumo: **1.6 MB RAM**
+  - Control: `systemctl status balanzapro-ws-hub.service`
