@@ -37,5 +37,13 @@ go build -ldflags="-s -w" -o bin/catalog-search ./cmd/catalog-search
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/catalog-search.exe ./cmd/catalog-search
 echo "    [OK] catalog-search (Linux & Windows .exe)"
 
+# 5. ws-hub (Servidor de WebSockets en tiempo real multitenant)
+echo "--> Compilando ws-hub..."
+cd "${ROOT_DIR}/tools/ws-hub"
+mkdir -p bin
+go build -ldflags="-s -w" -o bin/ws-hub ./cmd/ws-hub
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/ws-hub.exe ./cmd/ws-hub
+echo "    [OK] ws-hub (Linux & Windows .exe)"
+
 echo "==> Compilación finalizada con éxito."
 ls -lh "${ROOT_DIR}"/tools/*/bin/*
