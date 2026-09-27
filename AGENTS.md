@@ -340,6 +340,8 @@ Suite de servicios y utilidades en Go puro (sin CGO) en `tools/` para acelerar t
 - `tools/scale-agent`: Agente para balanzas y básculas en `:19999` con SSE en tiempo real (< 5.1 MB RAM).
 - `tools/catalog-search`: Buscador de catálogo multitenant en memoria en `:18888` (< 0.1 ms de respuesta, 1.4 MB RAM).
 - `tools/ws-hub`: Servidor WebSocket multitenant para eventos en tiempo real en `:16666` (1.6 MB RAM).
+- `tools/image-optimizer`: Optimizador y redimensionador de imágenes JPEG/PNG para catálogo y POS (< 4 MB RAM).
+- `tools/pdf-engine`: Generador vectorial ultrarrápido de tickets y facturas PDF en < 20 ms (< 3 MB RAM).
 - Compilación unificada para Linux y Windows mediante `scripts/build-go-tools.sh`.
 - Integración en instaladores y servicios Windows (`SistemaInventarioPrinter`, `SistemaInventarioSync`, `SistemaInventarioWsHub`) vía WinSW en `scripts/install-local-motor.ps1`.
 - En el VPS corren como servicios permanentes de systemd:
