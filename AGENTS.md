@@ -332,6 +332,17 @@ Compartida por cualquier cliente (web, móvil, CLI) que consuma el backend:
 **Ya NO hay**: portal Blade/JS vanilla, MaterialDesignThemes ni WPF. El frontend actual usa Vite,
 React, pnpm, Playwright y Electron; el backend continúa siendo API REST puro.
 
+### 7.1 Herramientas nativas en Go (2026-09-27)
+
+Suite de servicios y utilidades en Go puro (sin CGO) en `tools/` para acelerar tareas de fondo y reducir el consumo de memoria:
+- `tools/sync-daemon`: Daemon de sincronización local SQLite ↔ Nube (< 10 MB RAM, pure-Go `modernc.org/sqlite`).
+- `tools/printer-agent`: Servidor HTTP en `:17777` para impresión térmica ESC/POS y gaveta (< 5.5 MB RAM).
+- `tools/scale-agent`: Agente para balanzas y básculas en `:19999` con SSE en tiempo real (< 5.1 MB RAM).
+- `tools/catalog-search`: Buscador de catálogo multitenant en memoria en `:18888` (< 0.1 ms de respuesta, 1.4 MB RAM).
+- Compilación unificada para Linux y Windows mediante `scripts/build-go-tools.sh`.
+- Integración en instaladores y servicios Windows (`SistemaInventarioPrinter`, `SistemaInventarioSync`) vía WinSW en `scripts/install-local-motor.ps1`.
+- En el VPS corre `balanzapro-catalog-search.service` en `127.0.0.1:18888` (systemd).
+
 ---
 
 ## 8. Convenciones de código
