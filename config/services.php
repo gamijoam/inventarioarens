@@ -71,4 +71,9 @@ return [
         'stock_stale_after_minutes' => (int) env('CRM_STOCK_STALE_AFTER_MINUTES', 30),
     ],
 
+    'ws_hub' => [
+        'url' => env('WS_HUB_URL', 'http://127.0.0.1:16666/publish'),
+        'key' => env('WS_HUB_AUTH_KEY'),
+    ],
+
 ];
