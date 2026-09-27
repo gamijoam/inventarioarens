@@ -19,7 +19,7 @@
 
 import { useEffect } from 'react';
 
-import { initEcho } from '@/lib/echo';
+import { getWsHubClient } from '@/lib/wsHub';
 import { transferRequestKeys } from '@/features/inventory-transfer-requests/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -73,9 +73,9 @@ const TOAST_BY_EVENT: Record<(typeof EVENT_NAMES)[number], {
 
 export function useTransferRequestBroadcast(
   currentTenantId: number | undefined,
-  options: { enabled?: boolean } = {},
+  options: { enabled?: boolean; groupId?: number | null } = {},
 ): void {
-  const { enabled = true } = options;
+  const { enabled = true, groupId } = options;
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -84,75 +84,53 @@ export function useTransferRequestBroadcast(
       return;
     }
 
-    const echo = initEcho();
-    if (!echo) {
-      return;
-    }
+    const ws = getWsHubClient();
+    const tenantChannel = `tenant:${currentTenantId}`;
+    ws.subscribe(tenantChannel);
 
-    const channelName = `tenant.${currentTenantId}`;
-    const channel = echo.private(channelName);
+    const groupChannel = groupId ? `group:${groupId}` : null;
+    if (groupChannel) {
+      ws.subscribe(groupChannel);
+    }
 
     const handleEvent = (eventType: (typeof EVENT_NAMES)[number]) =>
       (event: TransferRequestEvent) => {
-        // Debug en consola: ayuda al usuario a verificar que los
-        // eventos WebSocket realmente llegan al cliente. Si ve esto
-        // en consola, Reverb + Echo funcionan. Si no ve nada, es cache
-        // del navegador o Reverb no esta corriendo.
-        if (typeof window !== 'undefined' && window.console) {
-          // eslint-disable-next-line no-console
-          window.console.info(
-            `[ITR] WebSocket event received: ${eventType}`,
-            { event, currentTenantId },
-          );
-        }
-
-        const cfg = TOAST_BY_EVENT[eventType];
-
-        // Invalidar caches para que el sidebar y el listado se
-        // actualicen al instante.
         void qc.invalidateQueries({ queryKey: transferRequestKeys.unreadCounts() });
         void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
 
-        // Filtro de routing: el evento `created` se envia al tenant
-        // destino y `cancelled` al destino; `accepted` y `rejected` al
-        // origen. Solo mostramos el toast si el evento es para nuestro
-        // tenant (aunque el canal privado ya filtra por el canal policy,
-        // este filtro defensivo evita toasts duplicados en escenarios
-        // multi-tenant).
+        const cfg = TOAST_BY_EVENT[eventType];
+        if (!cfg) return;
+
         const target = cfg.target(event);
         const isForMe = target === 'destination'
           ? event.destination_tenant_id === currentTenantId
           : event.origin_tenant_id === currentTenantId;
-        if (!isForMe) return;
 
-        toast.info(cfg.title(event), {
-          duration: Infinity,
-          dismissible: true,
-          description: cfg.description(event),
-          action: {
-            label: 'Ver',
-            onClick: () => {
-              void navigate({ to: '/inventory-transfer-requests' });
+        if (isForMe || (groupId && event.origin_tenant_id !== currentTenantId && event.destination_tenant_id !== currentTenantId)) {
+          toast.info(cfg.title(event), {
+            duration: 10_000,
+            dismissible: true,
+            description: cfg.description(event),
+            action: {
+              label: 'Ver',
+              onClick: () => {
+                void navigate({ to: '/inventory-transfer-requests' });
+              },
             },
-          },
-        });
+          });
+        }
       };
 
-    const handlers = EVENT_NAMES.map((eventName) => ({
-      eventName,
-      handler: handleEvent(eventName),
-    }));
-
-    for (const { eventName, handler } of handlers) {
-      // Laravel Echo usa dot-prefixed event names para broadcastAs.
-      channel.listen(`.${eventName}`, handler);
-    }
+    const unsubs = EVENT_NAMES.map((eventName) =>
+      ws.on(eventName, handleEvent(eventName))
+    );
 
     return () => {
-      for (const { eventName, handler } of handlers) {
-        channel.stopListening(`.${eventName}`, handler);
+      unsubs.forEach((unsub) => unsub());
+      ws.unsubscribe(tenantChannel);
+      if (groupChannel) {
+        ws.unsubscribe(groupChannel);
       }
-      echo.leave(channelName);
     };
-  }, [enabled, currentTenantId, qc, navigate]);
+  }, [enabled, currentTenantId, groupId, qc, navigate]);
 }

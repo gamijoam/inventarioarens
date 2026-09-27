@@ -20,6 +20,7 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
+use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +36,7 @@ class InventoryTransferService
 
     public function create(User $user, array $data): InventoryTransfer
     {
-        return DB::transaction(function () use ($user, $data): InventoryTransfer {
+        $transfer = DB::transaction(function () use ($user, $data): InventoryTransfer {
             $fromWarehouse = Warehouse::query()->findOrFail($data['from_warehouse_id']);
             $toWarehouse = Warehouse::query()->findOrFail($data['to_warehouse_id']);
 
@@ -171,6 +172,10 @@ class InventoryTransferService
 
             return $transfer;
         });
+
+        $this->publishTransferWs($transfer, 'created');
+
+        return $transfer;
     }
 
     public function prepare(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
@@ -386,7 +391,7 @@ class InventoryTransferService
 
     public function dispatch(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
     {
-        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+        $transfer = DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
             $transfer = InventoryTransfer::query()
                 ->whereKey($transfer->id)
                 ->lockForUpdate()
@@ -483,11 +488,15 @@ class InventoryTransferService
 
             return $transfer;
         });
+
+        $this->publishTransferWs($transfer, 'dispatched');
+
+        return $transfer;
     }
 
     public function receive(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
     {
-        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+        $transfer = DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
             $transfer = InventoryTransfer::query()
                 ->whereKey($transfer->id)
                 ->lockForUpdate()
@@ -665,11 +674,15 @@ class InventoryTransferService
 
             return $transfer;
         });
+
+        $this->publishTransferWs($transfer, 'received');
+
+        return $transfer;
     }
 
     public function cancel(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
     {
-        return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
+        $transfer = DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
             $transfer = InventoryTransfer::query()
                 ->whereKey($transfer->id)
                 ->lockForUpdate()
@@ -782,6 +795,10 @@ class InventoryTransferService
 
             return $transfer;
         });
+
+        $this->publishTransferWs($transfer, 'cancelled');
+
+        return $transfer;
     }
 
     public function resolveDifferences(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
@@ -1646,5 +1663,24 @@ class InventoryTransferService
             serialUnits: $serialUnits,
             allowedStatuses: $allowedStatuses,
         );
+    }
+
+    private function publishTransferWs(InventoryTransfer $transfer, string $action): void
+    {
+        try {
+            WsHub::publishTenant($transfer->tenant_id, "inventory-transfer.{$action}", [
+                'id' => (int) $transfer->id,
+                'document_number' => $transfer->document_number,
+                'guide_number' => $transfer->guide_number,
+                'status' => $transfer->status,
+                'from_warehouse_id' => (int) $transfer->from_warehouse_id,
+                'to_warehouse_id' => (int) $transfer->to_warehouse_id,
+                'from_warehouse_name' => $transfer->fromWarehouse?->name,
+                'to_warehouse_name' => $transfer->toWarehouse?->name,
+                'action' => $action,
+            ]);
+        } catch (\Throwable) {
+            // No bloquear la operacion transaccional si WsHub no responde
+        }
     }
 }

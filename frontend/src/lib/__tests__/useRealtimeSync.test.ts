@@ -43,4 +43,36 @@ describe('useRealtimeSync event handler', () => {
       expect.objectContaining({ queryKey: ['cash-registers'] })
     );
   });
+
+  it('invalida notificaciones y solicitudes cuando recibe intercompany.notification', () => {
+    const invalidateQueriesMock = vi.fn();
+    const queryClientMock = {
+      invalidateQueries: invalidateQueriesMock,
+    } as any;
+
+    handleRealtimeEvent(queryClientMock, 'intercompany.notification', { document_number: 'ITR-01' });
+
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['inventory-transfer-notifications'] })
+    );
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['inventory-transfer-requests'] })
+    );
+  });
+
+  it('invalida traslados internos cuando recibe inventory-transfer.created', () => {
+    const invalidateQueriesMock = vi.fn();
+    const queryClientMock = {
+      invalidateQueries: invalidateQueriesMock,
+    } as any;
+
+    handleRealtimeEvent(queryClientMock, 'inventory-transfer.created', { id: 10 });
+
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['inventory-transfers'] })
+    );
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['products'] })
+    );
+  });
 });

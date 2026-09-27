@@ -3,48 +3,71 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 
-import { initEcho } from '@/lib/echo';
+import { getWsHubClient } from '@/lib/wsHub';
 import { intercompanyNotificationKeys } from './api';
+import { transferRequestKeys } from '@/features/inventory-transfer-requests/api';
 
 interface NotificationEvent {
-  id: number;
-  tenant_id: number;
-  inventory_transfer_request_id: number;
-  title: string;
-  message: string;
+  id?: number;
+  tenant_id?: number;
+  inventory_transfer_request_id?: number;
+  title?: string;
+  message?: string;
 }
 
-export function useIntercompanyNotificationBroadcast(tenantId?: number, enabled = true) {
+export function useIntercompanyNotificationBroadcast(
+  tenantId?: number,
+  enabled = true,
+  groupId?: number | null,
+) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!tenantId || !enabled) return;
-    const echo = initEcho();
-    if (!echo) return;
 
-    const channelName = `tenant.${tenantId}`;
-    const channel = echo.private(channelName);
+    const ws = getWsHubClient();
+    const tenantChannel = `tenant:${tenantId}`;
+    ws.subscribe(tenantChannel);
+
+    const groupChannel = groupId ? `group:${groupId}` : null;
+    if (groupChannel) {
+      ws.subscribe(groupChannel);
+    }
+
     const handler = (event: NotificationEvent) => {
-      if (event.tenant_id !== tenantId) return;
       void queryClient.invalidateQueries({ queryKey: intercompanyNotificationKeys.all });
-      toast.info(event.title, {
-        description: event.message,
-        duration: 10_000,
-        action: {
-          label: 'Ver',
-          onClick: () => void navigate({
-            to: '/inventory-transfer-requests/$requestId',
-            params: { requestId: String(event.inventory_transfer_request_id) },
-          }),
-        },
-      });
+      void queryClient.invalidateQueries({ queryKey: transferRequestKeys.all });
+
+      if (event?.title) {
+        toast.info(event.title, {
+          description: event.message,
+          duration: 10_000,
+          action: event.inventory_transfer_request_id
+            ? {
+                label: 'Ver',
+                onClick: () =>
+                  void navigate({
+                    to: '/inventory-transfer-requests/$requestId',
+                    params: { requestId: String(event.inventory_transfer_request_id) },
+                  }),
+              }
+            : undefined,
+        });
+      }
     };
 
-    channel.listen('.inventory-transfer-notifications.created', handler);
+    const unsubs = [
+      ws.on('intercompany.notification', handler),
+      ws.on('inventory-transfer-notifications.created', handler),
+    ];
+
     return () => {
-      channel.stopListening('.inventory-transfer-notifications.created', handler);
-      echo.leave(channelName);
+      unsubs.forEach((unsub) => unsub());
+      ws.unsubscribe(tenantChannel);
+      if (groupChannel) {
+        ws.unsubscribe(groupChannel);
+      }
     };
-  }, [navigate, queryClient, tenantId]);
+  }, [navigate, queryClient, tenantId, enabled, groupId]);
 }
