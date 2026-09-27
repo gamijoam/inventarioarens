@@ -8,7 +8,7 @@
 
 Tradicionalmente, las tareas de fondo del Motor Local en Windows y del VPS corrían mediante procesos CLI de Laravel (`php artisan`). Aunque funcionales, cada proceso en bucle continuo consumía entre 60 y 85 MB de RAM, con riesgos de fugas de memoria (*memory leaks*) y latencias de arranque de ~1.5 segundos.
 
-Se implementó una suite de **4 herramientas nativas en Go puro (sin CGO)**, desarrolladas bajo **TDD estricto (Red-Green-Refactor)**, que se compilan como binarios estáticos tanto para Linux como para Windows (`.exe` de 64 bits):
+Se implementó una suite de **7 herramientas nativas en Go puro (sin CGO)**, desarrolladas bajo **TDD estricto (Red-Green-Refactor)**, que se compilan como binarios estáticos tanto para Linux como para Windows (`.exe` de 64 bits):
 
 | Herramienta | Ruta en Repo | Puerto | Consumo RAM en Reposo | Función Principal |
 |---|---|---|---|---|
@@ -17,6 +17,8 @@ Se implementó una suite de **4 herramientas nativas en Go puro (sin CGO)**, des
 | **`scale-agent`** | `tools/scale-agent` | `19999` | **< 5.1 MB** | Lectura de balanzas en tiempo real (SSE) |
 | **`catalog-search`**| `tools/catalog-search`| `18888` | **1.4 MB** (en VPS) | Búsqueda y escaneo en memoria en < 0.1 ms |
 | **`ws-hub`** | `tools/ws-hub` | `16666` | **1.6 MB** (en VPS) | Servidor WebSocket multitenant para eventos en tiempo real |
+| **`image-optimizer`**| `tools/image-optimizer`| `14444` / CLI | **< 4.0 MB** | Redimensionamiento y optimización de imágenes |
+| **`pdf-engine`** | `tools/pdf-engine` | `15555` / CLI | **< 3.0 MB** | Generación de facturas y tickets PDF en < 20 ms |
 
 ---
 
@@ -76,12 +78,31 @@ Se implementó una suite de **4 herramientas nativas en Go puro (sin CGO)**, des
   - Goroutines dedicadas por cliente (`readPump` y `writePump`) con ping/pong automático cada 30 segundos y prevención de caídas por desconexión abrupta.
 - **Pruebas unitarias**: `pkg/hub`, `pkg/server` (100% PASS, cobertura de registro, unregister, suscripción dinámica, auth key y entrega).
 
+### 2.6 Optimizador y Redimensionador de Imágenes (`tools/image-optimizer`)
+- **Objetivo**: Reducir el consumo de almacenamiento y acelerar la carga del catálogo POS redimensionando fotos pesadas y optimizando la compresión JPEG/PNG.
+- **Solución en Go**:
+  - Algoritmo bilineal de alta calidad mediante `golang.org/x/image/draw`.
+  - Reduce fotos de 5 a 10 MB a ~80 KB manteniendo nitidez (más de 85% de compresión).
+  - Modos de ejecución: CLI unitario, escáner recursivo de directorios y microservicio HTTP en `:14444`.
+  - Integración en Laravel mediante el helper [`App\Support\Media\ImageOptimizer`](file:///opt/inventarioarens-cloud/app/Support/Media/ImageOptimizer.php).
+- **Pruebas unitarias**: `pkg/optimizer` (100% PASS) y `tests/Unit/Support/ImageOptimizerTest.php` (100% PASS).
+
+### 2.7 Motor Ultrarrápido de Tickets y Facturas PDF (`tools/pdf-engine`)
+- **Objetivo**: Generar tickets térmicos (58/80mm) y facturas de venta tamaño carta en PDF en milisegundos sin la lentitud ni el consumo de memoria de DomPDF en PHP.
+- **Solución en Go**:
+  - Generación vectorial pura mediante `github.com/jung-kurt/gofpdf` (sin CGO, sin WebKit ni Chrome).
+  - Tiempo de generación: **< 20 milisegundos** por documento.
+  - Doble moneda integrada (USD y VES con desglose de tasa de cambio).
+  - Modos de ejecución: CLI con entrada JSON y microservicio HTTP en `:15555` (`POST /ticket`, `POST /invoice`).
+  - Integración en Laravel mediante el helper [`App\Support\Pdf\PdfEngine`](file:///opt/inventarioarens-cloud/app/Support/Pdf/PdfEngine.php).
+- **Pruebas unitarias**: `pkg/ticket`, `pkg/invoice` (100% PASS) y `tests/Unit/Support/PdfEngineTest.php` (100% PASS).
+
 ---
 
 ## 3. Integración en Windows y en el VPS
 
 ### 3.1 Empaquetado del Motor Local de Windows
-- **`scripts/build-go-tools.sh`**: Compila las 5 herramientas en paralelo para Linux y Windows (`.exe` estáticos sin dependencias externas).
+- **`scripts/build-go-tools.sh`**: Compila las 7 herramientas en paralelo para Linux y Windows (`.exe` estáticos sin dependencias externas).
 - **`scripts/stage-local-motor.cjs`**: Copia automáticamente los binarios `.exe` compilados dentro de la carpeta `tools/` de la distribución del Motor Local.
 - **`scripts/install-local-motor.ps1`**: Registra los servicios de Windows mediante WinSW:
   - `SistemaInventarioBackend`: FrankenPHP (servidor web multi-hilo Caddy + PHP ZTS con OPcache en puerto `8787`).

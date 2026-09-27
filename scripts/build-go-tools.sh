@@ -45,5 +45,21 @@ go build -ldflags="-s -w" -o bin/ws-hub ./cmd/ws-hub
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/ws-hub.exe ./cmd/ws-hub
 echo "    [OK] ws-hub (Linux & Windows .exe)"
 
+# 6. image-optimizer (Optimizador y redimensionador ultrarrapido de imagenes)
+echo "--> Compilando image-optimizer..."
+cd "${ROOT_DIR}/tools/image-optimizer"
+mkdir -p bin
+go build -ldflags="-s -w" -o bin/image-optimizer ./cmd/image-optimizer
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/image-optimizer.exe ./cmd/image-optimizer
+echo "    [OK] image-optimizer (Linux & Windows .exe)"
+
+# 7. pdf-engine (Generador ultrarrapido de tickets y facturas PDF)
+echo "--> Compilando pdf-engine..."
+cd "${ROOT_DIR}/tools/pdf-engine"
+mkdir -p bin
+go build -ldflags="-s -w" -o bin/pdf-engine ./cmd/pdf-engine
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/pdf-engine.exe ./cmd/pdf-engine
+echo "    [OK] pdf-engine (Linux & Windows .exe)"
+
 echo "==> Compilación finalizada con éxito."
 ls -lh "${ROOT_DIR}"/tools/*/bin/*
