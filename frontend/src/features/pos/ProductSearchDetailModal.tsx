@@ -60,6 +60,7 @@ import {
 } from '@/features/inventory-center/api';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
+import { useCrossBranchStock } from '@/features/pos/api';
 import { cn } from '@/lib/cn';
 
 interface ProductSearchDetailModalProps {
@@ -232,6 +233,11 @@ export function ProductSearchDetailModal({
 
   // Consulta de seriales para el producto seleccionado
   const { data: productSerials = [], isLoading: loadingSerials } = useProductSerials(
+    selectedProduct?.id ?? 0,
+  );
+
+  // Consulta de existencia en sucursales / empresas del grupo
+  const { data: crossBranchData } = useCrossBranchStock(
     selectedProduct?.id ?? 0,
   );
 
@@ -1064,6 +1070,43 @@ export function ProductSearchDetailModal({
                         </table>
                       )}
                     </div>
+
+                    {crossBranchData?.branches && crossBranchData.branches.length > 0 && (
+                      <div className="rounded-xl border border-border/70 bg-bg/40 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
+                            <Boxes className="size-3.5 text-primary" />
+                            Stock en otras sucursales ({crossBranchData.branches.length})
+                          </span>
+                          <span className="text-[10px] text-text-muted">En tiempo real</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {crossBranchData.branches.map((b) => (
+                            <div
+                              key={b.tenant_id}
+                              className="rounded-lg border border-border bg-surface p-2.5 flex items-center justify-between text-xs"
+                            >
+                              <div className="min-w-0 flex-1 pr-2">
+                                <div className="font-semibold text-text-primary truncate">{b.tenant_name}</div>
+                                <div className="text-[11px] text-text-muted mt-0.5">
+                                  {b.warehouses.length > 0
+                                    ? b.warehouses.map((w) => `${w.warehouse_name}: ${w.quantity_available} disp.`).join(' • ')
+                                    : 'Sin almacenes registrados'}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Badge
+                                  variant={b.total_available > 0 ? 'success' : 'outline'}
+                                  className="font-mono text-xs"
+                                >
+                                  {b.total_available} disp.
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </TabsContent>
 
                   {/* -------------------------------------------------------- */}

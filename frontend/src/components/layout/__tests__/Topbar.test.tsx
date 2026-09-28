@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 const mockSignOut = vi.fn();
@@ -26,37 +25,39 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Topbar } from '../Topbar';
 
-function renderTopbar() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
+function renderWithClient(ui: React.ReactElement) {
   return render(
     <QueryClientProvider client={queryClient}>
-      <Topbar />
-    </QueryClientProvider>,
+      {ui}
+    </QueryClientProvider>
   );
 }
 
 describe('<Topbar>', () => {
   it('muestra Grupo cuando el tenant es grupo', () => {
     currentTenant = { name: 'Holding Demo', slug: 'holding-demo', is_group: true, parent_id: null };
-    renderTopbar();
+    renderWithClient(<Topbar />);
 
     expect(screen.getByTestId('tenant-context-badge')).toHaveTextContent('Grupo');
   });
 
   it('muestra Sucursal cuando el tenant tiene parent_id', () => {
     currentTenant = { name: 'Empresa Demo', slug: 'empresa-demo', is_group: false, parent_id: 10 };
-    renderTopbar();
+    renderWithClient(<Topbar />);
 
     expect(screen.getByTestId('tenant-context-badge')).toHaveTextContent('Sucursal');
   });
 
   it('muestra Empresa cuando no pertenece a un grupo', () => {
     currentTenant = { name: 'Empresa Normal', slug: 'empresa-normal', is_group: false, parent_id: null };
-    renderTopbar();
+    renderWithClient(<Topbar />);
 
     expect(screen.getByTestId('tenant-context-badge')).toHaveTextContent('Empresa');
   });

@@ -228,6 +228,18 @@ class CashRegisterService
                 'closed_at' => $session->closed_at?->toIso8601String(),
             ]);
 
+            if (abs($differenceCashUsd) >= 0.01 || abs($differenceCashVes) >= 0.01) {
+                WsHub::publishTenant($session->tenant_id, 'cash_register.discrepancy', [
+                    'session_id' => $session->id,
+                    'cash_register_name' => $session->cashRegister?->name,
+                    'cashier_id' => $session->cashier_id,
+                    'difference_cash_usd' => $differenceCashUsd,
+                    'difference_cash_ves' => $differenceCashVes,
+                    'counting_mode' => $session->counting_mode,
+                    'timestamp' => now()->toIso8601String(),
+                ]);
+            }
+
             return $session->refresh()->load(['branch', 'cashRegister', 'movements', 'counts']);
         });
     }

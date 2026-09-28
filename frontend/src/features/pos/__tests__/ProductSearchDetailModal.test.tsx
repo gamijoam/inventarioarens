@@ -132,6 +132,34 @@ vi.mock('@/features/inventory-center/api', () => ({
   }),
 }));
 
+vi.mock('@/features/pos/api', () => ({
+  useCrossBranchStock: () => ({
+    data: {
+      product: { id: 1, name: 'ACEITE 20W50 MINERAL MOTUL 1L', sku: 'MOT-20W50' },
+      branches: [
+        {
+          tenant_id: 2,
+          tenant_name: 'Sucursal Sur',
+          tenant_slug: 'sucursal-sur',
+          is_group: false,
+          matched_product_id: 10,
+          total_available: 20,
+          warehouses: [
+            {
+              warehouse_id: 5,
+              warehouse_name: 'Almacén Sur Central',
+              warehouse_code: 'ALM-SUR-1',
+              quantity_available: 20,
+              quantity_reserved: 0,
+            },
+          ],
+        },
+      ],
+    },
+    isLoading: false,
+  }),
+}));
+
 vi.mock('@/features/inventory-center/components/ProductImage', () => ({
   ProductImage: ({ alt }: { alt?: string }) => <div data-testid="product-image">{alt}</div>,
 }));

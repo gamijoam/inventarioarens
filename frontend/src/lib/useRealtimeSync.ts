@@ -139,6 +139,27 @@ export function handleRealtimeEvent(
       }
       break;
     }
+
+    case 'products.prices.updated': {
+      void queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'active' });
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'bootstrap'], refetchType: 'active' });
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'current-rates'], refetchType: 'active' });
+
+      if (_data && typeof _data === 'object') {
+        const payload = _data as Record<string, unknown>;
+        const count = payload.items_count ? String(payload.items_count) : '';
+        const reverted = Boolean(payload.reverted);
+        const title = reverted ? 'Precios revertidos' : 'Precios actualizados en tiempo real';
+        const desc = count ? `${count} producto(s) actualizados.` : undefined;
+        showToastOnce(`prices-upd-${payload.adjustment_id ?? Date.now()}-${reverted ? 'rev' : 'app'}`, () => {
+          toast.success(title, {
+            description: desc,
+            duration: 6000,
+          });
+        });
+      }
+      break;
+    }
   }
 }
 

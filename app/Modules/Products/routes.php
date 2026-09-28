@@ -1,10 +1,16 @@
 <?php
 
+use App\Modules\Products\Controllers\BulkPriceAdjustmentController;
 use App\Modules\Products\Controllers\PriceListController;
 use App\Modules\Products\Controllers\ProductController;
 use App\Modules\Products\Controllers\ProductImageController;
 use App\Modules\Products\Controllers\ProductVariantController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('products/bulk-prices/simulate', [BulkPriceAdjustmentController::class, 'simulate']);
+Route::post('products/bulk-prices/apply', [BulkPriceAdjustmentController::class, 'apply']);
+Route::get('products/bulk-prices/history', [BulkPriceAdjustmentController::class, 'history']);
+Route::post('products/bulk-prices/{adjustment}/rollback', [BulkPriceAdjustmentController::class, 'rollback']);
 
 Route::apiResource('price-lists', PriceListController::class)
     ->only(['index', 'store', 'update', 'destroy'])
