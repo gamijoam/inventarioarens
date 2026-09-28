@@ -295,6 +295,9 @@ class WsHubEventBroadcastingTest extends TestCase
             'quantity_damaged' => 0,
         ]);
 
+        $group = Tenant::create(['name' => 'Grupo Central', 'slug' => 'grupo-central', 'is_group' => true]);
+        $tenant->update(['parent_id' => $group->id]);
+
         $service = app(InventoryTransferService::class);
         $transfer = $service->create($user, [
             'from_warehouse_id' => $w1->id,
@@ -308,6 +311,13 @@ class WsHubEventBroadcastingTest extends TestCase
         Http::assertSent(function ($req) use ($tenant, $transfer) {
             return $req->url() === 'http://127.0.0.1:16666/publish'
                 && $req['channel'] === "tenant:{$tenant->id}"
+                && $req['event'] === 'inventory-transfer.created'
+                && $req['data']['id'] === $transfer->id;
+        });
+
+        Http::assertSent(function ($req) use ($group, $transfer) {
+            return $req->url() === 'http://127.0.0.1:16666/publish'
+                && $req['channel'] === "group:{$group->id}"
                 && $req['event'] === 'inventory-transfer.created'
                 && $req['data']['id'] === $transfer->id;
         });
