@@ -47,7 +47,20 @@ vi.mock('@/permissions/PermissionContext', () => ({
   }),
 }));
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '../AppShell';
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
+function renderWithClient(ui: React.ReactElement) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  );
+}
 
 describe('<AppShell> POS integration', () => {
   beforeEach(() => {
@@ -55,7 +68,7 @@ describe('<AppShell> POS integration', () => {
   });
 
   it('delega /pos al contenido POS sin envolverlo en otro shell', () => {
-    render(<AppShell>Terminal POS</AppShell>);
+    renderWithClient(<AppShell>Terminal POS</AppShell>);
 
     expect(screen.getByText('Terminal POS')).toBeInTheDocument();
     expect(screen.queryByTestId('pos-shell')).not.toBeInTheDocument();
@@ -66,7 +79,7 @@ describe('<AppShell> POS integration', () => {
   it('delega /pos/armar al contenido tactil sin sidebar ni topbar administrativos', () => {
     routerState.pathname = '/pos/armar';
 
-    render(<AppShell>Pantalla para armar pedidos</AppShell>);
+    renderWithClient(<AppShell>Pantalla para armar pedidos</AppShell>);
 
     expect(screen.getByText('Pantalla para armar pedidos')).toBeInTheDocument();
     expect(screen.queryByTestId('admin-sidebar')).not.toBeInTheDocument();
@@ -76,7 +89,7 @@ describe('<AppShell> POS integration', () => {
   it('conserva el shell administrativo fuera de /pos', () => {
     routerState.pathname = '/inventory';
 
-    render(<AppShell>Inventario</AppShell>);
+    renderWithClient(<AppShell>Inventario</AppShell>);
 
     expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('admin-topbar')).toBeInTheDocument();

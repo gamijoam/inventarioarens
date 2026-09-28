@@ -1523,4 +1523,47 @@ export function useCloseCashSession() {
   });
 }
 
+export interface CrossBranchWarehouseStock {
+  warehouse_id: number;
+  warehouse_name: string;
+  warehouse_code: string;
+  quantity_available: number;
+  quantity_reserved: number;
+}
+
+export interface CrossBranchStockItem {
+  tenant_id: number;
+  tenant_name: string;
+  tenant_slug: string;
+  is_group: boolean;
+  matched_product_id: number;
+  total_available: number;
+  warehouses: CrossBranchWarehouseStock[];
+}
+
+export interface CrossBranchStockResponse {
+  product: {
+    id: number;
+    name: string;
+    sku?: string | null;
+    barcode?: string | null;
+  };
+  branches: CrossBranchStockItem[];
+}
+
+export function useCrossBranchStock(productId: number | null | undefined) {
+  return useQuery({
+    queryKey: ['pos', 'cross-branch-stock', productId],
+    queryFn: async (): Promise<CrossBranchStockResponse> => {
+      if (!productId) {
+        return { product: { id: 0, name: '' }, branches: [] };
+      }
+      const response = await getOne<{ data: CrossBranchStockResponse }>(`/pos/products/${productId}/cross-branch-stock`);
+      return response.data;
+    },
+    enabled: Boolean(productId && productId > 0),
+    staleTime: 30_000,
+  });
+}
+
 export { ProductSchema };

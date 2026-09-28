@@ -34,10 +34,11 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ExternalLink } from 'lucide-react';
+import { Download, ExternalLink } from 'lucide-react';
 import { z } from 'zod';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -140,13 +141,54 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
     );
   }
 
+  const handleExportCsv = () => {
+    if (!entries.length) return;
+    const headers = ['ID', 'Fecha', 'Tipo', 'Variante', 'Almacen', 'Entrada', 'Salida', 'Saldo', 'Costo Unitario', 'Referencia', 'Motivo'];
+    const rows = entries.map((e) => [
+      e.id,
+      `"${e.date}"`,
+      `"${movementTypeLabel(e.type)}"`,
+      `"${e.product_variant?.color ?? e.product_variant?.sku_variant ?? ''}"`,
+      `"${e.warehouse_name ?? ''}"`,
+      toNum(e.quantity_in) || 0,
+      toNum(e.quantity_out) || 0,
+      toNum(e.running_balance) || 0,
+      e.unit_cost != null ? toNum(e.unit_cost) : '',
+      `"${referenceTypeLabel(e.reference_type)} #${e.reference_id ?? ''}"`,
+      `"${(e.reason ?? '').replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `kardex-producto-${productId}-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Kardex</CardTitle>
-        <CardDescription>
-          Historial cronologico de entradas y salidas ({entries.length}). Stock inicial: {opening} → final: {closing}.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between pb-4">
+        <div>
+          <CardTitle>Kardex</CardTitle>
+          <CardDescription>
+            Historial cronológico de entradas y salidas ({entries.length}). Stock inicial: {opening} → final: {closing}.
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCsv}
+          className="gap-1.5"
+          data-testid="export-kardex-csv"
+        >
+          <Download className="size-4" />
+          Exportar CSV
+        </Button>
       </CardHeader>
       <CardContent className="p-0">
         <table className="w-full table-dense">
