@@ -16,16 +16,18 @@
  * header (from_warehouse_id = origen de stock, to_warehouse_id =
  * destino).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import { ImeiScanner } from './ImeiScanner';
 import { toast } from 'sonner';
 
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { SingleSelectCombobox } from '@/components/ui/SingleSelectCombobox';
 import { useCreateTransfer, useProductsForTransfer, useWarehouses } from '@/features/transfers/api';
+import type { Product } from '@/features/inventory-center/schemas';
 import { VariantSelect } from './VariantSelect';
 import type {
   StoreTransferItem,
@@ -64,11 +66,20 @@ function emptyRow(): ItemRow {
 export function TransferCreateDialog({ open, onOpenChange, onCreated }: TransferCreateDialogProps) {
   const { data: warehouses = [] } = useWarehouses();
   const [productSearch, setProductSearch] = useState('');
-  const { data: products = [] } = useProductsForTransfer(productSearch);
-  const create = useCreateTransfer();
-
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [fromWarehouseId, setFromWarehouseId] = useState<number | null>(null);
   const [toWarehouseId, setToWarehouseId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedSearch(productSearch.trim()), 200);
+    return () => window.clearTimeout(handle);
+  }, [productSearch]);
+
+  const { data: products = [] } = useProductsForTransfer(debouncedSearch, fromWarehouseId);
+  const create = useCreateTransfer();
+
+  const selectedProductsMap = useRef<Map<number, Product>>(new Map());
+
   const [validationMode, setValidationMode] = useState<TransferValidationMode>('logistics');
   const [reason, setReason] = useState('');
   const [reference, setReference] = useState('');
@@ -86,6 +97,8 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
       setReference('');
       setDocumentNumber('');
       setProductSearch('');
+      setDebouncedSearch('');
+      selectedProductsMap.current.clear();
       setItems([emptyRow()]);
       setFieldErrors({});
     }
@@ -100,18 +113,31 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
     [warehouses],
   );
 
-  const productOptions = useMemo(
-    () =>
-      products.map((p) => ({
+  const productOptions = useMemo(() => {
+    const combined = [...products];
+    for (const [id, prod] of selectedProductsMap.current.entries()) {
+      if (!combined.some((p) => p.id === id)) {
+        combined.push(prod);
+      }
+    }
+
+    return combined.map((p) => {
+      const stock = typeof p.available_stock === 'number' ? p.available_stock : null;
+      const stockLabel = stock !== null ? (stock > 0 ? `Stock: ${stock}` : 'Sin stock (0)') : null;
+      return {
         value: p.id,
         label: p.name,
-        hint: [p.sku ? `SKU: ${p.sku}` : null, p.barcode ? `BC: ${p.barcode}` : null]
+        hint: [
+          p.sku ? `SKU: ${p.sku}` : null,
+          p.barcode ? `BC: ${p.barcode}` : null,
+          stockLabel,
+        ]
           .filter((value): value is string => value !== null)
           .join(' · '),
         badge: p.tracking_type === 'serialized' ? 'Serializado' : undefined,
-      })),
-    [products],
-  );
+      };
+    });
+  }, [products]);
 
   function setRow(idx: number, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
@@ -133,7 +159,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
       });
       return;
     }
-    const p = products.find((x) => x.id === productId);
+    const p = products.find((x) => x.id === productId) ?? selectedProductsMap.current.get(productId);
     if (!p) {
       setRow(idx, {
         product_id: productId,
@@ -141,21 +167,21 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
         product_name: '',
         product_sku: '',
         tracking_type: 'quantity',
+        serial_units: [],
       });
       return;
     }
+    selectedProductsMap.current.set(p.id, p);
     const currentRow = items[idx];
-    const wasSerialized = currentRow ? currentRow.tracking_type === 'serialized' : false;
-    const existingSerialUnits = currentRow ? currentRow.serial_units : [];
+    const isSerialized = p.tracking_type === 'serialized';
     setRow(idx, {
       product_id: p.id,
       product_variant_id: null,
       product_name: p.name,
       product_sku: p.sku ?? '',
       tracking_type: p.tracking_type ?? 'quantity',
-      serial_units: wasSerialized ? existingSerialUnits : [],
+      serial_units: isSerialized ? (currentRow?.serial_units ?? []) : [],
     });
-    setProductSearch(p.name);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -370,9 +396,10 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
             <div className="space-y-2">
               {items.map((row, idx) => {
                 const product = row.product_id
-                  ? products.find((p) => p.id === row.product_id)
+                  ? (products.find((p) => p.id === row.product_id) ?? selectedProductsMap.current.get(row.product_id) ?? null)
                   : null;
-                const isSerialized = product?.tracking_type === 'serialized';
+                const isSerialized = (product?.tracking_type ?? row.tracking_type) === 'serialized';
+                const availableStock = typeof product?.available_stock === 'number' ? product.available_stock : null;
                 return (
                   <div
                     key={idx}
@@ -393,8 +420,22 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                           emptyMessage="No hay productos activos que coincidan"
                           aria-label={`Buscar producto de la linea ${idx + 1}`}
                         />
-                        {row.product_sku && (
-                          <div className="text-text-muted text-[10px]">SKU: {row.product_sku}</div>
+                        {row.product_id && (
+                          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                            {row.product_sku && (
+                              <span className="text-text-muted">SKU: <strong className="text-text-secondary">{row.product_sku}</strong></span>
+                            )}
+                            {fromWarehouseId && (
+                              <Badge
+                                variant={availableStock != null && availableStock > 0 ? 'success' : 'warning'}
+                                className="text-[10px]"
+                              >
+                                {availableStock != null
+                                  ? (availableStock > 0 ? `Stock origen: ${availableStock} uds` : 'Sin stock en origen (0 uds)')
+                                  : 'Stock origen: 0 uds'}
+                              </Badge>
+                            )}
+                          </div>
                         )}
                         {!isSerialized && row.product_id && (
                           <div className="pt-1">

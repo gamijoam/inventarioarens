@@ -89,10 +89,34 @@ export function ProductAutocomplete({
 
   const selected = useMemo(() => {
     if (value == null) return null;
-    if (selectedProduct?.id === value) return selectedProduct;
+    const fresh = products.find((product) => product.id === value);
+    if (fresh) {
+      return {
+        ...fresh,
+        sku: fresh.sku ?? null,
+        barcode: fresh.barcode ?? null,
+      };
+    }
     if (pickedProduct?.id === value) return pickedProduct;
-    return products.find((product) => product.id === value) ?? null;
+    if (selectedProduct?.id === value) return selectedProduct;
+    return null;
   }, [pickedProduct, products, selectedProduct, value]);
+
+  // Si los datos frescos del servidor tienen un tracking_type distinto al selectedProduct,
+  // actualizar el padre automaticamente para evitar que pida IMEIs obsoletos
+  useEffect(() => {
+    if (value == null) return;
+    const fresh = products.find((product) => product.id === value);
+    if (fresh && selectedProduct && fresh.id === selectedProduct.id) {
+      if (fresh.tracking_type !== selectedProduct.tracking_type) {
+        onChange(value, {
+          ...fresh,
+          sku: fresh.sku ?? null,
+          barcode: fresh.barcode ?? null,
+        });
+      }
+    }
+  }, [products, selectedProduct, value, onChange]);
 
   // Helper para normalizar texto: minusculas, sin acentos ni diacriticos
   const cleanStr = (str: string) =>

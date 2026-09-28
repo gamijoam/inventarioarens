@@ -57,7 +57,7 @@ export function useTransferRequestProducts(search = '') {
 
       return z.array(ProductSchema).parse(products);
     },
-    staleTime: 60_000,
+    staleTime: 5_000,
   });
 }
 

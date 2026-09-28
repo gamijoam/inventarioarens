@@ -404,7 +404,12 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
     const localErrors: Record<string, string> = {};
     for (const [index, item] of items.entries()) {
       const isSerialized = item.product_info?.tracking_type === 'serialized';
-      if (!isSerialized) continue;
+      if (!isSerialized) {
+        if (item.serial_units && item.serial_units.length > 0) {
+          item.serial_units = [];
+        }
+        continue;
+      }
 
       const quantity = Number(item.quantity);
       const serials = item.serial_units
