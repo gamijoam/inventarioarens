@@ -18,6 +18,7 @@ import { Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
+import { useCrossBranchStock } from '@/features/pos/api';
 import { useProductVariants } from '@/features/inventory-center/variantApi';
 import type { Product } from '@/features/inventory-center/schemas';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
@@ -62,6 +63,7 @@ export function ProductDetailDialog({
     product.id,
     warehouseId,
   );
+  const { data: crossStock } = useCrossBranchStock(product.id);
 
   const stock = Number(product.available_stock ?? 0);
   const hasVariants = variants.length > 0;
@@ -190,6 +192,43 @@ export function ProductDetailDialog({
                 </ul>
               )}
             </div>
+
+            {/* Stock en otras sucursales / empresas */}
+            {crossStock && crossStock.branches && crossStock.branches.length > 0 && (
+              <div className="rounded-lg border border-border/70 bg-bg-surface p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-text-muted text-[10px] font-semibold uppercase tracking-wider">
+                    Stock en otras sucursales
+                  </span>
+                  <span className="font-mono text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    Total: {crossStock.branches.reduce((acc, b) => acc + (b.total_available ?? 0), 0)} disp.
+                  </span>
+                </div>
+                <div className="max-h-28 space-y-1.5 overflow-y-auto pr-1">
+                  {crossStock.branches.map((b) => (
+                    <div
+                      key={b.tenant_id}
+                      className="border-border/50 bg-bg flex items-center justify-between rounded border px-2.5 py-1.5 text-xs"
+                    >
+                      <span className="text-text max-w-[200px] truncate font-medium">
+                        {b.tenant_name}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-text-muted text-[10px]">
+                          {b.warehouses.length} almacén(es)
+                        </span>
+                        <Badge
+                          variant={b.total_available > 0 ? 'success' : 'outline'}
+                          className="font-mono text-[10px]"
+                        >
+                          {b.total_available}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

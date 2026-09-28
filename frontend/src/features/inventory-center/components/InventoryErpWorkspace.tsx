@@ -41,6 +41,7 @@ import {
   Power,
   Search,
   Tag,
+  TrendingUp,
   Warehouse,
   X,
 } from 'lucide-react';
@@ -93,6 +94,7 @@ export interface InventoryErpWorkspaceProps {
   priceLists: PriceList[];
   activeRate: { id?: number; name?: string; code?: string; exchange_rate_type_code?: string | null; rate: number } | null;
   onNewProduct: () => void;
+  onBulkPriceAdjustment?: () => void;
 }
 
 function money(value: number | string | null | undefined): string {
@@ -187,6 +189,7 @@ export function InventoryErpWorkspace({
   priceLists,
   activeRate,
   onNewProduct,
+  onBulkPriceAdjustment,
 }: InventoryErpWorkspaceProps) {
   const [searchInput, setSearchInput] = useState(search);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -543,6 +546,19 @@ export function InventoryErpWorkspace({
                   </span>
                 </div>
               </div>
+
+              {onBulkPriceAdjustment && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onBulkPriceAdjustment}
+                  className="h-9 text-xs shrink-0 font-medium border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                  title="Ajuste masivo de precios por categoría o marca"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                  Precios
+                </Button>
+              )}
 
               <Button
                 size="sm"
