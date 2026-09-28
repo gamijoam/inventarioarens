@@ -11,10 +11,16 @@ describe('useRealtimeSync event handler', () => {
     handleRealtimeEvent(queryClientMock, 'rate.updated', { currency: 'USD', rate: 45.5 });
 
     expect(invalidateQueriesMock).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ['pos', 'current-exchange-rates'] })
+      expect.objectContaining({ queryKey: ['pos', 'current-rates'] })
     );
     expect(invalidateQueriesMock).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ['pos-bootstrap'] })
+      expect.objectContaining({ queryKey: ['pos', 'bootstrap'] })
+    );
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['catalog', 'exchange-rates'] })
+    );
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['products'] })
     );
   });
 

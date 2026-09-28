@@ -61,6 +61,43 @@ class WsHubEventBroadcastingTest extends TestCase
         });
     }
 
+    public function test_deactivating_exchange_rate_broadcasts_to_ws_hub(): void
+    {
+        Http::fake([
+            'http://127.0.0.1:16666/publish' => Http::response(['ok' => true], 200),
+        ]);
+
+        $tenant = Tenant::create(['name' => 'Test Tenant 2', 'slug' => 'test-tenant-2']);
+        app(TenantManager::class)->set($tenant);
+
+        $type = ExchangeRateType::create([
+            'tenant_id' => $tenant->id,
+            'code' => 'PARALELO',
+            'name' => 'Paralelo',
+            'is_default' => false,
+        ]);
+
+        $rate = ExchangeRate::create([
+            'tenant_id' => $tenant->id,
+            'exchange_rate_type_id' => $type->id,
+            'base_currency' => 'USD',
+            'quote_currency' => 'VES',
+            'rate' => 50.00,
+            'effective_at' => now(),
+            'is_active' => true,
+        ]);
+
+        $service = app(ExchangeRateActivationService::class);
+        $service->deactivate($rate);
+
+        Http::assertSent(function ($request) use ($tenant) {
+            return $request->url() === 'http://127.0.0.1:16666/publish'
+                && $request['channel'] === "tenant:{$tenant->id}"
+                && $request['event'] === 'rate.updated'
+                && $request['data']['is_active'] === false;
+        });
+    }
+
     public function test_closing_cash_register_session_broadcasts_to_ws_hub(): void
     {
         Http::fake([

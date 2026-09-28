@@ -129,7 +129,7 @@ class ExchangeRateController extends Controller
         return ExchangeRateResource::make($rate);
     }
 
-    public function deactivate(ExchangeRate $rate): ExchangeRateResource
+    public function deactivate(ExchangeRate $rate, ExchangeRateActivationService $activationService): ExchangeRateResource
     {
         Gate::authorize('update', $rate);
 
@@ -137,9 +137,8 @@ class ExchangeRateController extends Controller
             abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
         }
 
-        $rate = DB::transaction(function () use ($rate): ExchangeRate {
-            $rate->update(['is_active' => false]);
-            $refreshed = $rate->refresh()->load('type');
+        $rate = DB::transaction(function () use ($rate, $activationService): ExchangeRate {
+            $refreshed = $activationService->deactivate($rate);
             $this->recordSyncEvent('exchange_rate.updated', $refreshed);
 
             return $refreshed;
