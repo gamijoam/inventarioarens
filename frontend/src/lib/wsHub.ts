@@ -24,9 +24,22 @@ export class WsHubClient {
     if (url) {
       this.url = url;
     } else {
-      const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-      const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      this.url = `${protocol}//${host}:16666/ws`;
+      const envUrl = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_WS_URL;
+      if (envUrl) {
+        this.url = envUrl;
+      } else if (typeof window !== 'undefined') {
+        const isLocalDev =
+          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+          window.location.port === '5173';
+        if (isLocalDev) {
+          this.url = 'ws://127.0.0.1:16666/ws';
+        } else {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          this.url = `${protocol}//${window.location.host}/ws`;
+        }
+      } else {
+        this.url = 'ws://127.0.0.1:16666/ws';
+      }
     }
   }
 

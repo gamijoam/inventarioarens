@@ -7,6 +7,7 @@ import {
   saveStoredProductFormVisibility,
   type ProductFormVisibility,
 } from '@/features/inventory-center/productFormConfig';
+import { useRealtimeSync } from '@/lib/useRealtimeSync';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -21,6 +22,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const tenant = useSessionStore((state) => state.tenant);
   useTenantFavicon(tenant?.logo_url);
+  useRealtimeSync(tenant?.id, tenant?.parent_id ?? (tenant?.is_group ? tenant?.id : null));
 
   const { data: uiPreferences } = useUiPreferences();
 

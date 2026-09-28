@@ -14,15 +14,24 @@ export function handleRealtimeEvent(
 ): void {
   switch (event) {
     case 'rate.updated':
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'current-rates'] });
       void queryClient.invalidateQueries({ queryKey: ['pos', 'current-exchange-rates'] });
-      void queryClient.invalidateQueries({ queryKey: ['exchange-rates'] });
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'bootstrap'] });
       void queryClient.invalidateQueries({ queryKey: ['pos-bootstrap'] });
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'exchange-rate-types'] });
+      void queryClient.invalidateQueries({ queryKey: ['catalog', 'exchange-rates'] });
+      void queryClient.invalidateQueries({ queryKey: ['exchange-rates'] });
+      void queryClient.invalidateQueries({ queryKey: ['catalog', 'exchange-rate-types'] });
+      void queryClient.invalidateQueries({ queryKey: ['products'] });
       break;
 
     case 'cash_register.opened':
     case 'cash_register.closed':
       void queryClient.invalidateQueries({ queryKey: ['cash-registers'] });
       void queryClient.invalidateQueries({ queryKey: ['cash-register-sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'cash-registers'] });
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'cash-sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['pos', 'bootstrap'] });
       void queryClient.invalidateQueries({ queryKey: ['pos-bootstrap'] });
       break;
 

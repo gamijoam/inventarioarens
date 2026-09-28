@@ -550,7 +550,10 @@ export function PosTerminal() {
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const activeTenantId = useSessionStore((state) => state.tenant?.id);
-  useRealtimeSync(activeTenantId);
+  const activeGroupId = useSessionStore(
+    (state) => state.tenant?.parent_id ?? (state.tenant?.is_group ? state.tenant?.id : null),
+  );
+  useRealtimeSync(activeTenantId, activeGroupId);
   const canView = permissions.has(PERMISSIONS.POS_VIEW);
   const canCheckout = permissions.has(PERMISSIONS.POS_CHECKOUT);
   const canHold = permissions.has(PERMISSIONS.POS_ORDERS_HOLD);
