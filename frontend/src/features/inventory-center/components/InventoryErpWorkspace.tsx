@@ -58,6 +58,7 @@ import {
   useUpdateProduct,
 } from '@/features/inventory-center/api';
 import { ProductImage as ProductImageView } from '@/features/inventory-center/components/ProductImage';
+import { useCrossBranchStock } from '@/features/pos/api';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import {
   MOVEMENT_IN_TYPES,
@@ -284,6 +285,12 @@ export function InventoryErpWorkspace({
   const { data: movements = [], isLoading: loadingMovements } = useProductMovements(
     activeProduct?.id ?? 0,
   );
+
+  const { data: crossBranchData } = useCrossBranchStock(activeProduct?.id);
+
+  const otherBranchesAvailable = useMemo(() => {
+    return crossBranchData?.branches?.reduce((acc, b) => acc + (b.total_available || 0), 0) ?? 0;
+  }, [crossBranchData]);
 
   // Categoría formateada
   const activeCategory = useMemo(() => getProductCategory(activeProduct), [activeProduct]);
@@ -827,6 +834,18 @@ export function InventoryErpWorkspace({
                         <Folder className="size-3.5 text-amber-500 shrink-0" />
                         <span>Categoría: {activeCategory}</span>
                       </span>
+
+                      {otherBranchesAvailable > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('existencia')}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors"
+                          title="Hacer clic para ver existencia en otras sucursales"
+                        >
+                          <Boxes className="size-3.5 text-emerald-500 shrink-0" />
+                          <span>Otras sucursales: {otherBranchesAvailable} disp.</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1217,6 +1236,56 @@ export function InventoryErpWorkspace({
                             </tr>
                           </tfoot>
                         </table>
+                      </div>
+                    )}
+
+                    {/* Stock en otras sucursales / empresas hermanas */}
+                    {crossBranchData?.branches && crossBranchData.branches.length > 0 && (
+                      <div className="rounded-xl border border-border/70 bg-surface-subtle/30 p-3 space-y-2 mt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
+                            <Boxes className="size-3.5 text-primary" />
+                            Stock en otras sucursales ({crossBranchData.branches.length})
+                          </span>
+                          <span className="text-[10px] text-text-muted">En tiempo real</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {crossBranchData.branches
+                            .slice()
+                            .sort((a, b) => (b.total_available || 0) - (a.total_available || 0))
+                            .map((b) => (
+                              <div
+                                key={b.tenant_id}
+                                className={cn(
+                                  'rounded-lg border p-2.5 flex items-center justify-between text-xs transition-colors',
+                                  b.total_available > 0
+                                    ? 'border-emerald-500/30 bg-emerald-500/5'
+                                    : 'border-border bg-surface',
+                                )}
+                              >
+                                <div className="min-w-0 flex-1 pr-2">
+                                  <div className="font-semibold text-text-primary truncate">
+                                    {b.tenant_name}
+                                  </div>
+                                  <div className="text-[11px] text-text-muted mt-0.5">
+                                    {b.warehouses.length > 0
+                                      ? b.warehouses
+                                          .map((w) => `${w.warehouse_name}: ${w.quantity_available} disp.`)
+                                          .join(' • ')
+                                      : 'Sin almacenes con existencias'}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Badge
+                                    variant={b.total_available > 0 ? 'success' : 'outline'}
+                                    className="font-mono text-xs"
+                                  >
+                                    {b.total_available} disp.
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
                       </div>
                     )}
                   </div>

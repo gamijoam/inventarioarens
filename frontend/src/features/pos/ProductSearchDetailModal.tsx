@@ -893,6 +893,19 @@ export function ProductSearchDetailModal({
                     <span className="uppercase">
                       Unidad: {selectedProduct.unit_of_measure ?? 'UND'}
                     </span>
+                    {crossBranchData?.branches && crossBranchData.branches.some((b) => (b.total_available || 0) > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('existencia')}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                        title="Hacer clic para ver el desglose por sucursal"
+                      >
+                        <Boxes className="size-3.5 shrink-0" />
+                        <span>
+                          Otras sucursales: {crossBranchData.branches.reduce((acc, b) => acc + (b.total_available || 0), 0)} disp.
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1081,29 +1094,39 @@ export function ProductSearchDetailModal({
                           <span className="text-[10px] text-text-muted">En tiempo real</span>
                         </div>
                         <div className="space-y-1.5">
-                          {crossBranchData.branches.map((b) => (
-                            <div
-                              key={b.tenant_id}
-                              className="rounded-lg border border-border bg-surface p-2.5 flex items-center justify-between text-xs"
-                            >
-                              <div className="min-w-0 flex-1 pr-2">
-                                <div className="font-semibold text-text-primary truncate">{b.tenant_name}</div>
-                                <div className="text-[11px] text-text-muted mt-0.5">
-                                  {b.warehouses.length > 0
-                                    ? b.warehouses.map((w) => `${w.warehouse_name}: ${w.quantity_available} disp.`).join(' • ')
-                                    : 'Sin almacenes registrados'}
+                          {crossBranchData.branches
+                            .slice()
+                            .sort((a, b) => (b.total_available || 0) - (a.total_available || 0))
+                            .map((b) => (
+                              <div
+                                key={b.tenant_id}
+                                className={cn(
+                                  'rounded-lg border p-2.5 flex items-center justify-between text-xs transition-colors',
+                                  b.total_available > 0
+                                    ? 'border-emerald-500/30 bg-emerald-500/5'
+                                    : 'border-border bg-surface',
+                                )}
+                              >
+                                <div className="min-w-0 flex-1 pr-2">
+                                  <div className="font-semibold text-text-primary truncate">{b.tenant_name}</div>
+                                  <div className="text-[11px] text-text-muted mt-0.5">
+                                    {b.warehouses.length > 0
+                                      ? b.warehouses
+                                          .map((w) => `${w.warehouse_name}: ${w.quantity_available} disp.`)
+                                          .join(' • ')
+                                      : 'Sin almacenes registrados'}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Badge
+                                    variant={b.total_available > 0 ? 'success' : 'outline'}
+                                    className="font-mono text-xs"
+                                  >
+                                    {b.total_available} disp.
+                                  </Badge>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <Badge
-                                  variant={b.total_available > 0 ? 'success' : 'outline'}
-                                  className="font-mono text-xs"
-                                >
-                                  {b.total_available} disp.
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
+                            ))}
                         </div>
                       </div>
                     )}

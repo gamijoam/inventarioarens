@@ -1558,8 +1558,16 @@ export function useCrossBranchStock(productId: number | null | undefined) {
       if (!productId) {
         return { product: { id: 0, name: '' }, branches: [] };
       }
-      const response = await getOne<{ data: CrossBranchStockResponse }>(`/pos/products/${productId}/cross-branch-stock`);
-      return response.data;
+      const response = await getOne<CrossBranchStockResponse | { data: CrossBranchStockResponse }>(
+        `/products/${productId}/cross-branch-stock`,
+      );
+      if (response && 'branches' in response) {
+        return response;
+      }
+      if (response && 'data' in response && response.data) {
+        return response.data;
+      }
+      return { product: { id: productId, name: '' }, branches: [] };
     },
     enabled: Boolean(productId && productId > 0),
     staleTime: 30_000,

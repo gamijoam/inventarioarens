@@ -35,6 +35,7 @@ import {
   UserRound,
   Wallet,
   ChevronDown,
+  Info,
   X,
   Settings2,
 } from 'lucide-react';
@@ -80,6 +81,7 @@ import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { ProductSearchDetailModal } from './ProductSearchDetailModal';
+import { ProductDetailDialog } from './ProductDetailDialog';
 import { TicketPreviewDialog } from './TicketPreviewDialog';
 import {
   DenominationGrid,
@@ -546,6 +548,7 @@ export function PosTerminal() {
   const [exitingPos, setExitingPos] = useState(false);
   const [quotationOpen, setQuotationOpen] = useState(false);
   const [quotationsOpen, setQuotationsOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [posColorTheme, setPosColorTheme] = useState<PosColorTheme>(loadPosColorTheme);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
@@ -1776,7 +1779,7 @@ export function PosTerminal() {
                               }}
                               onMouseEnter={() => setQuickSearchIndex(index)}
                               className={cn(
-                                'hover:bg-primary/8 flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                                'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
                                 index === quickSearchIndex &&
                                   'bg-primary/15 ring-2 ring-primary/50 shadow-sm scale-[1.01]',
                               )}
@@ -1791,44 +1794,57 @@ export function PosTerminal() {
                               <div className="min-w-0 flex-1">
                                 <p
                                   className={cn(
-                                    'text-sm font-bold text-text-primary leading-snug break-words whitespace-normal',
+                                    'truncate text-sm font-bold text-text-primary',
                                     index === quickSearchIndex && 'text-primary',
                                   )}
                                 >
                                   {product.name}
                                 </p>
-                                <div className="text-text-secondary mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                                  <span className="font-mono text-text-primary font-bold bg-bg/80 border border-border/80 px-1.5 py-0.2 rounded">
+                                <p className="text-text-secondary truncate text-xs font-medium mt-0.5">
+                                  <span className="font-mono text-text-primary font-bold bg-bg/80 border border-border/80 px-1.5 py-0.2 rounded mr-1">
                                     {product.sku ?? product.barcode ?? 'Sin código'}
                                   </span>
                                   {product.unit_of_measure &&
                                     product.unit_of_measure.toLowerCase() !== 'unit' && (
-                                      <span className="font-bold text-text-primary uppercase">
+                                      <span className="ml-1 font-bold text-text-primary uppercase">
                                         · {product.unit_of_measure}
                                       </span>
                                     )}
-                                  <span className="text-sm font-bold text-text-primary">
-                                    {money(itemPriceUsd)}
-                                  </span>
-                                  {itemPriceVes !== null && (
-                                    <span className="text-text-muted font-mono text-[10px]">
-                                      Bs {formatLocalNumber(itemPriceVes)}
-                                    </span>
-                                  )}
-                                  <span
-                                    className={cn(
-                                      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold border',
-                                      Number(product.available_stock ?? 0) > 0
-                                        ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-400'
-                                        : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
-                                    )}
-                                  >
-                                    {Number(product.available_stock ?? 0) > 0
-                                      ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
-                                      : '⚠️ Sin stock'}
-                                  </span>
-                                </div>
+                                </p>
                               </div>
+                              <div className="text-right shrink-0 px-1">
+                                <span className="text-sm font-bold text-text-primary block">
+                                  {money(itemPriceUsd)}
+                                </span>
+                                {itemPriceVes !== null && (
+                                  <span className="text-[10px] text-text-muted font-mono block">
+                                    Bs {formatLocalNumber(itemPriceVes)}
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className={cn(
+                                  'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold border',
+                                  Number(product.available_stock ?? 0) > 0
+                                    ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-400'
+                                    : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
+                                )}
+                              >
+                                {Number(product.available_stock ?? 0) > 0
+                                  ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
+                                  : '⚠️ Sin stock'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailProduct(product);
+                                }}
+                                className="shrink-0 p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-bg border border-border/40 hover:border-primary/50 transition-colors"
+                                title="Ver detalles y existencia en otras sucursales"
+                              >
+                                <Info className="size-4" />
+                              </button>
                             </TapButton>
                           );
                         })
@@ -2775,6 +2791,20 @@ export function PosTerminal() {
             if (added) setPanel(null);
           }}
         />
+
+        {/* Modal de Detalle de Producto con Stock Multi-Sucursal */}
+        {detailProduct && (
+          <ProductDetailDialog
+            product={detailProduct}
+            warehouseId={warehouseId}
+            priceListName={selectedPriceList?.name ?? 'General'}
+            onClose={() => setDetailProduct(null)}
+            onAdd={(prod) => {
+              setDetailProduct(null);
+              void addProduct(prod);
+            }}
+          />
+        )}
 
         {/* Previsualizacion centrada del ticket al cobrar (F10) */}
         <TicketPreviewDialog
