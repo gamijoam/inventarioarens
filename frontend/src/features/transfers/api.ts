@@ -360,13 +360,29 @@ import { ProductSchema } from '@/features/inventory-center/schemas';
  * crear traslado (autocomplete de productos). Re-exporta el schema
  * Product del modulo de inventory-center.
  */
-export function useProductsForTransfer(search = '', warehouseId?: number | null) {
+export function useProductsForTransfer(
+  search = '',
+  optionsOrWarehouseId?: number | null | { includeInactive?: boolean; warehouseId?: number | null },
+  maybeOptions?: { includeInactive?: boolean; warehouseId?: number | null },
+) {
+  let warehouseId: number | null | undefined;
+  let includeInactive = false;
+
+  if (typeof optionsOrWarehouseId === 'number' || optionsOrWarehouseId === null) {
+    warehouseId = optionsOrWarehouseId;
+    includeInactive = maybeOptions?.includeInactive === true;
+  } else if (optionsOrWarehouseId && typeof optionsOrWarehouseId === 'object') {
+    warehouseId = optionsOrWarehouseId.warehouseId;
+    includeInactive = optionsOrWarehouseId.includeInactive === true;
+  }
+
   return useQuery({
-    queryKey: [...productKeys.lists(), 'for-transfer', search, warehouseId ?? 'all'] as const,
+    queryKey: [...productKeys.lists(), 'for-transfer', search, warehouseId ?? 'all', includeInactive] as const,
     queryFn: async () => {
       // Search server-side so large catalogs do not hide valid products after
       // the first page, especially serialized products imported from the VPS.
       const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
+      if (includeInactive) params.set('active_status', 'all');
       if (search.trim()) params.set('search', search.trim());
       if (warehouseId) params.set('warehouse_id', String(warehouseId));
       const data = await getMany<unknown>(`/products?${params.toString()}`);
