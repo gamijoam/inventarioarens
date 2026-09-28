@@ -205,27 +205,35 @@ export function ProductDetailDialog({
                   </span>
                 </div>
                 <div className="max-h-28 space-y-1.5 overflow-y-auto pr-1">
-                  {crossStock.branches.map((b) => (
-                    <div
-                      key={b.tenant_id}
-                      className="border-border/50 bg-bg flex items-center justify-between rounded border px-2.5 py-1.5 text-xs"
-                    >
-                      <span className="text-text max-w-[200px] truncate font-medium">
-                        {b.tenant_name}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-text-muted text-[10px]">
-                          {b.warehouses.length} almacén(es)
+                  {crossStock.branches
+                    .slice()
+                    .sort((a, b) => (b.total_available ?? 0) - (a.total_available ?? 0))
+                    .map((b) => (
+                      <div
+                        key={b.tenant_id}
+                        className={cn(
+                          'flex items-center justify-between rounded border px-2.5 py-1.5 text-xs transition-colors',
+                          (b.total_available ?? 0) > 0
+                            ? 'border-emerald-500/30 bg-emerald-500/5'
+                            : 'border-border/50 bg-bg',
+                        )}
+                      >
+                        <span className="text-text max-w-[200px] truncate font-medium">
+                          {b.tenant_name}
                         </span>
-                        <Badge
-                          variant={b.total_available > 0 ? 'success' : 'outline'}
-                          className="font-mono text-[10px]"
-                        >
-                          {b.total_available}
-                        </Badge>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-text-muted text-[10px]">
+                            {b.warehouses.length} almacén(es)
+                          </span>
+                          <Badge
+                            variant={(b.total_available ?? 0) > 0 ? 'success' : 'outline'}
+                            className="font-mono text-[10px]"
+                          >
+                            {b.total_available}
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
             )}

@@ -35,6 +35,7 @@ import {
   UserRound,
   Wallet,
   ChevronDown,
+  Info,
   X,
   Settings2,
 } from 'lucide-react';
@@ -80,6 +81,7 @@ import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { ProductSearchDetailModal } from './ProductSearchDetailModal';
+import { ProductDetailDialog } from './ProductDetailDialog';
 import { TicketPreviewDialog } from './TicketPreviewDialog';
 import {
   DenominationGrid,
@@ -546,6 +548,7 @@ export function PosTerminal() {
   const [exitingPos, setExitingPos] = useState(false);
   const [quotationOpen, setQuotationOpen] = useState(false);
   const [quotationsOpen, setQuotationsOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [posColorTheme, setPosColorTheme] = useState<PosColorTheme>(loadPosColorTheme);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
@@ -1831,6 +1834,17 @@ export function PosTerminal() {
                                   ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
                                   : '⚠️ Sin stock'}
                               </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailProduct(product);
+                                }}
+                                className="shrink-0 p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-bg border border-border/40 hover:border-primary/50 transition-colors"
+                                title="Ver detalles y existencia en otras sucursales"
+                              >
+                                <Info className="size-4" />
+                              </button>
                             </TapButton>
                           );
                         })
@@ -2777,6 +2791,20 @@ export function PosTerminal() {
             if (added) setPanel(null);
           }}
         />
+
+        {/* Modal de Detalle de Producto con Stock Multi-Sucursal */}
+        {detailProduct && (
+          <ProductDetailDialog
+            product={detailProduct}
+            warehouseId={warehouseId}
+            priceListName={selectedPriceList?.name ?? 'General'}
+            onClose={() => setDetailProduct(null)}
+            onAdd={(prod) => {
+              setDetailProduct(null);
+              void addProduct(prod);
+            }}
+          />
+        )}
 
         {/* Previsualizacion centrada del ticket al cobrar (F10) */}
         <TicketPreviewDialog

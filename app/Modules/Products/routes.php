@@ -21,6 +21,7 @@ Route::get('products/{product}/price-history', [ProductController::class, 'price
 Route::put('products/{product}/prices', [ProductController::class, 'syncPrices']);
 Route::patch('products/{product}/categories', [ProductController::class, 'syncCategories']);
 Route::patch('products/{product}/tags', [ProductController::class, 'syncTags']);
+Route::get('products/{product}/cross-branch-stock', \App\Modules\POS\Controllers\CrossBranchStockController::class);
 Route::delete('products/{product}/force', [ProductController::class, 'forceDestroy']);
 Route::apiResource('products', ProductController::class);
 
