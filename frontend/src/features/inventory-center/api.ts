@@ -164,6 +164,9 @@ export function useCreateProduct() {
       postOne<Record<string, unknown>, unknown>('/products', input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['purchases', 'products-lookup'] });
+      void qc.invalidateQueries({ queryKey: [...productKeys.lists(), 'for-transfer'] });
+      void qc.invalidateQueries({ queryKey: ['inventory-transfer-requests', 'product-search'] });
     },
   });
 }
@@ -176,6 +179,9 @@ export function useUpdateProduct() {
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
       void qc.invalidateQueries({ queryKey: productKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: ['purchases', 'products-lookup'] });
+      void qc.invalidateQueries({ queryKey: [...productKeys.lists(), 'for-transfer'] });
+      void qc.invalidateQueries({ queryKey: ['inventory-transfer-requests', 'product-search'] });
     },
   });
 }
@@ -186,6 +192,9 @@ export function useDeleteProduct() {
     mutationFn: async (id: number) => deleteOne(`/products/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['purchases', 'products-lookup'] });
+      void qc.invalidateQueries({ queryKey: [...productKeys.lists(), 'for-transfer'] });
+      void qc.invalidateQueries({ queryKey: ['inventory-transfer-requests', 'product-search'] });
     },
   });
 }

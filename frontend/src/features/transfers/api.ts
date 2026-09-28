@@ -360,14 +360,15 @@ import { ProductSchema } from '@/features/inventory-center/schemas';
  * crear traslado (autocomplete de productos). Re-exporta el schema
  * Product del modulo de inventory-center.
  */
-export function useProductsForTransfer(search = '') {
+export function useProductsForTransfer(search = '', warehouseId?: number | null) {
   return useQuery({
-    queryKey: [...productKeys.lists(), 'for-transfer', search] as const,
+    queryKey: [...productKeys.lists(), 'for-transfer', search, warehouseId ?? 'all'] as const,
     queryFn: async () => {
       // Search server-side so large catalogs do not hide valid products after
       // the first page, especially serialized products imported from the VPS.
       const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
       if (search.trim()) params.set('search', search.trim());
+      if (warehouseId) params.set('warehouse_id', String(warehouseId));
       const data = await getMany<unknown>(`/products?${params.toString()}`);
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return (await import('zod')).z.array(ProductSchema).parse(arr);

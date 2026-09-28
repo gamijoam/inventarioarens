@@ -62,7 +62,7 @@ export function useProductsForPurchase(search = '') {
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return z.array(ProductLookupSchema).parse(arr);
     },
-    staleTime: 60_000,
+    staleTime: 5_000,
   });
 }
 

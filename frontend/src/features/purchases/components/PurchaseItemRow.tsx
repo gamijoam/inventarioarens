@@ -147,6 +147,16 @@ export function PurchaseItemRow({
     }
   }, [activeVariants, onChange, value]);
 
+  // Si el producto no es serializado pero la fila conserva seriales residuales, limpiarlos
+  useEffect(() => {
+    if (value.product_info?.tracking_type !== 'serialized' && value.serial_units && value.serial_units.length > 0) {
+      onChange({
+        ...value,
+        serial_units: [],
+      });
+    }
+  }, [value, onChange]);
+
   return (
     <section
       className={cn(
@@ -268,7 +278,7 @@ export function PurchaseItemRow({
                   product_variant_id: null,
                   product_info: product ?? null,
                   unit_cost: nextCost,
-                  serial_units: product?.tracking_type === 'serialized' ? [] : value.serial_units,
+                  serial_units: product?.tracking_type === 'serialized' ? (value.product_id === id ? value.serial_units : []) : [],
                 });
               }}
             />

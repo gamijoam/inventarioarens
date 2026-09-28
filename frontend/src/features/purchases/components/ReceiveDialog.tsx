@@ -72,10 +72,11 @@ function buildInitialValues(purchase: Purchase): ReceiveItemRowValue[] {
       const warehouse = it.warehouse as { code: string } | null | undefined;
       const unitCost = it.base_unit_cost != null ? Number(it.base_unit_cost) : null;
       const newSalePrice = it.new_sale_price != null ? Number(it.new_sale_price) : null;
+      const isSerialized = product?.tracking_type === 'serialized';
       const allSerialUnits = Array.isArray(it.serial_units) ? (it.serial_units as never[]) : [];
       const serialStart = Math.max(0, Math.floor(received));
       const serialEnd = serialStart + Math.floor(pending);
-      const serialUnits = allSerialUnits.slice(serialStart, serialEnd);
+      const serialUnits = isSerialized ? allSerialUnits.slice(serialStart, serialEnd) : [];
 
       return {
         purchase_item_id: it.id,
@@ -187,7 +188,7 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
             it.new_sale_price && Number(it.new_sale_price) > 0
               ? Number(it.new_sale_price)
               : undefined,
-          serial_units: it.serial_units,
+          serial_units: it.product_tracking_type === 'serialized' ? it.serial_units : [],
         })),
     };
 

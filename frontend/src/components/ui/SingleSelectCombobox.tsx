@@ -50,13 +50,20 @@ export function SingleSelectCombobox({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter(
+    const clientMatches = options.filter(
       (o) =>
         o.label.toLowerCase().includes(q) ||
         (o.hint ?? '').toLowerCase().includes(q) ||
         (o.badge ?? '').toLowerCase().includes(q),
     );
-  }, [options, query]);
+    // Si el consumidor utiliza busqueda server-side (onQueryChange) y el filtro client-side
+    // no coincide (ej: busqueda por descripcion/token en el backend o solicitud en curso),
+    // mostramos las opciones del servidor para no bloquear productos validos
+    if (onQueryChange && clientMatches.length === 0 && options.length > 0) {
+      return options;
+    }
+    return clientMatches;
+  }, [onQueryChange, options, query]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
