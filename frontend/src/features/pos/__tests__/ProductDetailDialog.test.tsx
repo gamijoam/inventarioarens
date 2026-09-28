@@ -17,6 +17,16 @@ vi.mock('@/features/inventory-center/variantApi', () => ({
   }),
 }));
 
+vi.mock('@/features/pos/api', () => ({
+  useCrossBranchStock: () => ({
+    data: {
+      product: { id: 100, name: 'LAVADORA AIWA DOBLE TINA 16 KG AWHTTX1601' },
+      branches: [],
+    },
+    isLoading: false,
+  }),
+}));
+
 vi.mock('@/features/inventory-center/components/ProductImage', () => ({
   ProductImage: ({ alt }: { alt?: string }) => <div data-testid="product-image">{alt}</div>,
 }));
