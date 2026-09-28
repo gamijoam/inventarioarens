@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Store, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Store, TrendingUp, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -36,6 +36,7 @@ import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-set
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
 import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
 import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/ExportInventoryDialog';
+import { BulkPriceAdjustmentModal } from '@/features/inventory-center/dialogs/BulkPriceAdjustmentModal';
 import { InventoryErpWorkspace } from '@/features/inventory-center/components/InventoryErpWorkspace';
 import { InventoryCatalogWorkspace } from '@/features/inventory-center/components/InventoryCatalogWorkspace';
 import {
@@ -125,6 +126,7 @@ function InventoryListPage() {
 
   const [searchInput, setSearchInput] = useState(search.search);
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkPriceModalOpen, setBulkPriceModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -336,6 +338,15 @@ function InventoryListPage() {
           <Button
             variant="outline"
             size="sm"
+            leftIcon={<TrendingUp className="size-4 text-primary" />}
+            onClick={() => setBulkPriceModalOpen(true)}
+            data-testid="bulk-price-adjustment-btn"
+          >
+            Ajuste de Precios
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             leftIcon={<Download className="size-4" />}
             onClick={() => setExportDialogOpen(true)}
             loading={exportProducts.isExporting}
@@ -373,6 +384,7 @@ function InventoryListPage() {
           priceLists={priceLists}
           activeRate={activeRate}
           onNewProduct={() => setCreateOpen(true)}
+          onBulkPriceAdjustment={() => setBulkPriceModalOpen(true)}
         />
       ) : viewMode === 'catalog' ? (
         <InventoryCatalogWorkspace
@@ -585,6 +597,10 @@ function InventoryListPage() {
       )}
 
       <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <BulkPriceAdjustmentModal
+        open={bulkPriceModalOpen}
+        onClose={() => setBulkPriceModalOpen(false)}
+      />
       <CustomizeInventoryColumnsDialog
         open={customizeColumnsOpen}
         onOpenChange={setCustomizeColumnsOpen}
