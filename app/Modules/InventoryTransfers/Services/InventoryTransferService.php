@@ -19,6 +19,7 @@ use App\Modules\InventoryTransfers\Models\TenantTransferSetting;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
@@ -384,6 +385,7 @@ class InventoryTransferService
 
             $transfer = $transfer->refresh()->load(['fromWarehouse', 'toWarehouse', 'guide.checklists.items', 'items.product']);
             $this->syncCatalog->inventoryTransferUpdated($transfer);
+            $this->publishTransferWs($transfer, 'prepared');
 
             return $transfer;
         });
@@ -1668,7 +1670,7 @@ class InventoryTransferService
     private function publishTransferWs(InventoryTransfer $transfer, string $action): void
     {
         try {
-            WsHub::publishTenant($transfer->tenant_id, "inventory-transfer.{$action}", [
+            $data = [
                 'id' => (int) $transfer->id,
                 'document_number' => $transfer->document_number,
                 'guide_number' => $transfer->guide_number,
@@ -1678,7 +1680,17 @@ class InventoryTransferService
                 'from_warehouse_name' => $transfer->fromWarehouse?->name,
                 'to_warehouse_name' => $transfer->toWarehouse?->name,
                 'action' => $action,
-            ]);
+            ];
+
+            WsHub::publishTenant($transfer->tenant_id, "inventory-transfer.{$action}", $data);
+
+            $tenant = Tenant::find($transfer->tenant_id);
+            if ($tenant) {
+                $groupId = $tenant->parent_id ?? ($tenant->isGroup() ? $tenant->id : null);
+                if ($groupId) {
+                    WsHub::publish("group:{$groupId}", "inventory-transfer.{$action}", $data);
+                }
+            }
         } catch (\Throwable) {
             // No bloquear la operacion transaccional si WsHub no responde
         }

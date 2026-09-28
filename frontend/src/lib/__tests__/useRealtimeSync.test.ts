@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleRealtimeEvent } from '../useRealtimeSync';
 
+vi.mock('sonner', () => ({
+  toast: {
+    info: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 describe('useRealtimeSync event handler', () => {
   it('invalida queries de tasa de cambio cuando recibe rate.updated', () => {
     const invalidateQueriesMock = vi.fn();
@@ -74,6 +82,9 @@ describe('useRealtimeSync event handler', () => {
 
     handleRealtimeEvent(queryClientMock, 'inventory-transfer.created', { id: 10 });
 
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['transfers'] })
+    );
     expect(invalidateQueriesMock).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['inventory-transfers'] })
     );
