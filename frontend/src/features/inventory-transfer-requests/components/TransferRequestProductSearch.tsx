@@ -18,6 +18,7 @@ interface TransferRequestProductSearchProps {
   trackingType?: Product['tracking_type'];
   matchSource?: ProductLiteForMatch | null;
   autoSelectExact?: boolean;
+  warehouseId?: number | null;
 }
 
 export function TransferRequestProductSearch({
@@ -30,6 +31,7 @@ export function TransferRequestProductSearch({
   trackingType,
   matchSource,
   autoSelectExact = false,
+  warehouseId,
 }: TransferRequestProductSearchProps) {
   const resultsId = useId();
   const [query, setQuery] = useState(initialQuery);
@@ -37,31 +39,74 @@ export function TransferRequestProductSearch({
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [usedNameFallback, setUsedNameFallback] = useState(false);
-  const { data: products = [], isError, isFetching } = useTransferRequestProducts(searchTerm);
+  const { data: products = [], isError, isFetching } =
+    warehouseId != null
+      ? useTransferRequestProducts(searchTerm, warehouseId)
+      : useTransferRequestProducts(searchTerm);
+
+  // Helper para normalizar texto: minusculas, sin acentos ni diacriticos
+  const cleanStr = (str: string) =>
+    str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
 
   const matches = useMemo(() => {
     const compatibleProducts = products.filter(
       (product) => !trackingType || product.tracking_type === trackingType,
     );
 
-    if (!query.trim()) return compatibleProducts.slice(0, 20);
+    if (!query.trim()) return compatibleProducts.slice(0, 50);
 
-    const normalizedQuery = query.toLowerCase().trim();
+    const normQuery = cleanStr(query);
+    const tokens = normQuery.split(/\s+/).filter(Boolean);
+
+    // Multi-token intelligent filtering:
+    // Product matches if every token is found in name, sku, barcode, or description.
     const filtered = compatibleProducts.filter((product) => {
-      const name = product.name.toLowerCase();
-      const sku = (product.sku ?? '').toLowerCase();
-      const barcode = (product.barcode ?? '').toLowerCase();
+      const normName = cleanStr(product.name);
+      const normSku = cleanStr(product.sku ?? '');
+      const normBarcode = cleanStr(product.barcode ?? '');
+      const normDesc = cleanStr(product.description ?? '');
+      const combined = `${normName} ${normSku} ${normBarcode} ${normDesc}`;
 
-      return (
-        name.includes(normalizedQuery) ||
-        sku.includes(normalizedQuery) ||
-        barcode.includes(normalizedQuery)
-      );
+      return tokens.every((token) => combined.includes(token));
     });
 
-    if (!matchSource) return filtered.slice(0, 50);
+    // If query has been sent to server, don't drop server results if filtered happened to be empty
+    const finalResults =
+      filtered.length > 0 ? filtered : searchTerm.trim() ? compatibleProducts : [];
 
-    return filtered
+    if (!matchSource) {
+      // Relevance sort:
+      // 1. Exact SKU or Barcode match first
+      // 2. Starts with query
+      // 3. Includes query as full phrase
+      return finalResults
+        .sort((a, b) => {
+          const aSku = cleanStr(a.sku ?? '');
+          const bSku = cleanStr(b.sku ?? '');
+          const aBar = cleanStr(a.barcode ?? '');
+          const bBar = cleanStr(b.barcode ?? '');
+          const aName = cleanStr(a.name);
+          const bName = cleanStr(b.name);
+
+          if (aSku === normQuery || aBar === normQuery) return -1;
+          if (bSku === normQuery || bBar === normQuery) return 1;
+
+          if (aName.startsWith(normQuery) && !bName.startsWith(normQuery)) return -1;
+          if (!aName.startsWith(normQuery) && bName.startsWith(normQuery)) return 1;
+
+          if (aName.includes(normQuery) && !bName.includes(normQuery)) return -1;
+          if (!aName.includes(normQuery) && bName.includes(normQuery)) return 1;
+
+          return 0;
+        })
+        .slice(0, 50);
+    }
+
+    return finalResults
       .map((product) => ({
         product,
         match: scoreMatch(matchSource, product),
@@ -69,7 +114,7 @@ export function TransferRequestProductSearch({
       .sort((a, b) => compareMatches(a.match, b.match))
       .map(({ product }) => product)
       .slice(0, 50);
-  }, [matchSource, products, query, trackingType]);
+  }, [matchSource, products, query, searchTerm, trackingType]);
 
   const exactMatch = useMemo(() => {
     if (!matchSource) return null;
@@ -79,13 +124,13 @@ export function TransferRequestProductSearch({
         const match = scoreMatch(matchSource, product);
         if (match.matchType === 'sku' || match.matchType === 'barcode') return true;
 
-        return product.name.trim().toLowerCase() === matchSource.name.trim().toLowerCase();
+        return cleanStr(product.name) === cleanStr(matchSource.name);
       }) ?? null
     );
   }, [matchSource, matches]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSearchTerm(query.trim()), 180);
+    const timer = window.setTimeout(() => setSearchTerm(query.trim()), 150);
     return () => window.clearTimeout(timer);
   }, [query]);
 
@@ -104,7 +149,7 @@ export function TransferRequestProductSearch({
       usedNameFallback ||
       matches.length > 0 ||
       !matchSource?.name ||
-      query.trim().toLowerCase() === matchSource.name.trim().toLowerCase()
+      cleanStr(query) === cleanStr(matchSource.name)
     ) {
       return;
     }
@@ -145,6 +190,16 @@ export function TransferRequestProductSearch({
             >
               {selectedProduct.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
             </Badge>
+            {selectedProduct.available_stock != null && (
+              <Badge
+                variant={Number(selectedProduct.available_stock) > 0 ? 'success' : 'default'}
+                className="text-[10px]"
+              >
+                {Number(selectedProduct.available_stock) > 0
+                  ? `Stock disponible: ${selectedProduct.available_stock}`
+                  : 'Sin stock en origen (0)'}
+              </Badge>
+            )}
           </div>
         </div>
         <button
@@ -205,12 +260,16 @@ export function TransferRequestProductSearch({
           id={resultsId}
           data-testid={`item-product-results-${index}`}
           className="border-border bg-surface mt-2 overflow-hidden rounded-md border shadow-sm"
+          onMouseDown={(e) => {
+            // Prevenir blur del input antes del click en la opcion
+            e.preventDefault();
+          }}
         >
           <div className="border-border bg-bg/60 flex items-center justify-between gap-3 border-b px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
               <PackageSearch className="text-primary size-4 shrink-0" />
               <span className="text-text-secondary truncate text-xs font-semibold uppercase">
-                {query.trim() ? `Resultados para "${query.trim()}"` : 'Productos recientes'}
+                {query.trim() ? `Resultados para "${query.trim()}"` : 'Productos del catálogo'}
               </span>
             </div>
             {isFetching && <LoaderCircle className="text-primary size-4 animate-spin" />}
@@ -233,8 +292,7 @@ export function TransferRequestProductSearch({
               <div className="p-4 text-sm">
                 <p className="font-medium">No encontramos ese producto.</p>
                 <p className="text-text-muted mt-1 text-xs">
-                  Busca por nombre, SKU o codigo de barras. Tambien se incluyen productos
-                  serializados.
+                  Busca por nombre, SKU o codigo de barras. Se incluyen productos serializados y por unidad.
                 </p>
               </div>
             ) : (
@@ -260,12 +318,26 @@ export function TransferRequestProductSearch({
                           {product.barcode && <span>Codigo: {product.barcode}</span>}
                         </div>
                       </div>
-                      <Badge
-                        variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
-                        className="shrink-0 text-[10px]"
-                      >
-                        {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
-                      </Badge>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {product.available_stock != null && (
+                          <span
+                            className={cn(
+                              'text-xs font-medium',
+                              Number(product.available_stock) > 0 ? 'text-success' : 'text-text-muted',
+                            )}
+                          >
+                            {Number(product.available_stock) > 0
+                              ? `Stock: ${product.available_stock}`
+                              : 'Sin stock (0)'}
+                          </span>
+                        )}
+                        <Badge
+                          variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
+                          className="shrink-0 text-[10px]"
+                        >
+                          {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
+                        </Badge>
+                      </div>
                     </button>
                   </li>
                 ))}

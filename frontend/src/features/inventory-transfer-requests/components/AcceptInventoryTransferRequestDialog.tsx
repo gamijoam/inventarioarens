@@ -418,6 +418,7 @@ function ItemCard({
             index={item.id}
             value={mapping.destinationProductId}
             selectedProduct={destinationProduct}
+            warehouseId={warehouseId ? Number(warehouseId) : undefined}
             onChange={(productId, product) =>
               onChange({
                 destinationProductId: productId,

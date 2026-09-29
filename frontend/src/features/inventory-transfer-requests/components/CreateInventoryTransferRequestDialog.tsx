@@ -305,6 +305,7 @@ export function CreateInventoryTransferRequestDialog({
                         index={idx}
                         value={it.product_id}
                         selectedProduct={it.product}
+                        warehouseId={fromWarehouseId ? Number(fromWarehouseId) : undefined}
                         onChange={(productId, product) =>
                           updateItem(idx, { product_id: productId, product, product_variant_id: '' })
                         }
