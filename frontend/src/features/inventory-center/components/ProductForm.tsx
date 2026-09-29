@@ -31,7 +31,6 @@ import {
   SALE_CURRENCIES,
   PRICING_MODES,
   TRACKING_TYPES,
-  UNITS_OF_MEASURE,
   type StoreProductInput,
   type StoreProductValues,
 } from '../schemas';
@@ -50,6 +49,7 @@ import { InlineCatalogCreate } from './InlineCatalogCreate';
 import { InlineExchangeRateTypeCreate } from './InlineExchangeRateTypeCreate';
 import { InlineWarrantyPolicyCreate } from './InlineWarrantyPolicyCreate';
 import { ImageGallery } from './ImageGallery';
+import { UnitOfMeasureSelector } from './UnitOfMeasureSelector';
 
 export interface ProductFormProps {
   // Acepta cualquier UseFormReturn cuyo TFieldValues extienda nuestro schema.
@@ -182,7 +182,7 @@ export function ProductForm({
             </Field>
           )}
           {activeVisibility.barcode && (
-            <Field name="barcode" label="Código de barras" hint="Opcional, único por empresa">
+            <Field name="barcode" label="Código" hint="Opcional, único por empresa">
               <Input {...form.register('barcode')} placeholder="Ej. 7501234567890" />
             </Field>
           )}
@@ -344,9 +344,9 @@ export function ProductForm({
               {activeVisibility.tracking_type && (
                 <Field name="tracking_type" label="Tipo de control" required>
                   <Select {...form.register('tracking_type')}>
-                    {TRACKING_TYPES.map((t) => (
+                    {TRACKING_TYPES.filter((t) => t !== 'serialized').map((t) => (
                       <option key={t} value={t}>
-                        {t === 'quantity' ? 'Por cantidad' : 'Serializado (IMEI/serial)'}
+                        {t === 'quantity' ? 'Por unidad / cantidad' : t}
                       </option>
                     ))}
                   </Select>
@@ -354,13 +354,16 @@ export function ProductForm({
               )}
               {activeVisibility.unit_of_measure && (
                 <Field name="unit_of_measure" label="Unidad de medida">
-                  <Select {...form.register('unit_of_measure')}>
-                    {UNITS_OF_MEASURE.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </Select>
+                  <Controller
+                    control={form.control}
+                    name="unit_of_measure"
+                    render={({ field }) => (
+                      <UnitOfMeasureSelector
+                        value={field.value ?? 'unit'}
+                        onChange={field.onChange}
+                      />
+                    )}
+                  />
                 </Field>
               )}
             </div>

@@ -98,8 +98,8 @@ export const CREATE_PRODUCT_FORM_VISIBILITY: ProductFormVisibility = {
   tags: false,
 
   // Control de stock
-  tracking_type: true,
-  unit_of_measure: false,
+  tracking_type: false,
+  unit_of_measure: true,
   track_stock: false,
   min_stock: false,
   max_stock: false,
@@ -141,7 +141,7 @@ export const PRODUCT_FORM_SECTIONS: FormSectionItem[] = [
     fields: [
       { key: 'name', label: 'Nombre', required: true, description: 'Obligatorio en todo producto' },
       { key: 'sku', label: 'SKU (Código interno)' },
-      { key: 'barcode', label: 'Código de barras' },
+      { key: 'barcode', label: 'Código' },
       { key: 'image_url', label: 'URL externa de imagen' },
       { key: 'description', label: 'Descripción corta' },
       { key: 'long_description', label: 'Descripción larga (HTML)' },

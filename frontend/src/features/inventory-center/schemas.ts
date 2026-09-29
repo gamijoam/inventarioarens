@@ -134,7 +134,23 @@ export type ReorderSuggestionsResponse = z.infer<typeof ReorderSuggestionsRespon
 // =====================================================================
 
 export const TRACKING_TYPES = ['quantity', 'serialized'] as const;
-export const UNITS_OF_MEASURE = ['unit', 'kg', 'lt', 'm'] as const;
+export const UNITS_OF_MEASURE = [
+  'unit',
+  'par',
+  'pack',
+  'kg',
+  'lt',
+  'm',
+  'caja',
+  'paquete',
+  'juego',
+  'rollo',
+  'saco',
+  'bulto',
+  'docena',
+  'galon',
+  'servicio',
+] as const;
 export const SALE_CURRENCIES = ['USD', 'VES'] as const;
 export const PRICING_MODES = ['automatic', 'manual'] as const;
 export type PricingMode = (typeof PRICING_MODES)[number];
@@ -177,7 +193,7 @@ export const StoreProductSchema = z
       .optional()
       .or(z.literal('').transform(() => undefined)),
     tracking_type: z.enum(TRACKING_TYPES).default('quantity'),
-    unit_of_measure: z.enum(UNITS_OF_MEASURE).default('unit'),
+    unit_of_measure: z.string().max(20).default('unit'),
     track_stock: z.boolean().default(true),
     brand_id: optionalNumber(1),
     category_ids: z.array(z.number().int().positive()).default([]),
@@ -268,7 +284,7 @@ const StoreProductBaseSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)),
   tracking_type: z.enum(TRACKING_TYPES).default('quantity'),
-  unit_of_measure: z.enum(UNITS_OF_MEASURE).default('unit'),
+  unit_of_measure: z.string().max(20).default('unit'),
   track_stock: z.boolean().default(true),
   brand_id: optionalNumber(1),
   category_ids: z.array(z.number().int().positive()).default([]),
@@ -422,7 +438,7 @@ export const ProductSchema = z.object({
   images: z.array(ProductImageSchema).optional(),
   primary_image_url: z.string().nullable().optional(),
   tracking_type: z.enum(TRACKING_TYPES),
-  unit_of_measure: z.enum(UNITS_OF_MEASURE).optional(),
+  unit_of_measure: z.string().max(20).optional(),
   track_stock: z.boolean().optional(),
   brand_id: z.number().int().nullable().optional(),
   brand: ProductBrandRefSchema.nullable().optional(),
