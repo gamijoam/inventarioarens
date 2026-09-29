@@ -37,25 +37,33 @@ export const transferRequestKeys = {
   // el contador depende del contexto (cada spinoff ve solo sus propias
   // pendientes). Por eso las mutaciones invalidan `unreadCounts` (todas
   // las claves que empiezan con `unread-count`) para refrescar el badge
-  // del tenant actual sin importar el id especifico.
   unreadCounts: () => [...transferRequestKeys.all, 'unread-count'] as const,
   productSearches: () => [...transferRequestKeys.all, 'product-search'] as const,
-  productSearch: (search: string) => [...transferRequestKeys.productSearches(), search] as const,
+  productSearch: (search: string, warehouseId?: number | null) =>
+    [...transferRequestKeys.productSearches(), search, warehouseId ?? 'all'] as const,
 };
 
-export function useTransferRequestProducts(search = '') {
+export function useTransferRequestProducts(search = '', warehouseId?: number | null) {
   const normalizedSearch = search.trim();
 
   return useQuery<Product[]>({
-    queryKey: transferRequestKeys.productSearch(normalizedSearch),
+    queryKey: transferRequestKeys.productSearch(normalizedSearch, warehouseId),
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
       if (normalizedSearch) params.set('search', normalizedSearch);
+      if (warehouseId) params.set('warehouse_id', String(warehouseId));
 
       const raw = await getMany<unknown>(`/products?${params.toString()}`);
       const products = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] }).data ?? []);
 
-      return z.array(ProductSchema).parse(products);
+      const validProducts: Product[] = [];
+      for (const item of products) {
+        const parsed = ProductSchema.safeParse(item);
+        if (parsed.success) {
+          validProducts.push(parsed.data);
+        }
+      }
+      return validProducts;
     },
     staleTime: 5_000,
   });
