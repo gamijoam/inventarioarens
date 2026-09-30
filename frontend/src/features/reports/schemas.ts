@@ -133,6 +133,8 @@ export const DailyOperationsSchema = z.object({
     net_base_amount: z.number().optional(),
     pos_paid_count: z.number(),
     pos_paid_base_amount: z.number(),
+    pos_returned_base_amount: z.number().optional(),
+    pos_net_paid_base_amount: z.number().optional(),
     pos_open_count: z.number(),
     pos_open_base_amount: z.number(),
     credit_count: z.number(),
@@ -241,6 +243,7 @@ export const SalesDetailSchema = z.object({
           sku: z.string().nullable().optional(),
           warehouse_name: z.string().nullable().optional(),
           quantity: z.number(),
+          returned_quantity: z.number().optional(),
           unit_price: z.number(),
           base_total_amount: z.number(),
           discount_base_amount: z.number(),
@@ -273,6 +276,19 @@ export const SalesDetailSchema = z.object({
           reason: z.string().nullable().optional(),
           items_count: z.number(),
           processed_at: z.string().nullable().optional(),
+          items: z
+            .array(
+              z.object({
+                id: z.number(),
+                sale_item_id: z.number().nullable().optional(),
+                product_id: z.number().nullable().optional(),
+                product_name: z.string().nullable().optional(),
+                product_sku: z.string().nullable().optional(),
+                quantity: z.number(),
+                reason: z.string().nullable().optional(),
+              }),
+            )
+            .optional(),
         }),
       ),
     }),

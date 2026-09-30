@@ -143,6 +143,16 @@ class OperationalReportApiTest extends TestCase
             'condition' => 'sellable',
         ]);
 
+        PosOrder::create([
+            'sale_id' => $sale->id,
+            'status' => PosOrder::STATUS_PAID,
+            'total_base_amount' => 100,
+            'paid_base_amount' => 100,
+            'opened_at' => now(),
+            'paid_at' => now(),
+            'closed_at' => now(),
+        ]);
+
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
@@ -152,6 +162,9 @@ class OperationalReportApiTest extends TestCase
             ->assertJsonPath('data.sales.confirmed_base_amount', 100)
             ->assertJsonPath('data.sales.returned_base_amount', 50)
             ->assertJsonPath('data.sales.net_base_amount', 50)
+            ->assertJsonPath('data.sales.pos_paid_base_amount', 100)
+            ->assertJsonPath('data.sales.pos_returned_base_amount', 50)
+            ->assertJsonPath('data.sales.pos_net_paid_base_amount', 50)
             ->assertJsonPath('data.returns.processed_count', 1)
             ->assertJsonPath('data.returns.processed_base_amount', 50);
     }
@@ -173,7 +186,9 @@ class OperationalReportApiTest extends TestCase
             ->assertJsonPath('data.rows.0.collection.status', AccountsReceivable::STATUS_PARTIAL)
             ->assertJsonPath('data.rows.0.items.0.product_name', 'Producto Reporte')
             ->assertJsonPath('data.rows.0.payments.0.reference', 'REF-REPORT')
-            ->assertJsonPath('data.rows.0.returns.0.status', SalesReturn::STATUS_REQUESTED);
+            ->assertJsonPath('data.rows.0.returns.0.status', SalesReturn::STATUS_REQUESTED)
+            ->assertJsonPath('data.rows.0.returns.0.items.0.product_name', 'Producto Reporte')
+            ->assertJsonPath('data.rows.0.returns.0.items.0.quantity', 1);
     }
 
     public function test_sales_detail_is_paginated(): void
