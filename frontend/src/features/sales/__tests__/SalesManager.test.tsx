@@ -225,4 +225,72 @@ describe('SalesManager', () => {
     expect(screen.getByText('8')).toBeInTheDocument();
     expect(screen.getByText(/Devuelto: -\$50,00 \(1\)/i)).toBeInTheDocument();
   });
+
+  it('muestra el nombre del producto y cantidades cuando la venta tiene devolución parcial', async () => {
+    const user = userEvent.setup();
+
+    const saleWithPartialReturn = {
+      ...fakeSales[0],
+      id: 202,
+      items: [
+        {
+          id: 11,
+          sale_id: 202,
+          warehouse_id: 1,
+          warehouse_name: 'Almacén Central',
+          product_id: 10,
+          product_name: 'Amortiguador Trasero',
+          product_sku: 'AMORT-01',
+          quantity: 2,
+          unit_price: 25,
+          total_price: 50,
+          currency: 'USD',
+        },
+      ],
+      sales_returns: [
+        {
+          id: 1,
+          sale_id: 202,
+          status: 'processed',
+          reason: 'Defecto de fábrica',
+          items: [
+            {
+              id: 1,
+              sales_return_id: 1,
+              sale_item_id: 11,
+              product_id: 10,
+              quantity: 1,
+              reason: 'Defecto de fábrica',
+            },
+          ],
+        },
+      ],
+    };
+
+    mockUseSales.mockReturnValue({
+      data: {
+        data: [saleWithPartialReturn],
+        meta: { current_page: 1, last_page: 1, total: 1 },
+      },
+      isLoading: false,
+      isFetching: false,
+    });
+    mockUseSale.mockReturnValue({ data: saleWithPartialReturn, isLoading: false });
+
+    render(<SalesManager />, { wrapper: makeWrapper() });
+
+    // Assert that the badge 'Devuelta parcial' is shown
+    expect(screen.getByText('Devuelta parcial')).toBeInTheDocument();
+
+    // Assert that the product name is displayed in the row's returned products summary
+    expect(screen.getByText('Amortiguador Trasero')).toBeInTheDocument();
+
+    // Expand the sale
+    await user.click(screen.getByText('#202'));
+
+    // Assert that the detailed partial return card and item row are displayed
+    expect(screen.getByText('Productos con devolución en esta venta:')).toBeInTheDocument();
+    expect(screen.getAllByText(/1 de 2 und\./i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Motivo: Defecto de fábrica/i)).toBeInTheDocument();
+  });
 });

@@ -17,6 +17,8 @@ class SalesReturnItemResource extends JsonResource
             'sale_item_id' => $this->sale_item_id,
             'warehouse_id' => $this->warehouse_id,
             'product_id' => $this->product_id,
+            'product_name' => $this->whenLoaded('product', fn () => $this->product?->name),
+            'product_sku' => $this->whenLoaded('product', fn () => $this->product?->sku),
             'quantity' => $this->quantity,
             'refundable_base_amount' => $this->refundableBaseAmount(),
             'product_unit_ids' => $this->product_unit_ids,
