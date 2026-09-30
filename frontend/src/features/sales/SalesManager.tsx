@@ -160,6 +160,64 @@ function returnStatusLabel(sale: Sale): string | null {
   return returned >= total ? 'Devuelta total' : 'Devuelta parcial';
 }
 
+export interface ReturnedProductInfo {
+  saleItemId: number;
+  productId: number;
+  productName: string;
+  productSku?: string | null;
+  returnedQuantity: number;
+  soldQuantity: number;
+  reasons: string[];
+}
+
+function getReturnedProducts(sale: Sale, statuses: string[] = ['processed']): ReturnedProductInfo[] {
+  const items = sale.items ?? [];
+  const returns = (sale.sales_returns ?? []).filter((r) => statuses.includes(r.status));
+  if (returns.length === 0) return [];
+
+  const productMap = new Map<number, ReturnedProductInfo>();
+
+  for (const ret of returns) {
+    for (const ri of ret.items ?? []) {
+      const matchedSaleItem = items.find((si) => si.id === ri.sale_item_id);
+      const key = ri.sale_item_id || ri.product_id || 0;
+      const qty = Number(ri.quantity ?? 0);
+      const name =
+        matchedSaleItem?.product_name ||
+        (ri as unknown as { product_name?: string }).product_name ||
+        (ri as unknown as { product?: { name?: string } }).product?.name ||
+        `Producto #${ri.product_id ?? matchedSaleItem?.product_id ?? key}`;
+      const sku =
+        matchedSaleItem?.product_sku ||
+        (ri as unknown as { product_sku?: string }).product_sku ||
+        (ri as unknown as { product?: { sku?: string } }).product?.sku ||
+        null;
+      const soldQty = Number(matchedSaleItem?.quantity ?? qty);
+      const reason = ri.reason;
+
+      const existing = productMap.get(key);
+      if (existing) {
+        existing.returnedQuantity += qty;
+        if (reason && !existing.reasons.includes(reason)) {
+          existing.reasons.push(reason);
+        }
+      } else {
+        productMap.set(key, {
+          saleItemId: ri.sale_item_id,
+          productId: ri.product_id ?? matchedSaleItem?.product_id ?? 0,
+          productName: name,
+          productSku: sku,
+          returnedQuantity: qty,
+          soldQuantity: soldQty,
+          reasons: reason ? [reason] : [],
+        });
+      }
+    }
+  }
+
+  return Array.from(productMap.values());
+}
+
 export function SalesManager() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -541,6 +599,7 @@ function SaleRow({
   const date = sale.confirmed_at ?? sale.created_at;
   const localBalance = sale.receivable ? currentLocalBalance(sale.receivable, activeRate) : null;
   const returnLabel = returnStatusLabel(sale);
+  const returnedProducts = getReturnedProducts(sale);
   return (
     <>
       <tr className="cursor-pointer border-b border-border hover:bg-bg/50" onClick={onToggle}>
@@ -551,10 +610,27 @@ function SaleRow({
         <td className="px-3 py-2 text-text-muted">{formatDate(date)}</td>
         <td className="px-3 py-2">{customerLabel(sale)}</td>
         <td className="px-3 py-2">
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 items-start">
             <Badge variant={statusVariant(sale.status)}>{SALE_STATUS_LABELS[sale.status]}</Badge>
             {returnLabel && (
             <Badge variant={returnLabel === 'Devuelta total' ? 'success' : returnLabel === 'Devolución rechazada' ? 'danger' : 'warning'}>{returnLabel}</Badge>
+            )}
+            {returnedProducts.length > 0 && (
+              <div className="mt-1 flex flex-col gap-1 max-w-[240px]">
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                  <RotateCcw className="size-3 shrink-0" />
+                  <span>Devuelto:</span>
+                </div>
+                {returnedProducts.map((p) => (
+                  <div
+                    key={p.saleItemId || p.productId}
+                    className="truncate rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 border border-amber-500/20"
+                    title={`${p.productName}${p.productSku ? ` (${p.productSku})` : ''} - ${p.returnedQuantity} de ${p.soldQuantity} und devueltas${p.reasons.length > 0 ? ` · Motivo: ${p.reasons.join(', ')}` : ''}`}
+                  >
+                    <span className="font-semibold">{p.productName}</span>: <strong className="font-mono text-amber-800 dark:text-amber-300">{p.returnedQuantity}</strong>{p.soldQuantity > p.returnedQuantity ? <span className="opacity-75">/{p.soldQuantity}</span> : ''} und
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </td>
@@ -653,6 +729,7 @@ function SaleDetail({
   const items = current.items ?? [];
   const actor = current.pos_order?.cashier_name ?? current.created_by_name ?? 'Sin usuario';
   const returnLabel = returnStatusLabel(current);
+  const returnedProducts = getReturnedProducts(current);
   const canReturnCurrentSale = canCreateReturn && current.status === 'confirmed' && hasReturnableItems(current);
   const canReverseCurrentSale = canReverse && current.status === 'confirmed' && current.pos_order?.status === 'paid';
   const [showReverseForm, setShowReverseForm] = useState(false);
@@ -686,6 +763,47 @@ function SaleDetail({
         </div>
       )}
 
+      {returnedProducts.length > 0 && (
+        <div className="rounded-lg border border-amber-300/80 bg-amber-50/80 p-3.5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <RotateCcw className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>Productos con devolución en esta venta:</span>
+          </div>
+          <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {returnedProducts.map((p) => (
+              <div
+                key={p.saleItemId || p.productId}
+                className="flex flex-col justify-between rounded-md border border-amber-200 bg-white/95 p-2.5 text-xs shadow-xs dark:border-amber-800 dark:bg-slate-900/70"
+              >
+                <div>
+                  <div className="font-semibold text-text-primary text-[13px]">{p.productName}</div>
+                  {p.productSku && <div className="text-[11px] text-text-muted">SKU: {p.productSku}</div>}
+                </div>
+                <div className="mt-2 pt-1.5 border-t border-amber-100 dark:border-amber-900/40 space-y-0.5">
+                  <div className="flex items-center justify-between font-medium">
+                    <span className="text-text-muted">Cantidad devuelta:</span>
+                    <span className="font-mono font-bold text-amber-700 dark:text-amber-300">
+                      {p.returnedQuantity} {p.soldQuantity > p.returnedQuantity ? `de ${p.soldQuantity}` : ''} und.
+                    </span>
+                  </div>
+                  {p.soldQuantity > p.returnedQuantity && (
+                    <div className="flex items-center justify-between text-[11px] text-text-muted">
+                      <span>Restante activa:</span>
+                      <span className="font-mono font-semibold">{p.soldQuantity - p.returnedQuantity} und.</span>
+                    </div>
+                  )}
+                  {p.reasons.length > 0 && (
+                    <div className="mt-1 text-[11px] text-text-muted italic truncate" title={p.reasons.join(', ')}>
+                      Motivo: {p.reasons.join(', ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
         <table className="w-full table-dense">
           <thead className="border-b border-border bg-bg/60 text-left">
@@ -714,6 +832,7 @@ function SaleDetail({
               <SaleItemRow
                 key={item.id}
                 item={item}
+                returnedQuantity={returnedQuantityForItem(current, item.id)}
                 canViewCosts={canViewCosts}
                 canCreateWarranty={canCreateWarranty && current.status === 'confirmed'}
                 onCreateWarranty={() => setWarrantyItem(item)}
@@ -1085,11 +1204,13 @@ function Metric({ label, value, strong }: { label: string; value: string; strong
 
 function SaleItemRow({
   item,
+  returnedQuantity = 0,
   canViewCosts = false,
   canCreateWarranty = false,
   onCreateWarranty,
 }: {
   item: SaleItem;
+  returnedQuantity?: number;
   canViewCosts?: boolean;
   canCreateWarranty?: boolean;
   onCreateWarranty?: () => void;
@@ -1104,9 +1225,27 @@ function SaleItemRow({
       <td className="px-3 py-2">
         <div className="font-medium">{item.product_name ?? `Producto #${item.product_id}`}</div>
         <div className="text-xs text-text-muted">{item.product_sku ?? '-'}</div>
+        {returnedQuantity > 0 && (
+          <div className="mt-1">
+            <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 border border-amber-500/30">
+              <RotateCcw className="size-2.5 shrink-0" />
+              Devuelto: {returnedQuantity} {returnedQuantity < Number(item.quantity) ? `de ${item.quantity}` : ''} und.
+            </span>
+          </div>
+        )}
       </td>
       <td className="px-3 py-2 text-text-muted">{item.warehouse_name ?? `#${item.warehouse_id}`}</td>
-      <td className="px-3 py-2 text-right tabular-nums">{item.quantity}</td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        <div className="font-medium">{item.quantity}</div>
+        {returnedQuantity > 0 && (
+          <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+            -{returnedQuantity} dev.
+            {Number(item.quantity) > returnedQuantity && (
+              <span className="text-text-muted block font-normal text-[10px]">({Number(item.quantity) - returnedQuantity} rest.)</span>
+            )}
+          </div>
+        )}
+      </td>
       <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.unit_price, item.sale_currency === 'VES' ? 'Bs ' : '$')}</td>
       {canViewCosts && (
         <td className="px-3 py-2 text-right tabular-nums text-text-muted">

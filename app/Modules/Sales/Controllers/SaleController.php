@@ -183,7 +183,7 @@ class SaleController extends Controller
                 'items.product',
                 'items.variant',
                 'items.warehouse',
-                'salesReturns.items',
+                'salesReturns.items.product',
                 'promotionApplications.items',
             ])
             ->withCount('items')
@@ -242,7 +242,7 @@ class SaleController extends Controller
             'items.variant',
             'items.warehouse',
             'items.stockMovement',
-            'salesReturns.items',
+            'salesReturns.items.product',
             'promotionApplications.items',
         ]));
     }
