@@ -1,12 +1,8 @@
 /**
- * EditUserDialog: dialog para editar el NOMBRE de un usuario.
+ * EditUserDialog: dialog para editar nombre y correo de un usuario.
  *
  * Backend: PATCH /api/users/{id}
- *   Body: { name } (otros campos son inmutables via esta ruta).
- *
- * El backend NO permite editar el email de un user existente (por seguridad:
- * eso requerira re-verificacion). Para cambiar el email hay que desactivar
- * el user y crear uno nuevo. Worklow fuera de scope de Fase B.
+ *   Body: { name, email }
  *
  * El cambio de roles se hace en ChangeRolesDialog.
  * El cambio de status se hace en StatusToggle.
@@ -38,13 +34,17 @@ interface EditUserDialogProps {
 
 export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUserDialogProps) {
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && user) {
       setName(user.name);
+      setEmail(user.email);
       setError(null);
+      setEmailError(null);
     }
   }, [open, user]);
 
@@ -54,14 +54,37 @@ export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUser
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+
+    let hasError = false;
     if (name.trim().length < 1) {
       setError('Requerido.');
-      return;
+      hasError = true;
+    } else {
+      setError(null);
     }
+
+    if (email.trim().length < 1) {
+      setEmailError('Requerido.');
+      hasError = true;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailError('Email inválido.');
+      hasError = true;
+    } else {
+      setEmailError(null);
+    }
+
+    if (hasError) return;
+
     setSubmitting(true);
     try {
-      await update.mutateAsync({ id: user.id, values: { name: name.trim() } });
-      toast.success('Nombre actualizado.');
+      await update.mutateAsync({
+        id: user.id,
+        values: {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+        },
+      });
+      toast.success('Usuario actualizado.');
       onUpdated?.();
       onOpenChange(false);
     } catch (err) {
@@ -76,10 +99,9 @@ export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUser
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar nombre</DialogTitle>
+          <DialogTitle>Editar usuario</DialogTitle>
           <DialogDescription>
-            Cambia el nombre visible del usuario. El email no se puede editar
-            (por seguridad). Para cambiar roles, usa &quot;Cambiar roles&quot;.
+            Modifica el nombre y correo electrónico del usuario.
           </DialogDescription>
         </DialogHeader>
 
@@ -96,8 +118,18 @@ export function EditUserDialog({ open, onOpenChange, user, onUpdated }: EditUser
               />
               {error && <p className="text-xs text-danger">{error}</p>}
             </div>
-            <div className="text-xs text-text-muted">
-              Email: <code className="rounded bg-bg px-1 py-0.5">{user.email}</code>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-email">Correo electrónico *</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                maxLength={255}
+                data-testid="edit-user-email"
+              />
+              {emailError && <p className="text-xs text-danger">{emailError}</p>}
             </div>
 
             <DialogFooter>

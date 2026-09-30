@@ -216,7 +216,10 @@ class AccessControlService
 
     public function updateUser(User $user, array $data, User $actor): User
     {
-        $oldValues = ['name' => $user->name];
+        $oldValues = [
+            'name' => $user->name,
+            'email' => $user->email,
+        ];
 
         $user->fill($data);
         $user->save();
@@ -225,6 +228,7 @@ class AccessControlService
 
         $this->audit->record('access.user.updated', $user, $actor, $oldValues, [
             'name' => $user->name,
+            'email' => $user->email,
         ]);
 
         return $user;

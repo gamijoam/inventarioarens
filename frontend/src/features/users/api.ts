@@ -15,6 +15,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { getOne, getPaginated, postOne, patchOne, putOne } from '@/api/client';
+import { useSessionStore } from '@/stores/session';
 import {
   UserListResponseSchema,
   type CreateUserInput,
@@ -109,9 +110,19 @@ export function useUpdateUser() {
   return useMutation<User, Error, { id: number; values: UpdateUserInput }>({
     mutationFn: ({ id, values }) =>
       patchOne<UpdateUserInput, User>(`/users/${id}`, values),
-    onSuccess: async (_data, { id }) => {
+    onSuccess: async (data, { id }) => {
       await qc.invalidateQueries({ queryKey: userKeys.lists() });
       await qc.invalidateQueries({ queryKey: userKeys.detail(id) });
+      const current = useSessionStore.getState().user;
+      if (current && current.id === id) {
+        useSessionStore.setState({
+          user: {
+            ...current,
+            name: data.name,
+            email: data.email,
+          },
+        });
+      }
     },
   });
 }
@@ -169,7 +180,6 @@ export function useUpdateUserStatus() {
 
 import { z } from 'zod';
 import { deleteOne } from '@/api/client';
-import { useSessionStore } from '@/stores/session';
 
 function tenantPath(tenantId: number, path: string): string {
   return `/tenants/${tenantId}${path}`;
