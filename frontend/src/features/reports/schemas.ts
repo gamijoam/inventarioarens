@@ -46,6 +46,18 @@ export const MovementReportRowSchema = z.object({
   created_at: z.string().nullable().optional(),
 });
 
+export const MovementReportResponseSchema = z.object({
+  data: z.array(MovementReportRowSchema),
+  meta: z
+    .object({
+      current_page: z.number(),
+      per_page: z.number(),
+      total: z.number(),
+      last_page: z.number(),
+    })
+    .optional(),
+});
+
 export const FinanceSummarySchema = z.object({
   currency: z.string(),
   accounts_receivable: z.object({
@@ -393,6 +405,7 @@ export type StockReportRow = z.infer<typeof StockReportRowSchema>;
 export type StockReportSummary = z.infer<typeof StockReportSummarySchema>;
 export type StockReportResponse = z.infer<typeof StockReportResponseSchema>;
 export type MovementReportRow = z.infer<typeof MovementReportRowSchema>;
+export type MovementReportResponse = z.infer<typeof MovementReportResponseSchema>;
 export type FinanceSummary = z.infer<typeof FinanceSummarySchema>;
 export type FinanceReceivableRow = z.infer<typeof FinanceReceivableRowSchema>;
 export type FinancePayableRow = z.infer<typeof FinancePayableRowSchema>;
