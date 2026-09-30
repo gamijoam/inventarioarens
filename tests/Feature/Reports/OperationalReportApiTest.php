@@ -229,6 +229,39 @@ class OperationalReportApiTest extends TestCase
         $this->assertStringContainsString('page=2', $response->json('data.links.next'));
     }
 
+    public function test_sales_detail_can_filter_voided_sales(): void
+    {
+        Carbon::setTestNow('2026-07-18 11:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa Void', 'slug' => 'empresa-void']);
+        $user = $this->userInTenant($tenant, ['reports.sales.view']);
+        $this->useTenant($tenant);
+
+        Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 50,
+            'total_local_amount' => 50,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+        Sale::create([
+            'status' => Sale::STATUS_VOIDED,
+            'total_base_amount' => 100,
+            'total_local_amount' => 100,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/sales-detail?date=2026-07-18&status=voided')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.rows')
+            ->assertJsonPath('data.rows.0.status', Sale::STATUS_VOIDED)
+            ->assertJsonPath('data.rows.0.total_base_amount', 100);
+    }
+
     public function test_sales_detail_does_not_query_serial_units_once_per_item(): void
     {
         Carbon::setTestNow('2026-07-18 11:00:00');

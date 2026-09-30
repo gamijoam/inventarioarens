@@ -120,7 +120,7 @@ class OperationalReportService
                 'salesReturns.items.saleItem.product',
             ])
             ->withCount('items')
-            ->when(($filters['status'] ?? 'all') !== 'all' && in_array($filters['status'], [Sale::STATUS_DRAFT, Sale::STATUS_CONFIRMED, Sale::STATUS_CANCELLED], true), fn ($query) => $query->where('status', $filters['status']))
+            ->when(($filters['status'] ?? 'all') !== 'all' && in_array($filters['status'], [Sale::STATUS_DRAFT, Sale::STATUS_CONFIRMED, Sale::STATUS_CANCELLED, Sale::STATUS_VOIDED], true), fn ($query) => $query->where('status', $filters['status']))
             ->when($filters['customer_id'] ?? null, fn ($query, int $customerId) => $query->where('customer_id', $customerId))
             ->when($filters['cashier_id'] ?? null, fn ($query, int $cashierId) => $query->whereHas('posOrder', fn ($order) => $order->where('cashier_id', $cashierId)))
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->whereHas('posOrder.cashRegisterSession', fn ($session) => $session->where('branch_id', $branchId)))
