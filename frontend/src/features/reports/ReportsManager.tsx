@@ -92,6 +92,7 @@ const SALES_STATUS = [
   { value: 'confirmed', label: 'Confirmadas' },
   { value: 'draft', label: 'Borradores' },
   { value: 'cancelled', label: 'Canceladas' },
+  { value: 'voided', label: 'Anuladas' },
 ];
 
 const CASH_STATUS = [
@@ -1021,7 +1022,7 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
                           title="POS/Caja"
                           rows={[
                             row.pos_order
-                              ? `Orden POS #${row.pos_order.id} - ${row.pos_order.cash_register_name ?? 'Sin caja'} - ${row.pos_order.branch_name ?? 'Sin sucursal'}`
+                              ? `Orden POS #${row.pos_order.id} (${statusLabel(row.pos_order.status)}) - ${row.pos_order.cash_register_name ?? 'Sin caja'} - ${row.pos_order.branch_name ?? 'Sin sucursal'}`
                               : 'Venta manual',
                           ]}
                         />
@@ -1396,9 +1397,9 @@ function OptionsFilter({
 
 function StatusBadge({ status }: { status: string }) {
   const variant =
-    status === 'paid' || status === 'confirmed' || status === 'closed' || status === 'processed'
+    status === 'paid' || status === 'confirmed' || status === 'closed' || status === 'processed' || status === 'approved' || status === 'completed'
       ? 'success'
-      : status === 'overdue' || status === 'cancelled'
+      : status === 'overdue' || status === 'cancelled' || status === 'voided' || status === 'void' || status === 'rejected'
         ? 'danger'
         : status === 'none'
           ? 'default'
@@ -1474,6 +1475,8 @@ function statusLabel(status: string): string {
       draft: 'Borrador',
       confirmed: 'Confirmada',
       cancelled: 'Cancelada',
+      voided: 'Anulada',
+      void: 'Anulada',
       paid: 'Pagada',
       pending: 'Pendiente',
       partial: 'Parcial',
@@ -1485,6 +1488,18 @@ function statusLabel(status: string): string {
       processed: 'Procesada',
       rejected: 'Rechazada',
       none: 'Sin CxC',
+      returned: 'Devuelta',
+      partial_return: 'Devuelta parcial',
+      total_return: 'Devuelta total',
+      refunded: 'Reembolsada',
+      sellable: 'Apta para venta',
+      damaged: 'Dañada',
+      completed: 'Completada',
+      in_progress: 'En progreso',
+      prepared: 'Preparada',
+      dispatched: 'Despachada',
+      received: 'Recibida',
+      delivered: 'Entregada',
     }[status] ?? status
   );
 }
@@ -1506,11 +1521,11 @@ function compactSale(row: SalesDetail['rows'][number]): Record<string, unknown> 
     fecha: row.confirmed_at ?? row.created_at,
     cliente: row.customer_name,
     cajero: row.cashier_name ?? row.created_by_name,
-    estado: row.status,
+    estado: statusLabel(row.status),
     devoluciones:
       returnedProducts ||
       (row.returns.length > 0 ? `${row.returns.length} devolucion(es)` : 'Sin devoluciones'),
-    cobranza: row.collection.status,
+    cobranza: statusLabel(row.collection.status),
     saldo: row.collection.balance_base_amount,
     total: row.total_base_amount,
     items: row.items_count,
