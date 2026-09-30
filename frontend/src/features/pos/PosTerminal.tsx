@@ -68,7 +68,6 @@ import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { ProductDetailDialog } from './ProductDetailDialog';
-import { TicketPreviewDialog } from './TicketPreviewDialog';
 import {
   DenominationGrid,
   cashCountTotals,
@@ -506,7 +505,6 @@ export function PosTerminal() {
   });
   const [lastReceipt, setLastReceipt] = useState<PosOrder | null>(null);
   const [lastPrintJobs, setLastPrintJobs] = useState<PrintJob[]>([]);
-  const [previewOrder, setPreviewOrder] = useState<PosOrder | null>(null);
   const [selectedPending, setSelectedPending] = useState<PosOrder | null>(null);
   const [promotionView, setPromotionView] = useState<'all' | 'invoice' | 'combo' | 'product_offer'>(
     'all',
@@ -798,8 +796,6 @@ export function PosTerminal() {
       null,
     [activeSession, printerStations],
   );
-  const canThermalPrint =
-    canPrint && (!activePrinterStation || activePrinterStation.output_mode !== 'digital');
   const selectedWarehouse =
     warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
   const cartProductIds = useMemo(() => cart.map((line) => line.product_id), [cart]);
@@ -2325,18 +2321,6 @@ export function PosTerminal() {
           </PanelShell>
         )}
 
-        {/* Previsualizacion centrada del ticket al cobrar (F10) */}
-        <TicketPreviewDialog
-          order={previewOrder}
-          onClose={() => setPreviewOrder(null)}
-          canThermalPrint={canThermalPrint}
-          canDigital={canDigital}
-          busy={createPrintJob.isPending || updatePrintJobStatus.isPending}
-          onPrintThermal={() =>
-            previewOrder && void createAndDispatchPrintJobs(previewOrder, false, 'thermal')
-          }
-          onDownloadPdf={() => previewOrder && void requestDigitalPdf(previewOrder)}
-        />
       </div>
 
       <QuotationCreateDialog
@@ -3060,9 +3044,10 @@ export function PosTerminal() {
         setExchangeReturnId(null);
       }
       setLastReceipt(order);
-      setPreviewOrder(order);
       clearTicket();
+      setPanel(null);
       toast.success('Venta confirmada.');
+      void createAndDispatchPrintJobs(order, false, 'thermal');
     } catch (error) {
       void bootstrap.refetch();
       toast.error(error instanceof Error ? error.message : 'No se pudo completar el cobro.');
@@ -3103,10 +3088,11 @@ export function PosTerminal() {
         credit_due_date: creditDueDate || null,
       });
       setLastReceipt(order);
-      setPreviewOrder(order);
       clearTicket();
+      setPanel(null);
       setCreditDueDate('');
       toast.success('Venta enviada a cuentas por cobrar.');
+      void createAndDispatchPrintJobs(order, false, 'thermal');
     } catch (error) {
       void bootstrap.refetch();
       toast.error(error instanceof Error ? error.message : 'No se pudo enviar la venta a CxC.');
@@ -3208,8 +3194,10 @@ export function PosTerminal() {
         : undefined,
     });
     setLastReceipt(paid);
-    setPreviewOrder(paid);
     clearTicket();
+    setPanel(null);
+    toast.success('Venta completada.');
+    void createAndDispatchPrintJobs(paid, false, 'thermal');
   }
 
   async function recoverPendingOrder(order: PosOrder): Promise<void> {
@@ -3449,6 +3437,9 @@ export function PosTerminal() {
     setExchangeDraft(null);
     setExchangeReturnId(null);
     setInvoicePromotionAction(null);
+    setTimeout(() => {
+      searchRef.current?.focus();
+    }, 0);
   }
 
   async function createAndDispatchPrintJobs(
@@ -3498,9 +3489,9 @@ export function PosTerminal() {
             }
 
             // Flujo directo al diálogo de impresión del navegador para la impresora térmica instalada
-            await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'sent' });
+            void updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'sent' });
             await printTicketViaBrowser(job.id);
-            await updatePrintJobStatus.mutateAsync({
+            void updatePrintJobStatus.mutateAsync({
               jobId: job.id,
               status: 'printed',
             });

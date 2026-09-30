@@ -69,8 +69,13 @@ class ResolveTenant
                 ->first();
         }
 
+        $host = $request->getHost();
+        $cleanHost = preg_replace('/^www\./', '', $host);
+
         return Tenant::query()
-            ->where('domain', $request->getHost())
+            ->where('domain', $host)
+            ->orWhere('domain', 'app.' . $cleanHost)
+            ->orWhere('domain', $cleanHost)
             ->first();
     }
 }

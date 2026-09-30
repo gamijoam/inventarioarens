@@ -423,7 +423,7 @@ export function printHtmlContent(html: string): Promise<void> {
       }
     };
 
-    setTimeout(triggerPrint, 250);
+    setTimeout(triggerPrint, 50);
   });
 }
 
