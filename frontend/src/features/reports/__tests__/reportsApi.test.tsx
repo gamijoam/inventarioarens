@@ -144,14 +144,18 @@ describe('reports api', () => {
         sales: {
           confirmed_count: 1,
           confirmed_base_amount: 10,
+          returned_base_amount: 2,
+          net_base_amount: 8,
           pos_paid_count: 1,
           pos_paid_base_amount: 10,
+          pos_returned_base_amount: 2,
+          pos_net_paid_base_amount: 8,
           pos_open_count: 0,
           pos_open_base_amount: 0,
           credit_count: 1,
           credit_balance_base_amount: 2,
         },
-        returns: { requested_count: 1, processed_count: 0 },
+        returns: { requested_count: 1, processed_count: 1, processed_base_amount: 2 },
         cash: {
           open_count: 1,
           closed_count: 0,
@@ -168,7 +172,13 @@ describe('reports api', () => {
         },
         generated_at: '2026-07-18T12:00:00.000000Z',
       }),
-    ).toMatchObject({ sales: { confirmed_count: 1 } });
+    ).toMatchObject({
+      sales: {
+        confirmed_count: 1,
+        net_base_amount: 8,
+        pos_net_paid_base_amount: 8,
+      },
+    });
 
     expect(
       SalesDetailSchema.parse({
@@ -190,13 +200,53 @@ describe('reports api', () => {
             total_local_amount: 10000,
             items_count: 1,
             collection: { status: 'partial', balance_base_amount: 2, collected_base_amount: 8 },
-            items: [],
+            items: [
+              {
+                id: 1,
+                product_id: 10,
+                product_name: 'Pastillas de Freno',
+                sku: 'PF-001',
+                warehouse_name: 'Principal',
+                quantity: 2,
+                returned_quantity: 1,
+                unit_price: 5,
+                base_total_amount: 10,
+                discount_base_amount: 0,
+                serial_units: [],
+              },
+            ],
             payments: [],
-            returns: [],
+            returns: [
+              {
+                id: 10,
+                status: 'processed',
+                reason: 'Defecto',
+                items_count: 1,
+                processed_at: '2026-07-18T12:00:00.000000Z',
+                items: [
+                  {
+                    id: 1,
+                    sale_item_id: 1,
+                    product_id: 10,
+                    product_name: 'Pastillas de Freno',
+                    product_sku: 'PF-001',
+                    quantity: 1,
+                    reason: 'Defecto',
+                  },
+                ],
+              },
+            ],
           },
         ],
       }),
-    ).toMatchObject({ rows: [{ collection: { status: 'partial' } }] });
+    ).toMatchObject({
+      rows: [
+        {
+          collection: { status: 'partial' },
+          returns: [{ items: [{ product_name: 'Pastillas de Freno', quantity: 1 }] }],
+        },
+      ],
+    });
 
     expect(
       CashSessionsSchema.parse({

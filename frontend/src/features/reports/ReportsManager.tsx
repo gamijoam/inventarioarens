@@ -11,6 +11,7 @@ import {
   Landmark,
   ReceiptText,
   RefreshCw,
+  RotateCcw,
   Wallet,
 } from 'lucide-react';
 
@@ -367,18 +368,36 @@ function DailyPanel({
       description="Auditoria del dia sin exigir que todas las cajas esten cerradas."
       onExport={onExport}
     >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Metric
           icon={ReceiptText}
-          label="Ventas confirmadas"
-          value={formatMoney(data.sales.confirmed_base_amount)}
-          helper={`${data.sales.confirmed_count} ventas`}
+          label="Ventas netas"
+          value={formatMoney(data.sales.net_base_amount ?? data.sales.confirmed_base_amount)}
+          helper={
+            (data.sales.returned_base_amount ?? 0) > 0
+              ? `${data.sales.confirmed_count} confirmadas · Dev. ${formatMoney(data.sales.returned_base_amount ?? 0)}`
+              : `${data.sales.confirmed_count} confirmadas`
+          }
         />
         <Metric
           icon={Wallet}
           label="POS cobrado"
-          value={formatMoney(data.sales.pos_paid_base_amount)}
-          helper={`${data.sales.pos_paid_count} tickets`}
+          value={formatMoney(
+            data.sales.pos_net_paid_base_amount ??
+              (data.sales.pos_paid_base_amount - (data.sales.pos_returned_base_amount ?? 0)),
+          )}
+          helper={
+            (data.sales.pos_returned_base_amount ?? 0) > 0
+              ? `${data.sales.pos_paid_count} tickets · Dev. ${formatMoney(data.sales.pos_returned_base_amount ?? 0)}`
+              : `${data.sales.pos_paid_count} tickets pagados`
+          }
+        />
+        <Metric
+          icon={RotateCcw}
+          label="Devoluciones"
+          value={formatMoney(data.sales.returned_base_amount ?? data.returns.processed_base_amount ?? 0)}
+          helper={`${data.returns.processed_count} procesadas${data.returns.requested_count > 0 ? ` · ${data.returns.requested_count} solicitadas` : ''}`}
+          tone={(data.sales.returned_base_amount ?? 0) > 0 ? 'warning' : 'default'}
         />
         <Metric
           icon={Landmark}
@@ -866,85 +885,153 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
-          {rows.map((row) => (
-            <Fragment key={row.id}>
-              <tr
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-              >
-                <td className="px-3 py-2 font-semibold">
-                  <span className="inline-flex items-center gap-2">
-                    {expanded === row.id ? (
-                      <ChevronDown className="size-4" />
-                    ) : (
-                      <ChevronRight className="size-4" />
-                    )}
-                    #{row.id} - {row.origin}
-                  </span>
-                </td>
-                <td className="text-text-muted px-3 py-2">
-                  {formatDate(row.confirmed_at ?? row.created_at)}
-                </td>
-                <td className="px-3 py-2">{row.customer_name}</td>
-                <td className="px-3 py-2">{row.cashier_name ?? row.created_by_name ?? '-'}</td>
-                <td className="px-3 py-2">
-                  <StatusBadge status={row.status} />
-                </td>
-                <td className="px-3 py-2">
-                  <StatusBadge status={row.collection.status} />
-                  {row.collection.balance_base_amount > 0 && (
-                    <span className="ml-2 font-semibold">
-                      {formatMoney(row.collection.balance_base_amount)}
+          {rows.map((row) => {
+            const returnedProducts = row.returns
+              .filter((r) => r.status === 'processed')
+              .flatMap((r) => r.items ?? [])
+              .reduce(
+                (acc, item) => {
+                  const key = item.sale_item_id || item.product_id || item.product_name || 'unknown';
+                  const existing = acc.find((p) => p.key === key);
+                  if (existing) {
+                    existing.quantity += item.quantity;
+                  } else {
+                    acc.push({
+                      key,
+                      name: item.product_name || 'Producto',
+                      sku: item.product_sku,
+                      quantity: item.quantity,
+                    });
+                  }
+                  return acc;
+                },
+                [] as Array<{ key: string | number; name: string; sku?: string | null; quantity: number }>,
+              );
+
+            return (
+              <Fragment key={row.id}>
+                <tr
+                  key={row.id}
+                  className="cursor-pointer"
+                  onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+                >
+                  <td className="px-3 py-2 font-semibold">
+                    <span className="inline-flex items-center gap-2">
+                      {expanded === row.id ? (
+                        <ChevronDown className="size-4" />
+                      ) : (
+                        <ChevronRight className="size-4" />
+                      )}
+                      #{row.id} - {row.origin}
                     </span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                  {formatMoney(row.total_base_amount)}
-                </td>
-                <td className="px-3 py-2 text-right">{row.items_count ?? row.items.length}</td>
-              </tr>
-              {expanded === row.id && (
-                <tr>
-                  <td colSpan={8} className="bg-bg/60 px-3 py-3">
-                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                      <DetailList
-                        title="Productos"
-                        rows={row.items.map(
-                          (item) =>
-                            `${item.product_name ?? 'Producto'} - ${formatQty(item.quantity)} und. - ${formatMoney(item.base_total_amount)}${item.serial_units.length ? ` - ${item.serial_units.map((unit) => unit.serial_number).join(', ')}` : ''}`,
-                        )}
-                      />
-                      <DetailList
-                        title="Pagos"
-                        rows={row.payments.map(
-                          (payment) =>
-                            `${payment.payment_method_name ?? methodLabel(payment.method)} - ${payment.currency} ${payment.amount} - Base ${formatMoney(payment.amount_base)}${payment.reference ? ` - Ref. ${payment.reference}` : ''}`,
-                        )}
-                        empty="Sin pagos registrados"
-                      />
-                      <DetailList
-                        title="Devoluciones"
-                        rows={row.returns.map(
-                          (item) =>
-                            `#${item.id} - ${statusLabel(item.status)} - ${item.items_count} items`,
-                        )}
-                        empty="Sin devoluciones"
-                      />
-                      <DetailList
-                        title="POS/Caja"
-                        rows={[
-                          row.pos_order
-                            ? `Orden POS #${row.pos_order.id} - ${row.pos_order.cash_register_name ?? 'Sin caja'} - ${row.pos_order.branch_name ?? 'Sin sucursal'}`
-                            : 'Venta manual',
-                        ]}
-                      />
-                    </div>
                   </td>
+                  <td className="text-text-muted px-3 py-2">
+                    {formatDate(row.confirmed_at ?? row.created_at)}
+                  </td>
+                  <td className="px-3 py-2">{row.customer_name}</td>
+                  <td className="px-3 py-2">{row.cashier_name ?? row.created_by_name ?? '-'}</td>
+                  <td className="px-3 py-2">
+                    <StatusBadge status={row.status} />
+                    {returnedProducts.length > 0 && (
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        {returnedProducts.map((p) => (
+                          <span
+                            key={p.key}
+                            className="inline-flex items-center text-xs font-medium text-amber-700 dark:text-amber-300"
+                          >
+                            ↩ Devuelto: {p.name} ({formatQty(p.quantity)} und.)
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <StatusBadge status={row.collection.status} />
+                    {row.collection.balance_base_amount > 0 && (
+                      <span className="ml-2 font-semibold">
+                        {formatMoney(row.collection.balance_base_amount)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                    {formatMoney(row.total_base_amount)}
+                  </td>
+                  <td className="px-3 py-2 text-right">{row.items_count ?? row.items.length}</td>
                 </tr>
-              )}
-            </Fragment>
-          ))}
+                {expanded === row.id && (
+                  <tr>
+                    <td colSpan={8} className="bg-bg/60 px-3 py-3">
+                      {returnedProducts.length > 0 && (
+                        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                          <span className="font-semibold">Productos con devolución en esta venta:</span>
+                          <ul className="mt-1 list-inside list-disc space-y-0.5">
+                            {returnedProducts.map((p) => (
+                              <li key={p.key}>
+                                <span className="font-medium">{p.name}</span>
+                                {p.sku ? ` (${p.sku})` : ''}: {formatQty(p.quantity)} und. devuelta(s)
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        <DetailList
+                          title="Productos"
+                          rows={row.items.map((item) => {
+                            const retQty =
+                              item.returned_quantity ??
+                              row.returns
+                                .filter((r) => r.status === 'processed')
+                                .flatMap((r) => r.items ?? [])
+                                .filter((ri) =>
+                                  ri.sale_item_id
+                                    ? ri.sale_item_id === item.id
+                                    : ri.product_id === item.product_id,
+                                )
+                                .reduce((sum, ri) => sum + ri.quantity, 0);
+                            const retBadge =
+                              retQty > 0 ? ` (Devuelto: ${formatQty(retQty)} und.)` : '';
+                            return `${item.product_name ?? 'Producto'} - ${formatQty(item.quantity)} und.${retBadge} - ${formatMoney(item.base_total_amount)}${item.serial_units.length ? ` - ${item.serial_units.map((unit) => unit.serial_number).join(', ')}` : ''}`;
+                          })}
+                        />
+                        <DetailList
+                          title="Pagos"
+                          rows={row.payments.map(
+                            (payment) =>
+                              `${payment.payment_method_name ?? methodLabel(payment.method)} - ${payment.currency} ${payment.amount} - Base ${formatMoney(payment.amount_base)}${payment.reference ? ` - Ref. ${payment.reference}` : ''}`,
+                          )}
+                          empty="Sin pagos registrados"
+                        />
+                        <DetailList
+                          title="Devoluciones"
+                          rows={row.returns.map((ret) => {
+                            const itemsList = (ret.items ?? [])
+                              .map(
+                                (i) =>
+                                  `${i.product_name ?? 'Producto'} (${formatQty(i.quantity)} und.)`,
+                              )
+                              .join(', ');
+                            const details = itemsList ? `: ${itemsList}` : ` - ${ret.items_count} items`;
+                            const reason = ret.reason ? ` · Motivo: ${ret.reason}` : '';
+                            return `#${ret.id} - ${statusLabel(ret.status)}${details}${reason}`;
+                          })}
+                          empty="Sin devoluciones"
+                        />
+                        <DetailList
+                          title="POS/Caja"
+                          rows={[
+                            row.pos_order
+                              ? `Orden POS #${row.pos_order.id} - ${row.pos_order.cash_register_name ?? 'Sin caja'} - ${row.pos_order.branch_name ?? 'Sin sucursal'}`
+                              : 'Venta manual',
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1408,12 +1495,21 @@ function financePartyName(row: FinanceReceivableRow | FinancePayableRow): string
 }
 
 function compactSale(row: SalesDetail['rows'][number]): Record<string, unknown> {
+  const returnedProducts = row.returns
+    .filter((r) => r.status === 'processed')
+    .flatMap((r) => r.items ?? [])
+    .map((i) => `${i.product_name ?? 'Producto'} (${formatQty(i.quantity)} und.)`)
+    .join('; ');
+
   return {
     venta: row.id,
     fecha: row.confirmed_at ?? row.created_at,
     cliente: row.customer_name,
     cajero: row.cashier_name ?? row.created_by_name,
     estado: row.status,
+    devoluciones:
+      returnedProducts ||
+      (row.returns.length > 0 ? `${row.returns.length} devolucion(es)` : 'Sin devoluciones'),
     cobranza: row.collection.status,
     saldo: row.collection.balance_base_amount,
     total: row.total_base_amount,
@@ -1424,12 +1520,29 @@ function compactSale(row: SalesDetail['rows'][number]): Record<string, unknown> 
 function flattenDaily(data: DailyOperations): Array<Record<string, unknown>> {
   return [
     {
-      indicador: 'Ventas confirmadas',
+      indicador: 'Ventas netas',
+      valor: data.sales.net_base_amount ?? data.sales.confirmed_base_amount,
+      cantidad: data.sales.confirmed_count,
+    },
+    {
+      indicador: 'Ventas confirmadas (bruto)',
       valor: data.sales.confirmed_base_amount,
       cantidad: data.sales.confirmed_count,
     },
     {
-      indicador: 'POS cobrado',
+      indicador: 'Devoluciones procesadas',
+      valor: data.sales.returned_base_amount ?? data.returns.processed_base_amount ?? 0,
+      cantidad: data.returns.processed_count,
+    },
+    {
+      indicador: 'POS cobrado (neto)',
+      valor:
+        data.sales.pos_net_paid_base_amount ??
+        data.sales.pos_paid_base_amount - (data.sales.pos_returned_base_amount ?? 0),
+      cantidad: data.sales.pos_paid_count,
+    },
+    {
+      indicador: 'POS cobrado (bruto)',
       valor: data.sales.pos_paid_base_amount,
       cantidad: data.sales.pos_paid_count,
     },
@@ -1444,6 +1557,5 @@ function flattenDaily(data: DailyOperations): Array<Record<string, unknown>> {
       cantidad: data.cash.open_count + data.cash.closed_count,
     },
     { indicador: 'Devoluciones solicitadas', valor: '', cantidad: data.returns.requested_count },
-    { indicador: 'Devoluciones procesadas', valor: '', cantidad: data.returns.processed_count },
   ];
 }

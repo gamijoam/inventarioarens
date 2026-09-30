@@ -171,6 +171,7 @@ export function useCreateSalesReturn() {
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: saleKeys.detail(payload.sale_id) });
       void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -183,6 +184,7 @@ export function useApproveSalesReturn() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -195,6 +197,7 @@ export function useRejectSalesReturn() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -207,6 +210,7 @@ export function useProcessSalesReturn() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -219,6 +223,7 @@ export function useCancelSalesReturn() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -234,6 +239,7 @@ export function useExchangeSalesReturn() {
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: [...salesReturnKeys.all, 'detail', variables.id] });
       void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -249,6 +255,7 @@ export function useCompleteSalesReturnExchange() {
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: [...salesReturnKeys.all, 'detail', variables.id] });
       void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }

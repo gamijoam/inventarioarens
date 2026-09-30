@@ -48,6 +48,9 @@ class OperationalReportService
         $requestedReturns = $this->returnsQuery($tenantId, $from, $to, $filters, SalesReturn::STATUS_REQUESTED, 'created_at');
         $processedReturns = $this->returnsQuery($tenantId, $from, $to, $filters, SalesReturn::STATUS_PROCESSED, 'processed_at');
         $processedReturnsBaseAmount = $this->returnsBaseAmount($processedReturns);
+        $posPaidBaseAmount = $this->sum($paidOrders, 'pos_orders.paid_base_amount');
+        $posReturnedBaseAmount = $this->posReturnsBaseAmount($tenantId, $from, $to, $filters);
+        $posNetPaidBaseAmount = max(0, round($posPaidBaseAmount - $posReturnedBaseAmount, 4));
         $sessions = $this->sessionsQuery($tenantId, $from, $to, $filters);
 
         return [
@@ -59,7 +62,9 @@ class OperationalReportService
                 'returned_base_amount' => $processedReturnsBaseAmount,
                 'net_base_amount' => round($this->sum($sales, 'sales.total_base_amount') - $processedReturnsBaseAmount, 4),
                 'pos_paid_count' => (clone $paidOrders)->count(),
-                'pos_paid_base_amount' => $this->sum($paidOrders, 'pos_orders.paid_base_amount'),
+                'pos_paid_base_amount' => $posPaidBaseAmount,
+                'pos_returned_base_amount' => $posReturnedBaseAmount,
+                'pos_net_paid_base_amount' => $posNetPaidBaseAmount,
                 'pos_open_count' => (clone $openOrders)->count(),
                 'pos_open_base_amount' => $this->sum($openOrders, 'pos_orders.total_base_amount'),
                 'credit_count' => (clone $receivables)->where('balance_base_amount', '>', 0)->count(),
@@ -111,7 +116,8 @@ class OperationalReportService
                 'posOrder.cashRegisterSession.cashRegister',
                 'posOrder.payments.paymentMethod',
                 'receivable',
-                'salesReturns.items',
+                'salesReturns.items.product',
+                'salesReturns.items.saleItem.product',
             ])
             ->withCount('items')
             ->when(($filters['status'] ?? 'all') !== 'all' && in_array($filters['status'], [Sale::STATUS_DRAFT, Sale::STATUS_CONFIRMED, Sale::STATUS_CANCELLED], true), fn ($query) => $query->where('status', $filters['status']))
@@ -337,7 +343,7 @@ class OperationalReportService
                 'cash_register_name' => $posOrder->cashRegisterSession?->cashRegister?->name,
                 'branch_name' => $posOrder->cashRegisterSession?->branch?->name,
             ] : null,
-            'items' => $sale->items->map(fn (SaleItem $item): array => $this->saleItemRow($item, $serialUnits))->all(),
+            'items' => $sale->items->map(fn (SaleItem $item): array => $this->saleItemRow($item, $serialUnits, $sale))->all(),
             'payments' => $posOrder?->payments->map(fn (PosPayment $payment): array => [
                 'id' => $payment->id,
                 'method' => $payment->method,
@@ -356,13 +362,27 @@ class OperationalReportService
                 'reason' => $return->reason,
                 'items_count' => $return->items->count(),
                 'processed_at' => $return->processed_at?->toISOString(),
+                'items' => $return->items->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'sale_item_id' => $item->sale_item_id,
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product?->name ?? $item->saleItem?->product?->name ?? 'Producto',
+                    'product_sku' => $item->product?->sku ?? $item->saleItem?->product?->sku,
+                    'quantity' => (float) $item->quantity,
+                    'reason' => $item->reason,
+                ])->all(),
             ])->all(),
         ];
     }
 
-    private function saleItemRow(SaleItem $item, Collection $serialUnits): array
+    private function saleItemRow(SaleItem $item, Collection $serialUnits, ?Sale $sale = null): array
     {
         $unitIds = $item->product_unit_ids ?? [];
+        $returnedQuantity = $sale ? (float) $sale->salesReturns
+            ->where('status', SalesReturn::STATUS_PROCESSED)
+            ->flatMap(fn ($ret) => $ret->items)
+            ->where('sale_item_id', $item->id)
+            ->sum('quantity') : 0.0;
 
         return [
             'id' => $item->id,
@@ -371,6 +391,7 @@ class OperationalReportService
             'sku' => $item->product?->sku,
             'warehouse_name' => $item->warehouse?->name,
             'quantity' => (float) $item->quantity,
+            'returned_quantity' => $returnedQuantity,
             'unit_price' => (float) $item->unit_price,
             'base_total_amount' => (float) $item->base_total_amount,
             'discount_base_amount' => (float) $item->discount_base_amount,
@@ -559,6 +580,7 @@ class OperationalReportService
             })
             ->where('sales_returns.tenant_id', $tenantId)
             ->where('sales_returns.status', $status)
+            ->where('sales.status', Sale::STATUS_CONFIRMED)
             ->whereBetween("sales_returns.{$dateColumn}", [$from, $to]);
 
         if ($filters['customer_id'] ?? null) {
@@ -580,6 +602,44 @@ class OperationalReportService
                     ->on('sale_items.tenant_id', '=', 'sales_return_items.tenant_id');
             })
             ->sum(DB::raw('CASE WHEN sale_items.quantity > 0 THEN sale_items.base_total_amount / sale_items.quantity * sales_return_items.quantity ELSE 0 END')), 4);
+    }
+
+    private function posReturnsBaseAmount(int $tenantId, Carbon $from, Carbon $to, array $filters): float
+    {
+        $query = DB::table('sales_returns')
+            ->join('sales', function ($join): void {
+                $join->on('sales.id', '=', 'sales_returns.sale_id')
+                    ->on('sales.tenant_id', '=', 'sales_returns.tenant_id');
+            })
+            ->join('pos_orders', function ($join): void {
+                $join->on('pos_orders.sale_id', '=', 'sales.id')
+                    ->on('pos_orders.tenant_id', '=', 'sales.tenant_id');
+            })
+            ->leftJoin('cash_register_sessions', function ($join): void {
+                $join->on('cash_register_sessions.id', '=', 'pos_orders.cash_register_session_id')
+                    ->on('cash_register_sessions.tenant_id', '=', 'pos_orders.tenant_id');
+            })
+            ->join('sales_return_items', function ($join): void {
+                $join->on('sales_return_items.sales_return_id', '=', 'sales_returns.id')
+                    ->on('sales_return_items.tenant_id', '=', 'sales_returns.tenant_id');
+            })
+            ->join('sale_items', function ($join): void {
+                $join->on('sale_items.id', '=', 'sales_return_items.sale_item_id')
+                    ->on('sale_items.tenant_id', '=', 'sales_return_items.tenant_id');
+            })
+            ->where('sales_returns.tenant_id', $tenantId)
+            ->where('sales_returns.status', SalesReturn::STATUS_PROCESSED)
+            ->where('sales.status', Sale::STATUS_CONFIRMED)
+            ->where('pos_orders.status', PosOrder::STATUS_PAID)
+            ->whereBetween('sales_returns.processed_at', [$from, $to]);
+
+        if ($filters['customer_id'] ?? null) {
+            $query->where('sales.customer_id', $filters['customer_id']);
+        }
+
+        $this->applyOrderFilters($query, $filters);
+
+        return round((float) $query->sum(DB::raw('CASE WHEN sale_items.quantity > 0 THEN sale_items.base_total_amount / sale_items.quantity * sales_return_items.quantity ELSE 0 END')), 4);
     }
 
     private function sessionsQuery(int $tenantId, Carbon $from, Carbon $to, array $filters): Builder
