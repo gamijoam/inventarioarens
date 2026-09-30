@@ -261,7 +261,6 @@ class AccessControlService
             'name' => $user->name,
             'email' => $user->email,
         ];
-
         if (isset($data['email'])) {
             $data['email'] = Str::lower(trim($data['email']));
         }
