@@ -52,10 +52,7 @@ export function CreateManualMovementDialog({
   }, [productSearch]);
 
   const [warehouseId, setWarehouseId] = useState(0);
-  const { data: products = [] } = useProductsForTransfer(
-    debouncedSearch,
-    warehouseId > 0 ? warehouseId : undefined,
-  );
+  const { data: products = [] } = useProductsForTransfer(debouncedSearch);
   const create = useCreateManualMovement();
   const [productId, setProductId] = useState<number | null>(null);
   const [variantId, setVariantId] = useState<number | null>(null);
