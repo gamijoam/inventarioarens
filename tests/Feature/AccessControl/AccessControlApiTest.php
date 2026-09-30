@@ -737,6 +737,33 @@ class AccessControlApiTest extends TestCase
         );
     }
 
+    public function test_can_update_user_name_and_email(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Test', 'slug' => 'empresa-test']);
+        $admin = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $admin, 'Owner', BasePermissions::PERMISSIONS);
+
+        $target = $this->userInTenant($tenant);
+
+        $response = $this
+            ->actingAs($admin)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->patchJson("/api/users/{$target->id}", [
+                'name' => 'Nombre Editado',
+                'email' => 'nuevo_correo@example.com',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.name', 'Nombre Editado')
+            ->assertJsonPath('data.email', 'nuevo_correo@example.com');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $target->id,
+            'name' => 'Nombre Editado',
+            'email' => 'nuevo_correo@example.com',
+        ]);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
