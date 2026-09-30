@@ -40,10 +40,7 @@ class AuthController extends Controller
                 ->orWhere('domain', $identifier)
                 ->first();
         } else {
-            $host = $request->getHost();
-            $tenant = Tenant::query()
-                ->where('domain', $host)
-                ->first();
+            $tenant = $this->findTenantByHost($request->getHost());
         }
 
         if (! $tenant) {
@@ -294,6 +291,15 @@ class AuthController extends Controller
             return true;
         }
 
+        $origin = $request->header('Origin');
+        if ($origin !== null) {
+            $originHost = parse_url($origin, PHP_URL_HOST);
+            $cleanHost = preg_replace('/^www\./', '', $request->getHost());
+            if ($originHost === $request->getHost() || $originHost === $cleanHost || $originHost === 'app.' . $cleanHost) {
+                return true;
+            }
+        }
+
         $appUrl = (string) config('app.url', '');
         if ($appUrl !== '') {
             $expectedOrigin = parse_url($appUrl, PHP_URL_SCHEME).'://'.parse_url($appUrl, PHP_URL_HOST);
@@ -319,6 +325,17 @@ class AuthController extends Controller
                 ->first();
         }
 
-        return null;
+        return $this->findTenantByHost($request->getHost());
+    }
+
+    private function findTenantByHost(string $host): ?Tenant
+    {
+        $cleanHost = preg_replace('/^www\./', '', $host);
+
+        return Tenant::query()
+            ->where('domain', $host)
+            ->orWhere('domain', 'app.' . $cleanHost)
+            ->orWhere('domain', $cleanHost)
+            ->first();
     }
 }
