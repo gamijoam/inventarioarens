@@ -13,6 +13,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Support\Tenancy\TenantManager;
+use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -273,6 +274,7 @@ class OperationalReportService
             })
             ->where('pos_payments.tenant_id', $tenantId)
             ->where('pos_payments.status', PosPayment::STATUS_CAPTURED)
+            ->where('pos_orders.status', PosOrder::STATUS_PAID)
             ->whereBetween('pos_orders.paid_at', [$from, $to]);
 
         $this->applySessionFilters($query, $filters, 'cash_register_sessions');
@@ -623,14 +625,17 @@ class OperationalReportService
     {
         if (($filters['date_from'] ?? null) && ($filters['date_to'] ?? null)) {
             return [
-                Carbon::parse($filters['date_from'])->startOfDay(),
-                Carbon::parse($filters['date_to'])->endOfDay(),
+                BusinessDateRange::startOfDay($filters['date_from']),
+                BusinessDateRange::endOfDay($filters['date_to']),
             ];
         }
 
-        $date = Carbon::parse($filters['date'] ?? now()->toDateString());
+        $date = $filters['date'] ?? now(BusinessDateRange::timezone())->toDateString();
 
-        return [$date->copy()->startOfDay(), $date->copy()->endOfDay()];
+        return [
+            BusinessDateRange::startOfDay($date),
+            BusinessDateRange::endOfDay($date),
+        ];
     }
 
     private function paginationMeta(LengthAwarePaginator $paginator): array

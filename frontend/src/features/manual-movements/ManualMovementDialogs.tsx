@@ -42,7 +42,16 @@ export function CreateManualMovementDialog({
   warehouses,
   onCreated,
 }: CreateProps) {
-  const { data: products = [] } = useProductsForTransfer();
+  const [productSearch, setProductSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string; sku?: string | null; barcode?: string | null } | null>(null);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedSearch(productSearch), 250);
+    return () => window.clearTimeout(handle);
+  }, [productSearch]);
+
+  const { data: products = [] } = useProductsForTransfer(debouncedSearch);
   const create = useCreateManualMovement();
   const [warehouseId, setWarehouseId] = useState(0);
   const [productId, setProductId] = useState<number | null>(null);
@@ -54,11 +63,15 @@ export function CreateManualMovementDialog({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { data: variants = [] } = useProductVariants(productId ?? 0);
   const hasVariants = variants.some((variant) => Boolean(variant.color) || Boolean(variant.sku_variant));
+
   useEffect(() => {
     if (open) {
       setWarehouseId(0);
       setProductId(null);
       setVariantId(null);
+      setSelectedProduct(null);
+      setProductSearch('');
+      setDebouncedSearch('');
       setQuantity(1);
       setType('internal_consumption');
       setReason('');
@@ -66,19 +79,25 @@ export function CreateManualMovementDialog({
       setErrors({});
     }
   }, [open]);
+
   // Al cambiar de producto, resetear la variante seleccionada.
   useEffect(() => {
     setVariantId(null);
   }, [productId]);
-  const productOptions = useMemo(
-    () =>
-      products.map((product) => ({
-        value: product.id,
-        label: product.name,
-        hint: product.sku ? `SKU: ${product.sku}` : undefined,
-      })),
-    [products],
-  );
+
+  const productOptions = useMemo(() => {
+    const list = [...products];
+    if (selectedProduct && !list.some((p) => p.id === selectedProduct.id)) {
+      list.unshift(selectedProduct as (typeof products)[0]);
+    }
+    return list.map((product) => ({
+      value: product.id,
+      label: product.name,
+      hint: [product.sku ? `SKU: ${product.sku}` : null, product.barcode ? `Código: ${product.barcode}` : null]
+        .filter((value): value is string => value !== null)
+        .join(' · '),
+    }));
+  }, [products, selectedProduct]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     const parsed = CreateManualMovementSchema.safeParse({
@@ -130,9 +149,19 @@ export function CreateManualMovementDialog({
           <Field label="Producto" error={errors.product_id}>
             <SingleSelectCombobox
               value={productId}
-              onChange={(value) => setProductId(value == null ? null : Number(value))}
+              onChange={(value) => {
+                const nextId = value == null ? null : Number(value);
+                setProductId(nextId);
+                if (nextId != null) {
+                  const found = products.find((p) => p.id === nextId) ?? selectedProduct;
+                  if (found) setSelectedProduct(found);
+                } else {
+                  setSelectedProduct(null);
+                }
+              }}
+              onQueryChange={setProductSearch}
               options={productOptions}
-              placeholder="Buscar producto…"
+              placeholder="Buscar por nombre, SKU o código…"
             />
           </Field>
           {hasVariants && (
