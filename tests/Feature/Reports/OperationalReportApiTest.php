@@ -57,6 +57,118 @@ class OperationalReportApiTest extends TestCase
             ->assertJsonPath('data.payment_methods.0.amount_base', 125);
     }
 
+    public function test_daily_operations_date_uses_business_timezone_instead_of_utc(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa TZ', 'slug' => 'empresa-tz']);
+        $user = $this->userInTenant($tenant, ['reports.view']);
+        $this->useTenant($tenant);
+
+        Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 10,
+            'total_local_amount' => 740,
+            'created_at' => '2026-09-17 01:17:47',
+            'updated_at' => '2026-09-17 01:17:47',
+            'confirmed_at' => '2026-09-17 01:17:47',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/daily-operations?date=2026-09-17')
+            ->assertOk()
+            ->assertJsonPath('data.period.from', '2026-09-17')
+            ->assertJsonPath('data.period.to', '2026-09-17')
+            ->assertJsonPath('data.sales.confirmed_count', 0);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/daily-operations?date=2026-09-16')
+            ->assertOk()
+            ->assertJsonPath('data.sales.confirmed_count', 1);
+    }
+
+    public function test_daily_operations_nets_processed_returns_and_excludes_voided_sales(): void
+    {
+        Carbon::setTestNow('2026-07-18 11:00:00');
+
+        $tenant = Tenant::create(['name' => 'Empresa Dev', 'slug' => 'empresa-dev']);
+        $user = $this->userInTenant($tenant, ['reports.view']);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'BR-DEV']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen', 'code' => 'WH-DEV']);
+        $product = Product::create([
+            'name' => 'Producto Reporte Dev',
+            'sku' => 'DEV-001',
+            'tracking_type' => 'quantity',
+            'base_price' => 50,
+            'sale_currency' => 'USD',
+        ]);
+        $sale = Sale::create([
+            'status' => Sale::STATUS_CONFIRMED,
+            'total_base_amount' => 100,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+        $saleItem = SaleItem::create([
+            'sale_id' => $sale->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 2,
+            'sale_currency' => 'USD',
+            'unit_price' => 50,
+            'total_amount' => 100,
+            'base_unit_price' => 50,
+            'base_total_amount' => 100,
+        ]);
+        Sale::create([
+            'status' => Sale::STATUS_VOIDED,
+            'total_base_amount' => 900,
+            'created_by' => $user->id,
+            'confirmed_at' => now(),
+        ]);
+        $salesReturn = SalesReturn::create([
+            'sale_id' => $sale->id,
+            'status' => SalesReturn::STATUS_PROCESSED,
+            'reason' => 'Devolucion',
+            'processed_at' => now(),
+        ]);
+        $salesReturn->items()->create([
+            'sale_item_id' => $saleItem->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'condition' => 'sellable',
+        ]);
+
+        PosOrder::create([
+            'sale_id' => $sale->id,
+            'status' => PosOrder::STATUS_PAID,
+            'total_base_amount' => 100,
+            'paid_base_amount' => 100,
+            'opened_at' => now(),
+            'paid_at' => now(),
+            'closed_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/reports/daily-operations?date=2026-07-18')
+            ->assertOk()
+            ->assertJsonPath('data.sales.confirmed_count', 1)
+            ->assertJsonPath('data.sales.confirmed_base_amount', 100)
+            ->assertJsonPath('data.sales.returned_base_amount', 50)
+            ->assertJsonPath('data.sales.net_base_amount', 50)
+            ->assertJsonPath('data.sales.pos_paid_base_amount', 100)
+            ->assertJsonPath('data.sales.pos_returned_base_amount', 50)
+            ->assertJsonPath('data.sales.pos_net_paid_base_amount', 50)
+            ->assertJsonPath('data.returns.processed_count', 1)
+            ->assertJsonPath('data.returns.processed_base_amount', 50);
+    }
+
     public function test_sales_detail_returns_items_payments_receivables_and_returns(): void
     {
         Carbon::setTestNow('2026-07-18 11:00:00');
@@ -74,7 +186,9 @@ class OperationalReportApiTest extends TestCase
             ->assertJsonPath('data.rows.0.collection.status', AccountsReceivable::STATUS_PARTIAL)
             ->assertJsonPath('data.rows.0.items.0.product_name', 'Producto Reporte')
             ->assertJsonPath('data.rows.0.payments.0.reference', 'REF-REPORT')
-            ->assertJsonPath('data.rows.0.returns.0.status', SalesReturn::STATUS_REQUESTED);
+            ->assertJsonPath('data.rows.0.returns.0.status', SalesReturn::STATUS_REQUESTED)
+            ->assertJsonPath('data.rows.0.returns.0.items.0.product_name', 'Producto Reporte')
+            ->assertJsonPath('data.rows.0.returns.0.items.0.quantity', 1);
     }
 
     public function test_sales_detail_is_paginated(): void
