@@ -60,7 +60,13 @@ class TenantUserController extends Controller
     {
         $this->authorizePermission($request, 'users.view');
 
-        $user = $this->service->findAccessibleUser($tenantUser, $request->user());
+        $scope = $request->string('scope')->toString() === 'organization'
+            ? 'organization'
+            : 'tenant';
+
+        $user = $scope === 'organization'
+            ? $this->service->organizationUser($tenantUser, $request)
+            : $this->service->tenantUserOrFail($tenantUser);
 
         return TenantUserResource::make($user);
     }
