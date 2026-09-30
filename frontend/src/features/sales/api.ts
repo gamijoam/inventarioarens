@@ -120,6 +120,7 @@ export function useReversePosSale() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: saleKeys.details() });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

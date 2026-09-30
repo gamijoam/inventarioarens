@@ -57,6 +57,8 @@ interface DashboardSummary {
   pos: {
     paid_orders_count: number;
     paid_base_amount: number;
+    returned_base_amount?: number;
+    net_paid_base_amount?: number;
   };
   cash_register: {
     open_sessions_count: number;
@@ -302,8 +304,12 @@ function TenantDashboardSummary({
             <MetricCard
               title="POS cobrado"
               icon={Wallet}
-              value={formatMoney(data.pos.paid_base_amount)}
-              helper={`${data.pos.paid_orders_count} tickets pagados`}
+              value={formatMoney(data.pos.net_paid_base_amount ?? (data.pos.paid_base_amount - (data.pos.returned_base_amount ?? 0)))}
+              helper={
+                (data.pos.returned_base_amount ?? 0) > 0
+                  ? `${data.pos.paid_orders_count} tickets · Dev. ${formatMoney(data.pos.returned_base_amount ?? 0)}`
+                  : `${data.pos.paid_orders_count} tickets pagados`
+              }
               tone="success"
             />
           )}
