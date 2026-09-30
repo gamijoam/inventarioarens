@@ -154,6 +154,8 @@ const SaleReturnItemSummarySchema = z.object({
   id: z.number().int().positive(),
   sale_item_id: z.number().int().positive(),
   product_id: z.number().int().positive().optional(),
+  product_name: z.string().nullable().optional(),
+  product_sku: z.string().nullable().optional(),
   quantity: moneyValue,
   product_unit_ids: z.array(z.number()).nullable().optional(),
   condition: z.string().nullable().optional(),
