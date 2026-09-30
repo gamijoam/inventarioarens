@@ -47,13 +47,16 @@ export function CreateManualMovementDialog({
   const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string; sku?: string | null; barcode?: string | null } | null>(null);
 
   useEffect(() => {
-    const handle = window.setTimeout(() => setDebouncedSearch(productSearch), 250);
+    const handle = window.setTimeout(() => setDebouncedSearch(productSearch), 120);
     return () => window.clearTimeout(handle);
   }, [productSearch]);
 
-  const { data: products = [] } = useProductsForTransfer(debouncedSearch, { includeInactive: true });
-  const create = useCreateManualMovement();
   const [warehouseId, setWarehouseId] = useState(0);
+  const { data: products = [] } = useProductsForTransfer(
+    debouncedSearch,
+    warehouseId > 0 ? warehouseId : undefined,
+  );
+  const create = useCreateManualMovement();
   const [productId, setProductId] = useState<number | null>(null);
   const [variantId, setVariantId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -76,8 +79,6 @@ export function CreateManualMovementDialog({
       setType('internal_consumption');
       setReason('');
       setNotes('');
-      setProductSearch('');
-      setDebouncedSearch('');
       setErrors({});
     }
   }, [open]);
@@ -86,6 +87,7 @@ export function CreateManualMovementDialog({
   useEffect(() => {
     setVariantId(null);
   }, [productId]);
+
   const productOptions = useMemo(() => {
     const list = [...products];
     if (selectedProduct && !list.some((p) => p.id === selectedProduct.id)) {
@@ -94,16 +96,16 @@ export function CreateManualMovementDialog({
     return list.map((product) => ({
       value: product.id,
       label: product.name,
-      hint:
-        [
-          product.sku ? `SKU: ${product.sku}` : null,
-          product.barcode ? `BC: ${product.barcode}` : null,
-          product.available_stock !== undefined ? `Stock: ${Number(product.available_stock ?? 0)}` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ') || undefined,
-      badge: product.is_active === false ? 'Inactivo' : undefined,
-      badgeVariant: 'danger' as const,
+      hint: [
+        product.sku ? `SKU: ${product.sku}` : null,
+        product.barcode ? `Código: ${product.barcode}` : null,
+        product.available_stock !== undefined && product.available_stock !== null
+          ? `Stock: ${product.available_stock}`
+          : null,
+      ]
+        .filter((value): value is string => value !== null)
+        .join(' · '),
+      keywords: [product.description, product.brand?.name].filter(Boolean).join(' '),
     }));
   }, [products, selectedProduct]);
   async function submit(event: FormEvent) {
