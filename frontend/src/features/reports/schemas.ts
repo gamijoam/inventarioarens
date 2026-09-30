@@ -11,6 +11,26 @@ export const StockReportRowSchema = z.object({
   quantity_damaged: z.number(),
 });
 
+export const StockReportSummarySchema = z.object({
+  available: z.number(),
+  reserved: z.number(),
+  damaged: z.number(),
+  low_stock_count: z.number().optional(),
+});
+
+export const StockReportResponseSchema = z.object({
+  data: z.array(StockReportRowSchema),
+  meta: z
+    .object({
+      current_page: z.number(),
+      per_page: z.number(),
+      total: z.number(),
+      last_page: z.number(),
+    })
+    .optional(),
+  summary: StockReportSummarySchema.optional(),
+});
+
 export const MovementReportRowSchema = z.object({
   id: z.number(),
   warehouse_id: z.number(),
@@ -366,9 +386,12 @@ export const ReportFiltersSchema = z.object({
   page: z.number().optional(),
   per_page: z.number().optional(),
   threshold: z.number().optional(),
+  search: z.string().optional(),
 });
 
 export type StockReportRow = z.infer<typeof StockReportRowSchema>;
+export type StockReportSummary = z.infer<typeof StockReportSummarySchema>;
+export type StockReportResponse = z.infer<typeof StockReportResponseSchema>;
 export type MovementReportRow = z.infer<typeof MovementReportRowSchema>;
 export type FinanceSummary = z.infer<typeof FinanceSummarySchema>;
 export type FinanceReceivableRow = z.infer<typeof FinanceReceivableRowSchema>;

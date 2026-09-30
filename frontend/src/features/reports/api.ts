@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 
-import { getMany, getOne } from '@/api/client';
+import { api, getMany, getOne } from '@/api/client';
 import {
   FinancePayableRowSchema,
   FinanceReceivableRowSchema,
@@ -12,6 +12,7 @@ import {
   PaymentMethodsReportSchema,
   ReportCatalogItemSchema,
   SalesDetailSchema,
+  StockReportResponseSchema,
   StockReportRowSchema,
   type CashSessions,
   type DailyOperations,
@@ -23,7 +24,9 @@ import {
   type ReportFilters,
   type ReportCatalogItem,
   type SalesDetail,
+  type StockReportResponse,
   type StockReportRow,
+  type StockReportSummary,
 } from './schemas';
 import { reportKeys } from './queries';
 
@@ -46,6 +49,7 @@ function toQueryString(filters: ReportFilters = {}): string {
   if (filters.per_page) params.set('per_page', String(filters.per_page));
   if (filters.limit) params.set('limit', String(filters.limit));
   if (filters.threshold !== undefined) params.set('threshold', String(filters.threshold));
+  if (filters.search) params.set('search', filters.search);
   const q = params.toString();
   return q ? `?${q}` : '';
 }
@@ -97,8 +101,10 @@ export function buildFinancePayablesQuery(filters: ReportFilters = {}): string {
 export function useStockReport(filters: ReportFilters, enabled: boolean) {
   return useQuery({
     queryKey: reportKeys.stock(filters),
-    queryFn: async () =>
-      z.array(StockReportRowSchema).parse(await getMany<unknown>(buildStockReportQuery(filters))),
+    queryFn: async () => {
+      const response = await api.get(buildStockReportQuery(filters));
+      return StockReportResponseSchema.parse(response.data);
+    },
     enabled,
   });
 }
@@ -234,5 +240,7 @@ export type {
   ReportCatalogItem,
   ReportFilters,
   SalesDetail,
+  StockReportResponse,
   StockReportRow,
+  StockReportSummary,
 };

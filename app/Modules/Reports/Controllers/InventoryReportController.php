@@ -19,16 +19,44 @@ class InventoryReportController extends Controller
 {
     public function stock(StockReportRequest $request): AnonymousResourceCollection
     {
-        $balances = StockBalance::query()
-            ->with(['warehouse', 'product'])
+        $baseQuery = StockBalance::query()
             ->when($request->filled('warehouse_id'), fn ($query) => $query->where('warehouse_id', $request->integer('warehouse_id')))
             ->when($request->filled('product_id'), fn ($query) => $query->where('product_id', $request->integer('product_id')))
             ->when($request->filled('product_variant_id'), fn ($query) => $query->where('product_variant_id', $request->integer('product_variant_id')))
+            ->when($request->filled('search'), function ($query) use ($request): void {
+                $search = trim($request->string('search'));
+                $query->whereHas('product', function ($q) use ($search): void {
+                    $q->where(DB::raw('LOWER(name)'), 'like', '%'.mb_strtolower($search).'%')
+                        ->orWhere(DB::raw('LOWER(sku)'), 'like', '%'.mb_strtolower($search).'%')
+                        ->orWhere(DB::raw('LOWER(COALESCE(barcode, \'\'))'), 'like', '%'.mb_strtolower($search).'%');
+                });
+            });
+
+        $summary = (clone $baseQuery)
+            ->selectRaw('COALESCE(SUM(quantity_available), 0) as total_available')
+            ->selectRaw('COALESCE(SUM(quantity_reserved), 0) as total_reserved')
+            ->selectRaw('COALESCE(SUM(quantity_damaged), 0) as total_damaged')
+            ->first();
+
+        $threshold = (float) $request->input('threshold', 3);
+        $lowStockCount = (clone $baseQuery)
+            ->where('quantity_available', '<=', $threshold)
+            ->count();
+
+        $balances = (clone $baseQuery)
+            ->with(['warehouse', 'product'])
             ->orderBy('warehouse_id')
             ->orderBy('product_id')
             ->paginate($request->integer('per_page', 50));
 
-        return StockReportResource::collection($balances);
+        return StockReportResource::collection($balances)->additional([
+            'summary' => [
+                'available' => (float) ($summary->total_available ?? 0),
+                'reserved' => (float) ($summary->total_reserved ?? 0),
+                'damaged' => (float) ($summary->total_damaged ?? 0),
+                'low_stock_count' => $lowStockCount,
+            ],
+        ]);
     }
 
     public function lowStock(StockReportRequest $request): AnonymousResourceCollection
