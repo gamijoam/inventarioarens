@@ -13,6 +13,7 @@ export interface SingleSelectOption {
   label: string;
   hint?: string;
   badge?: string;
+  keywords?: string;
 }
 
 interface SingleSelectComboboxProps {
@@ -23,9 +24,18 @@ interface SingleSelectComboboxProps {
   emptyMessage?: string;
   disabled?: boolean;
   invalid?: boolean;
+  openOnFocus?: boolean;
   onQueryChange?: (query: string) => void;
   'aria-label'?: string;
   className?: string;
+}
+
+function cleanStr(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
 }
 
 export function SingleSelectCombobox({
@@ -36,6 +46,7 @@ export function SingleSelectCombobox({
   emptyMessage = 'Sin resultados',
   disabled = false,
   invalid = false,
+  openOnFocus = false,
   onQueryChange,
   className,
   ...aria
@@ -48,21 +59,50 @@ export function SingleSelectCombobox({
   const selected = useMemo(() => options.find((o) => o.value === value) ?? null, [options, value]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return options;
-    const clientMatches = options.filter(
-      (o) =>
-        o.label.toLowerCase().includes(q) ||
-        (o.hint ?? '').toLowerCase().includes(q) ||
-        (o.badge ?? '').toLowerCase().includes(q),
-    );
-    // Si el consumidor utiliza busqueda server-side (onQueryChange) y el filtro client-side
-    // no coincide (ej: busqueda por descripcion/token en el backend o solicitud en curso),
-    // mostramos las opciones del servidor para no bloquear productos validos
-    if (onQueryChange && clientMatches.length === 0 && options.length > 0) {
+    const normQuery = cleanStr(query);
+    if (!normQuery) return options;
+
+    const tokens = normQuery.split(/\s+/).filter(Boolean);
+
+    const clientMatches = options.filter((o) => {
+      const normLabel = cleanStr(o.label);
+      const normHint = cleanStr(o.hint ?? '');
+      const normBadge = cleanStr(o.badge ?? '');
+      const normKeywords = cleanStr(o.keywords ?? '');
+      const combined = `${normLabel} ${normHint} ${normBadge} ${normKeywords}`;
+      const combinedAlt = `${combined} ${combined.replace(/[-_./\\]/g, '')}`;
+
+      return tokens.every((token) => combinedAlt.includes(token));
+    });
+
+    const sorted = [...clientMatches].sort((a, b) => {
+      const aLabel = cleanStr(a.label);
+      const bLabel = cleanStr(b.label);
+      const aHint = cleanStr(a.hint ?? '');
+      const bHint = cleanStr(b.hint ?? '');
+
+      const aHintMatch = aHint.includes(normQuery);
+      const bHintMatch = bHint.includes(normQuery);
+      if (aHintMatch && !bHintMatch) return -1;
+      if (!aHintMatch && bHintMatch) return 1;
+
+      const aStarts = aLabel.startsWith(normQuery);
+      const bStarts = bLabel.startsWith(normQuery);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      const aContains = aLabel.includes(normQuery);
+      const bContains = bLabel.includes(normQuery);
+      if (aContains && !bContains) return -1;
+      if (!aContains && bContains) return 1;
+
+      return 0;
+    });
+
+    if (onQueryChange && sorted.length === 0 && options.length > 0) {
       return options;
     }
-    return clientMatches;
+    return sorted;
   }, [onQueryChange, options, query]);
 
   useEffect(() => {
@@ -135,10 +175,14 @@ export function SingleSelectCombobox({
               setOpen(true);
               setHighlight(0);
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={() => {
+              if (openOnFocus) setOpen(true);
+            }}
+            onClick={() => setOpen(true)}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
+                setOpen(true);
                 setHighlight((h) => Math.min(h + 1, Math.max(filtered.length - 1, 0)));
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
