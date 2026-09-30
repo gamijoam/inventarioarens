@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useState } from 'react';
 import {
   Banknote,
   Boxes,
@@ -44,10 +44,12 @@ import {
   type DailyOperations,
   type FinancePayableRow,
   type FinanceReceivableRow,
+  type MovementReportResponse,
   type MovementReportRow,
   type PaymentMethodsReport,
   type ReportFilters,
   type SalesDetail,
+  type StockReportResponse,
   type StockReportRow,
 } from './api';
 import { cashMovementLabel } from './movementLabels';
@@ -312,21 +314,23 @@ export function ReportsManager({
       )}
       {activeModule === 'stock' && (
         <StockPanel
-          rows={stock.data ?? []}
-          lowStockCount={lowStock.data?.length ?? 0}
+          data={stock.data}
+          lowStockCount={stock.data?.summary?.low_stock_count ?? lowStock.data?.length ?? 0}
           isLoading={stock.isLoading}
           canExport={canExport}
           filters={filters}
           updateFilter={updateFilter}
+          onPageChange={(page) => updateFilter('page', page)}
         />
       )}
       {activeModule === 'movements' && (
         <MovementsPanel
-          rows={movements.data ?? []}
+          data={movements.data}
           isLoading={movements.isLoading}
           canExport={canExport}
           filters={filters}
           updateFilter={updateFilter}
+          onPageChange={(page) => updateFilter('page', page)}
         />
       )}
       {activeModule === 'finance' && (
@@ -552,14 +556,15 @@ function PaymentsPanel({
 }
 
 function StockPanel({
-  rows,
+  data,
   lowStockCount,
   isLoading,
   canExport,
   filters,
   updateFilter,
+  onPageChange,
 }: {
-  rows: StockReportRow[];
+  data?: StockReportResponse;
   lowStockCount: number;
   isLoading: boolean;
   canExport: boolean;
@@ -568,56 +573,80 @@ function StockPanel({
     key: K,
     value: ReportFilters[K] | undefined,
   ) => void;
+  onPageChange: (page: number) => void;
 }) {
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (acc, row) => ({
-          available: acc.available + row.quantity_available,
-          reserved: acc.reserved + row.quantity_reserved,
-          damaged: acc.damaged + row.quantity_damaged,
-        }),
-        { available: 0, reserved: 0, damaged: 0 },
-      ),
-    [rows],
-  );
+  const rows = data?.data ?? [];
+  const summary = data?.summary;
+  const availableTotal =
+    summary?.available ??
+    rows.reduce((acc, row) => acc + row.quantity_available, 0);
+  const reservedTotal =
+    summary?.reserved ??
+    rows.reduce((acc, row) => acc + row.quantity_reserved, 0);
+  const damagedTotal =
+    summary?.damaged ??
+    rows.reduce((acc, row) => acc + row.quantity_damaged, 0);
+  const lowCount = summary?.low_stock_count ?? lowStockCount;
 
   return (
     <ReportPanel
       title="Inventario"
-      description="Existencias por almacen y producto."
+      description="Existencias por almacén y producto."
       extra={
-        <Input
-          className="w-32"
-          inputMode="decimal"
-          value={filters.threshold ?? 3}
-          onChange={(event) =>
-            updateFilter('threshold', parseOptionalNumber(event.target.value) ?? 0)
-          }
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Buscar código o nombre..."
+            className="w-48 lg:w-60"
+            value={filters.search ?? ''}
+            onChange={(event) => updateFilter('search', event.target.value || undefined)}
+          />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Bajo stock &le;:</span>
+            <Input
+              className="w-16"
+              inputMode="decimal"
+              value={filters.threshold ?? 3}
+              onChange={(event) =>
+                updateFilter('threshold', parseOptionalNumber(event.target.value) ?? 0)
+              }
+            />
+          </div>
+        </div>
       }
       onExport={canExport ? () => downloadCsv('reporte-inventario.csv', rows) : undefined}
       disabledExport={rows.length === 0}
     >
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-        <MiniTotal label="Disponible" value={`${formatQty(totals.available)} und.`} />
-        <MiniTotal label="Reservado" value={`${formatQty(totals.reserved)} und.`} />
-        <MiniTotal label="Danado" value={`${formatQty(totals.damaged)} und.`} />
-        <MiniTotal label="Bajo stock" value={String(lowStockCount)} />
+        <MiniTotal
+          label="Disponible"
+          value={`${formatQty(availableTotal)} und.`}
+          helper={data?.meta ? `Total catálogo: ${data.meta.total} productos` : undefined}
+        />
+        <MiniTotal label="Reservado" value={`${formatQty(reservedTotal)} und.`} />
+        <MiniTotal label="Dañado" value={`${formatQty(damagedTotal)} und.`} />
+        <MiniTotal label="Bajo stock" value={String(lowCount)} />
       </div>
-      {isLoading ? <TableSkeleton /> : <StockTable rows={rows} />}
+      {isLoading ? (
+        <TableSkeleton />
+      ) : (
+        <>
+          <StockTable rows={rows} />
+          <ReportPagination meta={data?.meta} label="productos" onPageChange={onPageChange} />
+        </>
+      )}
     </ReportPanel>
   );
 }
 
 function MovementsPanel({
-  rows,
+  data,
   isLoading,
   canExport,
   filters,
   updateFilter,
+  onPageChange,
 }: {
-  rows: MovementReportRow[];
+  data?: MovementReportResponse;
   isLoading: boolean;
   canExport: boolean;
   filters: ReportFilters;
@@ -625,27 +654,44 @@ function MovementsPanel({
     key: K,
     value: ReportFilters[K] | undefined,
   ) => void;
+  onPageChange: (page: number) => void;
 }) {
+  const rows = data?.data ?? [];
   return (
     <ReportPanel
       title="Movimientos"
-      description="Kardex operativo filtrado por fecha, almacen, producto o tipo."
+      description="Kardex operativo filtrado por fecha, almacen, producto, tipo o busqueda."
       extra={
-        <Select
-          value={filters.type ?? 'all'}
-          onChange={(event) => updateFilter('type', event.target.value)}
-        >
-          {MOVEMENT_TYPES.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Buscar por código, nombre o motivo..."
+            className="w-52 lg:w-72"
+            value={filters.search ?? ''}
+            onChange={(event) => updateFilter('search', event.target.value || undefined)}
+          />
+          <Select
+            value={filters.type ?? 'all'}
+            onChange={(event) => updateFilter('type', event.target.value)}
+          >
+            {MOVEMENT_TYPES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </div>
       }
       onExport={canExport ? () => downloadCsv('reporte-movimientos.csv', rows) : undefined}
       disabledExport={rows.length === 0}
     >
-      {isLoading ? <TableSkeleton /> : <MovementsTable rows={rows} />}
+      {isLoading ? (
+        <TableSkeleton />
+      ) : (
+        <>
+          <MovementsTable rows={rows} />
+          <ReportPagination meta={data?.meta} label="movimientos" onPageChange={onPageChange} />
+        </>
+      )}
     </ReportPanel>
   );
 }
@@ -1208,11 +1254,20 @@ function Metric({
   );
 }
 
-function MiniTotal({ label, value }: { label: string; value: string }) {
+function MiniTotal({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+}) {
   return (
     <div className="border-border rounded-md border p-3">
       <div className="text-text-muted text-sm">{label}</div>
       <div className="mt-2 text-xl font-semibold tabular-nums">{value}</div>
+      {helper && <div className="text-text-muted mt-1 text-xs">{helper}</div>}
     </div>
   );
 }

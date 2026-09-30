@@ -170,6 +170,7 @@ export function useCreateSalesReturn() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: saleKeys.detail(payload.sale_id) });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -181,6 +182,7 @@ export function useApproveSalesReturn() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -192,6 +194,7 @@ export function useRejectSalesReturn() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -203,6 +206,7 @@ export function useProcessSalesReturn() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -214,6 +218,7 @@ export function useCancelSalesReturn() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -228,6 +233,7 @@ export function useExchangeSalesReturn() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: [...salesReturnKeys.all, 'detail', variables.id] });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -242,6 +248,7 @@ export function useCompleteSalesReturnExchange() {
       void qc.invalidateQueries({ queryKey: salesReturnKeys.all });
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: [...salesReturnKeys.all, 'detail', variables.id] });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

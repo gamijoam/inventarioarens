@@ -2,6 +2,7 @@
 
 namespace App\Modules\AccessControl\Requests;
 
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +10,8 @@ class UpdateTenantUserRequest extends FormRequest
 {
     public function rules(): array
     {
-        $userId = (int) ($this->route('tenantUser') ?? $this->route('user') ?? 0);
+        $tenantUser = $this->route('tenantUser') ?? $this->route('user');
+        $userId = $tenantUser instanceof User ? $tenantUser->id : (int) $tenantUser;
 
         return [
             'name' => ['required', 'string', 'max:150'],

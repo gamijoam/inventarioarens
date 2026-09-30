@@ -93,7 +93,7 @@ export type UpdateUserStatusInput = z.input<typeof UpdateUserStatusInputSchema>;
 
 export const UpdateUserInputSchema = z.object({
   name: z.string().min(1, 'Requerido.').max(150),
-  email: z.string().email('Email invalido.').max(255),
+  email: z.string().email('Email inválido.').max(255).optional(),
 });
 export type UpdateUserInput = z.input<typeof UpdateUserInputSchema>;
 

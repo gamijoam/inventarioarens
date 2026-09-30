@@ -274,6 +274,7 @@ class OperationalReportService
             })
             ->where('pos_payments.tenant_id', $tenantId)
             ->where('pos_payments.status', PosPayment::STATUS_CAPTURED)
+            ->where('pos_orders.status', PosOrder::STATUS_PAID)
             ->whereBetween('pos_orders.paid_at', [$from, $to]);
 
         $this->applySessionFilters($query, $filters, 'cash_register_sessions');
