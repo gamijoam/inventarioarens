@@ -464,7 +464,6 @@ function SalesDetailPanel({
   return (
     <ReportPanel
       title="Ventas detalladas"
-      description="Venta, cliente, cajero, cobros, productos, IMEIs, garantias y devoluciones."
       extra={
         <OptionsFilter
           value={filters.status ?? 'all'}
@@ -830,7 +829,7 @@ function ReportPanel({
   disabledExport,
 }: {
   title: string;
-  description: string;
+  description?: string;
   children: React.ReactNode;
   extra?: React.ReactNode;
   onExport?: () => void;
@@ -841,7 +840,7 @@ function ReportPanel({
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div>
           <CardTitle>{title}</CardTitle>
-          <p className="text-text-muted mt-1 text-sm">{description}</p>
+          {description && <p className="text-text-muted mt-1 text-sm">{description}</p>}
         </div>
         <div className="flex items-center gap-2">
           {extra}
