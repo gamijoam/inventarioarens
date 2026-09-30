@@ -91,6 +91,17 @@ class InventoryReportController extends Controller
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('created_at', '>=', $request->date('date_from')))
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date('date_to')))
+            ->when($request->filled('search'), function ($query) use ($request): void {
+                $search = trim($request->string('search'));
+                $query->where(function ($sub) use ($search): void {
+                    $sub->whereHas('product', function ($q) use ($search): void {
+                        $q->where(DB::raw('LOWER(name)'), 'like', '%'.mb_strtolower($search).'%')
+                            ->orWhere(DB::raw('LOWER(sku)'), 'like', '%'.mb_strtolower($search).'%')
+                            ->orWhere(DB::raw('LOWER(COALESCE(barcode, \'\'))'), 'like', '%'.mb_strtolower($search).'%');
+                    })
+                    ->orWhere(DB::raw('LOWER(COALESCE(reason, \'\'))'), 'like', '%'.mb_strtolower($search).'%');
+                });
+            })
             ->latest('id')
             ->paginate($request->integer('per_page', 50));
 

@@ -43,6 +43,7 @@ import {
   type DailyOperations,
   type FinancePayableRow,
   type FinanceReceivableRow,
+  type MovementReportResponse,
   type MovementReportRow,
   type PaymentMethodsReport,
   type ReportFilters,
@@ -323,11 +324,12 @@ export function ReportsManager({
       )}
       {activeModule === 'movements' && (
         <MovementsPanel
-          rows={movements.data ?? []}
+          data={movements.data}
           isLoading={movements.isLoading}
           canExport={canExport}
           filters={filters}
           updateFilter={updateFilter}
+          onPageChange={(page) => updateFilter('page', page)}
         />
       )}
       {activeModule === 'finance' && (
@@ -636,13 +638,14 @@ function StockPanel({
 }
 
 function MovementsPanel({
-  rows,
+  data,
   isLoading,
   canExport,
   filters,
   updateFilter,
+  onPageChange,
 }: {
-  rows: MovementReportRow[];
+  data?: MovementReportResponse;
   isLoading: boolean;
   canExport: boolean;
   filters: ReportFilters;
@@ -650,27 +653,44 @@ function MovementsPanel({
     key: K,
     value: ReportFilters[K] | undefined,
   ) => void;
+  onPageChange: (page: number) => void;
 }) {
+  const rows = data?.data ?? [];
   return (
     <ReportPanel
       title="Movimientos"
-      description="Kardex operativo filtrado por fecha, almacen, producto o tipo."
+      description="Kardex operativo filtrado por fecha, almacen, producto, tipo o busqueda."
       extra={
-        <Select
-          value={filters.type ?? 'all'}
-          onChange={(event) => updateFilter('type', event.target.value)}
-        >
-          {MOVEMENT_TYPES.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Buscar por código, nombre o motivo..."
+            className="w-52 lg:w-72"
+            value={filters.search ?? ''}
+            onChange={(event) => updateFilter('search', event.target.value || undefined)}
+          />
+          <Select
+            value={filters.type ?? 'all'}
+            onChange={(event) => updateFilter('type', event.target.value)}
+          >
+            {MOVEMENT_TYPES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </div>
       }
       onExport={canExport ? () => downloadCsv('reporte-movimientos.csv', rows) : undefined}
       disabledExport={rows.length === 0}
     >
-      {isLoading ? <TableSkeleton /> : <MovementsTable rows={rows} />}
+      {isLoading ? (
+        <TableSkeleton />
+      ) : (
+        <>
+          <MovementsTable rows={rows} />
+          <ReportPagination meta={data?.meta} label="movimientos" onPageChange={onPageChange} />
+        </>
+      )}
     </ReportPanel>
   );
 }

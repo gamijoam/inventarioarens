@@ -8,7 +8,7 @@ import {
   FinanceSummarySchema,
   CashSessionsSchema,
   DailyOperationsSchema,
-  MovementReportRowSchema,
+  MovementReportResponseSchema,
   PaymentMethodsReportSchema,
   ReportCatalogItemSchema,
   SalesDetailSchema,
@@ -19,6 +19,7 @@ import {
   type FinancePayableRow,
   type FinanceReceivableRow,
   type FinanceSummary,
+  type MovementReportResponse,
   type MovementReportRow,
   type PaymentMethodsReport,
   type ReportFilters,
@@ -123,10 +124,10 @@ export function useLowStockReport(filters: ReportFilters, enabled: boolean) {
 export function useMovementReport(filters: ReportFilters, enabled: boolean) {
   return useQuery({
     queryKey: reportKeys.movements(filters),
-    queryFn: async () =>
-      z
-        .array(MovementReportRowSchema)
-        .parse(await getMany<unknown>(buildMovementReportQuery(filters))),
+    queryFn: async () => {
+      const response = await api.get(buildMovementReportQuery(filters));
+      return MovementReportResponseSchema.parse(response.data);
+    },
     enabled,
   });
 }
@@ -235,6 +236,7 @@ export type {
   FinancePayableRow,
   FinanceReceivableRow,
   FinanceSummary,
+  MovementReportResponse,
   MovementReportRow,
   PaymentMethodsReport,
   ReportCatalogItem,
