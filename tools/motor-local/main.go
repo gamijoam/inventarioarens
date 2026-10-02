@@ -236,14 +236,71 @@ func (s *Supervisor) superviseBackend() {
 func (s *Supervisor) startBackend() {
 	s.mu.Lock()
 
-	// On Windows, terminate any previously running php.exe to prevent port conflicts and file locks
+	// On Windows, terminate any previously running php.exe or frankenphp.exe
 	if runtime.GOOS == "windows" {
-		tkCmd := exec.Command("taskkill", "/F", "/IM", "php.exe")
+		tkCmd := exec.Command("taskkill", "/F", "/IM", "php.exe", "/IM", "frankenphp.exe")
 		setSilentProcess(tkCmd)
 		_ = tkCmd.Run()
 		time.Sleep(150 * time.Millisecond)
 	}
 
+	exePath, _ := os.Executable()
+	baseDir := filepath.Dir(exePath)
+
+	// Auto-detect FrankenPHP high-performance multi-threaded server
+	frankenBin := ""
+	for _, p := range []string{
+		filepath.Join(baseDir, "frankenphp", "frankenphp.exe"),
+		filepath.Join(baseDir, "frankenphp.exe"),
+		filepath.Join(baseDir, "runtime", "frankenphp", "frankenphp.exe"),
+		"C:\\ProgramData\\InventarioArens\\runtime\\frankenphp\\frankenphp.exe",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			frankenBin = p
+			break
+		}
+	}
+
+	if frankenBin != "" {
+		frankenDir := filepath.Dir(frankenBin)
+		publicDir := filepath.Join(s.cfg.BackendRoot, "public")
+		log.Printf("[Supervisor] Iniciando FrankenPHP multi-worker (Go + Caddy + PHP ZTS): %s", frankenBin)
+
+		cmd := exec.Command(frankenBin,
+			"php-server",
+			"--root", publicDir,
+			"--listen", fmt.Sprintf("127.0.0.1:%d", s.cfg.BackendPort),
+		)
+		cmd.Dir = s.cfg.BackendRoot
+		cmd.Env = append(os.Environ(),
+			"PHPRC="+frankenDir,
+			"PATH="+frankenDir+";"+filepath.Join(frankenDir, "ext")+";"+os.Getenv("PATH"),
+		)
+		cmd.Stdout = log.Writer()
+		cmd.Stderr = log.Writer()
+		setSilentProcess(cmd)
+
+		if err := cmd.Start(); err != nil {
+			s.mu.Unlock()
+			log.Printf("[Supervisor] Error iniciando FrankenPHP: %v. Reintentando...", err)
+			time.Sleep(1 * time.Second)
+			return
+		}
+
+		s.cmd = cmd
+		s.running = true
+		s.mu.Unlock()
+
+		_ = cmd.Wait()
+
+		s.mu.Lock()
+		s.running = false
+		s.cmd = nil
+		s.mu.Unlock()
+		return
+	}
+
+	// Fallback: PHP CLI built-in server
 	phpDir := filepath.Dir(s.cfg.PHPBinary)
 	iniFile := filepath.Join(phpDir, "php.ini")
 
@@ -274,11 +331,10 @@ func (s *Supervisor) startBackend() {
 	cmd := exec.Command(s.cfg.PHPBinary, args...)
 	cmd.Dir = s.cfg.BackendRoot
 
-	// Ensure PATH contains php directory and enable multi-worker for Windows PHP built-in server
+	// Ensure PATH contains php directory
 	phpDirAbs, _ := filepath.Abs(phpDir)
 	cmd.Env = append(os.Environ(),
 		"PATH="+phpDirAbs+";"+filepath.Join(phpDirAbs, "ext")+";"+os.Getenv("PATH"),
-		"PHP_CLI_SERVER_WORKERS=8",
 	)
 
 	cmd.Stdout = log.Writer()

@@ -14,6 +14,10 @@ mkdir -p "$PACKAGE_DIR/backend"
 echo "=== 2. Copiando PHP Portable para Windows ==="
 cp -r /tmp/windows-packager/php/* "$PACKAGE_DIR/php/"
 
+echo "=== 2b. Copiando FrankenPHP Multi-Worker (Go + Caddy + PHP ZTS) ==="
+mkdir -p "$PACKAGE_DIR/frankenphp"
+cp -r "$REPO_DIR/build/windows-runtime/frankenphp"/* "$PACKAGE_DIR/frankenphp/"
+
 echo "=== 3. Copiando MotorLocal.exe en Go ==="
 cp "$REPO_DIR/tools/motor-local/bin/MotorLocal.exe" "$PACKAGE_DIR/MotorLocal.exe"
 

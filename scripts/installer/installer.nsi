@@ -37,7 +37,7 @@ Section "BalanzaPro Completo" SecMain
 
     ; 1. Cerrar procesos previos si estaban en ejecucion
     DetailPrint "Cerrando procesos previos..."
-    ExecWait 'taskkill /F /IM MotorLocal.exe /IM php.exe /IM BalanzaPro-POS.exe /IM BalanzaPro-Administrativo.exe'
+    ExecWait 'taskkill /F /IM MotorLocal.exe /IM php.exe /IM frankenphp.exe /IM BalanzaPro-POS.exe /IM BalanzaPro-Administrativo.exe'
 
     ; 2. Comprobar si ya existe instalacion previa (Modo Actualizacion Inteligente)
     StrCpy $1 "0"
@@ -164,7 +164,7 @@ SectionEnd
 
 Section "Uninstall"
     ; Stop processes
-    ExecWait 'taskkill /F /IM MotorLocal.exe /IM php.exe /IM BalanzaPro-POS.exe /IM BalanzaPro-Administrativo.exe'
+    ExecWait 'taskkill /F /IM MotorLocal.exe /IM php.exe /IM frankenphp.exe /IM BalanzaPro-POS.exe /IM BalanzaPro-Administrativo.exe'
 
     ; Remove Auto-start
     DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "BalanzaProMotorLocal"
@@ -184,6 +184,7 @@ Section "Uninstall"
     ; Remove Installed files
     RMDir /r "$INSTDIR\backend"
     RMDir /r "$INSTDIR\php"
+    RMDir /r "$INSTDIR\frankenphp"
     Delete "$INSTDIR\*.*"
     RMDir "$INSTDIR"
 SectionEnd

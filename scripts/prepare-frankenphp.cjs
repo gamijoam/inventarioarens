@@ -12,7 +12,7 @@ const ARTIFACT = Object.freeze({
     version: "1.12.7",
     fileName: "frankenphp-windows-x86_64.zip",
     url: "https://github.com/dunglas/frankenphp/releases/download/v1.12.7/frankenphp-windows-x86_64.zip",
-    sha256: "07cf35e0a36ff237179c847a6c878605dd9d8230f5ac5bd37b86f69096545421",
+    sha256: "3fa8e3423691be99e3dda05ba757b20e03f49b0e35c46aca701579e970bcc31d",
 });
 
 const repoRoot = path.resolve(__dirname, "..");
@@ -76,7 +76,7 @@ async function prepare() {
 
     const extractRoot = fs.mkdtempSync(path.join(os.tmpdir(), "inventario-frankenphp-"));
     try {
-        execFileSync("tar", ["-xf", archivePath, "-C", extractRoot], {
+        execFileSync("unzip", ["-q", "-o", archivePath, "-d", extractRoot], {
             stdio: "inherit",
         });
 
