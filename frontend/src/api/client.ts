@@ -35,9 +35,14 @@ const isLocalBrowser =
   typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-export function resolveLocalApiBaseUrl(hostname: string): string {
+export function resolveLocalApiBaseUrl(hostname: string, port?: string): string {
   const apiHost = hostname === 'localhost' ? 'localhost' : '127.0.0.1';
-  return `http://${apiHost}:8787/api`;
+  const apiPort =
+    port ||
+    (typeof window !== 'undefined' && window.location.port
+      ? window.location.port
+      : '8787');
+  return `http://${apiHost}:${apiPort}/api`;
 }
 
 const API_BASE_URL: string =
