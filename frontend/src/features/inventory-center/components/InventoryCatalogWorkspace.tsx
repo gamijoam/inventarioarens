@@ -26,7 +26,10 @@ import {
   ExternalLink,
   Package,
   Plus,
+  Save,
   Search,
+  Sliders,
+  Sparkles,
   X,
 } from 'lucide-react';
 
@@ -43,14 +46,30 @@ import {
 } from '@/components/ui/Dialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Select } from '@/components/ui/Select';
+import { Switch } from '@/components/ui/Switch';
+import { Textarea } from '@/components/ui/Textarea';
+import { Spinner } from '@/components/ui/Spinner';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import {
+  useBrands,
   useCategories,
   useProductStockByWarehouse,
+  useUpdateProduct,
+  useWarrantyPolicies,
 } from '@/features/inventory-center/api';
+import { putOne } from '@/api/client';
+import { productKeys } from '@/features/inventory-center/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
-import type { PriceList, Product } from '@/features/inventory-center/schemas';
+import {
+  STANDARD_UNITS_OF_MEASURE,
+  type PriceList,
+  type Product,
+} from '@/features/inventory-center/schemas';
 import { cn } from '@/lib/cn';
 import { formatMoney } from '@/lib/money';
 
@@ -396,7 +415,12 @@ export function InventoryCatalogWorkspace({
             const prices = computeProductPrices(product, priceLists);
             const defaultPrice = prices.find((p) => p.isDefault) ?? prices[0];
             const priceVal = defaultPrice?.price ?? (product.base_price != null ? Number(product.base_price) : 0);
-            const priceVes = activeRate && priceVal ? priceVal * activeRate.rate : null;
+
+            // Costo promedio / última compra
+            const rawCost = product.average_cost != null && Number(product.average_cost) > 0
+              ? product.average_cost
+              : (product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0 ? product.last_purchase_cost : null);
+            const costVal = rawCost != null ? Number(rawCost) : null;
 
             // Stock numérico
             const rawStock = product.available_stock;
@@ -491,7 +515,7 @@ export function InventoryCatalogWorkspace({
                   </button>
                 </div>
 
-                {/* Contenido de la Tarjeta (Nombre + Precios de Venta) */}
+                {/* Contenido de la Tarjeta (Nombre + Precios de Venta + Costo) */}
                 <div className="p-3 flex flex-col flex-1 justify-between gap-2">
                   <div className="flex flex-col gap-1">
                     {product.sku && (
@@ -507,28 +531,59 @@ export function InventoryCatalogWorkspace({
                     </h3>
                   </div>
 
-                  {/* Precios de Venta (Destacados estilo Treinta) */}
-                  <div className="pt-2 mt-auto border-t border-border/40 flex flex-col">
-                    <div className="flex items-baseline justify-between gap-1">
-                      <span className="text-base sm:text-lg font-bold text-text-primary tracking-tight tabular-nums">
-                        {formatMoney(priceVal)}
-                      </span>
-                      {prices.length > 1 && (
-                        <span className="text-[10px] text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded">
-                          +{prices.length - 1} tarifas
+                  {/* Precios de Venta y Costo (Desglose de hasta 3 tarifas + costo) */}
+                  <div className="pt-2 mt-auto border-t border-border/40 flex flex-col gap-1.5">
+                    {/* Lista compacta de tarifas */}
+                    <div className="flex flex-col gap-1 bg-surface-subtle/50 rounded-lg p-1.5 border border-border/40">
+                      {prices.length > 0 ? (
+                        prices.slice(0, 3).map((p) => {
+                          const pVes = activeRate ? p.price * activeRate.rate : null;
+                          const shortName = p.listName.length > 15 ? p.listName.slice(0, 13) + '…' : p.listName;
+                          return (
+                            <div key={p.listId} className="flex items-center justify-between text-[11px] leading-tight">
+                              <span className="text-text-muted font-medium truncate max-w-[85px]" title={p.listName}>
+                                {shortName}:
+                              </span>
+                              <div className="flex items-baseline gap-1 font-bold text-text-primary tabular-nums">
+                                <span>{formatMoney(p.price)}</span>
+                                {pVes != null && (
+                                  <span className="text-[10px] text-text-muted font-normal">
+                                    (Bs {pVes.toLocaleString('es-VE', { maximumFractionDigits: 0 })})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-text-muted font-medium">Precio:</span>
+                          <span className="font-bold text-text-primary tabular-nums">{formatMoney(priceVal)}</span>
+                        </div>
+                      )}
+                      {prices.length > 3 && (
+                        <span className="text-[9px] text-primary font-medium text-right">
+                          +{prices.length - 3} tarifas más
                         </span>
                       )}
                     </div>
 
-                    {priceVes != null && (
-                      <span className="text-[11px] font-semibold text-text-muted tabular-nums">
-                        Bs{' '}
-                        {priceVes.toLocaleString('es-VE', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-                    )}
+                    {/* Fila de Costo y Margen */}
+                    <div className="flex items-center justify-between text-[11px] px-1 text-text-muted">
+                      <span className="font-medium text-text-secondary">Costo:</span>
+                      {costVal != null && costVal > 0 ? (
+                        <span className="font-semibold text-text-primary tabular-nums">
+                          {formatMoney(costVal)}
+                          {priceVal > costVal && (
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold ml-1">
+                              (+{(((priceVal - costVal) / costVal) * 100).toFixed(0)}%)
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-text-muted/60 italic">Sin costo</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -572,9 +627,10 @@ export function InventoryCatalogWorkspace({
         </div>
       )}
 
-      {/* 4. Modal de Detalle y Gestión Rápida del Producto */}
+      {/* 4. Modal de Detalle y Gestión Rápida Todo-en-Uno del Producto */}
       {selectedProduct && (
         <ProductCatalogDetailModal
+          key={`catalog-detail-${selectedProduct.id}`}
           product={selectedProduct}
           priceLists={priceLists}
           activeRate={activeRate}
@@ -590,7 +646,7 @@ export function InventoryCatalogWorkspace({
         />
       )}
 
-      {/* 5. Dialog para Editar el Producto */}
+      {/* 5. Dialog para Editar el Producto en modo ERP clásico */}
       {editingProduct && (
         <EditProductDialog
           product={editingProduct}
@@ -605,9 +661,13 @@ export function InventoryCatalogWorkspace({
 }
 
 /**
- * Modal de Inspección y Gestión de Inventario para la vista Catálogo.
- * Permite al comerciante ver fotos, precios en todas las listas, stock en todos los almacenes,
- * y saltar a editar el producto o ver su ficha de kardex completa.
+ * Ficha Integral Todo-en-Uno para la Vista Catálogo.
+ * Permite visualizar y editar de forma inmediata en una sola pantalla:
+ *  - Foto, nombre, SKU, código de barras, categoría, marca, estado y unidad.
+ *  - Costo de compra, margen en vivo y los precios en todas las tarifas (USD + Bs).
+ *  - Existencias reales por almacén.
+ *  - Pestaña secundaria para datos avanzados (garantía, límites de stock, descripción).
+ *  - Guardado directo en 1 solo clic.
  */
 interface ProductCatalogDetailModalProps {
   product: Product;
@@ -626,229 +686,734 @@ function ProductCatalogDetailModal({
   onOpenChange,
   onEdit,
 }: ProductCatalogDetailModalProps) {
-  const prices = useMemo(() => computeProductPrices(product, priceLists), [product, priceLists]);
+  const qc = useQueryClient();
+  const updateProduct = useUpdateProduct();
+
+  const { data: brands = [] } = useBrands();
+  const { data: categories = [] } = useCategories();
+  const { data: warranties = [] } = useWarrantyPolicies();
   const { data: stockByWarehouse = [], isLoading: isLoadingStock } = useProductStockByWarehouse(product.id);
 
-  // Galería de imágenes si existen
+  const [activeTab, setActiveTab] = useState<'main' | 'advanced'>('main');
+
+  // Datos principales
+  const [name, setName] = useState(product.name ?? '');
+  const [sku, setSku] = useState(product.sku ?? '');
+  const [barcode, setBarcode] = useState(product.barcode ?? '');
+  const [brandId, setBrandId] = useState<number | undefined>(
+    product.brand_id ?? product.brand?.id ?? undefined,
+  );
+  const [categoryId, setCategoryId] = useState<number | undefined>(
+    product.categories?.[0]?.id ?? undefined,
+  );
+  const [unitOfMeasure, setUnitOfMeasure] = useState(product.unit_of_measure ?? 'unit');
+  const [isActive, setIsActive] = useState(product.is_active ?? true);
+  const [imageUrl, setImageUrl] = useState(
+    product.image_url || product.primary_image_url || product.images?.[0]?.url || '',
+  );
+
+  // Costo y Precios
+  const initialCost =
+    product.average_cost != null && Number(product.average_cost) > 0
+      ? String(product.average_cost)
+      : product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0
+        ? String(product.last_purchase_cost)
+        : '';
+  const [cost, setCost] = useState(initialCost);
+  const [basePrice, setBasePrice] = useState(
+    product.base_price != null ? String(product.base_price) : '',
+  );
+
+  // Precios computados y mapa editable
+  const computedPrices = useMemo(
+    () => computeProductPrices(product, priceLists),
+    [product, priceLists],
+  );
+  const [priceMap, setPriceMap] = useState<Record<number, { amount: string; isDirty: boolean }>>(() => {
+    const map: Record<number, { amount: string; isDirty: boolean }> = {};
+    for (const p of computedPrices) {
+      map[p.listId] = { amount: String(p.price), isDirty: false };
+    }
+    return map;
+  });
+
+  // Campos avanzados
+  const [minStock, setMinStock] = useState(
+    product.min_stock != null ? String(product.min_stock) : '',
+  );
+  const [maxStock, setMaxStock] = useState(
+    product.max_stock != null ? String(product.max_stock) : '',
+  );
+  const [reorderQuantity, setReorderQuantity] = useState(
+    product.reorder_quantity != null ? String(product.reorder_quantity) : '',
+  );
+  const [longDescription, setLongDescription] = useState(
+    product.long_description ?? product.description ?? '',
+  );
+  const [trackingType, setTrackingType] = useState<'quantity' | 'serialized'>(
+    product.tracking_type ?? 'quantity',
+  );
+  const [trackStock, setTrackStock] = useState(product.track_stock ?? true);
+  const [warrantyPolicyId, setWarrantyPolicyId] = useState<number | undefined>(
+    product.warranty_policy_id ?? undefined,
+  );
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Galería de imágenes
   const allImages = useMemo(() => {
     const list: string[] = [];
-    if (product.primary_image_url) list.push(product.primary_image_url);
+    if (imageUrl && !list.includes(imageUrl)) list.push(imageUrl);
+    if (product.primary_image_url && !list.includes(product.primary_image_url))
+      list.push(product.primary_image_url);
     if (product.images) {
       for (const img of product.images) {
         if (img.url && !list.includes(img.url)) list.push(img.url);
       }
     }
-    if (product.image_url && !list.includes(product.image_url)) list.push(product.image_url);
     return list;
-  }, [product]);
+  }, [imageUrl, product]);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const currentImage = allImages[activeImageIndex] || null;
+  const currentPreviewImage = allImages[activeImageIndex] || imageUrl || null;
+
+  // Manejo de cambio de precio en una lista específica
+  const handlePriceChange = (listId: number, newAmount: string, isDefault: boolean) => {
+    setPriceMap((prev) => ({
+      ...prev,
+      [listId]: { amount: newAmount, isDirty: true },
+    }));
+    if (isDefault) {
+      setBasePrice(newAmount);
+    }
+  };
+
+  // Guardar cambios
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast.error('El nombre del producto es obligatorio.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const costNum = cost.trim() !== '' ? parseFloat(cost) : null;
+      const basePriceNum = basePrice.trim() !== '' ? parseFloat(basePrice) : null;
+
+      let marginNum: number | null = null;
+      if (costNum != null && costNum > 0 && basePriceNum != null && basePriceNum > 0) {
+        marginNum = Number((((basePriceNum - costNum) / costNum) * 100).toFixed(2));
+      }
+
+      // 1. Guardar atributos del producto
+      await updateProduct.mutateAsync({
+        id: product.id,
+        name: name.trim(),
+        sku: sku.trim() || null,
+        barcode: barcode.trim() || null,
+        brand_id: brandId || null,
+        category_ids: categoryId ? [categoryId] : [],
+        unit_of_measure: unitOfMeasure,
+        is_active: isActive,
+        image_url: imageUrl.trim() || null,
+        last_purchase_cost: costNum,
+        base_price: basePriceNum,
+        profit_margin: marginNum,
+        min_stock: minStock.trim() !== '' ? parseFloat(minStock) : null,
+        max_stock: maxStock.trim() !== '' ? parseFloat(maxStock) : null,
+        reorder_quantity: reorderQuantity.trim() !== '' ? parseFloat(reorderQuantity) : null,
+        long_description: longDescription.trim() || null,
+        description: longDescription.trim() || null,
+        tracking_type: trackingType,
+        track_stock: trackStock,
+        warranty_policy_id: warrantyPolicyId || null,
+      });
+
+      // 2. Guardar precios si fueron modificados
+      const dirtyPrices = Object.entries(priceMap)
+        .filter(([, v]) => v.isDirty && v.amount.trim() !== '')
+        .map(([listIdStr, v]) => ({
+          price_list_id: Number(listIdStr),
+          price: parseFloat(v.amount),
+          currency: 'USD' as const,
+        }));
+
+      if (dirtyPrices.length > 0) {
+        await putOne(`/products/${product.id}/prices`, { prices: dirtyPrices });
+      }
+
+      toast.success('Producto y tarifas guardados correctamente.');
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(product.id) });
+      void qc.invalidateQueries({ queryKey: productKeys.prices(product.id) });
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar los cambios.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        <DialogHeader className="p-5 pb-0">
+      <DialogContent className="max-w-4xl w-[96vw] max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-2xl shadow-2xl border-border">
+        {/* Cabecera del Modal */}
+        <DialogHeader className="p-5 pb-3 bg-surface-subtle/50 border-b border-border/80">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <span className="text-xs font-mono text-text-muted">
-                SKU: {product.sku || 'Sin SKU'} • {product.barcode ? `Código: ${product.barcode}` : 'Sin código de barras'}
-              </span>
-              <DialogTitle className="text-lg sm:text-xl font-bold text-text-primary mt-0.5">
-                {product.name}
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-surface border border-border text-text-muted">
+                  SKU: {sku || 'Sin SKU'}
+                </span>
+                {barcode && (
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-surface border border-border text-text-muted">
+                    BAR: {barcode}
+                  </span>
+                )}
+                <Badge variant={isActive ? 'success' : 'default'} className="text-[10px]">
+                  {isActive ? 'Activo para venta' : 'Inactivo'}
+                </Badge>
+              </div>
+              <DialogTitle className="text-lg sm:text-xl font-bold text-text-primary mt-1">
+                {name || 'Producto sin nombre'}
               </DialogTitle>
-              <DialogDescription className="text-xs text-text-muted mt-0.5">
-                Consulta y gestión de tarifas de venta y existencias por almacén.
+              <DialogDescription className="text-xs text-text-muted">
+                Ficha integral: edita datos, precios y consulta existencias en un solo lugar.
               </DialogDescription>
             </div>
-            <Badge variant={product.is_active ? 'success' : 'default'}>
-              {product.is_active ? 'Activo' : 'Inactivo'}
-            </Badge>
-          </div>
-
-          {/* Clasificación */}
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            {product.brand && (
-              <Badge variant="outline" className="text-xs font-medium">
-                Marca: {product.brand.name}
-              </Badge>
-            )}
-            {product.categories?.map((cat) => (
-              <Badge key={cat.id} variant="default" className="text-xs font-medium">
-                {cat.name}
-              </Badge>
-            ))}
-            <Badge variant="outline" className="text-xs">
-              Unidad: {product.unit_of_measure || 'Unidad'}
-            </Badge>
           </div>
         </DialogHeader>
 
-        <div className="p-5 sm:p-6 pt-3 flex flex-col gap-5">
-          {/* Cuerpo: Imagen + Resumen de Precios */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Foto del producto con selector de miniaturas */}
-            <div className="flex flex-col gap-2">
-              <div className="w-full aspect-square bg-slate-50 dark:bg-zinc-900 rounded-xl border border-border overflow-hidden flex items-center justify-center p-3 relative">
-                {currentImage ? (
-                  <img
-                    src={currentImage}
-                    alt={product.name}
-                    className="size-full object-contain"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center gap-2 text-text-muted">
-                    <Package className="size-16 stroke-[1.25] text-text-muted/50" />
-                    <span className="text-xs font-medium text-text-muted/60">Sin imagen registrada</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Miniaturas de la galería */}
-              {allImages.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  {allImages.map((img, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setActiveImageIndex(idx)}
-                      className={cn(
-                        'size-12 rounded-lg border overflow-hidden p-0.5 bg-surface transition-all flex-shrink-0',
-                        activeImageIndex === idx
-                          ? 'border-primary ring-2 ring-primary/20'
-                          : 'border-border hover:border-text-secondary',
-                      )}
-                    >
-                      <img src={img} alt={`Thumb ${idx}`} className="size-full object-cover rounded-md" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Listas de Precios de Venta */}
-            <div className="flex flex-col gap-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-                <DollarSign className="size-4 text-primary" />
-                Precios de Venta
-              </h4>
-
-              <div className="flex flex-col gap-2 bg-surface-subtle/50 rounded-xl border border-border p-3">
-                {prices.map((p) => {
-                  const pVes = activeRate ? p.price * activeRate.rate : null;
-                  return (
-                    <div
-                      key={p.listId}
-                      className={cn(
-                        'flex items-center justify-between p-2 rounded-lg border',
-                        p.isDefault
-                          ? 'bg-primary/5 border-primary/30'
-                          : 'bg-surface border-border/60',
-                      )}
-                    >
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-text-primary flex items-center gap-1">
-                          {p.listName}
-                          {p.isDefault && (
-                            <span className="text-[10px] text-primary font-bold">(Predeterminada)</span>
-                          )}
-                        </span>
-                        {pVes != null && (
-                          <span className="text-[11px] font-medium text-text-muted tabular-nums">
-                            Bs{' '}
-                            {pVes.toLocaleString('es-VE', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-sm font-bold text-text-primary tabular-nums">
-                        {formatMoney(p.price)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Tasa activa */}
-              {activeRate && (
-                <div className="text-[11px] text-text-muted bg-surface rounded-lg border border-border/60 px-3 py-1.5 flex items-center justify-between">
-                  <span>Tasa de cambio:</span>
-                  <span className="font-semibold text-text-primary">
-                    1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Existencias por Almacén */}
-          <div className="flex flex-col gap-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-              <Boxes className="size-4 text-primary" />
-              Existencias por Almacén
-            </h4>
-
-            {isLoadingStock ? (
-              <div className="p-4 text-center text-xs text-text-muted">Consultando existencias...</div>
-            ) : stockByWarehouse.length === 0 ? (
-              <div className="p-3 bg-surface-subtle/50 rounded-xl border border-border text-xs text-text-muted text-center">
-                Este producto no posee existencias registradas en ningún almacén.
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-surface-subtle/80 border-b border-border text-text-secondary font-semibold">
-                    <tr>
-                      <th className="px-3 py-2">Almacén</th>
-                      <th className="px-3 py-2 text-right">Disponible</th>
-                      <th className="px-3 py-2 text-right">Reservado</th>
-                      <th className="px-3 py-2 text-right">Dañado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {stockByWarehouse.map((sw) => {
-                      const avail = typeof sw.available === 'string' ? parseFloat(sw.available) : sw.available;
-                      return (
-                        <tr key={sw.warehouse_id} className="hover:bg-surface-subtle/30">
-                          <td className="px-3 py-2 font-medium text-text-primary">
-                            {sw.warehouse_name || sw.warehouse_code}
-                          </td>
-                          <td className="px-3 py-2 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                            {Number.isFinite(avail) ? avail : 0}
-                          </td>
-                          <td className="px-3 py-2 text-right text-text-muted">{sw.reserved ?? 0}</td>
-                          <td className="px-3 py-2 text-right text-text-muted">{sw.damaged ?? 0}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+        {/* Pestañas de Navegación */}
+        <div className="flex items-center gap-2 px-6 border-b border-border bg-surface-subtle/30 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('main')}
+            className={cn(
+              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
+              activeTab === 'main'
+                ? 'border-primary text-primary bg-surface/60'
+                : 'border-transparent text-text-muted hover:text-text-primary',
             )}
-          </div>
+          >
+            <Sparkles className="size-3.5" />
+            Todo-en-Uno (Datos, Costo, Precios y Stock)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('advanced')}
+            className={cn(
+              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
+              activeTab === 'advanced'
+                ? 'border-primary text-primary bg-surface/60'
+                : 'border-transparent text-text-muted hover:text-text-primary',
+            )}
+          >
+            <Sliders className="size-3.5" />
+            Avanzado (Garantía, Límites de Stock y Notas)
+          </button>
         </div>
 
-        {/* Footer con Acciones de Manejo de Inventario */}
-        <DialogFooter className="border-t border-border p-4 bg-surface-subtle/30 flex items-center justify-between sm:justify-between w-full">
-          <Link
-            to="/inventory/$productId"
-            params={{ productId: String(product.id) }}
-            className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1"
-          >
-            <ExternalLink className="size-3.5" />
-            Ficha completa / Kardex
-          </Link>
+        {/* Cuerpo del Modal con Scroll */}
+        <div className="p-5 sm:p-6 flex-1 overflow-y-auto">
+          {activeTab === 'main' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Columna Izquierda: Foto & Datos Básicos (5 cols) */}
+              <div className="lg:col-span-5 flex flex-col gap-4">
+                {/* Foto del Producto con miniaturas */}
+                <div className="flex flex-col gap-2">
+                  <div className="w-full aspect-square bg-slate-50 dark:bg-zinc-900 rounded-xl border border-border overflow-hidden flex items-center justify-center p-3 relative group">
+                    {currentPreviewImage ? (
+                      <img
+                        src={currentPreviewImage}
+                        alt={name}
+                        className="size-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-2 text-text-muted">
+                        <Package className="size-16 stroke-[1.25] text-text-muted/50" />
+                        <span className="text-xs font-medium text-text-muted/60">
+                          Sin imagen registrada
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {allImages.length > 1 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      {allImages.map((img, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setActiveImageIndex(idx)}
+                          className={cn(
+                            'size-11 rounded-lg border overflow-hidden p-0.5 bg-surface transition-all shrink-0',
+                            activeImageIndex === idx
+                              ? 'border-primary ring-2 ring-primary/20'
+                              : 'border-border hover:border-text-secondary',
+                          )}
+                        >
+                          <img src={img} alt={`Thumb ${idx}`} className="size-full object-cover rounded" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* URL de foto editable */}
+                  <div>
+                    <Label className="text-[11px] text-text-secondary font-medium">URL de Imagen</Label>
+                    <Input
+                      placeholder="https://ejemplo.com/foto.jpg"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Nombre del Producto */}
+                <div>
+                  <Label className="text-xs font-semibold text-text-primary">
+                    Nombre del Producto <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    placeholder="Ej. Bujía Denso K20PR-U"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-1 font-medium"
+                  />
+                </div>
+
+                {/* SKU y Código de Barras */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-text-secondary">Código / SKU</Label>
+                    <Input
+                      placeholder="SKU-1234"
+                      value={sku}
+                      onChange={(e) => setSku(e.target.value)}
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-text-secondary">Código de barras</Label>
+                    <Input
+                      placeholder="759123456789"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Categoría y Marca */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-text-secondary">Categoría</Label>
+                    <Select
+                      value={categoryId ? String(categoryId) : ''}
+                      onChange={(e) =>
+                        setCategoryId(e.target.value ? Number(e.target.value) : undefined)
+                      }
+                      className="mt-1 text-xs"
+                    >
+                      <option value="">(Sin categoría)</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-text-secondary">Marca</Label>
+                    <Select
+                      value={brandId ? String(brandId) : ''}
+                      onChange={(e) =>
+                        setBrandId(e.target.value ? Number(e.target.value) : undefined)
+                      }
+                      className="mt-1 text-xs"
+                    >
+                      <option value="">(Sin marca)</option>
+                      {brands.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Unidad de Medida y Switch Activo */}
+                <div className="grid grid-cols-2 gap-2 items-center pt-1">
+                  <div>
+                    <Label className="text-xs text-text-secondary">Unidad de Medida</Label>
+                    <Select
+                      value={unitOfMeasure}
+                      onChange={(e) => setUnitOfMeasure(e.target.value)}
+                      className="mt-1 text-xs"
+                    >
+                      {STANDARD_UNITS_OF_MEASURE.map((u) => (
+                        <option key={u.value} value={u.value}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between bg-surface-subtle/50 border border-border/80 rounded-lg p-2.5 mt-3.5">
+                    <Label className="text-xs cursor-pointer" onClick={() => setIsActive(!isActive)}>
+                      Activo
+                    </Label>
+                    <Switch checked={isActive} onCheckedChange={setIsActive} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Columna Derecha: Costo, Precios & Existencias (7 cols) */}
+              <div className="lg:col-span-7 flex flex-col gap-5">
+                {/* Bloque: Precios y Rentabilidad */}
+                <div className="bg-surface border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col gap-3">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                      <DollarSign className="size-4 text-primary" />
+                      Precios de Venta y Costo
+                    </h4>
+                    {activeRate && (
+                      <span className="text-[11px] font-medium text-text-muted bg-surface-subtle px-2 py-0.5 rounded border border-border/60">
+                        Tasa: 1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Fila de Costo de Compra */}
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 flex items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                        Costo de compra (USD)
+                      </Label>
+                      <span className="text-[10px] text-text-muted">
+                        Base para calcular margen y ganancia
+                      </span>
+                    </div>
+                    <div className="w-32">
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0.00"
+                        value={cost}
+                        onChange={(e) => setCost(e.target.value)}
+                        className="text-right font-bold h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tarifas de Precios de Venta */}
+                  <div className="flex flex-col gap-2 pt-1">
+                    {priceLists
+                      .filter((l) => l.is_active)
+                      .map((list) => {
+                        const currentVal = priceMap[list.id]?.amount ?? '';
+                        const numVal = parseFloat(currentVal) || 0;
+                        const vesVal = activeRate && numVal > 0 ? numVal * activeRate.rate : null;
+                        const costNum = parseFloat(cost) || 0;
+                        const margin =
+                          costNum > 0 && numVal > 0
+                            ? (((numVal - costNum) / costNum) * 100).toFixed(0)
+                            : null;
+                        const profit =
+                          costNum > 0 && numVal > 0 ? (numVal - costNum).toFixed(2) : null;
+                        const isDefault = Boolean(list.is_default);
+
+                        return (
+                          <div
+                            key={list.id}
+                            className={cn(
+                              'p-2.5 rounded-lg border flex flex-col gap-1.5 transition-colors',
+                              isDefault
+                                ? 'bg-primary/5 border-primary/30'
+                                : 'bg-surface-subtle/40 border-border/70',
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-text-primary">
+                                  {list.name}
+                                </span>
+                                {isDefault && (
+                                  <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                    Predeterminada
+                                  </span>
+                                )}
+                                {list.code && (
+                                  <span className="text-[10px] font-mono text-text-muted">
+                                    ({list.code})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-text-muted">$</span>
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  placeholder="0.00"
+                                  value={currentVal}
+                                  onChange={(e) =>
+                                    handlePriceChange(list.id, e.target.value, isDefault)
+                                  }
+                                  className="w-28 text-right font-bold text-sm h-8"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Conversión en Bs y Margen */}
+                            <div className="flex items-center justify-between text-[11px] text-text-muted pt-1 border-t border-border/30">
+                              <span>
+                                {vesVal != null ? (
+                                  <span className="font-semibold text-text-secondary">
+                                    Bs{' '}
+                                    {vesVal.toLocaleString('es-VE', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}
+                                  </span>
+                                ) : (
+                                  <span>Bs 0,00</span>
+                                )}
+                              </span>
+                              {margin != null && (
+                                <span
+                                  className={cn(
+                                    'font-medium text-[10px]',
+                                    Number(margin) >= 0
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : 'text-rose-600 dark:text-rose-400',
+                                  )}
+                                >
+                                  Margen: +{margin}% (+${profit} ganancia)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Bloque: Existencias por Almacén */}
+                <div className="bg-surface border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col gap-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5 border-b border-border/60 pb-2">
+                    <Boxes className="size-4 text-primary" />
+                    Existencias por Almacén
+                  </h4>
+
+                  {isLoadingStock ? (
+                    <div className="p-4 text-center text-xs text-text-muted">
+                      Consultando existencias...
+                    </div>
+                  ) : stockByWarehouse.length === 0 ? (
+                    <div className="p-3 bg-surface-subtle/50 rounded-xl border border-border text-xs text-text-muted text-center">
+                      Este producto no posee existencias registradas en ningún almacén.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-lg border border-border/80">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-surface-subtle/80 border-b border-border text-text-secondary font-semibold">
+                          <tr>
+                            <th className="px-3 py-2">Almacén</th>
+                            <th className="px-3 py-2 text-right">Disponible</th>
+                            <th className="px-3 py-2 text-right">Reservado</th>
+                            <th className="px-3 py-2 text-right">Dañado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {stockByWarehouse.map((sw) => {
+                            const avail =
+                              typeof sw.available === 'string'
+                                ? parseFloat(sw.available)
+                                : sw.available;
+                            return (
+                              <tr key={sw.warehouse_id} className="hover:bg-surface-subtle/30">
+                                <td className="px-3 py-2 font-medium text-text-primary">
+                                  {sw.warehouse_name || sw.warehouse_code}
+                                </td>
+                                <td className="px-3 py-2 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                  {Number.isFinite(avail) ? avail : 0}
+                                </td>
+                                <td className="px-3 py-2 text-right text-text-muted">
+                                  {sw.reserved ?? 0}
+                                </td>
+                                <td className="px-3 py-2 text-right text-text-muted">
+                                  {sw.damaged ?? 0}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Pestaña Secundaria: Avanzado / Parámetros */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <Label className="text-xs font-semibold text-text-secondary">
+                    Descripción detallada / Ficha técnica
+                  </Label>
+                  <Textarea
+                    rows={6}
+                    placeholder="Detalles técnicos, especificaciones, compatibilidad o notas..."
+                    value={longDescription}
+                    onChange={(e) => setLongDescription(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-text-secondary">
+                    Política de garantía
+                  </Label>
+                  <Select
+                    value={warrantyPolicyId ? String(warrantyPolicyId) : ''}
+                    onChange={(e) =>
+                      setWarrantyPolicyId(e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="mt-1 text-xs"
+                  >
+                    <option value="">(Sin política de garantía)</option>
+                    {warranties.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.duration_days} días)
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {/* Control de Inventario */}
+                <div className="p-4 rounded-xl border border-border bg-surface flex flex-col gap-3">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+                    Control de Inventario
+                  </h5>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs">Rastrear existencias</Label>
+                      <p className="text-[11px] text-text-muted">
+                        Afectar inventario en ventas y compras
+                      </p>
+                    </div>
+                    <Switch checked={trackStock} onCheckedChange={setTrackStock} />
+                  </div>
+                  <div className="pt-2 border-t border-border/50">
+                    <Label className="text-xs">Modalidad de rastreo</Label>
+                    <Select
+                      value={trackingType}
+                      onChange={(e) =>
+                        setTrackingType(e.target.value as 'quantity' | 'serialized')
+                      }
+                      className="mt-1 text-xs"
+                    >
+                      <option value="quantity">Por cantidad (estándar)</option>
+                      <option value="serialized">
+                        Serializado (IMEI / Números de serie individuales)
+                      </option>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Umbrales de Stock */}
+                <div className="p-4 rounded-xl border border-border bg-surface flex flex-col gap-3">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+                    Umbrales de Stock
+                  </h5>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[11px] text-text-secondary">Mínimo</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        value={minStock}
+                        onChange={(e) => setMinStock(e.target.value)}
+                        className="mt-1 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-text-secondary">Máximo</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        value={maxStock}
+                        onChange={(e) => setMaxStock(e.target.value)}
+                        className="mt-1 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-text-secondary">Punto Reorden</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        value={reorderQuantity}
+                        onChange={(e) => setReorderQuantity(e.target.value)}
+                        className="mt-1 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer con Acciones */}
+        <DialogFooter className="border-t border-border p-4 bg-surface-subtle/40 flex items-center justify-between sm:justify-between w-full shrink-0">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/inventory/$productId"
+              params={{ productId: String(product.id) }}
+              className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1"
+            >
+              <ExternalLink className="size-3.5" />
+              Kardex / Historial
+            </Link>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="text-xs text-text-muted hover:text-text-primary hover:underline inline-flex items-center gap-1"
+            >
+              <Edit className="size-3" />
+              Asistente ERP completo (F1-F9)
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-              Cerrar
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={isSaving}
+            >
+              Cancelar
             </Button>
             <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
-              <Button size="sm" onClick={onEdit} className="gap-1.5">
-                <Edit className="size-3.5" />
-                Editar producto
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              >
+                {isSaving ? <Spinner size="sm" className="text-white" /> : <Save className="size-3.5" />}
+                {isSaving ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
             </Can>
           </div>
