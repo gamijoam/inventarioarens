@@ -124,8 +124,10 @@ WebView2Done:
         DetailPrint "Instalando nueva configuracion detectada en la carpeta de instalacion..."
         CopyFiles /SILENT "$EXEDIR\config.json" "$INSTDIR\config.json"
 
-    ; Create Desktop Shortcuts
+    ; Create Desktop Shortcuts (Direct to .exe without console windows)
     DetailPrint "Creando accesos directos en el Escritorio..."
+    Delete "$DESKTOP\BalanzaPro POS.lnk"
+    Delete "$DESKTOP\BalanzaPro Administrativo.lnk"
     CreateShortcut "$DESKTOP\BalanzaPro POS.lnk" "$INSTDIR\BalanzaPro-POS.exe" "" "$INSTDIR\BalanzaPro-POS.exe" 0
     CreateShortcut "$DESKTOP\BalanzaPro Administrativo.lnk" "$INSTDIR\BalanzaPro-Administrativo.exe" "" "$INSTDIR\BalanzaPro-Administrativo.exe" 0
     CreateShortcut "$DESKTOP\Configurar Empresa.lnk" "$INSTDIR\Configurar-Empresa.bat" "" "$INSTDIR\BalanzaPro-Administrativo.exe" 0

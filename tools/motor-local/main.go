@@ -238,8 +238,10 @@ func (s *Supervisor) startBackend() {
 
 	// On Windows, terminate any previously running php.exe to prevent port conflicts and file locks
 	if runtime.GOOS == "windows" {
-		_ = exec.Command("taskkill", "/F", "/IM", "php.exe").Run()
-		time.Sleep(200 * time.Millisecond)
+		tkCmd := exec.Command("taskkill", "/F", "/IM", "php.exe")
+		setSilentProcess(tkCmd)
+		_ = tkCmd.Run()
+		time.Sleep(150 * time.Millisecond)
 	}
 
 	phpDir := filepath.Dir(s.cfg.PHPBinary)
@@ -253,16 +255,23 @@ func (s *Supervisor) startBackend() {
 	if _, err := os.Stat(extDir); err == nil {
 		args = append(args, "-d", fmt.Sprintf("extension_dir=%s", extDir))
 	}
-	args = append(args,
-		"-d", "zend_extension=opcache",
-		"-d", "opcache.enable=1",
-		"-d", "opcache.enable_cli=1",
-		"-d", "opcache.memory_consumption=192",
-		"-d", "opcache.max_accelerated_files=20000",
-		"artisan", "serve",
-		"--host=127.0.0.1",
-		fmt.Sprintf("--port=%d", s.cfg.BackendPort),
-	)
+
+	serverScript := filepath.Join(s.cfg.BackendRoot, "server.php")
+	if _, err := os.Stat(serverScript); err == nil {
+		log.Printf("[Supervisor] Iniciando PHP Built-in Server instantáneo con server.php")
+		args = append(args,
+			"-S", fmt.Sprintf("127.0.0.1:%d", s.cfg.BackendPort),
+			serverScript,
+		)
+	} else {
+		log.Printf("[Supervisor] server.php no encontrado, usando artisan serve --no-reload")
+		args = append(args,
+			"artisan", "serve",
+			"--host=127.0.0.1",
+			fmt.Sprintf("--port=%d", s.cfg.BackendPort),
+			"--no-reload",
+		)
+	}
 
 	log.Printf("[Supervisor] Ejecutando PHP: %s (en %s)", s.cfg.PHPBinary, s.cfg.BackendRoot)
 

@@ -39,6 +39,7 @@ mkdir -p "$PACKAGE_DIR/backend/storage/framework/sessions"
 mkdir -p "$PACKAGE_DIR/backend/storage/framework/views"
 mkdir -p "$PACKAGE_DIR/backend/storage/logs"
 cp "$REPO_DIR/artisan" "$PACKAGE_DIR/backend/"
+cp "$REPO_DIR/server.php" "$PACKAGE_DIR/backend/"
 cp "$REPO_DIR/composer.json" "$PACKAGE_DIR/backend/"
 
 echo "=== 6. Configurando .env para SQLite local offline ==="
@@ -102,8 +103,8 @@ if exist "%~dp0MicrosoftEdgeWebview2Setup.exe" (
 tasklist /FI "IMAGENAME eq MotorLocal.exe" 2>NUL | find /I /N "MotorLocal.exe">NUL
 if "%ERRORLEVEL%"=="1" (
     echo Iniciando Motor Local en segundo plano...
-    start "" /B "%~dp0MotorLocal.exe" -php="%~dp0php\php.exe" -backend="%~dp0backend" -port=8787 -backend-port=8788 -offline=true
-    timeout /t 2 /nobreak >nul
+    start "" "%~dp0MotorLocal.exe" -php="%~dp0php\php.exe" -backend="%~dp0backend" -port=8787 -backend-port=8788 -offline=true
+    timeout /t 1 /nobreak >nul
 )
 
 echo Abriendo BalanzaPro POS...
@@ -133,8 +134,8 @@ if exist "%~dp0MicrosoftEdgeWebview2Setup.exe" (
 tasklist /FI "IMAGENAME eq MotorLocal.exe" 2>NUL | find /I /N "MotorLocal.exe">NUL
 if "%ERRORLEVEL%"=="1" (
     echo Iniciando Motor Local en segundo plano...
-    start "" /B "%~dp0MotorLocal.exe" -php="%~dp0php\php.exe" -backend="%~dp0backend" -port=8787 -backend-port=8788 -offline=true
-    timeout /t 2 /nobreak >nul
+    start "" "%~dp0MotorLocal.exe" -php="%~dp0php\php.exe" -backend="%~dp0backend" -port=8787 -backend-port=8788 -offline=true
+    timeout /t 1 /nobreak >nul
 )
 
 echo Abriendo BalanzaPro Administrativo...
@@ -166,9 +167,9 @@ if exist "%~dp0MicrosoftEdgeWebview2Setup.exe" (
 )
 :shortcuts_wv2_ok
 
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\BalanzaPro POS.lnk'); $s.TargetPath = '%~dp0Iniciar-POS.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0BalanzaPro-POS.exe,0'; $s.Save()"
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\BalanzaPro POS.lnk'); $s.TargetPath = '%~dp0BalanzaPro-POS.exe'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0BalanzaPro-POS.exe,0'; $s.Save()"
 
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\BalanzaPro Administrativo.lnk'); $s.TargetPath = '%~dp0Iniciar-Administrativo.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0BalanzaPro-Administrativo.exe,0'; $s.Save()"
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\BalanzaPro Administrativo.lnk'); $s.TargetPath = '%~dp0BalanzaPro-Administrativo.exe'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0BalanzaPro-Administrativo.exe,0'; $s.Save()"
 
 echo.
 echo ==============================================================
