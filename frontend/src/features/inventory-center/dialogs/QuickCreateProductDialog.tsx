@@ -221,21 +221,21 @@ export function QuickCreateProductDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[96vw] max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-2xl shadow-2xl border-border">
+      <DialogContent className="max-w-6xl w-[98vw] max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-2xl shadow-2xl border-border">
         {/* Cabecera */}
-        <DialogHeader className="p-5 pb-3 bg-surface-subtle/50 border-b border-border/80">
+        <DialogHeader className="px-4 py-2.5 bg-surface-subtle/50 border-b border-border/80">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   <Sparkles className="size-3" /> Creación Rápida
                 </span>
-                <DialogTitle className="text-lg sm:text-xl font-bold text-text-primary">
+                <DialogTitle className="text-base sm:text-lg font-bold text-text-primary">
                   Crear Producto
                 </DialogTitle>
               </div>
-              <DialogDescription className="text-xs text-text-muted mt-1">
-                Ingresa datos clave, costo y tarifas de precios en una sola pantalla.
+              <DialogDescription className="text-[11px] text-text-muted mt-0.5">
+                Ingresa datos clave, costo y tarifas de precios en una sola pantalla sin desplazarte.
               </DialogDescription>
             </div>
 
@@ -256,44 +256,44 @@ export function QuickCreateProductDialog({
         </DialogHeader>
 
         {/* Pestañas de Navegación */}
-        <div className="flex items-center gap-2 px-6 border-b border-border bg-surface-subtle/30 shrink-0">
+        <div className="flex items-center gap-2 px-4 border-b border-border bg-surface-subtle/30 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('main')}
             className={cn(
-              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
+              'px-3 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
               activeTab === 'main'
                 ? 'border-primary text-primary bg-surface/60'
                 : 'border-transparent text-text-muted hover:text-text-primary',
             )}
           >
             <Sparkles className="size-3.5" />
-            Datos, Costo y Precios
+            Todo-en-Uno (Datos, Costo, Precios y Parámetros)
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('advanced')}
             className={cn(
-              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
+              'px-3 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
               activeTab === 'advanced'
                 ? 'border-primary text-primary bg-surface/60'
                 : 'border-transparent text-text-muted hover:text-text-primary',
             )}
           >
             <Sliders className="size-3.5" />
-            Parámetros Avanzados (Garantía y Límites)
+            Descripción Larga / Ficha Técnica
           </button>
         </div>
 
         {/* Cuerpo del Formulario */}
-        <div className="p-5 sm:p-6 flex-1 overflow-y-auto">
+        <div className="p-3.5 sm:p-4 flex-1 overflow-y-auto">
           {activeTab === 'main' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Columna Izquierda: Datos Básicos & Foto (5 cols) */}
-              <div className="lg:col-span-5 flex flex-col gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+              {/* Columna 1: Datos Básicos & Identificación (4 cols) */}
+              <div className="lg:col-span-4 flex flex-col gap-2">
                 {/* Nombre */}
                 <div>
-                  <Label className="text-xs font-semibold text-text-primary">
+                  <Label className="text-[11px] font-semibold text-text-primary">
                     Nombre del Producto <span className="text-rose-500">*</span>
                   </Label>
                   <Input
@@ -301,28 +301,28 @@ export function QuickCreateProductDialog({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     autoFocus
-                    className="mt-1 font-medium"
+                    className="mt-0.5 font-medium h-7 text-xs"
                   />
                 </div>
 
                 {/* SKU y Código de Barras */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs text-text-secondary">Código / SKU</Label>
+                    <Label className="text-[10px] text-text-secondary">Código / SKU</Label>
                     <Input
                       placeholder="SKU-1234"
                       value={sku}
                       onChange={(e) => setSku(e.target.value)}
-                      className="mt-1 font-mono text-xs"
+                      className="mt-0.5 font-mono text-xs h-7"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-text-secondary">Código de barras</Label>
+                    <Label className="text-[10px] text-text-secondary">Código de barras</Label>
                     <Input
                       placeholder="759123456789"
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
-                      className="mt-1 font-mono text-xs"
+                      className="mt-0.5 font-mono text-xs h-7"
                     />
                   </div>
                 </div>
@@ -330,13 +330,13 @@ export function QuickCreateProductDialog({
                 {/* Categoría y Marca */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs text-text-secondary">Categoría</Label>
+                    <Label className="text-[10px] text-text-secondary">Categoría</Label>
                     <Select
                       value={categoryId ? String(categoryId) : ''}
                       onChange={(e) =>
                         setCategoryId(e.target.value ? Number(e.target.value) : undefined)
                       }
-                      className="mt-1 text-xs"
+                      className="mt-0.5 text-xs h-7"
                     >
                       <option value="">(Sin categoría)</option>
                       {categories.map((c) => (
@@ -347,13 +347,13 @@ export function QuickCreateProductDialog({
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs text-text-secondary">Marca</Label>
+                    <Label className="text-[10px] text-text-secondary">Marca</Label>
                     <Select
                       value={brandId ? String(brandId) : ''}
                       onChange={(e) =>
                         setBrandId(e.target.value ? Number(e.target.value) : undefined)
                       }
-                      className="mt-1 text-xs"
+                      className="mt-0.5 text-xs h-7"
                     >
                       <option value="">(Sin marca)</option>
                       {brands.map((b) => (
@@ -368,11 +368,11 @@ export function QuickCreateProductDialog({
                 {/* Unidad de Medida y Switch Activo */}
                 <div className="grid grid-cols-2 gap-2 items-center">
                   <div>
-                    <Label className="text-xs text-text-secondary">Unidad de Medida</Label>
+                    <Label className="text-[10px] text-text-secondary">Unidad de Medida</Label>
                     <Select
                       value={unitOfMeasure}
                       onChange={(e) => setUnitOfMeasure(e.target.value)}
-                      className="mt-1 text-xs"
+                      className="mt-0.5 text-xs h-7"
                     >
                       {STANDARD_UNITS_OF_MEASURE.map((u) => (
                         <option key={u.value} value={u.value}>
@@ -381,7 +381,7 @@ export function QuickCreateProductDialog({
                       ))}
                     </Select>
                   </div>
-                  <div className="flex items-center justify-between bg-surface-subtle/50 border border-border/80 rounded-lg p-2.5 mt-3.5">
+                  <div className="flex items-center justify-between bg-surface-subtle/50 border border-border/80 rounded-md px-2.5 h-7 mt-3.5">
                     <Label className="text-xs cursor-pointer" onClick={() => setIsActive(!isActive)}>
                       Activo para venta
                     </Label>
@@ -390,10 +390,10 @@ export function QuickCreateProductDialog({
                 </div>
 
                 {/* Foto / URL de imagen con vista previa */}
-                <div className="flex flex-col gap-1.5 pt-1">
-                  <Label className="text-xs text-text-secondary">URL de Imagen (Opcional)</Label>
-                  <div className="flex items-center gap-2">
-                    <div className="size-10 rounded-lg border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
+                <div className="flex flex-col gap-1 pt-0.5">
+                  <Label className="text-[10px] text-text-secondary">URL de Imagen (Opcional)</Label>
+                  <div className="flex items-center gap-1.5">
+                    <div className="size-7 rounded border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
                       {imageUrl ? (
                         <img
                           src={imageUrl}
@@ -404,45 +404,45 @@ export function QuickCreateProductDialog({
                           }}
                         />
                       ) : (
-                        <Package className="size-5 text-text-muted/60" />
+                        <Package className="size-3.5 text-text-muted/60" />
                       )}
                     </div>
                     <Input
                       placeholder="https://ejemplo.com/foto.jpg"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
-                      className="text-xs flex-1"
+                      className="text-xs h-7 flex-1"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Columna Derecha: Costo y Precios de Venta desde el inicio (7 cols) */}
-              <div className="lg:col-span-7 flex flex-col gap-4">
-                <div className="bg-surface border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col gap-3">
-                  <div className="flex items-center justify-between border-b border-border/60 pb-2">
+              {/* Columna 2: Precios de Venta & Costo (5 cols) */}
+              <div className="lg:col-span-5 flex flex-col gap-2">
+                <div className="bg-surface border border-border/80 rounded-xl p-3 shadow-2xs flex flex-col gap-2">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-                      <DollarSign className="size-4 text-primary" />
+                      <DollarSign className="size-3.5 text-primary" />
                       Costo y Tarifas de Venta
                     </h4>
                     {activeRate && (
-                      <span className="text-[11px] font-medium text-text-muted bg-surface-subtle px-2 py-0.5 rounded border border-border/60">
-                        Tasa: 1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
+                      <span className="text-[10px] font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/60">
+                        1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
                       </span>
                     )}
                   </div>
 
                   {/* Campo de Costo de Compra */}
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 flex items-center justify-between gap-3">
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
                     <div className="flex flex-col">
                       <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                         Costo de compra (USD)
                       </Label>
-                      <span className="text-[10px] text-text-muted">
+                      <span className="text-[9px] text-text-muted leading-none">
                         Permite calcular en vivo tu ganancia en cada tarifa
                       </span>
                     </div>
-                    <div className="w-32">
+                    <div className="w-24">
                       <Input
                         type="number"
                         step="any"
@@ -450,13 +450,13 @@ export function QuickCreateProductDialog({
                         placeholder="0.00"
                         value={cost}
                         onChange={(e) => setCost(e.target.value)}
-                        className="text-right font-bold h-8 text-sm"
+                        className="text-right font-bold h-7 text-xs"
                       />
                     </div>
                   </div>
 
                   {/* Tarifas de Precios de Venta */}
-                  <div className="flex flex-col gap-2 pt-1">
+                  <div className="flex flex-col gap-1.5 pt-0.5 max-h-[310px] overflow-y-auto pr-0.5">
                     {activeLists.length === 0 ? (
                       <div className="text-xs text-text-muted text-center p-3 border border-dashed rounded-lg">
                         No hay listas de precios activas registradas.
@@ -479,29 +479,29 @@ export function QuickCreateProductDialog({
                           <div
                             key={list.id}
                             className={cn(
-                              'p-2.5 rounded-lg border flex flex-col gap-1.5 transition-colors',
+                              'px-2.5 py-1.5 rounded-lg border flex flex-col gap-0.5 transition-colors',
                               isDefault
                                 ? 'bg-primary/5 border-primary/30'
                                 : 'bg-surface-subtle/40 border-border/70',
                             )}
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-text-primary">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="text-xs font-bold text-text-primary truncate">
                                   {list.name}
                                 </span>
                                 {isDefault && (
-                                  <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                                    Predeterminada
+                                  <span className="text-[8px] font-semibold text-primary bg-primary/10 px-1 py-0.2 rounded shrink-0">
+                                    Predet.
                                   </span>
                                 )}
                                 {list.code && (
-                                  <span className="text-[10px] font-mono text-text-muted">
+                                  <span className="text-[9px] font-mono text-text-muted truncate">
                                     ({list.code})
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <span className="text-xs font-semibold text-text-muted">$</span>
                                 <Input
                                   type="number"
@@ -512,13 +512,13 @@ export function QuickCreateProductDialog({
                                   onChange={(e) =>
                                     handlePriceChange(list.id, e.target.value, isDefault)
                                   }
-                                  className="w-28 text-right font-bold text-sm h-8"
+                                  className="w-24 text-right font-bold text-xs h-7"
                                 />
                               </div>
                             </div>
 
                             {/* Conversión en Bs y Margen */}
-                            <div className="flex items-center justify-between text-[11px] text-text-muted pt-1 border-t border-border/30">
+                            <div className="flex items-center justify-between text-[10px] text-text-muted pt-0.5 border-t border-border/30">
                               <span>
                                 {vesVal != null ? (
                                   <span className="font-semibold text-text-secondary">
@@ -535,13 +535,13 @@ export function QuickCreateProductDialog({
                               {margin != null && (
                                 <span
                                   className={cn(
-                                    'font-medium text-[10px]',
+                                    'font-medium text-[9px]',
                                     Number(margin) >= 0
                                       ? 'text-emerald-600 dark:text-emerald-400'
                                       : 'text-rose-600 dark:text-rose-400',
                                   )}
                                 >
-                                  Margen: +{margin}% (+${profit} ganancia)
+                                  Margen: +{margin}% (+${profit})
                                 </span>
                               )}
                             </div>
@@ -552,84 +552,41 @@ export function QuickCreateProductDialog({
                   </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            /* Pestaña Secundaria: Parámetros Avanzados */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex flex-col gap-4">
-                <div>
-                  <Label className="text-xs font-semibold text-text-secondary">
-                    Descripción / Especificaciones
-                  </Label>
-                  <Textarea
-                    rows={6}
-                    placeholder="Detalles técnicos, compatibilidad o notas..."
-                    value={longDescription}
-                    onChange={(e) => setLongDescription(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold text-text-secondary">
-                    Política de garantía
-                  </Label>
-                  <Select
-                    value={warrantyPolicyId ? String(warrantyPolicyId) : ''}
-                    onChange={(e) =>
-                      setWarrantyPolicyId(e.target.value ? Number(e.target.value) : undefined)
-                    }
-                    className="mt-1 text-xs"
-                  >
-                    <option value="">(Sin política de garantía)</option>
-                    {warranties.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.duration_days} días)
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
 
-              <div className="flex flex-col gap-4">
+              {/* Columna 3: Control Inventario, Límites & Garantía (3 cols) */}
+              <div className="lg:col-span-3 flex flex-col gap-2">
                 {/* Control de Inventario */}
-                <div className="p-4 rounded-xl border border-border bg-surface flex flex-col gap-3">
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-                    Control de Inventario
-                  </h5>
+                <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-xs">Rastrear existencias</Label>
-                      <p className="text-[11px] text-text-muted">
-                        Afectar inventario en ventas y compras
-                      </p>
+                      <Label className="text-xs font-semibold text-text-primary">Rastrear existencias</Label>
+                      <p className="text-[9px] text-text-muted">Afecta inventario</p>
                     </div>
                     <Switch checked={trackStock} onCheckedChange={setTrackStock} />
                   </div>
-                  <div className="pt-2 border-t border-border/50">
-                    <Label className="text-xs">Modalidad de rastreo</Label>
+                  <div className="pt-1 border-t border-border/50">
+                    <Label className="text-[10px] text-text-secondary">Modalidad</Label>
                     <Select
                       value={trackingType}
                       onChange={(e) =>
                         setTrackingType(e.target.value as 'quantity' | 'serialized')
                       }
-                      className="mt-1 text-xs"
+                      className="mt-0.5 text-xs h-7"
                     >
-                      <option value="quantity">Por cantidad (estándar)</option>
-                      <option value="serialized">
-                        Serializado (IMEI / Números de serie individuales)
-                      </option>
+                      <option value="quantity">Por cantidad</option>
+                      <option value="serialized">Serializado (IMEI)</option>
                     </Select>
                   </div>
                 </div>
 
                 {/* Umbrales de Stock */}
-                <div className="p-4 rounded-xl border border-border bg-surface flex flex-col gap-3">
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-                    Umbrales de Stock
-                  </h5>
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1.5">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                    Límites de Stock
+                  </h4>
+                  <div className="grid grid-cols-3 gap-1.5">
                     <div>
-                      <Label className="text-[11px] text-text-secondary">Mínimo</Label>
+                      <Label className="text-[9px] text-text-secondary">Mínimo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -637,11 +594,11 @@ export function QuickCreateProductDialog({
                         placeholder="0"
                         value={minStock}
                         onChange={(e) => setMinStock(e.target.value)}
-                        className="mt-1 text-xs"
+                        className="mt-0.5 text-xs h-7 px-1.5"
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] text-text-secondary">Máximo</Label>
+                      <Label className="text-[9px] text-text-secondary">Máximo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -649,11 +606,11 @@ export function QuickCreateProductDialog({
                         placeholder="0"
                         value={maxStock}
                         onChange={(e) => setMaxStock(e.target.value)}
-                        className="mt-1 text-xs"
+                        className="mt-0.5 text-xs h-7 px-1.5"
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] text-text-secondary">Punto Reorden</Label>
+                      <Label className="text-[9px] text-text-secondary">Reorden</Label>
                       <Input
                         type="number"
                         step="any"
@@ -661,18 +618,55 @@ export function QuickCreateProductDialog({
                         placeholder="0"
                         value={reorderQuantity}
                         onChange={(e) => setReorderQuantity(e.target.value)}
-                        className="mt-1 text-xs"
+                        className="mt-0.5 text-xs h-7 px-1.5"
                       />
                     </div>
                   </div>
                 </div>
+
+                {/* Política de Garantía */}
+                <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1">
+                  <Label className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                    Garantía
+                  </Label>
+                  <Select
+                    value={warrantyPolicyId ? String(warrantyPolicyId) : ''}
+                    onChange={(e) =>
+                      setWarrantyPolicyId(e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="text-xs h-7"
+                  >
+                    <option value="">(Sin garantía)</option>
+                    {warranties.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.duration_days}d)
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Pestaña Secundaria: Parámetros Avanzados */
+            <div className="flex flex-col gap-3">
+              <div>
+                <Label className="text-xs font-semibold text-text-secondary">
+                  Descripción / Especificaciones detalladas
+                </Label>
+                <Textarea
+                  rows={6}
+                  placeholder="Detalles técnicos, compatibilidad o notas del producto..."
+                  value={longDescription}
+                  onChange={(e) => setLongDescription(e.target.value)}
+                  className="mt-1 text-xs"
+                />
               </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <DialogFooter className="border-t border-border p-4 bg-surface-subtle/40 flex items-center justify-between sm:justify-between w-full shrink-0">
+        <DialogFooter className="border-t border-border px-4 py-2.5 bg-surface-subtle/40 flex items-center justify-between sm:justify-between w-full shrink-0">
           <Button
             variant="outline"
             size="sm"

@@ -13,17 +13,20 @@
  *      * Botón de Edición Rápida directa del producto (EditProductDialog).
  *      * Acceso a la ficha completa con Kardex e historial (/inventory/$productId).
  */
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
   AlertTriangle,
   Boxes,
+  Check,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   DollarSign,
   Edit,
   ExternalLink,
+  Folder,
   Package,
   Save,
   Search,
@@ -189,15 +192,32 @@ export function InventoryCatalogWorkspace({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  // Categorías para chips horizontales tipo catálogo
+  // Categorías y selector inteligente con buscador (Opción 1)
   const { data: categories = [] } = useCategories();
-  const categoriesScrollRef = useRef<HTMLDivElement>(null);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
-  const scrollCategories = (offset: number) => {
-    if (categoriesScrollRef.current) {
-      categoriesScrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
-    }
-  };
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredCategories = useMemo(() => {
+    if (!categorySearch.trim()) return categories;
+    const q = categorySearch.toLowerCase();
+    return categories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [categories, categorySearch]);
+
+  const selectedCategoryName = useMemo(() => {
+    if (!categoryId) return null;
+    return categories.find((c) => c.id === categoryId)?.name || 'Categoría';
+  }, [categories, categoryId]);
 
   const handleSearchSubmit = (val: string) => {
     onSearchChange(val);
@@ -240,8 +260,111 @@ export function InventoryCatalogWorkspace({
               ) : null}
             </div>
 
-            {/* Filtros compactos: Almacén, Tipo y Stock */}
+            {/* Filtros compactos: Categoría, Almacén, Tipo y Stock */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Selector de Categoría Inteligente con Buscador (Opción 1) */}
+              <div ref={categoryDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                  className={cn(
+                    'h-10 rounded-md border px-3 text-xs sm:text-sm font-medium transition-all shadow-2xs flex items-center gap-2 max-w-[240px]',
+                    categoryId
+                      ? 'bg-primary/10 border-primary text-primary font-semibold'
+                      : 'bg-surface border-border text-text-primary hover:border-text-secondary',
+                  )}
+                  title="Filtrar por categoría"
+                >
+                  <Folder className="size-4 shrink-0 text-primary" />
+                  <span className="truncate">
+                    {selectedCategoryName || `Categoría: Todas (${categories.length})`}
+                  </span>
+                  {categoryId ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCategoryChange?.(undefined);
+                      }}
+                      className="ml-1 hover:text-rose-500 rounded p-0.5"
+                      title="Quitar filtro de categoría"
+                    >
+                      <X className="size-3" />
+                    </span>
+                  ) : (
+                    <ChevronDown className="size-3.5 shrink-0 opacity-60 ml-auto" />
+                  )}
+                </button>
+
+                {/* Popover con Buscador Integrado */}
+                {categoryDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-64 max-h-80 bg-surface rounded-xl border border-border shadow-xl z-50 flex flex-col p-2 animate-in fade-in-50 zoom-in-95">
+                    <div className="relative mb-2">
+                      <Search className="size-3.5 text-text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Buscar categoría..."
+                        value={categorySearch}
+                        onChange={(e) => setCategorySearch(e.target.value)}
+                        autoFocus
+                        className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-md bg-surface-subtle border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+
+                    <div className="overflow-y-auto flex-1 flex flex-col gap-0.5 max-h-60 pr-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onCategoryChange?.(undefined);
+                          setCategoryDropdownOpen(false);
+                          setCategorySearch('');
+                        }}
+                        className={cn(
+                          'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-between',
+                          !categoryId
+                            ? 'bg-primary text-primary-foreground font-bold'
+                            : 'hover:bg-surface-subtle text-text-primary',
+                        )}
+                      >
+                        <span>Todas las categorías</span>
+                        <span className="text-[10px] opacity-80">({totalProducts})</span>
+                      </button>
+
+                      {filteredCategories.map((cat) => {
+                        const isSelected = categoryId === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              onCategoryChange?.(isSelected ? undefined : cat.id);
+                              setCategoryDropdownOpen(false);
+                              setCategorySearch('');
+                            }}
+                            className={cn(
+                              'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-between',
+                              isSelected
+                                ? 'bg-primary text-primary-foreground font-bold'
+                                : 'hover:bg-surface-subtle text-text-primary',
+                            )}
+                          >
+                            <span className="truncate mr-2">{cat.name}</span>
+                            {isSelected && <Check className="size-3 shrink-0" />}
+                          </button>
+                        );
+                      })}
+
+                      {filteredCategories.length === 0 && (
+                        <div className="p-3 text-center text-xs text-text-muted">
+                          No hay coincidencias
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <select
                 className="h-10 rounded-md border border-border bg-surface px-3 text-xs sm:text-sm font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-2xs"
                 value={warehouseId ? String(warehouseId) : ''}
@@ -295,76 +418,6 @@ export function InventoryCatalogWorkspace({
               </select>
             </div>
           </div>
-
-          {/* Chips horizontales de categorías estilo Tienda / Catálogo con desplazamiento */}
-          {categories.length > 0 && onCategoryChange && (
-            <div className="relative flex items-center gap-1.5 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => scrollCategories(-250)}
-                className="h-7 w-7 p-0 rounded-full shrink-0 shadow-2xs border-border bg-surface hover:bg-surface-hover z-10"
-                aria-label="Deslizar categorías a la izquierda"
-                title="Deslizar a la izquierda"
-              >
-                <ChevronLeft className="size-3.5" />
-              </Button>
-
-              <div
-                ref={categoriesScrollRef}
-                onWheel={(e) => {
-                  if (e.deltaY !== 0) {
-                    e.currentTarget.scrollLeft += e.deltaY;
-                  }
-                }}
-                className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 scroll-smooth scrollbar-thin"
-              >
-                <button
-                  type="button"
-                  onClick={() => onCategoryChange(undefined)}
-                  className={cn(
-                    'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all border shrink-0',
-                    !categoryId
-                      ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                      : 'bg-surface text-text-muted border-border hover:border-text-secondary hover:text-text-primary',
-                  )}
-                >
-                  Todas las categorías ({totalProducts})
-                </button>
-                {categories.map((cat) => {
-                  const isSelected = categoryId === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => onCategoryChange(isSelected ? undefined : cat.id)}
-                      className={cn(
-                        'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all border shrink-0',
-                        isSelected
-                          ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                          : 'bg-surface text-text-muted border-border hover:border-text-secondary hover:text-text-primary',
-                      )}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => scrollCategories(250)}
-                className="h-7 w-7 p-0 rounded-full shrink-0 shadow-2xs border-border bg-surface hover:bg-surface-hover z-10"
-                aria-label="Deslizar categorías a la derecha"
-                title="Deslizar a la derecha"
-              >
-                <ChevronRight className="size-3.5" />
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -514,14 +567,26 @@ export function InventoryCatalogWorkspace({
                   </button>
                 </div>
 
-                {/* Contenido de la Tarjeta (Nombre + Precios de Venta + Costo) */}
+                {/* Contenido de la Tarjeta (Nombre + Marca + Precios de Venta + Costo) */}
                 <div className="p-3 flex flex-col flex-1 justify-between gap-2">
                   <div className="flex flex-col gap-1">
-                    {product.sku && (
-                      <span className="text-[10px] font-mono text-text-muted truncate">
-                        SKU: {product.sku}
-                      </span>
-                    )}
+                    <div className="flex items-center justify-between gap-1 text-[10px]">
+                      {product.sku ? (
+                        <span className="font-mono text-text-muted truncate">
+                          SKU: {product.sku}
+                        </span>
+                      ) : (
+                        <span></span>
+                      )}
+                      {product.brand?.name && (
+                        <span
+                          className="font-bold text-primary truncate max-w-[105px] uppercase bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 text-[9px] tracking-wide shrink-0"
+                          title={`Marca: ${product.brand.name}`}
+                        >
+                          {product.brand.name}
+                        </span>
+                      )}
+                    </div>
                     <h3
                       className="font-semibold text-xs sm:text-sm text-text-primary line-clamp-2 leading-tight group-hover:text-primary transition-colors"
                       title={product.name}
@@ -855,28 +920,28 @@ function ProductCatalogDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[96vw] max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-2xl shadow-2xl border-border">
+      <DialogContent className="max-w-6xl w-[98vw] max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-2xl shadow-2xl border-border">
         {/* Cabecera del Modal */}
-        <DialogHeader className="p-5 pb-3 bg-surface-subtle/50 border-b border-border/80">
+        <DialogHeader className="px-4 py-2.5 bg-surface-subtle/50 border-b border-border/80">
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-surface border border-border text-text-muted">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted">
                   SKU: {sku || 'Sin SKU'}
                 </span>
                 {barcode && (
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-surface border border-border text-text-muted">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted">
                     BAR: {barcode}
                   </span>
                 )}
-                <Badge variant={isActive ? 'success' : 'default'} className="text-[10px]">
+                <Badge variant={isActive ? 'success' : 'default'} className="text-[9px] py-0 px-1.5">
                   {isActive ? 'Activo para venta' : 'Inactivo'}
                 </Badge>
               </div>
-              <DialogTitle className="text-lg sm:text-xl font-bold text-text-primary mt-1">
+              <DialogTitle className="text-base sm:text-lg font-bold text-text-primary mt-0.5">
                 {name || 'Producto sin nombre'}
               </DialogTitle>
-              <DialogDescription className="text-xs text-text-muted">
+              <DialogDescription className="text-[11px] text-text-muted leading-tight">
                 Ficha integral: edita datos, precios y consulta existencias en un solo lugar.
               </DialogDescription>
             </div>
@@ -884,12 +949,12 @@ function ProductCatalogDetailModal({
         </DialogHeader>
 
         {/* Pestañas de Navegación */}
-        <div className="flex items-center gap-2 px-6 border-b border-border bg-surface-subtle/30 shrink-0">
+        <div className="flex items-center gap-2 px-4 border-b border-border bg-surface-subtle/30 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('main')}
             className={cn(
-              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
+              'px-3 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
               activeTab === 'main'
                 ? 'border-primary text-primary bg-surface/60'
                 : 'border-transparent text-text-muted hover:text-text-primary',
@@ -902,26 +967,26 @@ function ProductCatalogDetailModal({
             type="button"
             onClick={() => setActiveTab('advanced')}
             className={cn(
-              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
+              'px-3 py-2 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5',
               activeTab === 'advanced'
                 ? 'border-primary text-primary bg-surface/60'
                 : 'border-transparent text-text-muted hover:text-text-primary',
             )}
           >
             <Sliders className="size-3.5" />
-            Avanzado (Garantía, Límites de Stock y Notas)
+            Ficha Técnica & Parámetros Extendidos
           </button>
         </div>
 
         {/* Cuerpo del Modal con Scroll */}
-        <div className="p-5 sm:p-6 flex-1 overflow-y-auto">
+        <div className="p-3.5 sm:p-4 flex-1 overflow-y-auto">
           {activeTab === 'main' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Columna Izquierda: Foto & Datos Básicos (5 cols) */}
-              <div className="lg:col-span-5 flex flex-col gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+              {/* Columna 1: Foto & Datos Básicos (4 cols) */}
+              <div className="lg:col-span-4 flex flex-col gap-2">
                 {/* Foto del Producto con miniaturas */}
-                <div className="flex flex-col gap-2">
-                  <div className="w-full aspect-square bg-slate-50 dark:bg-zinc-900 rounded-xl border border-border overflow-hidden flex items-center justify-center p-3 relative group">
+                <div className="flex flex-col gap-1.5">
+                  <div className="w-full h-28 sm:h-32 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-border overflow-hidden flex items-center justify-center p-2 relative group">
                     {currentPreviewImage ? (
                       <img
                         src={currentPreviewImage}
@@ -929,9 +994,9 @@ function ProductCatalogDetailModal({
                         className="size-full object-contain"
                       />
                     ) : (
-                      <div className="flex flex-col items-center justify-center gap-2 text-text-muted">
-                        <Package className="size-16 stroke-[1.25] text-text-muted/50" />
-                        <span className="text-xs font-medium text-text-muted/60">
+                      <div className="flex flex-col items-center justify-center gap-1 text-text-muted">
+                        <Package className="size-10 stroke-[1.25] text-text-muted/50" />
+                        <span className="text-[10px] font-medium text-text-muted/60">
                           Sin imagen registrada
                         </span>
                       </div>
@@ -939,14 +1004,14 @@ function ProductCatalogDetailModal({
                   </div>
 
                   {allImages.length > 1 && (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
                       {allImages.map((img, idx) => (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => setActiveImageIndex(idx)}
                           className={cn(
-                            'size-11 rounded-lg border overflow-hidden p-0.5 bg-surface transition-all shrink-0',
+                            'size-8 rounded border overflow-hidden p-0.5 bg-surface transition-all shrink-0',
                             activeImageIndex === idx
                               ? 'border-primary ring-2 ring-primary/20'
                               : 'border-border hover:border-text-secondary',
@@ -959,48 +1024,48 @@ function ProductCatalogDetailModal({
                   )}
 
                   {/* URL de foto editable */}
-                  <div>
-                    <Label className="text-[11px] text-text-secondary font-medium">URL de Imagen</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[10px] text-text-secondary font-medium shrink-0">URL:</Label>
                     <Input
                       placeholder="https://ejemplo.com/foto.jpg"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
-                      className="text-xs mt-1"
+                      className="text-xs h-7"
                     />
                   </div>
                 </div>
 
                 {/* Nombre del Producto */}
                 <div>
-                  <Label className="text-xs font-semibold text-text-primary">
+                  <Label className="text-[11px] font-semibold text-text-primary">
                     Nombre del Producto <span className="text-rose-500">*</span>
                   </Label>
                   <Input
                     placeholder="Ej. Bujía Denso K20PR-U"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="mt-1 font-medium"
+                    className="mt-0.5 font-medium h-7 text-xs"
                   />
                 </div>
 
                 {/* SKU y Código de Barras */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs text-text-secondary">Código / SKU</Label>
+                    <Label className="text-[10px] text-text-secondary">Código / SKU</Label>
                     <Input
                       placeholder="SKU-1234"
                       value={sku}
                       onChange={(e) => setSku(e.target.value)}
-                      className="mt-1 font-mono text-xs"
+                      className="mt-0.5 font-mono text-xs h-7"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-text-secondary">Código de barras</Label>
+                    <Label className="text-[10px] text-text-secondary">Código de barras</Label>
                     <Input
                       placeholder="759123456789"
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
-                      className="mt-1 font-mono text-xs"
+                      className="mt-0.5 font-mono text-xs h-7"
                     />
                   </div>
                 </div>
@@ -1008,13 +1073,13 @@ function ProductCatalogDetailModal({
                 {/* Categoría y Marca */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs text-text-secondary">Categoría</Label>
+                    <Label className="text-[10px] text-text-secondary">Categoría</Label>
                     <Select
                       value={categoryId ? String(categoryId) : ''}
                       onChange={(e) =>
                         setCategoryId(e.target.value ? Number(e.target.value) : undefined)
                       }
-                      className="mt-1 text-xs"
+                      className="mt-0.5 text-xs h-7"
                     >
                       <option value="">(Sin categoría)</option>
                       {categories.map((c) => (
@@ -1025,13 +1090,13 @@ function ProductCatalogDetailModal({
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs text-text-secondary">Marca</Label>
+                    <Label className="text-[10px] text-text-secondary">Marca</Label>
                     <Select
                       value={brandId ? String(brandId) : ''}
                       onChange={(e) =>
                         setBrandId(e.target.value ? Number(e.target.value) : undefined)
                       }
-                      className="mt-1 text-xs"
+                      className="mt-0.5 text-xs h-7"
                     >
                       <option value="">(Sin marca)</option>
                       {brands.map((b) => (
@@ -1044,13 +1109,13 @@ function ProductCatalogDetailModal({
                 </div>
 
                 {/* Unidad de Medida y Switch Activo */}
-                <div className="grid grid-cols-2 gap-2 items-center pt-1">
+                <div className="grid grid-cols-2 gap-2 items-center">
                   <div>
-                    <Label className="text-xs text-text-secondary">Unidad de Medida</Label>
+                    <Label className="text-[10px] text-text-secondary">Unidad de Medida</Label>
                     <Select
                       value={unitOfMeasure}
                       onChange={(e) => setUnitOfMeasure(e.target.value)}
-                      className="mt-1 text-xs"
+                      className="mt-0.5 text-xs h-7"
                     >
                       {STANDARD_UNITS_OF_MEASURE.map((u) => (
                         <option key={u.value} value={u.value}>
@@ -1059,7 +1124,7 @@ function ProductCatalogDetailModal({
                       ))}
                     </Select>
                   </div>
-                  <div className="flex items-center justify-between bg-surface-subtle/50 border border-border/80 rounded-lg p-2.5 mt-3.5">
+                  <div className="flex items-center justify-between bg-surface-subtle/50 border border-border/80 rounded-md px-2.5 h-7 mt-3.5">
                     <Label className="text-xs cursor-pointer" onClick={() => setIsActive(!isActive)}>
                       Activo
                     </Label>
@@ -1068,33 +1133,32 @@ function ProductCatalogDetailModal({
                 </div>
               </div>
 
-              {/* Columna Derecha: Costo, Precios & Existencias (7 cols) */}
-              <div className="lg:col-span-7 flex flex-col gap-5">
-                {/* Bloque: Precios y Rentabilidad */}
-                <div className="bg-surface border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col gap-3">
-                  <div className="flex items-center justify-between border-b border-border/60 pb-2">
+              {/* Columna 2: Precios de Venta & Costo (5 cols) */}
+              <div className="lg:col-span-5 flex flex-col gap-2">
+                <div className="bg-surface border border-border/80 rounded-xl p-3 shadow-2xs flex flex-col gap-2">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-                      <DollarSign className="size-4 text-primary" />
+                      <DollarSign className="size-3.5 text-primary" />
                       Precios de Venta y Costo
                     </h4>
                     {activeRate && (
-                      <span className="text-[11px] font-medium text-text-muted bg-surface-subtle px-2 py-0.5 rounded border border-border/60">
-                        Tasa: 1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
+                      <span className="text-[10px] font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/60">
+                        1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
                       </span>
                     )}
                   </div>
 
                   {/* Fila de Costo de Compra */}
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 flex items-center justify-between gap-3">
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
                     <div className="flex flex-col">
                       <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                         Costo de compra (USD)
                       </Label>
-                      <span className="text-[10px] text-text-muted">
+                      <span className="text-[9px] text-text-muted leading-none">
                         Base para calcular margen y ganancia
                       </span>
                     </div>
-                    <div className="w-32">
+                    <div className="w-24">
                       <Input
                         type="number"
                         step="any"
@@ -1102,13 +1166,13 @@ function ProductCatalogDetailModal({
                         placeholder="0.00"
                         value={cost}
                         onChange={(e) => setCost(e.target.value)}
-                        className="text-right font-bold h-8 text-sm"
+                        className="text-right font-bold h-7 text-xs"
                       />
                     </div>
                   </div>
 
                   {/* Tarifas de Precios de Venta */}
-                  <div className="flex flex-col gap-2 pt-1">
+                  <div className="flex flex-col gap-1.5 pt-0.5 max-h-[310px] overflow-y-auto pr-0.5">
                     {priceLists
                       .filter((l) => l.is_active)
                       .map((list) => {
@@ -1128,29 +1192,29 @@ function ProductCatalogDetailModal({
                           <div
                             key={list.id}
                             className={cn(
-                              'p-2.5 rounded-lg border flex flex-col gap-1.5 transition-colors',
+                              'px-2.5 py-1.5 rounded-lg border flex flex-col gap-0.5 transition-colors',
                               isDefault
                                 ? 'bg-primary/5 border-primary/30'
                                 : 'bg-surface-subtle/40 border-border/70',
                             )}
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-text-primary">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="text-xs font-bold text-text-primary truncate">
                                   {list.name}
                                 </span>
                                 {isDefault && (
-                                  <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                                    Predeterminada
+                                  <span className="text-[8px] font-semibold text-primary bg-primary/10 px-1 py-0.2 rounded shrink-0">
+                                    Predet.
                                   </span>
                                 )}
                                 {list.code && (
-                                  <span className="text-[10px] font-mono text-text-muted">
+                                  <span className="text-[9px] font-mono text-text-muted truncate">
                                     ({list.code})
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <span className="text-xs font-semibold text-text-muted">$</span>
                                 <Input
                                   type="number"
@@ -1161,13 +1225,13 @@ function ProductCatalogDetailModal({
                                   onChange={(e) =>
                                     handlePriceChange(list.id, e.target.value, isDefault)
                                   }
-                                  className="w-28 text-right font-bold text-sm h-8"
+                                  className="w-24 text-right font-bold text-xs h-7"
                                 />
                               </div>
                             </div>
 
                             {/* Conversión en Bs y Margen */}
-                            <div className="flex items-center justify-between text-[11px] text-text-muted pt-1 border-t border-border/30">
+                            <div className="flex items-center justify-between text-[10px] text-text-muted pt-0.5 border-t border-border/30">
                               <span>
                                 {vesVal != null ? (
                                   <span className="font-semibold text-text-secondary">
@@ -1184,13 +1248,13 @@ function ProductCatalogDetailModal({
                               {margin != null && (
                                 <span
                                   className={cn(
-                                    'font-medium text-[10px]',
+                                    'font-medium text-[9px]',
                                     Number(margin) >= 0
                                       ? 'text-emerald-600 dark:text-emerald-400'
                                       : 'text-rose-600 dark:text-rose-400',
                                   )}
                                 >
-                                  Margen: +{margin}% (+${profit} ganancia)
+                                  Margen: +{margin}% (+${profit})
                                 </span>
                               )}
                             </div>
@@ -1199,31 +1263,33 @@ function ProductCatalogDetailModal({
                       })}
                   </div>
                 </div>
+              </div>
 
+              {/* Columna 3: Existencias & Parámetros Rápidos (3 cols) */}
+              <div className="lg:col-span-3 flex flex-col gap-2">
                 {/* Bloque: Existencias por Almacén */}
-                <div className="bg-surface border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col gap-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5 border-b border-border/60 pb-2">
-                    <Boxes className="size-4 text-primary" />
-                    Existencias por Almacén
+                <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5 border-b border-border/60 pb-1">
+                    <Boxes className="size-3.5 text-primary" />
+                    Existencias
                   </h4>
 
                   {isLoadingStock ? (
-                    <div className="p-4 text-center text-xs text-text-muted">
-                      Consultando existencias...
+                    <div className="p-3 text-center text-xs text-text-muted">
+                      Consultando...
                     </div>
                   ) : stockByWarehouse.length === 0 ? (
-                    <div className="p-3 bg-surface-subtle/50 rounded-xl border border-border text-xs text-text-muted text-center">
-                      Este producto no posee existencias registradas en ningún almacén.
+                    <div className="p-2 bg-surface-subtle/50 rounded-lg border border-border text-[11px] text-text-muted text-center">
+                      Sin existencias registradas.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-lg border border-border/80">
-                      <table className="w-full text-xs text-left">
+                    <div className="overflow-x-auto rounded-lg border border-border/80 max-h-36 overflow-y-auto">
+                      <table className="w-full text-[11px] text-left">
                         <thead className="bg-surface-subtle/80 border-b border-border text-text-secondary font-semibold">
                           <tr>
-                            <th className="px-3 py-2">Almacén</th>
-                            <th className="px-3 py-2 text-right">Disponible</th>
-                            <th className="px-3 py-2 text-right">Reservado</th>
-                            <th className="px-3 py-2 text-right">Dañado</th>
+                            <th className="px-2 py-1">Almacén</th>
+                            <th className="px-2 py-1 text-right">Disp.</th>
+                            <th className="px-2 py-1 text-right">Res.</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -1234,17 +1300,14 @@ function ProductCatalogDetailModal({
                                 : sw.available;
                             return (
                               <tr key={sw.warehouse_id} className="hover:bg-surface-subtle/30">
-                                <td className="px-3 py-2 font-medium text-text-primary">
+                                <td className="px-2 py-1 font-medium text-text-primary truncate max-w-[80px]" title={sw.warehouse_name || sw.warehouse_code}>
                                   {sw.warehouse_name || sw.warehouse_code}
                                 </td>
-                                <td className="px-3 py-2 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                <td className="px-2 py-1 text-right font-bold text-emerald-600 dark:text-emerald-400">
                                   {Number.isFinite(avail) ? avail : 0}
                                 </td>
-                                <td className="px-3 py-2 text-right text-text-muted">
+                                <td className="px-2 py-1 text-right text-text-muted">
                                   {sw.reserved ?? 0}
-                                </td>
-                                <td className="px-3 py-2 text-right text-text-muted">
-                                  {sw.damaged ?? 0}
                                 </td>
                               </tr>
                             );
@@ -1254,22 +1317,88 @@ function ProductCatalogDetailModal({
                     </div>
                   )}
                 </div>
+
+                {/* Límites de Stock */}
+                <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1.5">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                    Límites de Stock
+                  </h4>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div>
+                      <Label className="text-[9px] text-text-secondary">Mínimo</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        value={minStock}
+                        onChange={(e) => setMinStock(e.target.value)}
+                        className="mt-0.5 text-xs h-7 px-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[9px] text-text-secondary">Máximo</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        value={maxStock}
+                        onChange={(e) => setMaxStock(e.target.value)}
+                        className="mt-0.5 text-xs h-7 px-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[9px] text-text-secondary">Reorden</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        value={reorderQuantity}
+                        onChange={(e) => setReorderQuantity(e.target.value)}
+                        className="mt-0.5 text-xs h-7 px-1.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Política de Garantía */}
+                <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1">
+                  <Label className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                    Garantía
+                  </Label>
+                  <Select
+                    value={warrantyPolicyId ? String(warrantyPolicyId) : ''}
+                    onChange={(e) =>
+                      setWarrantyPolicyId(e.target.value ? Number(e.target.value) : undefined)
+                    }
+                    className="text-xs h-7"
+                  >
+                    <option value="">(Sin garantía)</option>
+                    {warranties.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.duration_days}d)
+                      </option>
+                    ))}
+                  </Select>
+                </div>
               </div>
             </div>
           ) : (
             /* Pestaña Secundaria: Avanzado / Parámetros */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-3">
                 <div>
                   <Label className="text-xs font-semibold text-text-secondary">
                     Descripción detallada / Ficha técnica
                   </Label>
                   <Textarea
-                    rows={6}
+                    rows={5}
                     placeholder="Detalles técnicos, especificaciones, compatibilidad o notas..."
                     value={longDescription}
                     onChange={(e) => setLongDescription(e.target.value)}
-                    className="mt-1"
+                    className="mt-1 text-xs"
                   />
                 </div>
                 <div>
@@ -1293,16 +1422,16 @@ function ProductCatalogDetailModal({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 {/* Control de Inventario */}
-                <div className="p-4 rounded-xl border border-border bg-surface flex flex-col gap-3">
+                <div className="p-3.5 rounded-xl border border-border bg-surface flex flex-col gap-2.5">
                   <h5 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Control de Inventario
                   </h5>
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-xs">Rastrear existencias</Label>
-                      <p className="text-[11px] text-text-muted">
+                      <p className="text-[10px] text-text-muted">
                         Afectar inventario en ventas y compras
                       </p>
                     </div>
@@ -1326,7 +1455,7 @@ function ProductCatalogDetailModal({
                 </div>
 
                 {/* Umbrales de Stock */}
-                <div className="p-4 rounded-xl border border-border bg-surface flex flex-col gap-3">
+                <div className="p-3.5 rounded-xl border border-border bg-surface flex flex-col gap-2.5">
                   <h5 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Umbrales de Stock
                   </h5>
@@ -1340,7 +1469,7 @@ function ProductCatalogDetailModal({
                         placeholder="0"
                         value={minStock}
                         onChange={(e) => setMinStock(e.target.value)}
-                        className="mt-1 text-xs"
+                        className="mt-1 text-xs h-7"
                       />
                     </div>
                     <div>
@@ -1352,7 +1481,7 @@ function ProductCatalogDetailModal({
                         placeholder="0"
                         value={maxStock}
                         onChange={(e) => setMaxStock(e.target.value)}
-                        className="mt-1 text-xs"
+                        className="mt-1 text-xs h-7"
                       />
                     </div>
                     <div>
@@ -1364,7 +1493,7 @@ function ProductCatalogDetailModal({
                         placeholder="0"
                         value={reorderQuantity}
                         onChange={(e) => setReorderQuantity(e.target.value)}
-                        className="mt-1 text-xs"
+                        className="mt-1 text-xs h-7"
                       />
                     </div>
                   </div>
@@ -1375,7 +1504,7 @@ function ProductCatalogDetailModal({
         </div>
 
         {/* Footer con Acciones */}
-        <DialogFooter className="border-t border-border p-4 bg-surface-subtle/40 flex items-center justify-between sm:justify-between w-full shrink-0">
+        <DialogFooter className="border-t border-border px-4 py-2.5 bg-surface-subtle/40 flex items-center justify-between sm:justify-between w-full shrink-0">
           <div className="flex items-center gap-3">
             <Link
               to="/inventory/$productId"
