@@ -31,23 +31,14 @@ import {
 } from '@/types/api';
 import { useSessionStore } from '@/stores/session';
 
-const isLocalBrowser =
-  typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
 export function resolveLocalApiBaseUrl(hostname: string, port?: string): string {
   const apiHost = hostname === 'localhost' ? 'localhost' : '127.0.0.1';
-  const apiPort =
-    port ||
-    (typeof window !== 'undefined' && window.location.port
-      ? window.location.port
-      : '8787');
+  const apiPort = port || '8787';
   return `http://${apiHost}:${apiPort}/api`;
 }
 
 const API_BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
-  (isLocalBrowser ? resolveLocalApiBaseUrl(window.location.hostname) : '/api');
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api';
 
 // Handler externo para 401 (registrado desde main.tsx para tener acceso
 // al router context de TanStack). NO usamos window.location.href porque

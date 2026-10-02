@@ -148,6 +148,16 @@ WebView2Done:
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\BalanzaPro" "NoModify" 1
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\BalanzaPro" "NoRepair" 1
 
+    ; Configurar MotorLocal para iniciar automaticamente con Windows
+    DetailPrint "Configurando inicio automatico del Motor Local..."
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "BalanzaProMotorLocal" '"$INSTDIR\MotorLocal.exe"'
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BalanzaProMotorLocal" '"$INSTDIR\MotorLocal.exe"'
+    Exec 'schtasks /Create /TN "BalanzaProMotorLocal" /TR "\"$INSTDIR\MotorLocal.exe\"" /SC ONLOGON /RL HIGHEST /F'
+
+    ; Iniciar MotorLocal inmediatamente para que el sistema responda al instante
+    DetailPrint "Iniciando Motor Local en segundo plano..."
+    Exec '"$INSTDIR\MotorLocal.exe"'
+
     ; Create uninstaller
     WriteUninstaller "$INSTDIR\Desinstalar.exe"
 SectionEnd
@@ -155,6 +165,11 @@ SectionEnd
 Section "Uninstall"
     ; Stop processes
     ExecWait 'taskkill /F /IM MotorLocal.exe /IM php.exe /IM BalanzaPro-POS.exe /IM BalanzaPro-Administrativo.exe'
+
+    ; Remove Auto-start
+    DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "BalanzaProMotorLocal"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BalanzaProMotorLocal"
+    Exec 'schtasks /Delete /TN "BalanzaProMotorLocal" /F'
 
     ; Remove Shortcuts
     Delete "$DESKTOP\BalanzaPro POS.lnk"

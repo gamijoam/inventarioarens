@@ -245,15 +245,11 @@ func (s *Supervisor) startBackend() {
 	}
 
 	phpDir := filepath.Dir(s.cfg.PHPBinary)
-	extDir := filepath.Join(phpDir, "ext")
 	iniFile := filepath.Join(phpDir, "php.ini")
 
 	args := []string{}
 	if _, err := os.Stat(iniFile); err == nil {
 		args = append(args, "-c", iniFile)
-	}
-	if _, err := os.Stat(extDir); err == nil {
-		args = append(args, "-d", fmt.Sprintf("extension_dir=%s", extDir))
 	}
 
 	serverScript := filepath.Join(s.cfg.BackendRoot, "server.php")

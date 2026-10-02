@@ -181,6 +181,48 @@ echo.
 pause
 EOF
 
+cat << 'EOF' > "$PACKAGE_DIR/Instalar-Servicio-Inicio.bat"
+@echo off
+title Configurar Inicio Automatico - BalanzaPro
+cd /d "%~dp0"
+
+echo ==============================================================
+echo  Configurando BalanzaPro Motor Local en inicio de Windows
+echo ==============================================================
+
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "BalanzaProMotorLocal" /t REG_SZ /d "\"%~dp0MotorLocal.exe\"" /f >nul 2>&1
+schtasks /Create /TN "BalanzaProMotorLocal" /TR "\"%~dp0MotorLocal.exe\"" /SC ONLOGON /RL HIGHEST /F >nul 2>&1
+
+echo.
+echo Iniciando Motor Local en segundo plano ahora...
+start "" "%~dp0MotorLocal.exe"
+
+echo.
+echo ==============================================================
+echo Listo! BalanzaPro ahora iniciara siempre de forma automatica
+echo con Windows. Podras abrir la app de inmediato sin demoras.
+echo ==============================================================
+echo.
+pause
+EOF
+
+cat << 'EOF' > "$PACKAGE_DIR/Desinstalar-Servicio-Inicio.bat"
+@echo off
+title Quitar Inicio Automatico - BalanzaPro
+cd /d "%~dp0"
+
+echo ==============================================================
+echo  Quitando inicio automatico de BalanzaPro Motor Local
+echo ==============================================================
+
+reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "BalanzaProMotorLocal" /f >nul 2>&1
+schtasks /Delete /TN "BalanzaProMotorLocal" /F >nul 2>&1
+taskkill /F /IM MotorLocal.exe /IM php.exe >nul 2>&1
+
+echo Listo. El servicio en segundo plano se detuvo y se quito del inicio.
+pause
+EOF
+
 cat << 'EOF' > "$PACKAGE_DIR/LEEME-INSTRUCCIONES.txt"
 ==================================================================
            BALANZAPRO - PAQUETE COMPLETO CON GO TODO-EN-UNO
