@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Store, TrendingUp, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Sparkles, Store, TrendingUp, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -34,6 +34,7 @@ import { useAlertsSummary } from '@/features/inventory-center/api';
 import { useCurrentExchangeRatesForPos } from '@/features/pos/api';
 import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
+import { QuickCreateProductDialog } from '@/features/inventory-center/dialogs/QuickCreateProductDialog';
 import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
 import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/ExportInventoryDialog';
 import { BulkPriceAdjustmentModal } from '@/features/inventory-center/dialogs/BulkPriceAdjustmentModal';
@@ -126,6 +127,7 @@ function InventoryListPage() {
 
   const [searchInput, setSearchInput] = useState(search.search);
   const [createOpen, setCreateOpen] = useState(false);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [bulkPriceModalOpen, setBulkPriceModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
@@ -355,8 +357,13 @@ function InventoryListPage() {
             Exportar CSV
           </Button>
           <Can I={PERMISSIONS.PRODUCTS_CREATE}>
-            <Button onClick={() => setCreateOpen(true)} data-testid="new-product">
-              + Nuevo producto
+            <Button
+              onClick={() => setQuickCreateOpen(true)}
+              data-testid="new-product"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+            >
+              <Sparkles className="size-4" />
+              Crear producto rápido
             </Button>
           </Can>
         </div>
@@ -383,7 +390,7 @@ function InventoryListPage() {
           warehouses={warehouses}
           priceLists={priceLists}
           activeRate={activeRate}
-          onNewProduct={() => setCreateOpen(true)}
+          onNewProduct={() => setQuickCreateOpen(true)}
           onBulkPriceAdjustment={() => setBulkPriceModalOpen(true)}
         />
       ) : viewMode === 'catalog' ? (
@@ -409,7 +416,7 @@ function InventoryListPage() {
           warehouses={warehouses}
           priceLists={priceLists}
           activeRate={activeRate}
-          onNewProduct={() => setCreateOpen(true)}
+          onNewProduct={() => setQuickCreateOpen(true)}
         />
       ) : (
         <>
@@ -596,6 +603,13 @@ function InventoryListPage() {
       </>
       )}
 
+      <QuickCreateProductDialog
+        open={quickCreateOpen}
+        onOpenChange={setQuickCreateOpen}
+        priceLists={priceLists}
+        activeRate={activeRate}
+        onOpenFullForm={() => setCreateOpen(true)}
+      />
       <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />
       <BulkPriceAdjustmentModal
         open={bulkPriceModalOpen}

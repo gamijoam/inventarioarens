@@ -25,7 +25,6 @@ import {
   Edit,
   ExternalLink,
   Package,
-  Plus,
   Save,
   Search,
   Sliders,
@@ -95,7 +94,7 @@ export interface InventoryCatalogWorkspaceProps {
   warehouses: { id: number; code: string; name: string }[];
   priceLists: PriceList[];
   activeRate: { id?: number; name?: string; code?: string; exchange_rate_type_code?: string | null; rate: number } | null;
-  onNewProduct: () => void;
+  onNewProduct?: () => void;
 }
 
 interface ComputedPrice {
@@ -294,18 +293,6 @@ export function InventoryCatalogWorkspace({
                 <option value="active">Activos</option>
                 <option value="inactive">Inactivos</option>
               </select>
-
-              <Can I={PERMISSIONS.PRODUCTS_CREATE}>
-                <Button
-                  onClick={onNewProduct}
-                  size="sm"
-                  className="h-10 text-xs sm:text-sm font-semibold gap-1.5"
-                  data-testid="catalog-new-product-btn"
-                >
-                  <Plus className="size-4" />
-                  <span>Nuevo producto</span>
-                </Button>
-              </Can>
             </div>
           </div>
 
@@ -403,6 +390,18 @@ export function InventoryCatalogWorkspace({
               icon={<Package className="size-10 text-text-muted" />}
               title="No se encontraron productos"
               description="Intenta ajustando el término de búsqueda o cambiando los filtros de categoría y stock."
+              action={
+                onNewProduct ? (
+                  <Button
+                    onClick={onNewProduct}
+                    size="sm"
+                    className="gap-1.5 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                  >
+                    <Sparkles className="size-3.5" />
+                    Crear producto rápido
+                  </Button>
+                ) : undefined
+              }
             />
           </CardContent>
         </Card>
