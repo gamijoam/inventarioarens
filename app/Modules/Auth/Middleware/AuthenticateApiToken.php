@@ -160,18 +160,7 @@ class AuthenticateApiToken
             return;
         }
 
-        // Check 3: si hay Origin/Referer, validar contra allowlist
-        // (proteccion cross-origin). Sin esto, un sitio atacante podria
-        // hacer fetch con credentials si la cookie no fuera SameSite=Strict.
-        $allowedOrigins = $this->getAllowedOrigins();
-        if ($allowedOrigins === []) {
-            // Sin origins permitidos configurados = no podemos validar cross-origin.
-            // Bloqueamos por seguridad (deberia estar configurado siempre).
-            abort(403, 'CSRF: no allowed origins configured.', [
-                'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
-            ]);
-        }
-
+        // Check 3: si hay Origin/Referer, validar contra allowlist, same-origin o red LAN privada.
         $actualOriginNormalized = $this->extractOriginFromUrl((string) $actualOrigin);
         if ($actualOriginNormalized === null) {
             abort(403, 'CSRF: Origin malformed.', [
@@ -179,11 +168,13 @@ class AuthenticateApiToken
             ]);
         }
 
-        if (! in_array($actualOriginNormalized, $allowedOrigins, true)) {
-            abort(403, 'CSRF: Origin not in allowlist.', [
-                'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
-            ]);
+        if ($this->isOriginAllowed($actualOriginNormalized, $request)) {
+            return;
         }
+
+        abort(403, 'CSRF: Origin not in allowlist.', [
+            'WWW-Authenticate' => 'Bearer realm="api", error="csrf_required"',
+        ]);
     }
 
     /**
@@ -229,6 +220,107 @@ class AuthenticateApiToken
         }
 
         return $origin;
+    }
+
+    /**
+     * Valida si un Origin normalizado es aceptable para peticiones autenticadas via cookie:
+     * 1. Si coincide con alguno de los origenes explicitos de app.allowed_origins_for_csrf o app.url.
+     * 2. Si es SAME-ORIGIN con la peticion entrante (Host o X-Forwarded-Host del servidor al que el cliente navego).
+     * 3. Si proviene de la red local/privada (RFC 1918 LAN, localhost, .local) y el backend corre en entorno local/offline/sqlite.
+     */
+    private function isOriginAllowed(string $origin, Request $request): bool
+    {
+        // 1. Allowlist explicita
+        $allowedOrigins = $this->getAllowedOrigins();
+        if (in_array($origin, $allowedOrigins, true)) {
+            return true;
+        }
+
+        // 2. Same-Origin dinamico contra el host del request (Host / X-Forwarded-Host)
+        if ($this->isSameOriginAsRequest($origin, $request)) {
+            return true;
+        }
+
+        // 3. Origenes de red local/privada cuando se ejecuta en entorno local u offline
+        if ($this->isLocalEnvironment() && $this->isLocalOrPrivateNetworkOrigin($origin)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Compara el Origin contra los esquemas y nombres de host recibidos en la peticion (Host o X-Forwarded-Host).
+     */
+    private function isSameOriginAsRequest(string $origin, Request $request): bool
+    {
+        $candidateHosts = array_filter(array_unique([
+            $request->getHttpHost(),
+            $request->header('X-Forwarded-Host'),
+            $request->header('Host'),
+        ]));
+
+        $schemes = array_filter(array_unique([
+            $request->getScheme(),
+            $request->header('X-Forwarded-Proto'),
+            'http',
+            'https',
+        ]));
+
+        foreach ($candidateHosts as $host) {
+            foreach ($schemes as $scheme) {
+                $candidateOrigin = $this->extractOriginFromUrl($scheme.'://'.trim((string) $host));
+                if ($candidateOrigin !== null && hash_equals($candidateOrigin, $origin)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determina si la instancia esta operando en entorno local, modo servicio motor local o base SQLite.
+     */
+    private function isLocalEnvironment(): bool
+    {
+        return app()->environment('local')
+            || config('app.env') === 'local'
+            || env('APP_ENV') === 'local'
+            || (bool) env('INVENTARIO_SERVICE_MODE')
+            || (bool) env('INVENTARIO_OFFLINE_MODE')
+            || (config('database.default') === 'sqlite' && ! app()->environment('testing'));
+    }
+
+    /**
+     * Determina si una URL pertenece a loopback, mDNS/LAN local o un rango de IP privada (RFC 1918 / RFC 4193).
+     */
+    private function isLocalOrPrivateNetworkOrigin(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (! is_string($host) || $host === '') {
+            return false;
+        }
+
+        // Localhost / Loopback IPv4 o IPv6
+        if ($host === 'localhost' || $host === '127.0.0.1' || $host === '::1') {
+            return true;
+        }
+
+        // Sufijos comunes de red local o mDNS
+        if (preg_match('/\.(?:local|lan|internal|test)$/i', $host)) {
+            return true;
+        }
+
+        // Direcciones IP privadas (10.x.x.x, 172.16-31.x.x, 192.168.x.x, etc.)
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            $isPublic = filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+            if ($isPublic === false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

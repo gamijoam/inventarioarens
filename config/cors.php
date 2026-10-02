@@ -28,7 +28,9 @@ return [
     ]),
 
     'allowed_origins_patterns' => array_filter([
-        env('APP_ENV') === 'local' ? '/^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/' : null,
+        env('APP_ENV') === 'local' || env('DB_CONNECTION') === 'sqlite' || env('INVENTARIO_SERVICE_MODE')
+            ? '/^https?:\/\/(?:localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9-]+\.local)(?::\d+)?$/'
+            : null,
     ]),
 
     'allowed_headers' => ['*'],

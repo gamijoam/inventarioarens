@@ -161,7 +161,18 @@ func main() {
 	rp := httputil.NewSingleHostReverseProxy(targetURL)
 	originalDirector := rp.Director
 	rp.Director = func(req *http.Request) {
+		clientHost := req.Host
 		originalDirector(req)
+		if clientHost != "" {
+			req.Header.Set("X-Forwarded-Host", clientHost)
+		}
+		if req.Header.Get("X-Forwarded-Proto") == "" {
+			if req.TLS != nil {
+				req.Header.Set("X-Forwarded-Proto", "https")
+			} else {
+				req.Header.Set("X-Forwarded-Proto", "http")
+			}
+		}
 		if req.Header.Get("X-Tenant") == "" && cfg.TenantSlug != "" {
 			req.Header.Set("X-Tenant", cfg.TenantSlug)
 		}
@@ -441,7 +452,7 @@ func (s *Supervisor) startHTTPServer() {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Tenant, Accept")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Tenant, Accept, Idempotency-Key, X-Requested-By")
 			}
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusOK)

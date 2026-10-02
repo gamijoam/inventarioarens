@@ -236,6 +236,93 @@ class CookieAuthTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_cookie_request_with_same_origin_matching_request_host_is_accepted(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        // Cliente conectandose desde otra PC en la LAN con IP:puerto
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'http://192.168.1.150:8787')
+            ->postJson('http://192.168.1.150:8787/api/auth/logout')
+            ->assertOk();
+    }
+
+    public function test_cookie_request_with_x_forwarded_host_matching_origin_is_accepted(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        // Proxy reenvia X-Forwarded-Host
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Forwarded-Host', '192.168.1.50:8787')
+            ->withHeader('X-Forwarded-Proto', 'http')
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'http://192.168.1.50:8787')
+            ->postJson('/api/auth/logout')
+            ->assertOk();
+    }
+
+    public function test_cookie_request_with_lan_private_ip_is_accepted_in_local_environment(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        config(['app.env' => 'local']);
+
+        // En entorno local, cualquier IP de red privada (192.168.x, 10.x, etc.) es aceptada
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'http://192.168.10.45:8787')
+            ->postJson('/api/auth/logout')
+            ->assertOk();
+
+        $token2 = $this->loginToken($tenant, $user);
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token2)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'http://10.0.0.12:8787')
+            ->postJson('/api/auth/logout')
+            ->assertOk();
+    }
+
+    public function test_cookie_request_with_public_attacker_is_still_rejected_in_local_environment(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $token = $this->loginToken($tenant, $user);
+
+        config(['app.env' => 'local']);
+
+        // Aun en local, un dominio publico externo o IP publica atacante se rechaza
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'https://attacker.evil.com')
+            ->postJson('/api/auth/logout')
+            ->assertStatus(403);
+
+        $this->withCredentials()
+            ->withCookie(CookieIssuer::COOKIE_NAME, $token)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->withHeader('Origin', 'http://8.8.8.8:8787')
+            ->postJson('/api/auth/logout')
+            ->assertStatus(403);
+    }
+
     public function test_bearer_still_works_without_csrf_headers(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

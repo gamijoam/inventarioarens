@@ -101,6 +101,8 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->append(SecurityHeaders::class);
         $middleware->append(AssignRequestId::class);
 
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
             'crm.auth' => AuthenticateCrmApiToken::class,
