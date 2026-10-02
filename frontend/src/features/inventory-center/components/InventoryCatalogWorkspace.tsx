@@ -13,7 +13,7 @@
  *      * Botón de Edición Rápida directa del producto (EditProductDialog).
  *      * Acceso a la ficha completa con Kardex e historial (/inventory/$productId).
  */
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
   AlertTriangle,
@@ -173,6 +173,13 @@ export function InventoryCatalogWorkspace({
 
   // Categorías para chips horizontales tipo catálogo
   const { data: categories = [] } = useCategories();
+  const categoriesScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollCategories = (offset: number) => {
+    if (categoriesScrollRef.current) {
+      categoriesScrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
 
   const handleSearchSubmit = (val: string) => {
     onSearchChange(val);
@@ -283,39 +290,73 @@ export function InventoryCatalogWorkspace({
             </div>
           </div>
 
-          {/* Chips horizontales de categorías estilo Tienda / Catálogo */}
+          {/* Chips horizontales de categorías estilo Tienda / Catálogo con desplazamiento */}
           {categories.length > 0 && onCategoryChange && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-none no-scrollbar">
-              <button
+            <div className="relative flex items-center gap-1.5 pt-1">
+              <Button
                 type="button"
-                onClick={() => onCategoryChange(undefined)}
-                className={cn(
-                  'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all border',
-                  !categoryId
-                    ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                    : 'bg-surface text-text-muted border-border hover:border-text-secondary hover:text-text-primary',
-                )}
+                variant="outline"
+                size="sm"
+                onClick={() => scrollCategories(-250)}
+                className="h-7 w-7 p-0 rounded-full shrink-0 shadow-2xs border-border bg-surface hover:bg-surface-hover z-10"
+                aria-label="Deslizar categorías a la izquierda"
+                title="Deslizar a la izquierda"
               >
-                Todas las categorías ({totalProducts})
-              </button>
-              {categories.map((cat) => {
-                const isSelected = categoryId === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => onCategoryChange(isSelected ? undefined : cat.id)}
-                    className={cn(
-                      'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all border',
-                      isSelected
-                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                        : 'bg-surface text-text-muted border-border hover:border-text-secondary hover:text-text-primary',
-                    )}
-                  >
-                    {cat.name}
-                  </button>
-                );
-              })}
+                <ChevronLeft className="size-3.5" />
+              </Button>
+
+              <div
+                ref={categoriesScrollRef}
+                onWheel={(e) => {
+                  if (e.deltaY !== 0) {
+                    e.currentTarget.scrollLeft += e.deltaY;
+                  }
+                }}
+                className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 scroll-smooth scrollbar-thin"
+              >
+                <button
+                  type="button"
+                  onClick={() => onCategoryChange(undefined)}
+                  className={cn(
+                    'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all border shrink-0',
+                    !categoryId
+                      ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                      : 'bg-surface text-text-muted border-border hover:border-text-secondary hover:text-text-primary',
+                  )}
+                >
+                  Todas las categorías ({totalProducts})
+                </button>
+                {categories.map((cat) => {
+                  const isSelected = categoryId === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => onCategoryChange(isSelected ? undefined : cat.id)}
+                      className={cn(
+                        'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all border shrink-0',
+                        isSelected
+                          ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                          : 'bg-surface text-text-muted border-border hover:border-text-secondary hover:text-text-primary',
+                      )}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => scrollCategories(250)}
+                className="h-7 w-7 p-0 rounded-full shrink-0 shadow-2xs border-border bg-surface hover:bg-surface-hover z-10"
+                aria-label="Deslizar categorías a la derecha"
+                title="Deslizar a la derecha"
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
             </div>
           )}
         </CardContent>

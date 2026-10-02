@@ -10,8 +10,9 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-import { Building2, Trash2, Upload } from 'lucide-react';
+import { Building2, Download, HardDrive, Laptop, Trash2, Upload } from 'lucide-react';
 
+import { useSessionStore } from '@/stores/session';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -45,6 +46,7 @@ export function CompanySettingsPanel() {
   const update = useUpdateCompanySettings();
   const uploadLogo = useUploadCompanyLogo();
   const deleteLogo = useDeleteCompanyLogo();
+  const tenant = useSessionStore((state) => state.tenant);
 
   const [razonSocial, setRazonSocial] = useState('');
   const [rif, setRif] = useState('');
@@ -355,6 +357,114 @@ export function CompanySettingsPanel() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="company-offline-downloads">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Laptop className="size-5 text-primary" />
+            <CardTitle>Instalador y Modo Offline para Tiendas</CardTitle>
+          </div>
+          <CardDescription>
+            Descarga el instalador oficial para Windows o los datos de esta empresa para trabajar sin conexión a internet.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-border bg-bg/40 p-4 space-y-2">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <Laptop className="size-4 text-primary" />
+                Instalador Windows
+              </div>
+              <p className="text-xs text-text-muted">
+                Ejecutable (.exe) todo-en-uno que instala BalanzaPro POS, Motor Local y soporte para balanzas e impresoras.
+              </p>
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    window.open('/downloads/BalanzaPro-Setup.exe', '_blank');
+                  }}
+                  data-testid="download-setup-btn"
+                >
+                  <Download className="size-3.5" />
+                  Descargar BalanzaPro-Setup.exe
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-bg/40 p-4 space-y-2">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <HardDrive className="size-4 text-primary" />
+                Base de Datos ({tenant?.slug ?? 'Empresa'})
+              </div>
+              <p className="text-xs text-text-muted">
+                Catálogo completo, precios, tasas y usuarios de esta empresa para trabajar 100% offline.
+              </p>
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const slug = tenant?.slug ?? '';
+                    window.open(slug ? `/api/offline/database?slug=${slug}` : '/api/offline/database', '_blank');
+                  }}
+                  data-testid="download-sqlite-btn"
+                >
+                  <Download className="size-3.5" />
+                  Descargar database.sqlite
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-bg/40 p-4 space-y-2">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <Building2 className="size-4 text-primary" />
+                Configuración ({tenant?.slug ?? 'Empresa'})
+              </div>
+              <p className="text-xs text-text-muted">
+                Archivo config.json pre-configurado con el identificador y puertos para esta empresa.
+              </p>
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const slug = tenant?.slug ?? '';
+                    window.open(slug ? `/api/offline/config?slug=${slug}` : '/api/offline/config', '_blank');
+                  }}
+                  data-testid="download-config-btn"
+                >
+                  <Download className="size-3.5" />
+                  Descargar config.json
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border/80 bg-primary/5 p-3 text-xs text-text-muted">
+            <span>
+              Empresa activa: <strong className="text-text font-mono">{tenant?.name ?? 'Empresa'}</strong> (<span className="font-mono">{tenant?.slug ?? 'predeterminada'}</span>).
+              El instalador detecta automáticamente el archivo <code className="text-primary font-mono font-bold">database.sqlite</code> si se descargan en la misma carpeta.
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs shrink-0"
+              onClick={() => {
+                const slug = tenant?.slug ?? '';
+                window.open(slug ? `/api/offline/package?slug=${slug}` : '/api/offline/package', '_blank');
+              }}
+              data-testid="download-zip-btn"
+            >
+              Descargar paquete ZIP completo (.zip)
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

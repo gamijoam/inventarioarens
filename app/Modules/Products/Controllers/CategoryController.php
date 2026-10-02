@@ -36,7 +36,9 @@ class CategoryController extends Controller
             ->orderBy('sort_order')
             ->orderBy('name');
 
-        return CategoryResource::collection($query->paginate(50));
+        $perPage = $request->boolean('all') ? 1000 : min((int) $request->input('per_page', 100), 1000);
+
+        return CategoryResource::collection($query->paginate($perPage));
     }
 
     public function tree(Request $request): JsonResponse

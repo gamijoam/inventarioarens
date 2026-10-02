@@ -117,4 +117,14 @@ describe('CompanySettingsPanel', () => {
       expect(uploadMutation).toHaveBeenCalledWith(file);
     });
   });
+
+  it('muestra la sección de instalador offline y botones de descarga', () => {
+    render(<CompanySettingsPanel />);
+
+    expect(screen.getByTestId('company-offline-downloads')).toBeInTheDocument();
+    expect(screen.getByTestId('download-setup-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('download-sqlite-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('download-config-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('download-zip-btn')).toBeInTheDocument();
+  });
 });

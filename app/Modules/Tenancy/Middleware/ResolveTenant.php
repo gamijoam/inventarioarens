@@ -18,8 +18,15 @@ class ResolveTenant
         $tenant = $this->resolveTenant($request);
         $token = $request->attributes->get('auth_token');
 
-        if (! $tenant && $token instanceof AuthToken && $token->tenant_id === null) {
-            return $next($request);
+        if (! $tenant && $token instanceof AuthToken) {
+            if ($token->tenant_id === null) {
+                return $next($request);
+            }
+            $tenant = Tenant::query()->find($token->tenant_id);
+        }
+
+        if (! $tenant && config('database.default') === 'sqlite') {
+            $tenant = Tenant::query()->first();
         }
 
         abort_unless($tenant, 404, 'Tenant not found.', [

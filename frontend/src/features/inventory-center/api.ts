@@ -277,7 +277,7 @@ export function useCategories() {
   return useQuery({
     queryKey: catalogKeys.categories(),
     queryFn: async () => {
-      const data = await getMany<unknown>('/categories');
+      const data = await getMany<unknown>('/categories?all=1');
       return z.array(CategorySchema).parse(data);
     },
   });

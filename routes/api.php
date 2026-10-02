@@ -16,6 +16,34 @@ require base_path('app/Modules/LocalSupport/routes.php');
 
 require base_path('app/Modules/Printing/connector_routes.php');
 
+require base_path('app/Modules/Offline/routes.php');
+
+Route::get('diag', function () {
+    $db = config('database.connections.sqlite.database');
+    $user = \App\Models\User::first();
+    $rolesCount = \Illuminate\Support\Facades\DB::table('roles')->count();
+    $rhpCount = \Illuminate\Support\Facades\DB::table('role_has_permissions')->count();
+    $productsCount = \Illuminate\Support\Facades\DB::table('products')->count();
+    $roles = [];
+    if ($user) {
+        $roles = \Illuminate\Support\Facades\DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $user->id)
+            ->pluck('roles.name')
+            ->all();
+    }
+    return response()->json([
+        'sqlite_file' => $db,
+        'sqlite_filesize' => file_exists($db) ? filesize($db) : 'not_found',
+        'first_user' => $user?->email,
+        'roles_table_count' => $rolesCount,
+        'role_has_permissions_count' => $rhpCount,
+        'products_count' => $productsCount,
+        'user_roles' => $roles,
+    ]);
+});
+
+
 Route::middleware(['api.auth', 'tenant'])
     ->group(base_path('app/Modules/Inventory/routes_phase3.php'));
 
