@@ -423,13 +423,13 @@ export function InventoryCatalogWorkspace({
 
       {/* 2. Cuadrícula de Productos (Grid Catálogo) */}
       {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-          {Array.from({ length: 12 }).map((_, idx) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
+          {Array.from({ length: 8 }).map((_, idx) => (
             <div
               key={idx}
               className="bg-surface rounded-xl border border-border p-3 flex flex-col gap-2 animate-pulse"
             >
-              <div className="w-full aspect-square bg-surface-subtle rounded-lg" />
+              <div className="w-full h-48 bg-surface-subtle rounded-lg" />
               <div className="h-4 bg-surface-subtle rounded w-3/4" />
               <div className="h-3 bg-surface-subtle rounded w-1/2" />
               <div className="h-5 bg-surface-subtle rounded w-2/3 mt-2" />
@@ -460,7 +460,7 @@ export function InventoryCatalogWorkspace({
         </Card>
       ) : (
         <div
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5"
           data-testid="inventory-catalog-grid"
         >
           {products.map((product) => {
@@ -495,13 +495,13 @@ export function InventoryCatalogWorkspace({
                 className="group relative bg-surface border border-border/80 hover:border-primary/50 rounded-xl overflow-hidden shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer"
                 data-testid={`catalog-card-${product.id}`}
               >
-                {/* Contenedor de Imagen 1:1 Cuadrado */}
-                <div className="relative w-full aspect-square bg-slate-50 dark:bg-zinc-900/60 overflow-hidden flex items-center justify-center border-b border-border/40">
+                {/* Contenedor de Imagen panorámica de tarjeta */}
+                <div className="relative w-full h-48 sm:h-52 bg-slate-50 dark:bg-zinc-900/60 overflow-hidden flex items-center justify-center border-b border-border/40">
                   {imageUrl ? (
                     <img
                       src={imageUrl}
                       alt={product.name}
-                      className="size-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+                      className="size-full object-contain p-2.5 group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
@@ -521,23 +521,23 @@ export function InventoryCatalogWorkspace({
                       imageUrl ? 'hidden' : 'flex',
                     )}
                   >
-                    <Package className="size-10 stroke-[1.25] text-text-muted/60" />
+                    <Package className="size-12 stroke-[1.25] text-text-muted/60" />
                     <span className="text-[10px] font-medium tracking-wide uppercase text-text-muted/60">
                       Sin foto
                     </span>
                   </div>
 
                   {/* Badge de Stock en esquina superior izquierda */}
-                  <div className="absolute top-2 left-2 flex flex-col gap-1">
+                  <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">
                     {isOutOfStock ? (
-                      <span className="bg-rose-600/90 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
-                        <AlertTriangle className="size-2.5" />
+                      <span className="bg-rose-600/90 backdrop-blur-xs text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                        <AlertTriangle className="size-3" />
                         Agotado
                       </span>
                     ) : (
-                      <span className="bg-emerald-600/90 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
-                        <CheckCircle2 className="size-2.5" />
-                        {Number.isFinite(stockNum) ? stockNum.toFixed(0) : '0'} disp.
+                      <span className="bg-emerald-600/90 backdrop-blur-xs text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                        <CheckCircle2 className="size-3" />
+                        {Number.isFinite(stockNum) ? stockNum.toFixed(0) : '0'} disponibles
                       </span>
                     )}
                   </div>
@@ -545,7 +545,7 @@ export function InventoryCatalogWorkspace({
                   {/* Badge de Categoría en esquina superior derecha */}
                   {categoryName && (
                     <span
-                      className="absolute top-2 right-2 bg-surface/90 backdrop-blur-xs text-text-secondary text-[10px] font-medium px-2 py-0.5 rounded-full border border-border/60 shadow-2xs truncate max-w-[90px]"
+                      className="absolute top-2.5 right-2.5 bg-surface/90 backdrop-blur-xs text-text-secondary text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-border/60 shadow-2xs truncate max-w-[120px]"
                       title={categoryName}
                     >
                       {categoryName}
@@ -560,17 +560,17 @@ export function InventoryCatalogWorkspace({
                       setEditingProduct(product);
                     }}
                     title="Editar producto"
-                    className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-surface/95 text-text-primary border border-border/80 hover:bg-primary hover:text-white shadow-sm opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-150"
+                    className="absolute bottom-2.5 right-2.5 p-2 rounded-lg bg-surface/95 text-text-primary border border-border/80 hover:bg-primary hover:text-white shadow-sm opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-150"
                     data-testid={`catalog-edit-btn-${product.id}`}
                   >
-                    <Edit className="size-3.5" />
+                    <Edit className="size-4" />
                   </button>
                 </div>
 
                 {/* Contenido de la Tarjeta (Nombre + Marca + Precios de Venta + Costo) */}
-                <div className="p-3 flex flex-col flex-1 justify-between gap-2">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between gap-1 text-[10px]">
+                <div className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-1 text-[11px]">
                       {product.sku ? (
                         <span className="font-mono text-text-muted truncate">
                           SKU: {product.sku}
@@ -580,7 +580,7 @@ export function InventoryCatalogWorkspace({
                       )}
                       {product.brand?.name && (
                         <span
-                          className="font-bold text-primary truncate max-w-[105px] uppercase bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 text-[9px] tracking-wide shrink-0"
+                          className="font-bold text-primary truncate max-w-[140px] uppercase bg-primary/10 px-2 py-0.5 rounded border border-primary/20 text-[10px] tracking-wide shrink-0"
                           title={`Marca: ${product.brand.name}`}
                         >
                           {product.brand.name}
@@ -588,7 +588,7 @@ export function InventoryCatalogWorkspace({
                       )}
                     </div>
                     <h3
-                      className="font-semibold text-xs sm:text-sm text-text-primary line-clamp-2 leading-tight group-hover:text-primary transition-colors"
+                      className="font-semibold text-sm sm:text-base text-text-primary line-clamp-2 leading-snug group-hover:text-primary transition-colors"
                       title={product.name}
                     >
                       {product.name}
@@ -596,23 +596,23 @@ export function InventoryCatalogWorkspace({
                   </div>
 
                   {/* Precios de Venta y Costo (Desglose de hasta 3 tarifas + costo) */}
-                  <div className="pt-2 mt-auto border-t border-border/40 flex flex-col gap-1.5">
-                    {/* Lista compacta de tarifas */}
-                    <div className="flex flex-col gap-1 bg-surface-subtle/50 rounded-lg p-1.5 border border-border/40">
+                  <div className="pt-2.5 mt-auto border-t border-border/50 flex flex-col gap-2">
+                    {/* Lista amplia y legible de tarifas */}
+                    <div className="flex flex-col gap-1.5 bg-surface-subtle/50 rounded-lg p-2 border border-border/40">
                       {prices.length > 0 ? (
                         prices.slice(0, 3).map((p) => {
                           const pVes = activeRate ? p.price * activeRate.rate : null;
-                          const shortName = p.listName.length > 15 ? p.listName.slice(0, 13) + '…' : p.listName;
+                          const shortName = p.listName.length > 25 ? p.listName.slice(0, 23) + '…' : p.listName;
                           return (
-                            <div key={p.listId} className="flex items-center justify-between text-[11px] leading-tight">
-                              <span className="text-text-muted font-medium truncate max-w-[85px]" title={p.listName}>
+                            <div key={p.listId} className="flex items-center justify-between text-xs leading-tight">
+                              <span className="text-text-muted font-medium truncate max-w-[150px] sm:max-w-[180px]" title={p.listName}>
                                 {shortName}:
                               </span>
-                              <div className="flex items-baseline gap-1 font-bold text-text-primary tabular-nums">
-                                <span>{formatMoney(p.price)}</span>
+                              <div className="flex items-baseline gap-1.5 font-bold text-text-primary tabular-nums">
+                                <span className="text-xs sm:text-sm">{formatMoney(p.price)}</span>
                                 {pVes != null && (
                                   <span className="text-[10px] text-text-muted font-normal">
-                                    (Bs {pVes.toLocaleString('es-VE', { maximumFractionDigits: 0 })})
+                                    (Bs {pVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                   </span>
                                 )}
                               </div>
@@ -620,32 +620,32 @@ export function InventoryCatalogWorkspace({
                           );
                         })
                       ) : (
-                        <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center justify-between text-xs">
                           <span className="text-text-muted font-medium">Precio:</span>
-                          <span className="font-bold text-text-primary tabular-nums">{formatMoney(priceVal)}</span>
+                          <span className="font-bold text-text-primary tabular-nums text-sm">{formatMoney(priceVal)}</span>
                         </div>
                       )}
                       {prices.length > 3 && (
-                        <span className="text-[9px] text-primary font-medium text-right">
+                        <span className="text-[10px] text-primary font-medium text-right">
                           +{prices.length - 3} tarifas más
                         </span>
                       )}
                     </div>
 
                     {/* Fila de Costo y Margen */}
-                    <div className="flex items-center justify-between text-[11px] px-1 text-text-muted">
-                      <span className="font-medium text-text-secondary">Costo:</span>
+                    <div className="flex items-center justify-between text-xs px-1 text-text-muted">
+                      <span className="font-medium text-text-secondary">Costo de compra:</span>
                       {costVal != null && costVal > 0 ? (
                         <span className="font-semibold text-text-primary tabular-nums">
                           {formatMoney(costVal)}
                           {priceVal > costVal && (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold ml-1">
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold ml-1.5">
                               (+{(((priceVal - costVal) / costVal) * 100).toFixed(0)}%)
                             </span>
                           )}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-text-muted/60 italic">Sin costo</span>
+                        <span className="text-[11px] text-text-muted/60 italic">Sin costo registrado</span>
                       )}
                     </div>
                   </div>
