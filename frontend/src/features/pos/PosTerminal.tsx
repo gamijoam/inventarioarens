@@ -35,8 +35,11 @@ import {
   UserRound,
   Wallet,
   ChevronDown,
+  ChevronUp,
+  ShoppingCart,
   Info,
   LayoutGrid,
+  Package,
   X,
   Settings2,
 } from 'lucide-react';
@@ -561,8 +564,9 @@ export function PosTerminal() {
     }
     return 'catalog'; // Modo catálogo por defecto para venta visual
   });
+  const [ticketDrawerOpen, setTicketDrawerOpen] = useState(false);
 
-  const handleSetPosViewMode = (mode: 'catalog' | 'ticket') => {
+  const handleSetPosMode = (mode: 'catalog' | 'ticket') => {
     setPosViewMode(mode);
     try {
       localStorage.setItem('pos_view_mode', mode);
@@ -570,6 +574,7 @@ export function PosTerminal() {
       // ignore
     }
   };
+  const handleSetPosViewMode = handleSetPosMode;
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const activeTenantId = useSessionStore((state) => state.tenant?.id);
@@ -2191,22 +2196,244 @@ export function PosTerminal() {
 
         <main
           className={cn(
-            'grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3',
+            'min-h-0 min-w-0 flex-1 overflow-hidden p-3 relative',
             posViewMode === 'catalog'
-              ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_440px] xl:grid-cols-[minmax(0,1fr)_480px]'
-              : 'xl:grid-cols-[minmax(680px,1fr)_430px]',
+              ? 'flex flex-col'
+              : 'grid grid-rows-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(680px,1fr)_430px]',
           )}
         >
           {posViewMode === 'catalog' ? (
-            <PosCatalogGrid
-              warehouseId={warehouseId}
-              selectedPriceList={selectedPriceList}
-              activeRate={activeRate}
-              onSelectProduct={addProduct}
-              onDetailProduct={(product) => setDetailProduct(product)}
-              className="flex-1"
-            />
+            <>
+              <PosCatalogGrid
+                warehouseId={warehouseId}
+                priceLists={priceLists}
+                selectedPriceList={selectedPriceList}
+                activeRate={activeRate}
+                onSelectProduct={addProduct}
+                onDetailProduct={(product) => setDetailProduct(product)}
+                className="flex-1"
+              />
+
+              {/* Ventana / Barra Flotante de Ticket y Cobro (F10) */}
+              <div
+                className="fixed bottom-3 inset-x-3 sm:inset-x-8 max-w-4xl mx-auto z-40 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-border/80 shadow-2xl rounded-2xl p-2.5 sm:p-3.5 flex items-center justify-between gap-3 sm:gap-6 animate-in slide-in-from-bottom-4 duration-200"
+                data-testid="pos-floating-ticket-bar"
+              >
+                {/* 1. Resumen Ticket (Click abre Drawer) + Cliente */}
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setTicketDrawerOpen(true)}
+                    className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-3 py-2 rounded-xl transition-all font-semibold text-xs sm:text-sm cursor-pointer shrink-0"
+                    title="Ver detalle del ticket y editar cantidades"
+                  >
+                    <ShoppingCart className="size-4" />
+                    <span>
+                      {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
+                    </span>
+                    <span className="hidden md:inline text-[11px] opacity-75">({cart.length} líneas)</span>
+                    <ChevronUp className="size-3.5 opacity-60 ml-0.5" />
+                  </button>
+
+                  {/* Cliente rápido */}
+                  <button
+                    type="button"
+                    onClick={() => setPanel('customer')}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-all max-w-[150px] sm:max-w-[200px] truncate cursor-pointer',
+                      selectedCustomer
+                        ? 'bg-surface-subtle border-primary/40 text-primary font-bold'
+                        : 'bg-surface border-border text-text-muted hover:text-text-primary',
+                    )}
+                    title="Cambiar cliente [F4]"
+                  >
+                    <UserRound className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      {selectedCustomer ? selectedCustomer.name : 'Consumidor Final'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* 2. Total destacado en USD y Bs. */}
+                <div className="flex flex-col items-center sm:items-end justify-center text-center sm:text-right shrink-0">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[11px] font-semibold uppercase text-text-muted hidden sm:inline">Total:</span>
+                    <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                      {money(cartTotals.total)}
+                    </span>
+                  </div>
+                  {activeRate && (
+                    <span className="text-[11px] font-mono text-text-muted tabular-nums">
+                      Bs. {formatLocalNumber(cartTotals.total * activeRate.rate)}
+                    </span>
+                  )}
+                </div>
+
+                {/* 3. Botones de Acción (Limpiar + Cobrar [F10]) */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {cart.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearPos}
+                      className="h-10 px-2.5 text-xs text-text-muted hover:text-danger hover:bg-danger/10 rounded-xl"
+                      title="Vaciar ticket actual"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+
+                  <Button
+                    size="lg"
+                    disabled={
+                      cart.length === 0 ||
+                      hasStockIssue(cart) ||
+                      hasPriceIssue(cart) ||
+                      Boolean(priceListPaymentIssue) ||
+                      checkout.isPending
+                    }
+                    onClick={() => {
+                      if (cart.length === 0) {
+                        toast.info('El ticket está vacío. Selecciona productos del catálogo para cobrar.');
+                        return;
+                      }
+                      if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                      setPanel('pay');
+                    }}
+                    className="h-11 sm:h-12 px-4 sm:px-6 text-sm sm:text-base font-extrabold gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-95 transition-all"
+                    title="Cobrar venta [F10]"
+                  >
+                    <CreditCard className="size-5" />
+                    <span>Cobrar [F10]</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Drawer lateral de Ticket de Venta para Modo Catálogo */}
+              <Sheet open={ticketDrawerOpen} onOpenChange={setTicketDrawerOpen}>
+                <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0 bg-surface">
+                  <SheetHeader className="p-4 border-b border-border flex flex-row items-center justify-between space-y-0">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="size-5 text-primary" />
+                      <SheetTitle className="text-base font-bold">Ticket de Venta</SheetTitle>
+                      <Badge variant="outline" className="text-xs font-mono font-bold">
+                        {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearPos}
+                      disabled={cart.length === 0}
+                      className="h-8 px-2 text-xs text-danger hover:text-danger hover:bg-danger/10 gap-1"
+                      title="Vaciar ticket"
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span>Vaciar</span>
+                    </Button>
+                  </SheetHeader>
+
+                  {/* Cliente en el ticket */}
+                  <div className="p-3 bg-surface-subtle/60 border-b border-border flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <UserRound className="size-4 text-text-muted shrink-0" />
+                      <span className="text-text-muted">Cliente:</span>
+                      <span className="font-bold text-text-primary truncate">
+                        {selectedCustomer ? selectedCustomer.name : 'Consumidor Final'}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => {
+                        setTicketDrawerOpen(false);
+                        setPanel('customer');
+                      }}
+                    >
+                      Cambiar
+                    </Button>
+                  </div>
+
+                  {/* Lista de productos en el ticket */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {cart.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-center p-6 text-text-muted">
+                        <Package className="size-12 text-text-muted/40 mb-2 stroke-[1.25]" />
+                        <p className="font-bold text-sm text-text-primary">El ticket está vacío</p>
+                        <p className="text-xs mt-1">Toca cualquier producto del catálogo para agregarlo a la venta.</p>
+                      </div>
+                    ) : (
+                      cart.map((line) => (
+                        <CartLineRow
+                          key={line.id}
+                          line={line}
+                          canDiscount={canDiscount}
+                          skuColor={posColorTheme.to}
+                          onChange={(patch) => updateLine(line.id, patch)}
+                          onSerials={() => {
+                            setSerialLineId(line.id);
+                            setPanel('serials');
+                          }}
+                          onRemove={() => removeLine(line.id)}
+                        />
+                      ))
+                    )}
+                  </div>
+
+                  {/* Pie del ticket: Desglose y botón Cobrar */}
+                  <div className="p-4 border-t border-border bg-surface-subtle/40 space-y-3">
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex justify-between text-text-muted">
+                        <span>Subtotal:</span>
+                        <span className="font-mono">{money(cartTotals.subtotal)}</span>
+                      </div>
+                      {cartTotals.discount > 0 && (
+                        <div className="flex justify-between text-emerald-600 font-semibold">
+                          <span>Descuento aplicado:</span>
+                          <span className="font-mono">-{money(cartTotals.discount)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-baseline justify-between pt-1 border-t border-border/80">
+                        <span className="text-sm font-bold text-text-primary">Total:</span>
+                        <div className="text-right">
+                          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            {money(cartTotals.total)}
+                          </div>
+                          {activeRate && (
+                            <div className="text-xs font-mono text-text-muted tabular-nums">
+                              Bs. {formatLocalNumber(cartTotals.total * activeRate.rate)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      className="w-full h-12 text-base font-extrabold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                      disabled={
+                        cart.length === 0 ||
+                        hasStockIssue(cart) ||
+                        hasPriceIssue(cart) ||
+                        Boolean(priceListPaymentIssue) ||
+                        checkout.isPending
+                      }
+                      onClick={() => {
+                        setTicketDrawerOpen(false);
+                        if (cart.length === 0) return;
+                        if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                        setPanel('pay');
+                      }}
+                    >
+                      <CreditCard className="size-5" />
+                      <span>Cobrar [F10]</span>
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
           ) : (
+            <>
             <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
             <div className="border-border from-surface to-bg/70 flex items-center justify-between gap-3 border-b bg-gradient-to-r px-4 py-2.5">
               {/* Título Ticket y Cliente en la misma fila */}
@@ -2323,103 +2550,8 @@ export function PosTerminal() {
               )}
             </div>
           </section>
-        )}
 
-        <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-          {posViewMode === 'catalog' && (
-            <>
-              <div className="border-border from-surface to-bg/70 flex items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5 py-2.5 shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <h2 className="font-bold text-xs tracking-tight text-text-primary uppercase">
-                    Ticket actual
-                  </h2>
-                  {cart.length > 0 && (
-                    <Badge variant="outline" className="text-[11px] font-bold font-mono px-1.5 py-0.2 text-text-primary bg-surface-subtle border-border">
-                      {totalCartUnits} {totalCartUnits === 1 ? 'art.' : 'arts.'}
-                    </Badge>
-                  )}
-                  {exchangeReturnId && <Badge variant="info">Canje #{exchangeReturnId}</Badge>}
-                </div>
-
-                {/* Selector de Cliente */}
-                <div className="flex items-center gap-1 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => setPanel('customer')}
-                    className={cn(
-                      'group flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-all max-w-[170px]',
-                      selectedCustomer
-                        ? 'border-primary/40 bg-primary/8 text-primary font-semibold'
-                        : 'border-border bg-surface text-text-secondary hover:text-text-primary',
-                    )}
-                    title="Click para cambiar cliente [F4]"
-                  >
-                    <UserRound className="size-3 shrink-0" />
-                    <span className="truncate text-[11px]">
-                      {selectedCustomer ? selectedCustomer.name : customerName}
-                    </span>
-                  </button>
-                  {selectedCustomer && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (exchangeReturnId) {
-                          toast.error('El cliente de un canje no puede cambiarse.');
-                          return;
-                        }
-                        setSelectedCustomer(null);
-                        setCustomerName('Consumidor Final');
-                      }}
-                      className="text-text-muted hover:text-danger p-0.5 rounded"
-                      title="Quitar cliente (volver a Consumidor Final)"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Botón limpiar ticket */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearPos}
-                  disabled={cart.length === 0}
-                  className="h-7 px-2 text-[11px] text-text-muted hover:text-danger gap-1 shrink-0"
-                  title="Vaciar ticket actual"
-                >
-                  <Trash2 className="size-3" />
-                  <span className="hidden sm:inline">Limpiar</span>
-                </Button>
-              </div>
-
-              {/* Lista de productos en el ticket (en modo catálogo) */}
-              <div className="min-h-[140px] max-h-[320px] flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] dark:bg-zinc-950/20 p-2.5 border-b border-border/80">
-                {cart.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-center p-3 text-text-muted">
-                    <p className="text-xs font-semibold text-text-secondary">Ticket listo para vender</p>
-                    <p className="text-[11px] mt-0.5">Toca cualquier producto del catálogo para agregarlo.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {cart.map((line) => (
-                      <CartLineRow
-                        key={line.id}
-                        line={line}
-                        canDiscount={canDiscount}
-                        skuColor={posColorTheme.to}
-                        onChange={(patch) => updateLine(line.id, patch)}
-                        onSerials={() => {
-                          setSerialLineId(line.id);
-                          setPanel('serials');
-                        }}
-                        onRemove={() => removeLine(line.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+          <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
             <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -2632,7 +2764,9 @@ export function PosTerminal() {
               )}
             </div>
           </aside>
-        </main>
+        </>
+      )}
+    </main>
 
         {panel && panel !== 'product-search' && (
           <PanelShell
