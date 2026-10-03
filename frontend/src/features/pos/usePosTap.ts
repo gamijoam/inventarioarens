@@ -20,6 +20,53 @@ export interface UsePosTapResult {
 }
 
 /**
+ * Supresion del click posterior a un tap tactil.
+ *
+ * En tablets el POS dispara la accion en `pointerdown` (para no perder el
+ * primer toque cuando Android cancela el gesto por el teclado). Si esa accion
+ * cierra un panel (p. ej. elegir un metodo de pago), el panel desaparece ANTES
+ * de que el navegador emita el `click` de ese mismo toque, y el click cae sobre
+ * lo que queda debajo (una tarjeta del catalogo o un resultado de busqueda),
+ * agregando un producto que el usuario no eligio (tap-through).
+ *
+ * Armamos una supresion al confirmar un tap tactil y consumimos el primer
+ * `click` posterior. Cualquier `pointerdown` nuevo la limpia, asi solo se anula
+ * el click del propio gesto y no afecta a los gestos siguientes.
+ */
+let posTapClickSuppressed = false;
+let posTapClickGuardInstalled = false;
+
+function armPosTapClickSuppression(): void {
+  posTapClickSuppressed = true;
+  installPosTapClickGuard();
+}
+
+function installPosTapClickGuard(): void {
+  if (posTapClickGuardInstalled || typeof document === 'undefined') return;
+  posTapClickGuardInstalled = true;
+
+  document.addEventListener(
+    'pointerdown',
+    () => {
+      posTapClickSuppressed = false;
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'click',
+    (event) => {
+      if (!posTapClickSuppressed) return;
+      posTapClickSuppressed = false;
+      if ((event as MouseEvent & { __posTap?: boolean }).__posTap) return;
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    },
+    true,
+  );
+}
+
+/**
  * Hook de tap tactil para el POS.
  *
  * Usa `useDrag` de use-gesture con `filterTaps` como deteccion primaria.
@@ -53,6 +100,7 @@ export function usePosTap(onTap: () => void, enabled = true): UsePosTapResult {
     } else if (source === 'touch') {
       if (now - lastTouchFiredAt.current < DEDUP_MS) return;
       lastTouchFiredAt.current = now;
+      if (enabled) armPosTapClickSuppression();
     } else {
       if (now - lastTouchFiredAt.current < DEDUP_MS) return;
       if (now - lastGestureFiredAt.current < DEDUP_MS) return;

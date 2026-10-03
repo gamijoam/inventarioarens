@@ -112,4 +112,57 @@ describe('usePosTap (tap tactil con respaldo pointerdown)', () => {
 
     expect(onTap).toHaveBeenCalledTimes(1);
   });
+
+  it('suprime el click que cae sobre otro elemento tras el tap tactil (evita tap-through al cerrar un panel)', () => {
+    const onTap = vi.fn();
+    const underlyingClick = vi.fn();
+    let result!: ReturnType<typeof usePosTap>;
+
+    function Probe() {
+      result = usePosTap(onTap);
+      return <button type="button" data-testid="target" {...result.bind()} />;
+    }
+
+    render(<Probe />);
+
+    const underlying = document.createElement('button');
+    document.body.appendChild(underlying);
+    underlying.addEventListener('click', underlyingClick);
+
+    result.bind().onPointerDown?.({ pointerType: 'touch', preventDefault: vi.fn() });
+    // El navegador emite el click despues del pointerdown; el panel ya se
+    // cerro y el click cae sobre la tarjeta de abajo.
+    underlying.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(underlyingClick).not.toHaveBeenCalled();
+
+    underlying.remove();
+  });
+
+  it('deja pasar el click de un gesto nuevo despues del tap tactil', () => {
+    const onTap = vi.fn();
+    const underlyingClick = vi.fn();
+    let result!: ReturnType<typeof usePosTap>;
+
+    function Probe() {
+      result = usePosTap(onTap);
+      return <button type="button" data-testid="target" {...result.bind()} />;
+    }
+
+    render(<Probe />);
+
+    const underlying = document.createElement('button');
+    document.body.appendChild(underlying);
+    underlying.addEventListener('click', underlyingClick);
+
+    result.bind().onPointerDown?.({ pointerType: 'touch', preventDefault: vi.fn() });
+    // Un gesto nuevo (pointerdown) limpia la supresion.
+    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    underlying.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(underlyingClick).toHaveBeenCalledTimes(1);
+
+    underlying.remove();
+  });
 });
