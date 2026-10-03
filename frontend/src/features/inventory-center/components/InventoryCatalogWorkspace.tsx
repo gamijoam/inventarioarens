@@ -14,7 +14,7 @@
  *      * Acceso a la ficha completa con Kardex e historial (/inventory/$productId).
  */
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   AlertTriangle,
   Boxes,
@@ -28,10 +28,14 @@ import {
   ExternalLink,
   Folder,
   Package,
+  Plus,
   Save,
   Search,
+  Send,
+  ShoppingCart,
   Sliders,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react';
 
@@ -53,6 +57,7 @@ import { Select } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { Textarea } from '@/components/ui/Textarea';
 import { Spinner } from '@/components/ui/Spinner';
+import { usePendingPosCart } from '@/features/pos/pendingPosCart';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import {
@@ -197,6 +202,15 @@ export function InventoryCatalogWorkspace({
   const [categorySearch, setCategorySearch] = useState('');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Mini carrito para enviar productos al POS.
+  const navigate = useNavigate();
+  const pendingItems = usePendingPosCart((state) => state.items);
+  const addPendingItem = usePendingPosCart((state) => state.add);
+  const removePendingItem = usePendingPosCart((state) => state.remove);
+  const clearPendingCart = usePendingPosCart((state) => state.clear);
+  const [pendingCartOpen, setPendingCartOpen] = useState(false);
+  const pendingCount = pendingItems.reduce((sum, item) => sum + item.quantity, 0);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -560,10 +574,28 @@ export function InventoryCatalogWorkspace({
                       setEditingProduct(product);
                     }}
                     title="Editar producto"
-                    className="absolute bottom-2.5 right-2.5 p-2 rounded-lg bg-surface/95 text-text-primary border border-border/80 hover:bg-primary hover:text-white shadow-sm opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-150"
+                    className="absolute bottom-2.5 right-14 p-2 rounded-lg bg-surface/95 text-text-primary border border-border/80 hover:bg-primary hover:text-white shadow-sm opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-150"
                     data-testid={`catalog-edit-btn-${product.id}`}
                   >
                     <Edit className="size-4" />
+                  </button>
+
+                  {/* Botón "+" para agregar al mini carrito y enviar al POS */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addPendingItem({
+                        productId: product.id,
+                        name: product.name,
+                        sku: product.sku ?? null,
+                      });
+                    }}
+                    title="Agregar al carrito para el POS"
+                    className="absolute bottom-2.5 right-2.5 p-2 rounded-lg bg-primary text-primary-foreground border border-primary/60 hover:brightness-110 shadow-sm transition-all duration-150"
+                    data-testid={`catalog-add-btn-${product.id}`}
+                  >
+                    <Plus className="size-4" />
                   </button>
                 </div>
 
@@ -720,6 +752,77 @@ export function InventoryCatalogWorkspace({
           }}
         />
       )}
+
+      {/* 6. Mini carrito: enviar productos al POS */}
+      {pendingCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setPendingCartOpen(true)}
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-2xl transition-all hover:brightness-110 active:scale-95"
+          data-testid="inventory-pending-cart-button"
+          title="Productos por enviar al POS"
+        >
+          <ShoppingCart className="size-5" />
+          <span className="text-sm font-bold">{pendingCount}</span>
+        </button>
+      )}
+
+      <Dialog open={pendingCartOpen} onOpenChange={setPendingCartOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="size-5" /> Enviar al POS
+            </DialogTitle>
+            <DialogDescription>
+              Estos productos se cargarán en el carrito del POS para cobrarlos y elegir el método
+              de pago.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 space-y-2 overflow-y-auto">
+            {pendingItems.map((item) => (
+              <div
+                key={item.productId}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{item.name}</p>
+                  {item.sku && <p className="text-xs text-text-muted">SKU: {item.sku}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-bold tabular-nums">x{item.quantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingItem(item.productId)}
+                    className="rounded p-1 text-text-muted hover:bg-danger/10 hover:text-danger"
+                    aria-label={`Quitar ${item.name}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => clearPendingCart()}
+              disabled={pendingItems.length === 0}
+            >
+              Vaciar
+            </Button>
+            <Button
+              onClick={() => {
+                setPendingCartOpen(false);
+                void navigate({ to: '/pos' });
+              }}
+              disabled={pendingItems.length === 0}
+              className="gap-2"
+            >
+              <Send className="size-4" /> Enviar al POS
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
