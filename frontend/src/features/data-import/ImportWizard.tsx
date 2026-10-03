@@ -7,6 +7,7 @@ import {
   downloadImportFile,
   ENTITY_LABELS,
   SUPPORTED_ENTITIES,
+  supportsCurrentData,
   type SupportedEntity,
   templateUrl,
   useCreateDataImportSession,
@@ -77,6 +78,16 @@ export function ImportWizard() {
     }
   }
 
+  async function downloadCurrentData() {
+    if (!state.entity || !supportsCurrentData(state.entity)) return;
+    try {
+      await downloadImportFile(templateUrl(state.entity, true), `datos_${state.entity}.csv`);
+      toast.success('Descargado. Edita el archivo y vuelve a subirlo.');
+    } catch {
+      toast.error('No se pudieron descargar los datos actuales.');
+    }
+  }
+
   async function handleFile(file: File) {
     try {
       const session = state.sessionId ?? (await createSession.mutateAsync({ meta: { entity: state.entity } })).id;
@@ -138,6 +149,11 @@ export function ImportWizard() {
               <Button onClick={downloadTemplate} variant="secondary">
                 Descargar plantilla
               </Button>
+              {supportsCurrentData(state.entity) && (
+                <Button onClick={downloadCurrentData} variant="secondary">
+                  Descargar datos actuales
+                </Button>
+              )}
               <Button onClick={resetWizard} variant="ghost">
                 Cambiar tipo
               </Button>
@@ -156,6 +172,11 @@ export function ImportWizard() {
               <Button onClick={downloadTemplate} variant="secondary" size="sm">
                 Descargar plantilla
               </Button>
+              {supportsCurrentData(state.entity) && (
+                <Button onClick={downloadCurrentData} variant="secondary" size="sm">
+                  Descargar datos actuales
+                </Button>
+              )}
               <Button onClick={resetWizard} variant="ghost" size="sm">
                 Cambiar tipo
               </Button>

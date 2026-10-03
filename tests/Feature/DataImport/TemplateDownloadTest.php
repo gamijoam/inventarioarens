@@ -4,6 +4,7 @@ namespace Tests\Feature\DataImport;
 
 use App\Models\User;
 use App\Modules\Branches\Models\Branch;
+use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -92,5 +93,38 @@ class TemplateDownloadTest extends TestCase
         $response->assertOk();
         $content = $response->getContent();
         $this->assertStringContainsString('payment_method_codes;prices', $content);
+    }
+
+    public function test_current_download_returns_tenant_products(): void
+    {
+        Product::create([
+            'sku' => 'SKU-CURRENT-1',
+            'name' => 'Producto Actual',
+            'tracking_type' => 'quantity',
+            'base_price' => 12.5,
+            'sale_currency' => 'USD',
+            'unit_of_measure' => 'unit',
+            'is_active' => true,
+        ]);
+
+        $response = $this
+            ->actingAs($this->admin)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->get('/api/import/templates/products?current=1');
+
+        $response->assertOk();
+        $content = $response->getContent();
+        $this->assertStringStartsWith('sku,name,barcode', $content);
+        $this->assertStringContainsString('SKU-CURRENT-1,Producto Actual', $content);
+    }
+
+    public function test_current_download_rejects_entity_without_current_support(): void
+    {
+        $response = $this
+            ->actingAs($this->admin)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->get('/api/import/templates/branches?current=1');
+
+        $response->assertStatus(422);
     }
 }

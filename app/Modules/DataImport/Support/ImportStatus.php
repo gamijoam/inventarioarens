@@ -28,6 +28,8 @@ final class ImportStatus
 
     public const ROW_FAILED = 'failed';
 
+    public const ROW_UPDATED = 'updated';
+
     public const ENTITIES = [
         'branches',
         'warehouses',

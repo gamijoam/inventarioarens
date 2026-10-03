@@ -30,7 +30,7 @@ export function ImportRunResult({ result, sessionId, onReset }: Props) {
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-3">
         <Card label="Total" value={result.total} color="bg-gray-100 text-gray-800" />
-        <Card label="Creados" value={totalOk} color="bg-green-100 text-green-800" />
+        <Card label="Creados / Actualizados" value={totalOk} color="bg-green-100 text-green-800" />
         <Card label="Omitidos" value={totalSkip} color="bg-yellow-100 text-yellow-800" />
         <Card label="Fallidos" value={totalFail} color="bg-red-100 text-red-800" />
       </div>

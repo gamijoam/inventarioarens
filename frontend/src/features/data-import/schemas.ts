@@ -18,7 +18,7 @@ export const DataImportEntityStatusSchema = z.enum([
   'failed',
 ]);
 
-export const DataImportRowStatusSchema = z.enum(['ok', 'skipped', 'failed']);
+export const DataImportRowStatusSchema = z.enum(['ok', 'updated', 'skipped', 'failed']);
 
 export const DataImportEntitySchema = z.object({
   id: z.number(),

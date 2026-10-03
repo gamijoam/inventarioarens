@@ -24,8 +24,18 @@ class DataImportTemplateController extends Controller
             return response()->json(['message' => 'Entidad invalida.'], 422);
         }
 
-        $csv = $this->builder->build($entity);
-        $filename = "plantilla_{$entity}.csv";
+        $current = $request->boolean('current');
+
+        try {
+            $csv = $current
+                ? $this->builder->buildCurrent($entity)
+                : $this->builder->build($entity);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $prefix = $current ? 'datos' : 'plantilla';
+        $filename = "{$prefix}_{$entity}.csv";
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',

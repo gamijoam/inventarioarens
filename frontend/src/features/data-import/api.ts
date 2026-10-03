@@ -178,8 +178,22 @@ export function useImportEntityRows(sessionId: number, entity: SupportedEntity) 
   });
 }
 
-export function templateUrl(entity: SupportedEntity): string {
-  return `/import/templates/${entity}`;
+export function templateUrl(entity: SupportedEntity, current = false): string {
+  return `/import/templates/${entity}${current ? '?current=1' : ''}`;
+}
+
+/**
+ * Entidades que soportan "descargar datos actuales" (exportacion completa en
+ * el mismo formato del importador, para editar y volver a subir).
+ */
+export const CURRENT_DATA_ENTITIES: ReadonlySet<SupportedEntity> = new Set([
+  'products',
+  'product_prices',
+  'price_lists',
+]);
+
+export function supportsCurrentData(entity: SupportedEntity): boolean {
+  return CURRENT_DATA_ENTITIES.has(entity);
 }
 
 export function reportUrl(sessionId: number): string {

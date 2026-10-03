@@ -115,7 +115,7 @@ class DataImportService
                     $result = ImportRowResult::skipped('Fila ya importada previamente.', $key);
                 } else {
                     $result = $importer->importRow($payload, $rowNumber);
-                    if ($result->isOk() && $key !== '') {
+                    if ($result->isSuccess() && $key !== '') {
                         $okKeys[$key] = true;
                     }
                 }
@@ -199,7 +199,7 @@ class DataImportService
     {
         $keys = DataImportRow::query()
             ->where('data_import_entity_id', $entityRowId)
-            ->where('status', ImportStatus::ROW_OK)
+            ->whereIn('status', [ImportStatus::ROW_OK, ImportStatus::ROW_UPDATED])
             ->pluck('natural_key')
             ->filter()
             ->all();
@@ -245,7 +245,7 @@ class DataImportService
 
     private function bumpCount(array &$counts, ImportRowResult $result): void
     {
-        if ($result->isOk()) {
+        if ($result->isSuccess()) {
             $counts['ok']++;
         } elseif ($result->isSkipped()) {
             $counts['skipped']++;
@@ -258,7 +258,7 @@ class DataImportService
     {
         $aggregates = DB::table('data_import_rows')
             ->selectRaw('COUNT(*) as total')
-            ->selectRaw("SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) as ok")
+            ->selectRaw("SUM(CASE WHEN status IN ('ok','updated') THEN 1 ELSE 0 END) as ok")
             ->selectRaw("SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped")
             ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed")
             ->whereIn('data_import_entity_id', function ($q) use ($session) {

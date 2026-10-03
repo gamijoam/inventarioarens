@@ -310,7 +310,7 @@ class CustomerProductSupplierImportersTest extends TestCase
         $this->assertSame(800.50, (float) $entry->items()->first()->unit_cost);
     }
 
-    public function test_product_importer_skips_duplicate_sku(): void
+    public function test_product_importer_updates_existing_sku_on_reimport(): void
     {
         Product::create([
             'sku' => 'DUP-001',
@@ -322,8 +322,8 @@ class CustomerProductSupplierImportersTest extends TestCase
 
         $results = $this->results((new ProductImporter(app(SharedCatalogPropagationService::class)))->import($path));
 
-        $this->assertSame(ImportRowResult::STATUS_SKIPPED, $results[0]->status);
-        $this->assertDatabaseHas('products', ['sku' => 'DUP-001', 'name' => 'Original']);
+        $this->assertSame(ImportRowResult::STATUS_UPDATED, $results[0]->status);
+        $this->assertDatabaseHas('products', ['sku' => 'DUP-001', 'name' => 'Duplicado']);
     }
 
     public function test_product_importer_rejects_max_stock_less_than_min_stock(): void

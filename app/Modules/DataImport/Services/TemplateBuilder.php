@@ -5,6 +5,9 @@ namespace App\Modules\DataImport\Services;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\DataImport\Support\ImportStatus;
 use App\Modules\Products\Models\Brand;
+use App\Modules\Products\Models\PriceList;
+use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 
@@ -122,6 +125,113 @@ class TemplateBuilder
         $separator = $entity === 'price_lists' ? ';' : ',';
 
         return $this->toCsv($rows, $separator);
+    }
+
+    /**
+     * Descarga los datos ACTUALES de la empresa en el mismo formato/columnas
+     * del importador, para editar el archivo y volver a subirlo (upsert).
+     */
+    public function buildCurrent(string $entity): string
+    {
+        if (! ImportStatus::isValidEntity($entity)) {
+            throw new \InvalidArgumentException("Entidad invalida: {$entity}");
+        }
+
+        $headers = self::ENTITIES[$entity]['headers'];
+        $separator = $entity === 'price_lists' ? ';' : ',';
+
+        $records = match ($entity) {
+            'products' => $this->currentProductRecords(),
+            'product_prices' => $this->currentProductPriceRecords(),
+            'price_lists' => $this->currentPriceListRecords(),
+            default => throw new \InvalidArgumentException(
+                "La descarga de datos actuales no esta disponible para '{$entity}'.",
+            ),
+        };
+
+        $rows = [$headers];
+        foreach ($records as $record) {
+            $rows[] = array_map(fn (string $header) => $record[$header] ?? '', $headers);
+        }
+
+        return $this->toCsv($rows, $separator);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function currentProductRecords(): array
+    {
+        return Product::query()
+            ->with(['brand', 'categories', 'tags'])
+            ->orderBy('id')
+            ->get()
+            ->map(fn (Product $product): array => [
+                'sku' => $product->sku,
+                'name' => $product->name,
+                'barcode' => $product->barcode,
+                'description' => $product->description,
+                'brand_slug' => $product->brand?->slug ?? '',
+                'category_slugs' => $product->categories->pluck('slug')->implode('|'),
+                'tag_slugs' => $product->tags->pluck('slug')->implode('|'),
+                'unit_of_measure' => $product->unit_of_measure,
+                'tracking_type' => $product->tracking_type,
+                'base_price' => $product->base_price,
+                'sale_currency' => $product->sale_currency,
+                'min_stock' => $product->min_stock,
+                'max_stock' => $product->max_stock,
+                'reorder_quantity' => $product->reorder_quantity,
+                'is_active' => $product->is_active ? 'true' : 'false',
+                // El stock no se importa en re-subidas: se maneja con movimientos.
+                'stock_inicial' => '',
+                'almacen_codigo' => '',
+                'costo_unitario' => '',
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function currentProductPriceRecords(): array
+    {
+        return ProductPrice::query()
+            ->with(['product', 'priceList', 'exchangeRateType'])
+            ->orderBy('id')
+            ->get()
+            ->map(fn (ProductPrice $price): array => [
+                'sku' => $price->product?->sku ?? '',
+                'list_code' => $price->priceList?->code ?? '',
+                'price' => $price->price,
+                'currency' => $price->currency,
+                'is_active' => $price->is_active ? 'true' : 'false',
+                'exchange_rate_type_code' => $price->exchangeRateType?->code ?? '',
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function currentPriceListRecords(): array
+    {
+        return PriceList::query()
+            ->with('paymentMethods')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (PriceList $list): array => [
+                'code' => $list->code,
+                'name' => $list->name,
+                'description' => $list->description,
+                'is_default' => $list->is_default ? 'true' : 'false',
+                'is_active' => $list->is_active ? 'true' : 'false',
+                'sort_order' => $list->sort_order,
+                'payment_method_codes' => $list->paymentMethods->pluck('code')->implode('|'),
+                // Los precios por producto se descargan con la entidad product_prices.
+                'prices' => '',
+            ])
+            ->all();
     }
 
     private function tenantValueRows(string $entity, array|string $entities, array $headers): array

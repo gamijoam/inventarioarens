@@ -191,7 +191,26 @@ class ProductImporter extends BaseImporter
         ) {
             $existing = Product::query()->where('sku', $sku)->first();
             if ($existing) {
-                return ImportRowResult::skipped("Producto {$sku} ya existe", $sku);
+                return $this->updateExistingProduct(
+                    $existing,
+                    $sku,
+                    [
+                        'name' => $name,
+                        'barcode' => $barcode,
+                        'description' => $description,
+                        'brand_id' => $brandId,
+                        'unit_of_measure' => $unitOfMeasure,
+                        'tracking_type' => $trackingType,
+                        'base_price' => $basePrice,
+                        'sale_currency' => $saleCurrency,
+                        'min_stock' => $minStock,
+                        'max_stock' => $maxStock,
+                        'reorder_quantity' => $reorderQty,
+                        'is_active' => $isActive,
+                    ],
+                    $categoryIds,
+                    $tagIds,
+                );
             }
 
             $product = Product::create([
@@ -276,6 +295,95 @@ class ProductImporter extends BaseImporter
 
             return ImportRowResult::ok($product->id, $sku);
         });
+    }
+
+    /**
+     * Actualiza un producto existente (re-subida del archivo). No toca el
+     * stock: el inventario se maneja con movimientos, no con la importacion.
+     * Devuelve `updated` si algo cambio, o `skipped` si quedo igual.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  array<int, int>  $categoryIds
+     * @param  array<int, int>  $tagIds
+     */
+    private function updateExistingProduct(
+        Product $product,
+        string $sku,
+        array $attributes,
+        array $categoryIds,
+        array $tagIds,
+    ): ImportRowResult {
+        $dirty = [];
+        foreach ($attributes as $field => $value) {
+            $current = $product->getAttribute($field);
+            $same = match ($field) {
+                'is_active' => (bool) $current === (bool) $value,
+                'base_price', 'min_stock', 'max_stock', 'reorder_quantity' => (float) ($current ?? 0) === (float) ($value ?? 0),
+                default => (string) ($current ?? '') === (string) ($value ?? ''),
+            };
+            if (! $same) {
+                $dirty[$field] = $value;
+            }
+        }
+
+        $currentCategoryIds = DB::table('product_category')
+            ->where('product_id', $product->id)
+            ->where('tenant_id', $product->tenant_id)
+            ->pluck('category_id')
+            ->map(fn ($id) => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+        $desiredCategoryIds = collect($categoryIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $categoriesChanged = $currentCategoryIds !== $desiredCategoryIds;
+
+        $currentTagIds = DB::table('product_tag')
+            ->where('product_id', $product->id)
+            ->where('tenant_id', $product->tenant_id)
+            ->pluck('tag_id')
+            ->map(fn ($id) => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+        $desiredTagIds = collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $tagsChanged = $currentTagIds !== $desiredTagIds;
+
+        if ($dirty === [] && ! $categoriesChanged && ! $tagsChanged) {
+            return ImportRowResult::skipped("Producto {$sku} sin cambios", $sku);
+        }
+
+        if ($dirty !== []) {
+            $product->update($dirty);
+        }
+        if ($categoriesChanged) {
+            $product->categories()->syncWithPivotValues(
+                $desiredCategoryIds,
+                ['tenant_id' => $product->tenant_id],
+            );
+        }
+        if ($tagsChanged) {
+            $product->tags()->syncWithPivotValues(
+                $desiredTagIds,
+                ['tenant_id' => $product->tenant_id],
+            );
+        }
+
+        $product->refresh()->load(['brand', 'categories', 'tags']);
+        app(SyncCatalogOutboxService::class)->productUpdated($product);
+
+        try {
+            if ($product->isCatalogMaster()) {
+                $this->propagation->syncMasterFieldsToCopies($product);
+            }
+        } catch (\Throwable $e) {
+            logger()->warning('Propagacion de producto actualizado fallo', [
+                'sku' => $sku,
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return ImportRowResult::updated($product->id, $sku, "Producto {$sku} actualizado");
     }
 
     protected function parseBool(?string $value, bool $default): bool

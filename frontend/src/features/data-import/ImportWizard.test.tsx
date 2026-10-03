@@ -9,7 +9,9 @@ const mockRun = vi.fn();
 vi.mock('./api', () => ({
   SUPPORTED_ENTITIES: ['branches', 'products'],
   ENTITY_LABELS: { branches: 'Sucursales', products: 'Productos' },
-  templateUrl: (entity: string) => `/import/templates/${entity}`,
+  templateUrl: (entity: string, current = false) =>
+    `/import/templates/${entity}${current ? '?current=1' : ''}`,
+  supportsCurrentData: (entity: string) => entity === 'products',
   downloadImportFile: vi.fn(),
   useCreateDataImportSession: () => ({ mutateAsync: mockCreateSession, isPending: false }),
   useDataImportSession: () => ({ data: undefined }),
@@ -37,6 +39,7 @@ describe('<ImportWizard>', () => {
     expect(screen.getByText('Sube aqui el CSV ya completado usando la plantilla del tipo elegido.')).toBeInTheDocument();
     expect(screen.getByText('Arrastra tu CSV aqui o haz click para seleccionar')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descargar plantilla' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Descargar datos actuales' })).toBeInTheDocument();
 
     const fileInput = container.querySelector('input[type="file"]');
     expect(fileInput).toBeTruthy();
