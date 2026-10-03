@@ -307,7 +307,10 @@ export function PosCatalogGrid({
               return (
                 <div
                   key={product.id}
-                  onClick={() => void handleProductClick(product)}
+                  onClick={() => {
+                    if (isOutOfStock) return;
+                    void handleProductClick(product);
+                  }}
                   className={cn(
                     'group bg-surface rounded-2xl border border-border/80 hover:border-primary hover:shadow-md transition-all duration-150 flex flex-col overflow-hidden cursor-pointer select-none active:scale-[0.99] relative',
                     isOutOfStock && 'opacity-85',

@@ -991,7 +991,7 @@ export function PosTerminal() {
   const canThermalPrint =
     canPrint && !!activePrinterStation && activePrinterStation.output_mode !== 'digital';
   const selectedWarehouse =
-    warehouses.find((warehouse) => warehouse.id === warehouseId) ?? warehouses[0] ?? null;
+    warehouses.find((warehouse) => warehouse.id === effectiveWarehouseId) ?? warehouses[0] ?? null;
   const cartProductIds = useMemo(() => cart.map((line) => line.product_id), [cart]);
   const promotionQuery = {
     warehouseId: selectedWarehouse?.id ?? null,
@@ -2220,7 +2220,7 @@ export function PosTerminal() {
           {posViewMode === 'catalog' ? (
             <>
               <PosCatalogGrid
-                warehouseId={selectedWarehouse?.id ?? effectiveWarehouseId ?? warehouseId}
+                warehouseId={effectiveWarehouseId}
                 priceLists={priceLists}
                 selectedPriceList={selectedPriceList}
                 activeRate={activeRate}
