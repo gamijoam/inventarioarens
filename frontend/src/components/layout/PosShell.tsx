@@ -92,7 +92,11 @@ export function PosShell({
   const showHeader = !hideHeader && (Boolean(context) || visibleActions.length > 0);
 
   return (
-    <div data-testid="pos-shell" data-shell="pos" className="bg-bg relative min-h-screen w-full">
+    <div
+      data-testid="pos-shell"
+      data-shell="pos"
+      className="bg-bg relative flex h-dvh w-full flex-col overflow-hidden"
+    >
       {!hideHeader && (
         <button
           type="button"
@@ -174,7 +178,7 @@ export function PosShell({
           )}
         </header>
       )}
-      <main className="min-h-screen">{children}</main>
+      <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
     </div>
   );
 }
