@@ -35,7 +35,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
   } as unknown as Product;
 }
 
-function renderGrid(product: Product, onSelectProduct = vi.fn()) {
+function renderGrid(product: Product, onSelectProduct = vi.fn(), allowNegativeStock = false) {
   mockUseProducts.mockReturnValue({
     data: {
       data: [product],
@@ -52,6 +52,7 @@ function renderGrid(product: Product, onSelectProduct = vi.fn()) {
       priceLists={[]}
       selectedPriceList={null}
       activeRate={null}
+      allowNegativeStock={allowNegativeStock}
       onSelectProduct={onSelectProduct}
     />,
   );
@@ -80,6 +81,14 @@ describe('PosCatalogGrid', () => {
     fireEvent.click(screen.getByText('CAUCHO 3.00-18 TT - Q91 QUEIPA'));
 
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('permite agregar una tarjeta agotada cuando allowNegativeStock esta activo', () => {
+    const onSelect = renderGrid(makeProduct({ available_stock: 0 }), vi.fn(), true);
+
+    fireEvent.click(screen.getByText('CAUCHO 3.00-18 TT - Q91 QUEIPA'));
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it('muestra u oculta el valor en Bs según la opción (showVesPrice)', () => {

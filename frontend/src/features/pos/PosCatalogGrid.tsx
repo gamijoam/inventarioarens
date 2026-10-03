@@ -90,6 +90,7 @@ interface PosCatalogGridProps {
   selectedPriceList: PriceList | null;
   activeRate: { id?: number; name?: string; code?: string; rate: number } | null;
   showVesPrice?: boolean;
+  allowNegativeStock?: boolean;
   onSelectProduct: (product: Product) => Promise<boolean> | void;
   onDetailProduct?: (product: Product) => void;
   className?: string;
@@ -101,6 +102,7 @@ export function PosCatalogGrid({
   selectedPriceList,
   activeRate,
   showVesPrice = true,
+  allowNegativeStock = false,
   onSelectProduct,
   className,
 }: PosCatalogGridProps) {
@@ -364,7 +366,7 @@ export function PosCatalogGrid({
               const rawStock = product.available_stock;
               const stockNum =
                 rawStock == null ? 0 : typeof rawStock === 'string' ? parseFloat(rawStock) : rawStock;
-              const isOutOfStock = (product.track_stock ?? true) && stockNum <= 0;
+              const isOutOfStock = !allowNegativeStock && (product.track_stock ?? true) && stockNum <= 0;
 
               const imageUrl =
                 product.primary_image_url ||

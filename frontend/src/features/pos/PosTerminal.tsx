@@ -2300,6 +2300,7 @@ export function PosTerminal() {
                 selectedPriceList={selectedPriceList}
                 activeRate={activeRate}
                 showVesPrice={showVesOnCards}
+                allowNegativeStock={allowNegativeStock}
                 onSelectProduct={addProduct}
                 onDetailProduct={(product) => setDetailProduct(product)}
                 className="flex-1"
