@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Package,
@@ -9,6 +10,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
@@ -105,6 +107,8 @@ export function PosCatalogGrid({
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [page, setPage] = useState(1);
   const perPage = 18;
@@ -142,6 +146,13 @@ export function PosCatalogGrid({
   const meta = paginatedData?.meta;
   const totalProducts = meta?.total ?? products.length;
   const totalPages = meta?.last_page ?? 1;
+
+  const activeCategory = categories.find((cat) => cat.id === selectedCategoryId) ?? null;
+  const filteredCategories = useMemo(() => {
+    const term = categorySearch.trim().toLowerCase();
+    if (!term) return categories;
+    return categories.filter((cat) => cat.name.toLowerCase().includes(term));
+  }, [categories, categorySearch]);
 
   const handleProductClick = async (product: Product) => {
     try {
@@ -208,35 +219,93 @@ export function PosCatalogGrid({
           </button>
         </div>
 
-        {/* Fila de Chips de Categorías deslizables */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none overscroll-contain">
-          <button
-            type="button"
-            onClick={() => setSelectedCategoryId(undefined)}
-            className={cn(
-              'px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all shrink-0',
-              selectedCategoryId === undefined
-                ? 'bg-primary text-white border-primary shadow-xs'
-                : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-primary/40',
-            )}
+        {/* Selector de Categorías (compacto + buscador) */}
+        <div className="flex items-center gap-2">
+          <PopoverPrimitive.Root
+            open={categoryOpen}
+            onOpenChange={(next) => {
+              setCategoryOpen(next);
+              if (!next) setCategorySearch('');
+            }}
           >
-            Todos ({totalProducts})
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => setSelectedCategoryId(cat.id === selectedCategoryId ? undefined : cat.id)}
-              className={cn(
-                'px-3.5 py-1.5 text-xs font-medium rounded-lg border transition-all shrink-0',
-                cat.id === selectedCategoryId
-                  ? 'bg-primary text-white border-primary font-bold shadow-xs'
-                  : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-primary/40',
-              )}
+            <PopoverPrimitive.Trigger asChild>
+              <button
+                type="button"
+                title="Filtrar por categoría"
+                className="flex min-w-0 items-center gap-2 h-10 px-3.5 rounded-xl border border-border bg-surface text-xs font-semibold text-text-secondary hover:text-text-primary hover:border-primary/50 transition-all"
+              >
+                <span className="text-text-muted shrink-0">Categoría:</span>
+                <span className="truncate max-w-[160px] text-text-primary">
+                  {activeCategory?.name ?? 'Todas'}
+                </span>
+                <ChevronDown className="size-3.5 shrink-0 opacity-60" />
+              </button>
+            </PopoverPrimitive.Trigger>
+            <PopoverPrimitive.Portal>
+              <PopoverPrimitive.Content
+                align="start"
+                sideOffset={8}
+                className="z-50 w-72 rounded-2xl border border-border bg-surface p-3 shadow-2xl animate-in fade-in-0 zoom-in-95"
+              >
+                <Input
+                  autoFocus
+                  value={categorySearch}
+                  onChange={(event) => setCategorySearch(event.target.value)}
+                  placeholder="Buscar categoría..."
+                  className="mb-2 h-9 text-sm"
+                />
+                <div className="max-h-72 space-y-0.5 overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategoryId(undefined);
+                      setCategoryOpen(false);
+                      setCategorySearch('');
+                    }}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition-colors hover:bg-primary/10',
+                      selectedCategoryId === undefined && 'bg-primary/10 text-primary font-bold',
+                    )}
+                  >
+                    <span>Todas</span>
+                    <span className="text-[10px] text-text-muted">{totalProducts}</span>
+                  </button>
+                  {filteredCategories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategoryId(cat.id);
+                        setCategoryOpen(false);
+                        setCategorySearch('');
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-primary/10',
+                        cat.id === selectedCategoryId && 'bg-primary/10 text-primary font-bold',
+                      )}
+                    >
+                      <span className="truncate">{cat.name}</span>
+                    </button>
+                  ))}
+                  {filteredCategories.length === 0 && (
+                    <p className="px-2.5 py-3 text-center text-xs text-text-muted">Sin categorías</p>
+                  )}
+                </div>
+              </PopoverPrimitive.Content>
+            </PopoverPrimitive.Portal>
+          </PopoverPrimitive.Root>
+
+          {selectedCategoryId !== undefined && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedCategoryId(undefined)}
+              className="h-10 px-2.5 text-xs gap-1 text-text-muted hover:text-danger"
             >
-              {cat.name}
-            </button>
-          ))}
+              <X className="size-3.5" />
+              Quitar filtro
+            </Button>
+          )}
         </div>
       </div>
 

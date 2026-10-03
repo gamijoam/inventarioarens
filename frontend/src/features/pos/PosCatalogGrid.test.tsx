@@ -115,6 +115,31 @@ describe('PosCatalogGrid', () => {
     expect(screen.queryByText(/Bs/)).not.toBeInTheDocument();
   });
 
+  it('filtra por categoría desde el selector', async () => {
+    mockUseProducts.mockReturnValue({
+      data: { data: [], meta: { current_page: 1, last_page: 1, per_page: 18, total: 0 } },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseCategories.mockReturnValue({ data: [{ id: 7, name: 'CAUCHOS' }] });
+
+    render(
+      <PosCatalogGrid
+        warehouseId={4}
+        priceLists={[]}
+        selectedPriceList={null}
+        activeRate={null}
+        onSelectProduct={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle('Filtrar por categoría'));
+    fireEvent.click(await screen.findByText('CAUCHOS'));
+
+    const lastFilters = mockUseProducts.mock.calls.at(-1)?.[0] as { category_id?: number } | undefined;
+    expect(lastFilters?.category_id).toBe(7);
+  });
+
   it('NO consulta productos sin almacén cuando warehouseId es null', () => {
     mockUseProducts.mockReturnValue({
       data: { data: [], meta: { current_page: 1, last_page: 1, per_page: 18, total: 0 } },
