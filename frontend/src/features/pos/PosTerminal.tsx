@@ -1318,7 +1318,14 @@ export function PosTerminal() {
         uniqueKeys.map(async (key) => {
           const [prodIdStr, whIdStr] = key.split('_');
           const pId = Number(prodIdStr);
-          const wId = Number(whIdStr) || effectiveWarehouseId || null;
+          const lineWarehouseId = Number(whIdStr);
+          const hasValidLineWarehouse =
+            Number.isFinite(lineWarehouseId) &&
+            lineWarehouseId > 0 &&
+            warehouses.some((warehouse) => warehouse.id === lineWarehouseId);
+          const wId = hasValidLineWarehouse
+            ? lineWarehouseId
+            : effectiveWarehouseId || null;
           try {
             const product = await getProductForPos(pId, wId);
             productMap.set(key, product);
@@ -1357,6 +1364,12 @@ export function PosTerminal() {
           const newBasePrice = Number(product.base_price ?? 0);
           const newImageUrl =
             product.image_url ?? product.primary_image_url ?? line.image_url ?? null;
+          const hasValidWarehouse = warehouses.some(
+            (warehouse) => warehouse.id === line.warehouse_id,
+          );
+          const newWarehouseId = hasValidWarehouse
+            ? line.warehouse_id
+            : (effectiveWarehouseId ?? line.warehouse_id);
 
           let newUnitPrice = line.unit_price;
           let newCurrency = line.currency;
@@ -1383,6 +1396,7 @@ export function PosTerminal() {
             line.base_unit_price === newBasePrice &&
             line.unit_price === newUnitPrice &&
             line.currency === newCurrency &&
+            line.warehouse_id === newWarehouseId &&
             line.image_url === newImageUrl
           ) {
             return line;
@@ -1401,6 +1415,7 @@ export function PosTerminal() {
             base_unit_price: newBasePrice,
             unit_price: newUnitPrice,
             currency: newCurrency,
+            warehouse_id: newWarehouseId,
             image_url: newImageUrl,
           };
         });
@@ -1410,7 +1425,7 @@ export function PosTerminal() {
     } finally {
       isRefreshingCartRef.current = false;
     }
-  }, [effectiveWarehouseId, selectedPriceListId]);
+  }, [effectiveWarehouseId, selectedPriceListId, warehouses]);
 
   const cartLength = cart.length;
   const prevCartLengthRef = useRef(0);
