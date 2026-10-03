@@ -3837,11 +3837,35 @@ export function PosTerminal() {
       await payPendingOrder(selectedPending);
       return;
     }
+    if (hasStockIssue(cart)) {
+      // Auto-reparacion: el stock de la linea puede estar desactualizado (sobre
+      // todo al agregar desde el catalogo). Refrescamos contra el backend antes
+      // de bloquear; el backend es la fuente de verdad del stock.
+      await refreshCartProducts();
+    }
+
     if (checkoutBlockReason) {
-      toast.error(checkoutBlockReason);
-      if (payments.length === 0 && cart.length > 0 && canCheckout) setPanel('pay');
-      if (serialIssue) openMissingSerialPanel();
-      return;
+      const freshLines = usePosCartStore.getState().lines;
+      const freshReason = getCheckoutBlockReason({
+        canCheckout,
+        hasSession: Boolean(activeSession),
+        cartCount: freshLines.length,
+        paymentCount: payments.length,
+        remaining: paymentTotals.remaining,
+        hasStockIssue: hasStockIssue(freshLines),
+        hasPriceIssue: hasPriceIssue(freshLines),
+        priceIssue: firstPriceIssue(freshLines),
+        serialIssue: missingSerialIssue(freshLines),
+        paymentSetupIssue,
+        promotionPaymentIssue,
+        priceListPaymentIssue,
+      });
+      if (freshReason) {
+        toast.error(freshReason);
+        if (payments.length === 0 && freshLines.length > 0 && canCheckout) setPanel('pay');
+        if (missingSerialIssue(freshLines)) openMissingSerialPanel();
+        return;
+      }
     }
     if (!activeSession) {
       toast.error('No hay caja abierta.');
