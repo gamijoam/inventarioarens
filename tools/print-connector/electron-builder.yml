@@ -3,6 +3,11 @@ productName: Inventario Arens Print Connector
 electronVersion: 43.3.0
 directories:
   output: ../../build/print-connector-gui
+publish:
+  provider: github
+  owner: gamijoam
+  repo: inventarioarens
+  channel: connector
 files:
   - main.cjs
   - preload.cjs
