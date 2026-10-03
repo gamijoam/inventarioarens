@@ -141,6 +141,9 @@ export function useUpdateCompanySettings() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+      // Fuerza a refrescar el bootstrap del POS para tomar allow_negative_stock
+      // y otra configuracion que el POS lee al abrir.
+      queryClient.invalidateQueries({ queryKey: ['pos'] });
       const currentTenant = useSessionStore.getState().tenant;
       if (currentTenant && data.settings?.company?.razon_social) {
         useSessionStore.getState().setTenant({
