@@ -161,9 +161,34 @@ class AccountsReceivableService
             return $existing;
         }
 
+        // El POS calcula el total con redondeo a centavos, por lo que el pago
+        // puede superar por centavos el saldo de la venta (guardado con 4
+        // decimales, p. ej. precio 0.094 x 2 = 0.188 vs pago 0.19). No se
+        // rechaza una venta ya pagada: se ajusta el monto cobrado al saldo.
+        $balanceBase = round((float) $account->balance_base_amount, 4);
+        $amount = (float) $posPayment->amount;
+        $currency = strtoupper((string) $posPayment->currency);
+
+        [, $rate, $amountBase] = $this->paymentAmounts(
+            $currency,
+            (float) $posPayment->amount,
+            $posPayment->exchange_rate_type_id,
+            $posPayment->exchange_rate ? (float) $posPayment->exchange_rate : null,
+        );
+
+        if ($balanceBase > 0 && $amountBase > $balanceBase) {
+            if ($currency === Product::CURRENCY_USD) {
+                $amount = $balanceBase;
+            } elseif ($rate && $rate > 0) {
+                $amount = round($balanceBase * $rate, 4);
+            } else {
+                $amount = $balanceBase;
+            }
+        }
+
         return $this->registerPayment($account, $user, [
             'payment_currency' => $posPayment->currency,
-            'amount' => $posPayment->amount,
+            'amount' => $amount,
             'exchange_rate_type_id' => $posPayment->exchange_rate_type_id,
             'exchange_rate' => $posPayment->exchange_rate ? (float) $posPayment->exchange_rate : null,
             'method' => "pos_{$posPayment->method}",

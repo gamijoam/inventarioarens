@@ -116,6 +116,59 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pos_checkout_accepts_payment_rounded_to_cents_when_line_total_has_more_decimals(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Redondeo', 'slug' => 'empresa-redondeo']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-RND', 500);
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Precio 3', 'P3-RND', 0.094);
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo USD',
+            'code' => 'CASH-RND',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+        $priceList->paymentMethods()->sync([$cash->id => ['tenant_id' => $tenant->id]]);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Redondeo', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        // 0.094 x 2 = 0.188 (backend, 4 decimales) pero el POS cobra 0.19
+        // (redondeado a centavos). El cobro no debe rechazarse.
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'customer_name' => 'Consumidor Final',
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'price_source' => 'price_list',
+                    'quantity' => 2,
+                ]],
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 0.19,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+
+        $this->assertDatabaseHas('accounts_receivables', [
+            'tenant_id' => $tenant->id,
+            'sale_id' => $response->json('data.sale_id'),
+            'status' => AccountsReceivable::STATUS_PAID,
+            'balance_base_amount' => '0.0000',
+        ]);
+    }
+
     public function test_pos_checkout_allows_negative_stock_when_company_enables_it(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Negativo', 'slug' => 'empresa-negativo']);
