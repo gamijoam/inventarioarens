@@ -40,4 +40,17 @@ describe('pendingPosCart', () => {
     expect(raw).toBeTruthy();
     expect(JSON.parse(raw as string)[0].productId).toBe(9);
   });
+
+  it('sendToPos mueve los items al handoff y vacia el mini carrito', () => {
+    const { add, sendToPos } = usePendingPosCart.getState();
+    add({ productId: 3, name: 'Caucho', sku: 'C3', quantity: 2 });
+    add({ productId: 4, name: 'Bateria', sku: 'B4' });
+
+    sendToPos();
+
+    expect(usePendingPosCart.getState().items).toEqual([]);
+    const handoff = JSON.parse(sessionStorage.getItem('pos_handoff_cart') as string);
+    expect(handoff).toHaveLength(2);
+    expect(handoff[0].productId).toBe(3);
+  });
 });

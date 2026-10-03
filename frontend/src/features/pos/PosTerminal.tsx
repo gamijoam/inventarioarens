@@ -7,7 +7,7 @@ import {
   type Panel,
 } from './cartStore';
 import { loadShowVesOnCards, saveShowVesOnCards } from './posDisplayPrefs';
-import { usePendingPosCart } from './pendingPosCart';
+import { usePendingPosCart, readHandoffItems, clearHandoffItems } from './pendingPosCart';
 import { parseScaleBarcode } from '@/lib/scaleBarcode';
 import { useRealtimeSync } from '@/lib/useRealtimeSync';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -639,6 +639,7 @@ export function PosTerminal() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const holdSaleRef = useRef<(() => Promise<void>) | null>(null);
   const confirmPaidSaleRef = useRef<(() => Promise<void>) | null>(null);
+  const addProductRef = useRef<typeof addProduct | null>(null);
   const isHandlingBarcodeEnterRef = useRef(false);
   // Estado POS (Zustand) ============================================
   // Carrito, pagos, panel, query y seleccion de almacen/lista se
@@ -1195,6 +1196,32 @@ export function PosTerminal() {
   const openingRate = activeRate;
   holdSaleRef.current = holdSale;
   confirmPaidSaleRef.current = confirmPaidSale;
+  addProductRef.current = addProduct;
+
+  // Consume el carrito enviado desde el Centro de Inventario (handoff en
+  // sessionStorage): agrega los productos al carrito real del POS.
+  const pendingCartConsumedRef = useRef(false);
+  useEffect(() => {
+    if (pendingCartConsumedRef.current) return;
+    const pending = readHandoffItems();
+    if (pending.length === 0) return;
+    if (!selectedWarehouse || !bootstrapReady) return;
+
+    pendingCartConsumedRef.current = true;
+    void (async () => {
+      for (const item of pending) {
+        try {
+          const product = await getProductForPos(item.productId, selectedWarehouse.id);
+          await addProductRef.current?.(product, undefined, item.quantity);
+        } catch {
+          // Ignora productos que ya no existen o no se pueden consultar.
+        }
+      }
+      clearHandoffItems();
+      usePendingPosCart.getState().clear();
+      toast.success('Productos cargados desde el inventario.');
+    })();
+  }, [selectedWarehouse, bootstrapReady]);
 
   useEffect(() => {
     // Solo auto-setea el almacen cuando NO hay uno valido seleccionado.
@@ -3463,30 +3490,6 @@ export function PosTerminal() {
     }
     return true;
   }
-
-  // Consume el carrito enviado desde el Centro de Inventario: agrega los
-  // productos al carrito real del POS para cobrarlos y elegir el metodo de pago.
-  const pendingCartConsumedRef = useRef(false);
-  useEffect(() => {
-    if (pendingCartConsumedRef.current) return;
-    const pending = usePendingPosCart.getState().items;
-    if (pending.length === 0) return;
-    if (!selectedWarehouse || !bootstrapReady) return;
-
-    pendingCartConsumedRef.current = true;
-    void (async () => {
-      for (const item of pending) {
-        try {
-          const product = await getProductForPos(item.productId, selectedWarehouse.id);
-          await addProduct(product, undefined, item.quantity);
-        } catch {
-          // Ignora productos que ya no existen o no se pueden consultar.
-        }
-      }
-      usePendingPosCart.getState().clear();
-      toast.success('Productos cargados desde el inventario.');
-    })();
-  }, [selectedWarehouse, bootstrapReady]);
 
   async function continuePromotionLoad(load: PendingPromotionLoad): Promise<void> {
     if (!selectedWarehouse) {

@@ -209,6 +209,7 @@ export function InventoryCatalogWorkspace({
   const addPendingItem = usePendingPosCart((state) => state.add);
   const removePendingItem = usePendingPosCart((state) => state.remove);
   const clearPendingCart = usePendingPosCart((state) => state.clear);
+  const sendPendingToPos = usePendingPosCart((state) => state.sendToPos);
   const [pendingCartOpen, setPendingCartOpen] = useState(false);
   const pendingCount = pendingItems.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -812,6 +813,7 @@ export function InventoryCatalogWorkspace({
             </Button>
             <Button
               onClick={() => {
+                sendPendingToPos();
                 setPendingCartOpen(false);
                 void navigate({ to: '/pos' });
               }}
