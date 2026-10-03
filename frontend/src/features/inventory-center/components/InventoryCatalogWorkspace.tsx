@@ -35,6 +35,7 @@ import {
   ShoppingCart,
   Sliders,
   Sparkles,
+  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -58,6 +59,9 @@ import { Switch } from '@/components/ui/Switch';
 import { Textarea } from '@/components/ui/Textarea';
 import { Spinner } from '@/components/ui/Spinner';
 import { pendingItemKey, usePendingPosCart } from '@/features/pos/pendingPosCart';
+import { loadPinnedCategories, savePinnedCategories } from '@/features/inventory-center/pinnedCategories';
+import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
+import { useSessionStore } from '@/stores/session';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import {
@@ -212,6 +216,39 @@ export function InventoryCatalogWorkspace({
   const sendPendingToPos = usePendingPosCart((state) => state.sendToPos);
   const [pendingCartOpen, setPendingCartOpen] = useState(false);
   const pendingCount = pendingItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Categorias fijadas (filtros rapidos a primera vista). Fuente de verdad en
+  // ui_preferences (server) para que persistan entre dispositivos y sesiones;
+  // localStorage solo como cache instantaneo.
+  const tenantId = useSessionStore((state) => state.tenant?.id);
+  const { data: uiPreferences } = useUiPreferences();
+  const updateUiPreferences = useUpdateUiPreferences();
+  const [pinnedIds, setPinnedIds] = useState<number[]>(() => loadPinnedCategories(tenantId));
+  const [pinnedDialogOpen, setPinnedDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const fromServer = uiPreferences?.pinned_inventory_categories;
+    if (Array.isArray(fromServer)) {
+      setPinnedIds(fromServer);
+      savePinnedCategories(tenantId, fromServer);
+    } else {
+      setPinnedIds(loadPinnedCategories(tenantId));
+    }
+  }, [uiPreferences, tenantId]);
+
+  const pinnedCategories = categories.filter((cat) => pinnedIds.includes(cat.id));
+
+  function togglePinnedCategory(id: number): void {
+    const next = pinnedIds.includes(id)
+      ? pinnedIds.filter((value) => value !== id)
+      : [...pinnedIds, id];
+    setPinnedIds(next);
+    savePinnedCategories(tenantId, next);
+    updateUiPreferences.mutate({
+      ...(uiPreferences ?? {}),
+      pinned_inventory_categories: next,
+    });
+  }
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -431,7 +468,65 @@ export function InventoryCatalogWorkspace({
                 <option value="active">Activos</option>
                 <option value="inactive">Inactivos</option>
               </select>
+
+              <button
+                type="button"
+                onClick={() => setPinnedDialogOpen(true)}
+                className={cn(
+                  'h-10 rounded-md border px-3 text-xs sm:text-sm font-medium transition-all shadow-2xs flex items-center gap-2',
+                  pinnedCategories.length > 0
+                    ? 'bg-amber-500/10 border-amber-500/50 text-amber-600'
+                    : 'bg-surface border-border text-text-primary hover:border-text-secondary',
+                )}
+                title="Fijar categorías para acceso rápido"
+                data-testid="catalog-pin-categories-btn"
+              >
+                <Star className="size-4 shrink-0" />
+                <span className="hidden sm:inline">Fijar categorías</span>
+              </button>
             </div>
+
+            {pinnedCategories.length > 0 && (
+              <div
+                className="flex flex-wrap items-center gap-1.5 pt-0.5"
+                data-testid="catalog-pinned-categories"
+              >
+                <span className="text-text-muted mr-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                  Fijas:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onCategoryChange?.(undefined)}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                    !categoryId
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-surface border-border text-text-secondary hover:border-primary/40 hover:text-text-primary',
+                  )}
+                >
+                  Todas
+                </button>
+                {pinnedCategories.map((cat) => {
+                  const active = categoryId === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => onCategoryChange?.(active ? undefined : cat.id)}
+                      className={cn(
+                        'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                        active
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-surface border-border text-text-secondary hover:border-primary/40 hover:text-text-primary',
+                      )}
+                      data-testid={`catalog-pinned-chip-${cat.id}`}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -847,6 +942,49 @@ export function InventoryCatalogWorkspace({
             >
               <Send className="size-4" /> Enviar al POS
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 7. Configurar categorias fijadas (filtros rapidos) */}
+      <Dialog open={pinnedDialogOpen} onOpenChange={setPinnedDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="size-5 text-amber-500" /> Fijar categorías
+            </DialogTitle>
+            <DialogDescription>
+              Marca las categorías que querés ver a primera vista como filtros rápidos en el
+              catálogo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 space-y-1 overflow-y-auto">
+            {categories.length === 0 && (
+              <p className="p-3 text-center text-sm text-text-muted">No hay categorías registradas.</p>
+            )}
+            {categories.map((cat) => {
+              const checked = pinnedIds.includes(cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => togglePinnedCategory(cat.id)}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors',
+                    checked
+                      ? 'border-primary bg-primary/10 text-primary font-semibold'
+                      : 'border-border hover:bg-surface-subtle',
+                  )}
+                  data-testid={`catalog-pin-toggle-${cat.id}`}
+                >
+                  <span className="truncate">{cat.name}</span>
+                  {checked && <Check className="size-4 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setPinnedDialogOpen(false)}>Listo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

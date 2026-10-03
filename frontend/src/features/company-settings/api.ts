@@ -40,6 +40,7 @@ export const UiPreferencesSchema = z
         visible_routes: z.array(z.string()).optional(),
       })
       .optional(),
+    pinned_inventory_categories: z.array(z.number().int()).optional(),
   })
   .optional();
 
@@ -50,6 +51,7 @@ export type UiPreferences = {
     is_simple_mode?: boolean;
     visible_routes?: string[];
   };
+  pinned_inventory_categories?: number[];
 };
 
 export const TenantSettingsSchema = z.object({

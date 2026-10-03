@@ -47,6 +47,17 @@ vi.mock('@/features/inventory-center/dialogs/EditProductDialog', () => ({
   EditProductDialog: ({ open }: any) => (open ? <div data-testid="mock-edit-dialog">Edit Dialog</div> : null),
 }));
 
+// Mock de preferencias (server-side)
+const { mockUpdateUiPreferences } = vi.hoisted(() => ({ mockUpdateUiPreferences: vi.fn() }));
+vi.mock('@/features/company-settings/api', () => ({
+  useUiPreferences: () => ({ data: undefined }),
+  useUpdateUiPreferences: () => ({
+    mutate: mockUpdateUiPreferences,
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+}));
+
 function makeProduct(overrides: Partial<Product> = {}): Product {
   return {
     id: 101,
@@ -125,6 +136,8 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof InventoryCat
 describe('InventoryCatalogWorkspace', () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
+    mockUpdateUiPreferences.mockReset();
     usePendingPosCart.setState({ items: [] });
   });
 
@@ -192,5 +205,25 @@ describe('InventoryCatalogWorkspace', () => {
     const raw = sessionStorage.getItem('pos_pending_cart');
     expect(raw).toBeTruthy();
     expect(JSON.parse(raw as string)[0].price_list_id).toBe(1);
+  });
+
+  it('permite fijar categorías y las muestra como filtros rápidos', () => {
+    const onCategoryChange = vi.fn();
+    renderWorkspace({ onCategoryChange });
+
+    // Abrir configurador y marcar "Cauchos y Tripas" (id 1)
+    fireEvent.click(screen.getByTestId('catalog-pin-categories-btn'));
+    fireEvent.click(screen.getByTestId('catalog-pin-toggle-1'));
+    fireEvent.click(screen.getByRole('button', { name: 'Listo' }));
+
+    // Aparece el chip fijo y al tocarlo filtra
+    const chip = screen.getByTestId('catalog-pinned-chip-1');
+    fireEvent.click(chip);
+    expect(onCategoryChange).toHaveBeenCalledWith(1);
+
+    // Se persiste en las preferencias del server (ui_preferences)
+    expect(mockUpdateUiPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ pinned_inventory_categories: [1] }),
+    );
   });
 });

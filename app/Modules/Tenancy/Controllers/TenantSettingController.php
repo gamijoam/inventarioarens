@@ -76,6 +76,8 @@ class TenantSettingController extends Controller
             'settings.ui_preferences.simple_mode.is_simple_mode' => ['sometimes', 'boolean'],
             'settings.ui_preferences.simple_mode.visible_routes' => ['sometimes', 'array'],
             'settings.ui_preferences.simple_mode.visible_routes.*' => ['string'],
+            'settings.ui_preferences.pinned_inventory_categories' => ['sometimes', 'array'],
+            'settings.ui_preferences.pinned_inventory_categories.*' => ['integer'],
         ]);
 
         $setting = $tenant->setting
