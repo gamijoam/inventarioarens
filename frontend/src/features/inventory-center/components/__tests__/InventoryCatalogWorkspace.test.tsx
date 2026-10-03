@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
+import { usePendingPosCart } from '@/features/pos/pendingPosCart';
 import { InventoryCatalogWorkspace } from '../InventoryCatalogWorkspace';
 
 // Mock de @tanstack/react-router
@@ -122,6 +123,11 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof InventoryCat
 }
 
 describe('InventoryCatalogWorkspace', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    usePendingPosCart.setState({ items: [] });
+  });
+
   it('renderiza la vista catálogo con tarjetas de productos, fotos y precios', () => {
     renderWorkspace();
 
@@ -176,5 +182,15 @@ describe('InventoryCatalogWorkspace', () => {
     renderWorkspace();
     fireEvent.click(screen.getByTestId('catalog-add-btn-101'));
     expect(screen.getByTestId('inventory-pending-cart-button')).toBeInTheDocument();
+  });
+
+  it('agrega al mini carrito con el + de un precio especifico', () => {
+    renderWorkspace();
+    // El mock de priceLists tiene la lista id=1 ("Detal").
+    fireEvent.click(screen.getByTestId('catalog-add-price-101-1'));
+    expect(screen.getByTestId('inventory-pending-cart-button')).toBeInTheDocument();
+    const raw = sessionStorage.getItem('pos_pending_cart');
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw as string)[0].price_list_id).toBe(1);
   });
 });

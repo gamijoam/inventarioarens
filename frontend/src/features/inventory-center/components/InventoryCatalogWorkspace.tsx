@@ -57,7 +57,7 @@ import { Select } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { Textarea } from '@/components/ui/Textarea';
 import { Spinner } from '@/components/ui/Spinner';
-import { usePendingPosCart } from '@/features/pos/pendingPosCart';
+import { pendingItemKey, usePendingPosCart } from '@/features/pos/pendingPosCart';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 import {
@@ -637,17 +637,38 @@ export function InventoryCatalogWorkspace({
                           const pVes = activeRate ? p.price * activeRate.rate : null;
                           const shortName = p.listName.length > 25 ? p.listName.slice(0, 23) + '…' : p.listName;
                           return (
-                            <div key={p.listId} className="flex items-center justify-between text-xs leading-tight">
-                              <span className="text-text-muted font-medium truncate max-w-[150px] sm:max-w-[180px]" title={p.listName}>
+                            <div key={p.listId} className="flex items-center justify-between gap-1 text-xs leading-tight">
+                              <span className="text-text-muted font-medium truncate max-w-[130px] sm:max-w-[160px]" title={p.listName}>
                                 {shortName}:
                               </span>
-                              <div className="flex items-baseline gap-1.5 font-bold text-text-primary tabular-nums">
-                                <span className="text-xs sm:text-sm">{formatMoney(p.price)}</span>
-                                {pVes != null && (
-                                  <span className="text-[10px] text-text-muted font-normal">
-                                    (Bs {pVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                                  </span>
-                                )}
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex items-baseline gap-1.5 font-bold text-text-primary tabular-nums">
+                                  <span className="text-xs sm:text-sm">{formatMoney(p.price)}</span>
+                                  {pVes != null && (
+                                    <span className="text-[10px] text-text-muted font-normal">
+                                      (Bs {pVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addPendingItem({
+                                      productId: product.id,
+                                      name: product.name,
+                                      sku: product.sku ?? null,
+                                      price_list_id: p.listId > 0 ? p.listId : null,
+                                      price_list_name: p.listName,
+                                      price: p.price,
+                                    });
+                                  }}
+                                  title={`Agregar al carrito con ${p.listName}`}
+                                  className="shrink-0 rounded-md bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground p-0.5 transition-colors"
+                                  data-testid={`catalog-add-price-${product.id}-${p.listId}`}
+                                >
+                                  <Plus className="size-3.5" />
+                                </button>
                               </div>
                             </div>
                           );
@@ -782,18 +803,22 @@ export function InventoryCatalogWorkspace({
           <div className="max-h-72 space-y-2 overflow-y-auto">
             {pendingItems.map((item) => (
               <div
-                key={item.productId}
+                key={pendingItemKey(item)}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{item.name}</p>
-                  {item.sku && <p className="text-xs text-text-muted">SKU: {item.sku}</p>}
+                  <p className="text-xs text-text-muted">
+                    {item.sku ? `SKU: ${item.sku}` : ''}
+                    {item.price_list_name ? ` · ${item.price_list_name}` : ''}
+                    {item.price != null ? ` · ${formatMoney(item.price)}` : ''}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-sm font-bold tabular-nums">x{item.quantity}</span>
                   <button
                     type="button"
-                    onClick={() => removePendingItem(item.productId)}
+                    onClick={() => removePendingItem(pendingItemKey(item))}
                     className="rounded p-1 text-text-muted hover:bg-danger/10 hover:text-danger"
                     aria-label={`Quitar ${item.name}`}
                   >

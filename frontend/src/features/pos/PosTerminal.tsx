@@ -1212,7 +1212,23 @@ export function PosTerminal() {
       for (const item of pending) {
         try {
           const product = await getProductForPos(item.productId, selectedWarehouse.id);
-          await addProductRef.current?.(product, undefined, item.quantity);
+          const forced = item.price_list_id
+            ? {
+                id: item.price_list_id,
+                name: item.price_list_name ?? null,
+                price: Number(item.price ?? 0),
+              }
+            : undefined;
+          await addProductRef.current?.(
+            product,
+            undefined,
+            item.quantity,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            forced,
+          );
         } catch {
           // Ignora productos que ya no existen o no se pueden consultar.
         }
@@ -3330,6 +3346,7 @@ export function PosTerminal() {
     promotionPriceOverride?: number,
     promotionRef?: { id: number; code?: string | null; benefitType?: string } | null,
     comboInstanceUuid?: string | null,
+    forcedPriceList?: { id: number; name: string | null; price: number } | null,
   ): Promise<boolean> {
     const warehouse = selectedWarehouse;
     if (!warehouse) {
@@ -3366,8 +3383,9 @@ export function PosTerminal() {
       );
       return false;
     }
-    const quote = selectedPriceList ? await quoteProduct(product, selectedPriceList) : null;
-    if (selectedPriceList && !quote) return false;
+    const forced = forcedPriceList ?? null;
+    const quote = !forced && selectedPriceList ? await quoteProduct(product, selectedPriceList) : null;
+    if (!forced && selectedPriceList && !quote) return false;
 
     const shouldSelectSerials = product.tracking_type === 'serialized';
     const quantity = Math.max(1, Math.floor(Number(requestedQuantity) || 1));
@@ -3377,7 +3395,10 @@ export function PosTerminal() {
       product_variant_id: selectedVariant?.id ?? null,
       combo_instance_uuid: comboInstanceUuid ?? null,
     };
-    const matchingLine = findMatchingVariantLine(cart, variantMatch);
+    const samePriceList = (line: { price_list_id?: number | null }): boolean =>
+      !forced || line.price_list_id === forced.id;
+    const matchingLineRaw = findMatchingVariantLine(cart, variantMatch);
+    const matchingLine = matchingLineRaw && samePriceList(matchingLineRaw) ? matchingLineRaw : null;
     const maximumQuantity = product.track_stock === false ? Number.MAX_SAFE_INTEGER : available;
     if (matchingLine && matchingLine.quantity + quantity > maximumQuantity) {
       toast.error(`No hay stock suficiente de ${product.name} para cargar la promoción.`);
@@ -3398,7 +3419,8 @@ export function PosTerminal() {
     }
     let newLineId: string | null = null;
     setCart((current) => {
-      const existing = findMatchingVariantLine(current, variantMatch);
+      const existingRaw = findMatchingVariantLine(current, variantMatch);
+      const existing = existingRaw && samePriceList(existingRaw) ? existingRaw : null;
       if (existing) {
         newLineId = existing.id;
         return current.map((line) =>
@@ -3410,6 +3432,10 @@ export function PosTerminal() {
                   track_stock: product.track_stock !== false,
                   tracking_type: product.tracking_type ?? line.tracking_type,
                   quantity: Math.min(line.quantity + quantity, maximumQuantity),
+                  unit_price: forced ? forced.price : line.unit_price,
+                  price_list_id: forced ? forced.id : line.price_list_id,
+                  price_source: forced ? 'price_list' : line.price_source,
+                  price_list_name: forced ? forced.name : line.price_list_name,
                 selected_serials: scannedSerial
                   ? [
                       ...(line.selected_serials ?? []),
@@ -3440,6 +3466,7 @@ export function PosTerminal() {
           quantity,
           available_stock: available,
           unit_price:
+            forced?.price ??
             promotionPriceOverride ??
             quote?.base_price_usd ??
             Number(selectedVariant?.price_override ?? product.base_price ?? 0),
@@ -3452,10 +3479,10 @@ export function PosTerminal() {
           exchange_rate: quote?.exchange_rate ?? null,
           exchange_rate_type_id: quote?.exchange_rate_type_id ?? null,
           exchange_rate_type_code: quote?.exchange_rate_type_code ?? null,
-          price_list_id: selectedPriceList?.id ?? null,
-          price_source: selectedPriceList ? 'price_list' : 'base',
+          price_list_id: forced?.id ?? selectedPriceList?.id ?? null,
+          price_source: forced || selectedPriceList ? 'price_list' : 'base',
           price_list_name:
-            quote?.price_list_name ?? selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL,
+            forced?.name ?? quote?.price_list_name ?? selectedPriceList?.name ?? BASE_PRICE_LIST_LABEL,
           price_issue: null,
           image_url: productImageSrc(product),
           tracking_type: product.tracking_type,
