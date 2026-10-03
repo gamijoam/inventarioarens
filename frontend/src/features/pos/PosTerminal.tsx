@@ -2205,7 +2205,7 @@ export function PosTerminal() {
           {posViewMode === 'catalog' ? (
             <>
               <PosCatalogGrid
-                warehouseId={warehouseId}
+                warehouseId={selectedWarehouse?.id ?? effectiveWarehouseId ?? warehouseId}
                 priceLists={priceLists}
                 selectedPriceList={selectedPriceList}
                 activeRate={activeRate}
