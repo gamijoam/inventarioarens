@@ -3291,7 +3291,9 @@ export function PosTerminal() {
 
     const available = Number(selectedVariant?.stock_available ?? product.available_stock ?? 0);
     if ((product.track_stock ?? true) && available <= 0) {
-      toast.error('Producto sin stock disponible.');
+      toast.error(
+        `Sin stock de "${product.name}" (disp: ${available}, almacen ${warehouse.id}, id ${product.id}).`,
+      );
       return false;
     }
     const quote = selectedPriceList ? await quoteProduct(product, selectedPriceList) : null;
