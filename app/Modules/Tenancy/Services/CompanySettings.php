@@ -26,6 +26,7 @@ class CompanySettings
         'website' => null,
         'regimen' => null,
         'logo_url' => null,
+        'allow_negative_stock' => false,
         'show_on' => [
             'sale_ticket' => true,
             'guide' => true,
@@ -63,5 +64,15 @@ class CompanySettings
         $settings = self::getForTenant($tenant);
 
         return (bool) ($settings['show_on'][$document] ?? false);
+    }
+
+    /**
+     * Indica si la empresa permite facturar/vender sin stock (stock negativo).
+     */
+    public static function allowsNegativeStock(Tenant $tenant): bool
+    {
+        $settings = self::getForTenant($tenant);
+
+        return (bool) ($settings['allow_negative_stock'] ?? false);
     }
 }

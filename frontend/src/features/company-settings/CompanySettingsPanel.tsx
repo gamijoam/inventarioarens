@@ -67,6 +67,7 @@ export function CompanySettingsPanel() {
     quotation: true,
   });
   const [saving, setSaving] = useState(false);
+  const [allowNegativeStock, setAllowNegativeStock] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -80,6 +81,7 @@ export function CompanySettingsPanel() {
     setWebsite(data.website ?? '');
     setRegimen(data.regimen ?? '');
     setLogoUrl(data.logo_url ?? null);
+    setAllowNegativeStock(data.allow_negative_stock ?? false);
     setShowOn({
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
@@ -144,6 +146,7 @@ export function CompanySettingsPanel() {
         website: website.trim() || null,
         regimen: regimen.trim() || null,
         logo_url: logoUrl,
+        allow_negative_stock: allowNegativeStock,
         show_on: showOn,
       };
       await update.mutateAsync(payload);
@@ -357,6 +360,33 @@ export function CompanySettingsPanel() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="company-pos-operation">
+        <CardHeader>
+          <CardTitle>Operación del POS</CardTitle>
+          <CardDescription>
+            Opciones de facturación del punto de venta.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">
+            <div>
+              <div className="text-sm font-medium">Permitir facturar sin stock</div>
+              <div className="text-text-muted text-xs">
+                Si se activa, el POS permite vender aunque no haya existencias y el stock queda en
+                negativo.
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={allowNegativeStock}
+              onChange={(e) => setAllowNegativeStock(e.target.checked)}
+              className="size-4"
+              data-testid="company-allow-negative-stock"
+            />
+          </div>
         </CardContent>
       </Card>
 

@@ -12,6 +12,7 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
 use App\Modules\Products\Models\PriceList;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +26,8 @@ class PosBootstrapController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();
-        $tenantId = app(TenantManager::class)->current()?->id;
+        $tenant = app(TenantManager::class)->current();
+        $tenantId = $tenant?->id;
         $warehouseQuery = $this->scopes->applyWarehouseScope(
             $this->scopes->applyBranchScope(Warehouse::query(), $user, 'branch_id'),
             $user,
@@ -130,6 +132,7 @@ class PosBootstrapController extends Controller
                 ])
                 ->all(),
             'open_session' => $this->resolveOpenSession($user, $tenantId),
+            'allow_negative_stock' => $tenant !== null && CompanySettings::allowsNegativeStock($tenant),
         ];
 
         return response()->json($response);

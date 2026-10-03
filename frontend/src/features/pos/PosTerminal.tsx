@@ -786,6 +786,7 @@ export function PosTerminal() {
 
   const bootstrapRefs = useBootstrapRefsForPos();
   const bootstrap = usePosBootstrap();
+  const allowNegativeStock = Boolean(bootstrap.data?.allow_negative_stock);
   const bootstrapReady = !bootstrap.isLoading && !bootstrap.isError;
 
   // Fallback: si /api/pos/bootstrap no devolvio warehouses (cache vacio o
@@ -1185,7 +1186,7 @@ export function PosTerminal() {
     cartCount: cart.length,
     paymentCount: payments.length,
     remaining: paymentTotals.remaining,
-    hasStockIssue: hasStockIssue(cart),
+    hasStockIssue: !allowNegativeStock && hasStockIssue(cart),
     hasPriceIssue: hasPriceIssue(cart),
     priceIssue,
     serialIssue,
@@ -2377,7 +2378,7 @@ export function PosTerminal() {
                     size="lg"
                     disabled={
                       cart.length === 0 ||
-                      hasStockIssue(cart) ||
+                      (!allowNegativeStock && hasStockIssue(cart)) ||
                       hasPriceIssue(cart) ||
                       Boolean(priceListPaymentIssue) ||
                       checkout.isPending
@@ -2514,7 +2515,7 @@ export function PosTerminal() {
                       className="w-full h-12 text-base font-extrabold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
                       disabled={
                         cart.length === 0 ||
-                        hasStockIssue(cart) ||
+                        (!allowNegativeStock && hasStockIssue(cart)) ||
                         hasPriceIssue(cart) ||
                         Boolean(priceListPaymentIssue) ||
                         checkout.isPending
@@ -2821,7 +2822,7 @@ export function PosTerminal() {
                   className="h-12 w-full text-base"
                   disabled={
                     cart.length === 0 ||
-                    hasStockIssue(cart) ||
+                    (!allowNegativeStock && hasStockIssue(cart)) ||
                     hasPriceIssue(cart) ||
                     Boolean(priceListPaymentIssue) ||
                     checkout.isPending ||
@@ -2852,7 +2853,7 @@ export function PosTerminal() {
                     !canCheckout ||
                     !canCollectReceivables ||
                     cart.length === 0 ||
-                    hasStockIssue(cart) ||
+                    (!allowNegativeStock && hasStockIssue(cart)) ||
                     hasPriceIssue(cart) ||
                     Boolean(priceListPaymentIssue) ||
                     checkout.isPending
@@ -3377,7 +3378,7 @@ export function PosTerminal() {
     }
 
     const available = Number(selectedVariant?.stock_available ?? product.available_stock ?? 0);
-    if ((product.track_stock ?? true) && available <= 0) {
+    if (!allowNegativeStock && (product.track_stock ?? true) && available <= 0) {
       toast.error(
         `Sin stock de "${product.name}" (disp: ${available}, almacen ${warehouse.id}, id ${product.id}).`,
       );
@@ -3399,7 +3400,8 @@ export function PosTerminal() {
       !forced || line.price_list_id === forced.id;
     const matchingLineRaw = findMatchingVariantLine(cart, variantMatch);
     const matchingLine = matchingLineRaw && samePriceList(matchingLineRaw) ? matchingLineRaw : null;
-    const maximumQuantity = product.track_stock === false ? Number.MAX_SAFE_INTEGER : available;
+    const maximumQuantity =
+      product.track_stock === false || allowNegativeStock ? Number.MAX_SAFE_INTEGER : available;
     if (matchingLine && matchingLine.quantity + quantity > maximumQuantity) {
       toast.error(`No hay stock suficiente de ${product.name} para cargar la promoción.`);
       return false;
@@ -3951,7 +3953,7 @@ export function PosTerminal() {
       await payPendingOrder(selectedPending);
       return;
     }
-    if (hasStockIssue(cart)) {
+    if (!allowNegativeStock && hasStockIssue(cart)) {
       // Auto-reparacion: el stock de la linea puede estar desactualizado (sobre
       // todo al agregar desde el catalogo). Refrescamos contra el backend antes
       // de bloquear; el backend es la fuente de verdad del stock.
@@ -3966,7 +3968,7 @@ export function PosTerminal() {
         cartCount: freshLines.length,
         paymentCount: payments.length,
         remaining: paymentTotals.remaining,
-        hasStockIssue: hasStockIssue(freshLines),
+        hasStockIssue: !allowNegativeStock && hasStockIssue(freshLines),
         hasPriceIssue: hasPriceIssue(freshLines),
         priceIssue: firstPriceIssue(freshLines),
         serialIssue: missingSerialIssue(freshLines),
@@ -4016,7 +4018,7 @@ export function PosTerminal() {
       setPanel('customer');
       return;
     }
-    if (cart.length === 0 || hasStockIssue(cart) || hasPriceIssue(cart) || serialIssue) {
+    if (cart.length === 0 || (!allowNegativeStock && hasStockIssue(cart)) || hasPriceIssue(cart) || serialIssue) {
       if (serialIssue) toast.error(serialIssue);
       else if (priceIssue) toast.error(priceIssue);
       else toast.error('Revisa productos y stock antes de enviar a CxC.');

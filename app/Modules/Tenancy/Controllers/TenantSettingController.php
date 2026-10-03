@@ -62,6 +62,7 @@ class TenantSettingController extends Controller
             'settings.company.website' => ['nullable', 'string', 'max:150'],
             'settings.company.regimen' => ['nullable', 'string', 'max:80'],
             'settings.company.logo_url' => ['nullable', 'string', 'max:500'],
+            'settings.company.allow_negative_stock' => ['sometimes', 'boolean'],
             'settings.company.show_on' => ['sometimes', 'array'],
             'settings.company.show_on.sale_ticket' => ['sometimes', 'boolean'],
             'settings.company.show_on.guide' => ['sometimes', 'boolean'],

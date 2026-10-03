@@ -25,6 +25,7 @@ use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Tenancy\Models\Tenant;
+use App\Modules\Tenancy\Models\TenantSetting;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
@@ -112,6 +113,53 @@ class PosCheckoutApiTest extends TestCase
             'aggregate_type' => 'pos_order',
             'aggregate_id' => $response->json('data.id'),
             'status' => 'pending',
+        ]);
+    }
+
+    public function test_pos_checkout_allows_negative_stock_when_company_enables_it(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Negativo', 'slug' => 'empresa-negativo']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-NEG', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Neg', ['pos.checkout', 'pos.view']);
+        $this->useTenant($tenant);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $payload = [
+            'cash_register_session_id' => $session->id,
+            'items' => [['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity' => 5]],
+            'payments' => [['method' => PosPayment::METHOD_CASH, 'currency' => Product::CURRENCY_USD, 'amount' => 500]],
+        ];
+
+        // Sin la opcion: rechaza por falta de stock (422).
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', $payload)
+            ->assertStatus(422);
+
+        // Con "facturar sin stock" habilitado: confirma y deja el stock negativo.
+        TenantSetting::query()->updateOrCreate(
+            ['tenant_id' => $tenant->id],
+            ['settings' => ['company' => ['allow_negative_stock' => true]]],
+        );
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', $payload)
+            ->assertCreated();
+
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => '-4.0000',
         ]);
     }
 
