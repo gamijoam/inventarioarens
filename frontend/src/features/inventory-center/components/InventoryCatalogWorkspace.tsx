@@ -485,49 +485,49 @@ export function InventoryCatalogWorkspace({
                 <span className="hidden sm:inline">Fijar categorías</span>
               </button>
             </div>
-
-            {pinnedCategories.length > 0 && (
-              <div
-                className="flex flex-wrap items-center gap-1.5 pt-0.5"
-                data-testid="catalog-pinned-categories"
-              >
-                <span className="text-text-muted mr-0.5 text-[11px] font-semibold uppercase tracking-wide">
-                  Fijas:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onCategoryChange?.(undefined)}
-                  className={cn(
-                    'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
-                    !categoryId
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-surface border-border text-text-secondary hover:border-primary/40 hover:text-text-primary',
-                  )}
-                >
-                  Todas
-                </button>
-                {pinnedCategories.map((cat) => {
-                  const active = categoryId === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => onCategoryChange?.(active ? undefined : cat.id)}
-                      className={cn(
-                        'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                        active
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-surface border-border text-text-secondary hover:border-primary/40 hover:text-text-primary',
-                      )}
-                      data-testid={`catalog-pinned-chip-${cat.id}`}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
+
+          {pinnedCategories.length > 0 && (
+            <div
+              className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3"
+              data-testid="catalog-pinned-categories"
+            >
+              <span className="text-text-muted mr-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                Fijas:
+              </span>
+              <button
+                type="button"
+                onClick={() => onCategoryChange?.(undefined)}
+                className={cn(
+                  'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                  !categoryId
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-surface border-border text-text-secondary hover:border-primary/40 hover:text-text-primary',
+                )}
+              >
+                Todas
+              </button>
+              {pinnedCategories.map((cat) => {
+                const active = categoryId === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => onCategoryChange?.(active ? undefined : cat.id)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      active
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-surface border-border text-text-secondary hover:border-primary/40 hover:text-text-primary',
+                    )}
+                    data-testid={`catalog-pinned-chip-${cat.id}`}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
