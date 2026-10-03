@@ -184,6 +184,19 @@ describe('pos api', () => {
     expect(mergedRates[0]?.rate).toBe(36.5);
   });
 
+  it('ordena las listas de precio como P1, P2, P3 por code (no por id)', () => {
+    const merged = mergePosPriceLists(
+      [
+        { id: 4, code: 'P3', name: 'PRECIO 3', is_active: true },
+        { id: 5, code: 'P1', name: 'PRECIO 1', is_active: true },
+        { id: 6, code: 'P2', name: 'PRECIO 2', is_active: true },
+      ],
+      [],
+    );
+
+    expect(merged.map((list) => list.code)).toEqual(['P1', 'P2', 'P3']);
+  });
+
   it('usa la tasa asociada a la lista para calcular pagos mixtos', () => {
     const rate = resolvePosPaymentRate(
       [

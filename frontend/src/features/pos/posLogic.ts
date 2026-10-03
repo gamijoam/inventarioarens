@@ -155,6 +155,38 @@ export function findMatchingVariantLine(
   );
 }
 
+export interface LinePriceListContext {
+  price_source?: string | null;
+  price_list_id?: number | null;
+}
+
+/**
+ * Lista de precio efectiva de una linea para cotizar su precio. Respeta la
+ * lista propia de la linea (por ejemplo un item enviado desde el Centro de
+ * Inventario con "Precio 3") y solo cae a la lista seleccionada del POS si la
+ * linea no trae una. Las lineas en precio base devuelven null (no se cotizan).
+ *
+ * Sin esto, refrescar el carrito cotizaba TODAS las lineas con la lista
+ * seleccionada del POS y pisaba el precio del item enviado desde inventario,
+ * dejando una linea con `price_list_id` de P3 pero con el precio de otra lista
+ * (el backend luego cobraba P3 y el pago parecia exceder el saldo).
+ */
+export function resolveLineQuoteListId(
+  line: LinePriceListContext,
+  selectedPriceListId: number | null,
+): number | null {
+  if (line.price_source === 'base') return null;
+
+  return line.price_list_id ?? selectedPriceListId ?? null;
+}
+
+export function posLineQuoteKey(
+  line: { product_id: number; warehouse_id: number } & LinePriceListContext,
+  selectedPriceListId: number | null,
+): string {
+  return `${line.product_id}_${line.warehouse_id}_${resolveLineQuoteListId(line, selectedPriceListId) ?? 'base'}`;
+}
+
 export function expandPromotionItems(
   items: { product_id: number; quantity: number }[],
   sets: number,

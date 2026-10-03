@@ -165,6 +165,8 @@ import {
   findMatchingVariantLine,
   requiresPosVariantSelection,
   resolveInitialPosPriceListId,
+  resolveLineQuoteListId,
+  posLineQuoteKey,
   promotionLineUnitPrice,
   invoicePromotionPaymentIssue,
   type CurrencyCode,
@@ -1374,15 +1376,31 @@ export function PosTerminal() {
 
     isRefreshingCartRef.current = true;
     try {
-      const uniqueKeys = Array.from(
-        new Set(currentLines.map((l) => `${l.product_id}_${l.warehouse_id}`)),
+      const effectiveListIdForLine = (line: PosCartLine): number | null =>
+        resolveLineQuoteListId(line, selectedPriceListId);
+
+      const quoteKeyForLine = (line: PosCartLine): string =>
+        posLineQuoteKey(line, selectedPriceListId);
+
+      const productKeys = Array.from(
+        new Set(currentLines.map((line) => `${line.product_id}_${line.warehouse_id}`)),
       );
+
+      const quoteRequests = new Map<string, { productId: number; listId: number }>();
+      for (const line of currentLines) {
+        const listId = effectiveListIdForLine(line);
+        if (!listId) continue;
+        const key = quoteKeyForLine(line);
+        if (!quoteRequests.has(key)) {
+          quoteRequests.set(key, { productId: line.product_id, listId });
+        }
+      }
 
       const productMap = new Map<string, Product>();
       const quoteMap = new Map<string, PosProductQuote>();
 
-      await Promise.all(
-        uniqueKeys.map(async (key) => {
+      await Promise.all([
+        ...productKeys.map(async (key) => {
           const [prodIdStr, whIdStr] = key.split('_');
           const pId = Number(prodIdStr);
           const lineWarehouseId = Number(whIdStr);
@@ -1394,22 +1412,21 @@ export function PosTerminal() {
             ? lineWarehouseId
             : effectiveWarehouseId || null;
           try {
-            const product = await getProductForPos(pId, wId);
-            productMap.set(key, product);
-
-            if (selectedPriceListId) {
-              try {
-                const quote = await quoteProductForPos(pId, selectedPriceListId);
-                quoteMap.set(key, quote);
-              } catch {
-                // Si la lista de precio no tiene cotizacion para este producto, se ignora
-              }
-            }
+            productMap.set(key, await getProductForPos(pId, wId));
           } catch {
             // Ignorar errores puntuales si el producto no responde o fue eliminado
           }
         }),
-      );
+        ...Array.from(quoteRequests.entries()).map(async ([key, request]) => {
+          try {
+            // Cotiza la lista DE LA LINEA (no la lista seleccionada global), para
+            // sostener el precio de cada item enviado desde el inventario.
+            quoteMap.set(key, await quoteProductForPos(request.productId, request.listId));
+          } catch {
+            // Si la lista de precio no tiene cotizacion para este producto, se ignora
+          }
+        }),
+      ]);
 
       if (productMap.size === 0) return;
 
@@ -1420,7 +1437,7 @@ export function PosTerminal() {
           const product = productMap.get(key);
           if (!product) return line;
 
-          const quote = quoteMap.get(key);
+          const quote = quoteMap.get(quoteKeyForLine(line));
           const newName = product.name;
           const newSku = product.sku ?? null;
           const newBarcode = product.barcode ?? null;

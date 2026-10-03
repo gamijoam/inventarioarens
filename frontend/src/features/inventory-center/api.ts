@@ -30,6 +30,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
+import { sortPriceListsByCode } from '@/lib/priceLists';
 import {
   AlertsSummarySchema,
   BrandSchema,
@@ -320,7 +321,7 @@ export function usePriceLists(activeOnly = true) {
     queryFn: async () => {
       const query = activeOnly ? '?active_only=1' : '';
       const data = await getMany<unknown>(`/price-lists${query}`);
-      return z.array(PriceListSchema).parse(data);
+      return sortPriceListsByCode(z.array(PriceListSchema).parse(data));
     },
   });
 }

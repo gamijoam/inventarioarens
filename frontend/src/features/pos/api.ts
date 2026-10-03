@@ -16,6 +16,7 @@ import {
   WarehouseSchema,
 } from '@/features/inventory-center/schemas';
 import type { InventoryFilters } from '@/features/inventory-center/schemas';
+import { sortPriceListsByCode } from '@/lib/priceLists';
 
 export type PosPaymentMethod =
   | 'cash'
@@ -1061,23 +1062,25 @@ export function mergePosPriceLists<T extends PosPriceListLike>(
   configured: T[],
   fallback: T[],
 ): T[] {
-  if (configured.length === 0) return fallback;
+  if (configured.length === 0) return sortPriceListsByCode(fallback);
 
   const fallbackById = new Map(fallback.map((list) => [list.id, list] as const));
 
-  return configured.map((list) => {
-    const fallbackList = fallbackById.get(list.id);
-    return {
-      ...fallbackList,
-      ...list,
-      payment_method_ids: list.payment_method_ids ?? fallbackList?.payment_method_ids ?? [],
-      payment_methods: list.payment_methods ?? fallbackList?.payment_methods,
-      payment_exchange_rate_type_id:
-        list.payment_exchange_rate_type_id ?? fallbackList?.payment_exchange_rate_type_id ?? null,
-      payment_exchange_rate_type:
-        list.payment_exchange_rate_type ?? fallbackList?.payment_exchange_rate_type,
-    };
-  });
+  return sortPriceListsByCode(
+    configured.map((list) => {
+      const fallbackList = fallbackById.get(list.id);
+      return {
+        ...fallbackList,
+        ...list,
+        payment_method_ids: list.payment_method_ids ?? fallbackList?.payment_method_ids ?? [],
+        payment_methods: list.payment_methods ?? fallbackList?.payment_methods,
+        payment_exchange_rate_type_id:
+          list.payment_exchange_rate_type_id ?? fallbackList?.payment_exchange_rate_type_id ?? null,
+        payment_exchange_rate_type:
+          list.payment_exchange_rate_type ?? fallbackList?.payment_exchange_rate_type,
+      };
+    }),
+  );
 }
 
 interface PosRateLike {

@@ -15,6 +15,8 @@ import {
   invoicePromotionPaymentIssue,
   requiresPosVariantSelection,
   resolveInitialPosPriceListId,
+  resolveLineQuoteListId,
+  posLineQuoteKey,
   type PosCartLine,
 } from '../posLogic';
 
@@ -237,5 +239,30 @@ describe('POS cart logic', () => {
     });
 
     expect(found?.id).toBe('g1');
+  });
+});
+
+describe('resolveLineQuoteListId', () => {
+  it('respeta la lista propia de la linea por encima de la lista seleccionada', () => {
+    expect(
+      resolveLineQuoteListId({ price_source: 'price_list', price_list_id: 4 }, 5),
+    ).toBe(4);
+  });
+
+  it('cae a la lista seleccionada del POS cuando la linea no trae lista', () => {
+    expect(resolveLineQuoteListId({ price_source: 'price_list', price_list_id: null }, 5)).toBe(5);
+  });
+
+  it('no cotiza las lineas en precio base', () => {
+    expect(resolveLineQuoteListId({ price_source: 'base', price_list_id: 4 }, 5)).toBeNull();
+  });
+
+  it('genera una clave de cotizacion que distingue la lista de cada linea', () => {
+    expect(posLineQuoteKey({ product_id: 2884, warehouse_id: 4, price_source: 'price_list', price_list_id: 4 }, 5)).toBe(
+      '2884_4_4',
+    );
+    expect(posLineQuoteKey({ product_id: 2884, warehouse_id: 4, price_source: 'base' }, 5)).toBe(
+      '2884_4_base',
+    );
   });
 });
