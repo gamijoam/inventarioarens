@@ -2313,13 +2313,24 @@ export function PosTerminal() {
                         return;
                       }
                       if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-                      setPanel('pay');
+                      // Si aun no hay pago, o falta capturar saldo, abrimos el panel
+                      // de pago. Si el pago ya cubre el total, facturamos directo
+                      // (la vista catalogo no tiene boton de confirmar aparte).
+                      if (payments.length === 0 || paymentTotals.remaining > 0) {
+                        setPanel('pay');
+                        return;
+                      }
+                      void confirmPaidSale();
                     }}
                     className="h-11 sm:h-12 px-4 sm:px-6 text-sm sm:text-base font-extrabold gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-95 transition-all"
                     title="Cobrar venta [F10]"
                   >
                     <CreditCard className="size-5" />
-                    <span>Cobrar [F10]</span>
+                    <span>
+                      {payments.length > 0 && paymentTotals.remaining <= 0
+                        ? 'Confirmar [F10]'
+                        : 'Cobrar [F10]'}
+                    </span>
                   </Button>
                 </div>
               </div>
