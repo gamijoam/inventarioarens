@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 import { usePermissionContext } from '@/permissions/PermissionContext';
 import type { PermissionName } from '@/permissions/constants';
+import { installPosTouchEnvironment } from '@/features/pos/touchSupport';
 import { AppVersionBadge } from './AppVersionBadge';
 
 export type PosSessionStatus = 'open' | 'closed' | 'loading';
@@ -90,6 +91,8 @@ export function PosShell({
     hasRequiredPermission(permissions, action.permission),
   );
   const showHeader = !hideHeader && (Boolean(context) || visibleActions.length > 0);
+
+  useEffect(() => installPosTouchEnvironment(), []);
 
   return (
     <div

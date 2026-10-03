@@ -52,6 +52,37 @@ export function enablePosTouchMode(
 }
 
 /**
+ * Activa el entorno tactil del POS (clase `pos-touch-mode` en el body +
+ * viewport sin zoom) y devuelve un cleanup que lo revierte.
+ *
+ * Necesario porque el bundle web es el de admin: Vite elimina por
+ * dead-code el `if (APP_MODE === 'pos')` de `main.tsx`, por lo que el POS
+ * servido en el navegador (ruta `/pos` permitida tambien en admin) se
+ * quedaba SIN `touch-action: manipulation`. Sin esa regla, las tablets
+ * recuperan el retardo de ~300ms (doble-tap zoom) y el click del toque
+ * anterior se re-dispara al tocar el siguiente producto.
+ *
+ * El POS aplica este entorno al montar su shell y lo restaura al salir,
+ * sin depender del modo de compilacion.
+ */
+export function installPosTouchEnvironment(
+  documentRef: Pick<Document, 'body' | 'querySelector'> = document,
+): () => void {
+  const meta = documentRef.querySelector('meta[name="viewport"]');
+  const previousContent = meta ? meta.getAttribute('content') : null;
+
+  enablePosTouchMode(documentRef);
+  if (meta) meta.setAttribute('content', posViewportContent());
+
+  return () => {
+    documentRef.body.classList.remove(POS_TOUCH_CLASS);
+    if (meta && previousContent !== null) {
+      meta.setAttribute('content', previousContent);
+    }
+  };
+}
+
+/**
  * Distancia maxima (px) de movimiento permitida para que un toque se
  * considere un TAP y no un scroll/drag.
  */

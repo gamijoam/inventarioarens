@@ -4,6 +4,7 @@ import {
   POS_TOUCH_CLASS,
   applyPosViewport,
   enablePosTouchMode,
+  installPosTouchEnvironment,
   installPosTouchTap,
   isTouchPrimaryDevice,
   posViewportContent,
@@ -60,6 +61,38 @@ describe('pos touchSupport', () => {
   it('agrega la clase pos-touch-mode al body', () => {
     enablePosTouchMode(document);
     expect(document.body.classList.contains(POS_TOUCH_CLASS)).toBe(true);
+  });
+});
+
+describe('installPosTouchEnvironment', () => {
+  afterEach(() => {
+    document.head.querySelectorAll('meta[name="viewport"]').forEach((meta) => meta.remove());
+    document.body.classList.remove(POS_TOUCH_CLASS);
+  });
+
+  it('activa la clase y el viewport POS y los restaura al salir', () => {
+    const meta = createMeta();
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+
+    const cleanup = installPosTouchEnvironment(document);
+
+    expect(document.body.classList.contains(POS_TOUCH_CLASS)).toBe(true);
+    expect(meta.getAttribute('content')).toBe(posViewportContent());
+
+    cleanup();
+
+    expect(document.body.classList.contains(POS_TOUCH_CLASS)).toBe(false);
+    expect(meta.getAttribute('content')).toBe('width=device-width, initial-scale=1.0');
+  });
+
+  it('no falla si no existe el meta viewport', () => {
+    const cleanup = installPosTouchEnvironment(document);
+
+    expect(document.body.classList.contains(POS_TOUCH_CLASS)).toBe(true);
+
+    cleanup();
+
+    expect(document.body.classList.contains(POS_TOUCH_CLASS)).toBe(false);
   });
 });
 

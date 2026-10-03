@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/Input';
 import { useCategories, useProducts } from '@/features/inventory-center/api';
 import type { PriceList, Product } from '@/features/inventory-center/schemas';
 import { formatLocalNumber } from './posLogic';
+import { touchTapHandlers } from './touchSupport';
 import { cn } from '@/lib/cn';
 import { formatMoney } from '@/lib/money';
 
@@ -377,13 +378,16 @@ export function PosCatalogGrid({
 
               const categoryName = product.categories?.[0]?.name;
 
+              const cardAction = () => {
+                if (isOutOfStock) return;
+                void handleProductClick(product);
+              };
+
               return (
                 <div
                   key={product.id}
-                  onClick={() => {
-                    if (isOutOfStock) return;
-                    void handleProductClick(product);
-                  }}
+                  {...touchTapHandlers(cardAction, !isOutOfStock)}
+                  onClick={cardAction}
                   className={cn(
                     'group bg-surface rounded-2xl border border-border/80 hover:border-primary hover:shadow-md transition-all duration-150 flex flex-col overflow-hidden cursor-pointer select-none active:scale-[0.99] relative',
                     isOutOfStock && 'opacity-85',

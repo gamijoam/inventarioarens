@@ -75,6 +75,26 @@ describe('PosCatalogGrid', () => {
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 3150, available_stock: 9 }));
   });
 
+  it('agrega una sola vez al tocar la tarjeta en táctil (evita el ghost click)', () => {
+    const onSelect = renderGrid(makeProduct());
+    const label = screen.getByText('CAUCHO 3.00-18 TT - Q91 QUEIPA');
+
+    fireEvent.touchStart(label, { touches: [{ clientX: 5, clientY: 5 }] });
+    fireEvent.touchEnd(label, { changedTouches: [{ clientX: 5, clientY: 5 }] });
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('NO agrega una tarjeta agotada al tocarla en táctil', () => {
+    const onSelect = renderGrid(makeProduct({ available_stock: 0 }));
+    const label = screen.getByText('CAUCHO 3.00-18 TT - Q91 QUEIPA');
+
+    fireEvent.touchStart(label, { touches: [{ clientX: 5, clientY: 5 }] });
+    fireEvent.touchEnd(label, { changedTouches: [{ clientX: 5, clientY: 5 }] });
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it('NO agrega al tocar una tarjeta agotada (available_stock 0)', () => {
     const onSelect = renderGrid(makeProduct({ available_stock: 0 }));
 

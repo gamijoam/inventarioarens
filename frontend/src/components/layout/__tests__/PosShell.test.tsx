@@ -49,10 +49,29 @@ describe('<PosShell>', () => {
     const shell = screen.getByTestId('pos-shell');
 
     expect(shell).toHaveAttribute('data-shell', 'pos');
-    expect(shell.className).toContain('min-h-screen');
+    expect(shell.className).toContain('h-dvh');
     expect(shell.className).toContain('w-full');
     expect(screen.getByText('Terminal operativo')).toBeInTheDocument();
     expect(screen.queryByRole('banner', { name: 'POS' })).not.toBeInTheDocument();
+  });
+
+  it('activa el entorno táctil del POS al montar y lo restaura al desmontar', () => {
+    const meta = document.createElement('meta');
+    meta.setAttribute('name', 'viewport');
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+    document.head.appendChild(meta);
+
+    const { unmount } = render(<PosShell>Contenido POS</PosShell>);
+
+    expect(document.body.classList.contains('pos-touch-mode')).toBe(true);
+    expect(meta.getAttribute('content')).toContain('user-scalable=no');
+
+    unmount();
+
+    expect(document.body.classList.contains('pos-touch-mode')).toBe(false);
+    expect(meta.getAttribute('content')).toBe('width=device-width, initial-scale=1.0');
+
+    meta.remove();
   });
 
   it('ofrece una salida explícita sin incluir navegación administrativa', () => {
