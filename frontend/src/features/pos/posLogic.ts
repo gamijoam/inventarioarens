@@ -407,3 +407,46 @@ export function formatUnitSuffix(unit?: string | null): string {
   return clean.toUpperCase();
 }
 
+export function resolvePosProductPrice(
+  product: {
+    base_price?: number | string | null;
+    prices?: Array<{
+      price_list_id?: number | null;
+      price_list?: { id: number } | null;
+      is_active?: boolean | null;
+      price?: number | string | null;
+    }> | null;
+  },
+  selectedPriceList: { id: number; markup_percentage?: number | string | null } | null,
+): number {
+  const basePrice = Number(product.base_price ?? 0);
+  if (!selectedPriceList) return basePrice;
+
+  if (product.prices && product.prices.length > 0) {
+    const found = product.prices.find(
+      (p) =>
+        (p.price_list_id === selectedPriceList.id || p.price_list?.id === selectedPriceList.id) &&
+        (p.is_active ?? true),
+    );
+    if (found && found.price != null && Number(found.price) > 0) {
+      return Number(found.price);
+    }
+  }
+
+  if (selectedPriceList.markup_percentage && basePrice > 0) {
+    return (
+      Math.round(basePrice * (1 + Number(selectedPriceList.markup_percentage) / 100) * 100) / 100
+    );
+  }
+
+  return basePrice;
+}
+
+export function formatLocalNumber(value: number): string {
+  return new Intl.NumberFormat('es-VE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+

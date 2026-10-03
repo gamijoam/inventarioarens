@@ -36,6 +36,7 @@ import {
   Wallet,
   ChevronDown,
   Info,
+  LayoutGrid,
   X,
   Settings2,
 } from 'lucide-react';
@@ -81,6 +82,7 @@ import { PromotionsPanel } from './PromotionsPanel';
 import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { ProductSearchDetailModal } from './ProductSearchDetailModal';
+import { PosCatalogGrid } from './PosCatalogGrid';
 import { ProductDetailDialog } from './ProductDetailDialog';
 import { TicketPreviewDialog } from './TicketPreviewDialog';
 import {
@@ -550,6 +552,24 @@ export function PosTerminal() {
   const [quotationsOpen, setQuotationsOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [posColorTheme, setPosColorTheme] = useState<PosColorTheme>(loadPosColorTheme);
+  const [posViewMode, setPosViewMode] = useState<'catalog' | 'ticket'>(() => {
+    try {
+      const saved = localStorage.getItem('pos_view_mode');
+      if (saved === 'ticket' || saved === 'catalog') return saved;
+    } catch {
+      // fallback
+    }
+    return 'catalog'; // Modo catálogo por defecto para venta visual
+  });
+
+  const handleSetPosViewMode = (mode: 'catalog' | 'ticket') => {
+    setPosViewMode(mode);
+    try {
+      localStorage.setItem('pos_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const activeTenantId = useSessionStore((state) => state.tenant?.id);
@@ -1898,6 +1918,40 @@ export function PosTerminal() {
 
           {/* Contexto, Cliente y Acciones */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Selector persistente de modo de vista: Catálogo vs Ticket */}
+            <div className="flex items-center rounded-xl bg-surface-subtle p-0.5 border border-border shrink-0 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleSetPosViewMode('catalog')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                  posViewMode === 'catalog'
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-text-muted hover:text-text-primary',
+                )}
+                title="Modo Catálogo Visual con fotos, marcas y precios [Persistente]"
+                data-testid="pos-view-mode-catalog"
+              >
+                <LayoutGrid className="size-3.5" />
+                <span>Catálogo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetPosViewMode('ticket')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                  posViewMode === 'ticket'
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-text-muted hover:text-text-primary',
+                )}
+                title="Modo Ticket Clásico / Código de barras [Persistente]"
+                data-testid="pos-view-mode-ticket"
+              >
+                <Receipt className="size-3.5" />
+                <span>Ticket</span>
+              </button>
+            </div>
+
             {activeRate && (
               <div
                 className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-[11px] font-mono font-medium text-text-secondary shrink-0"
@@ -2135,8 +2189,25 @@ export function PosTerminal() {
           </div>
         </header>
 
-        <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 xl:grid-cols-[minmax(680px,1fr)_430px]">
-          <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
+        <main
+          className={cn(
+            'grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3',
+            posViewMode === 'catalog'
+              ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_440px] xl:grid-cols-[minmax(0,1fr)_480px]'
+              : 'xl:grid-cols-[minmax(680px,1fr)_430px]',
+          )}
+        >
+          {posViewMode === 'catalog' ? (
+            <PosCatalogGrid
+              warehouseId={warehouseId}
+              selectedPriceList={selectedPriceList}
+              activeRate={activeRate}
+              onSelectProduct={addProduct}
+              onDetailProduct={(product) => setDetailProduct(product)}
+              className="flex-1"
+            />
+          ) : (
+            <section className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
             <div className="border-border from-surface to-bg/70 flex items-center justify-between gap-3 border-b bg-gradient-to-r px-4 py-2.5">
               {/* Título Ticket y Cliente en la misma fila */}
               <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
@@ -2252,8 +2323,103 @@ export function PosTerminal() {
               )}
             </div>
           </section>
+        )}
 
-          <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
+        <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
+          {posViewMode === 'catalog' && (
+            <>
+              <div className="border-border from-surface to-bg/70 flex items-center justify-between gap-2 border-b bg-gradient-to-r px-3.5 py-2.5 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h2 className="font-bold text-xs tracking-tight text-text-primary uppercase">
+                    Ticket actual
+                  </h2>
+                  {cart.length > 0 && (
+                    <Badge variant="outline" className="text-[11px] font-bold font-mono px-1.5 py-0.2 text-text-primary bg-surface-subtle border-border">
+                      {totalCartUnits} {totalCartUnits === 1 ? 'art.' : 'arts.'}
+                    </Badge>
+                  )}
+                  {exchangeReturnId && <Badge variant="info">Canje #{exchangeReturnId}</Badge>}
+                </div>
+
+                {/* Selector de Cliente */}
+                <div className="flex items-center gap-1 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setPanel('customer')}
+                    className={cn(
+                      'group flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-all max-w-[170px]',
+                      selectedCustomer
+                        ? 'border-primary/40 bg-primary/8 text-primary font-semibold'
+                        : 'border-border bg-surface text-text-secondary hover:text-text-primary',
+                    )}
+                    title="Click para cambiar cliente [F4]"
+                  >
+                    <UserRound className="size-3 shrink-0" />
+                    <span className="truncate text-[11px]">
+                      {selectedCustomer ? selectedCustomer.name : customerName}
+                    </span>
+                  </button>
+                  {selectedCustomer && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (exchangeReturnId) {
+                          toast.error('El cliente de un canje no puede cambiarse.');
+                          return;
+                        }
+                        setSelectedCustomer(null);
+                        setCustomerName('Consumidor Final');
+                      }}
+                      className="text-text-muted hover:text-danger p-0.5 rounded"
+                      title="Quitar cliente (volver a Consumidor Final)"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Botón limpiar ticket */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearPos}
+                  disabled={cart.length === 0}
+                  className="h-7 px-2 text-[11px] text-text-muted hover:text-danger gap-1 shrink-0"
+                  title="Vaciar ticket actual"
+                >
+                  <Trash2 className="size-3" />
+                  <span className="hidden sm:inline">Limpiar</span>
+                </Button>
+              </div>
+
+              {/* Lista de productos en el ticket (en modo catálogo) */}
+              <div className="min-h-[140px] max-h-[320px] flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] dark:bg-zinc-950/20 p-2.5 border-b border-border/80">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-center p-3 text-text-muted">
+                    <p className="text-xs font-semibold text-text-secondary">Ticket listo para vender</p>
+                    <p className="text-[11px] mt-0.5">Toca cualquier producto del catálogo para agregarlo.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {cart.map((line) => (
+                      <CartLineRow
+                        key={line.id}
+                        line={line}
+                        canDiscount={canDiscount}
+                        skuColor={posColorTheme.to}
+                        onChange={(patch) => updateLine(line.id, patch)}
+                        onSerials={() => {
+                          setSerialLineId(line.id);
+                          setPanel('serials');
+                        }}
+                        onRemove={() => removeLine(line.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
             <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
