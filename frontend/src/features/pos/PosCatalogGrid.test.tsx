@@ -82,6 +82,39 @@ describe('PosCatalogGrid', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('muestra u oculta el valor en Bs según la opción (showVesPrice)', () => {
+    mockUseProducts.mockReturnValue({
+      data: { data: [makeProduct()], meta: { current_page: 1, last_page: 1, per_page: 18, total: 1 } },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseCategories.mockReturnValue({ data: [] });
+
+    const { rerender } = render(
+      <PosCatalogGrid
+        warehouseId={4}
+        priceLists={[]}
+        selectedPriceList={null}
+        activeRate={{ rate: 100, name: 'BCV' }}
+        showVesPrice
+        onSelectProduct={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Bs/)).toBeInTheDocument();
+
+    rerender(
+      <PosCatalogGrid
+        warehouseId={4}
+        priceLists={[]}
+        selectedPriceList={null}
+        activeRate={{ rate: 100, name: 'BCV' }}
+        showVesPrice={false}
+        onSelectProduct={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/Bs/)).not.toBeInTheDocument();
+  });
+
   it('NO consulta productos sin almacén cuando warehouseId es null', () => {
     mockUseProducts.mockReturnValue({
       data: { data: [], meta: { current_page: 1, last_page: 1, per_page: 18, total: 0 } },

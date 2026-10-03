@@ -6,6 +6,7 @@ import {
   usePosCartPersistence,
   type Panel,
 } from './cartStore';
+import { loadShowVesOnCards, saveShowVesOnCards } from './posDisplayPrefs';
 import { parseScaleBarcode } from '@/lib/scaleBarcode';
 import { useRealtimeSync } from '@/lib/useRealtimeSync';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -491,9 +492,13 @@ function savePosColorTheme(id: string) {
 function PosColorPicker({
   current,
   onChange,
+  showVesOnCards,
+  onToggleShowVes,
 }: {
   current: PosColorTheme;
   onChange: (theme: PosColorTheme) => void;
+  showVesOnCards: boolean;
+  onToggleShowVes: (value: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -540,6 +545,22 @@ function PosColorPicker({
           <p className="mt-3 text-[10px] text-text-muted text-center">
             {current.label}
           </p>
+
+          <div className="mt-3 border-t border-border pt-3">
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <span className="text-xs font-semibold text-text-secondary">
+                Mostrar precio en Bs en las tarjetas
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="Mostrar precio en Bs en las tarjetas"
+                checked={showVesOnCards}
+                onChange={(event) => onToggleShowVes(event.target.checked)}
+                className="size-4 accent-primary"
+              />
+            </label>
+          </div>
           <PopoverPrimitive.Arrow className="fill-border" />
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
@@ -555,6 +576,7 @@ export function PosTerminal() {
   const [quotationsOpen, setQuotationsOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [posColorTheme, setPosColorTheme] = useState<PosColorTheme>(loadPosColorTheme);
+  const [showVesOnCards, setShowVesOnCards] = useState<boolean>(loadShowVesOnCards);
   const [posViewMode, setPosViewMode] = useState<'catalog' | 'ticket'>(() => {
     try {
       const saved = localStorage.getItem('pos_view_mode');
@@ -2205,7 +2227,15 @@ export function PosTerminal() {
             </DropdownMenu>
 
             {/* Engranaje de personalización de color */}
-            <PosColorPicker current={posColorTheme} onChange={setPosColorTheme} />
+            <PosColorPicker
+              current={posColorTheme}
+              onChange={setPosColorTheme}
+              showVesOnCards={showVesOnCards}
+              onToggleShowVes={(value) => {
+                setShowVesOnCards(value);
+                saveShowVesOnCards(value);
+              }}
+            />
           </div>
         </header>
 
@@ -2224,6 +2254,7 @@ export function PosTerminal() {
                 priceLists={priceLists}
                 selectedPriceList={selectedPriceList}
                 activeRate={activeRate}
+                showVesPrice={showVesOnCards}
                 onSelectProduct={addProduct}
                 onDetailProduct={(product) => setDetailProduct(product)}
                 className="flex-1"

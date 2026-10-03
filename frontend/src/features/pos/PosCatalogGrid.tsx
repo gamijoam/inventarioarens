@@ -87,6 +87,7 @@ interface PosCatalogGridProps {
   priceLists?: PriceList[];
   selectedPriceList: PriceList | null;
   activeRate: { id?: number; name?: string; code?: string; rate: number } | null;
+  showVesPrice?: boolean;
   onSelectProduct: (product: Product) => Promise<boolean> | void;
   onDetailProduct?: (product: Product) => void;
   className?: string;
@@ -97,6 +98,7 @@ export function PosCatalogGrid({
   priceLists = [],
   selectedPriceList,
   activeRate,
+  showVesPrice = true,
   onSelectProduct,
   className,
 }: PosCatalogGridProps) {
@@ -453,7 +455,7 @@ export function PosCatalogGrid({
                                   <span className={cn('text-xs sm:text-sm', isSelected ? 'text-primary' : 'text-text-primary')}>
                                     {formatMoney(p.price)}
                                   </span>
-                                  {pVes != null && (
+                                  {pVes != null && showVesPrice && (
                                     <span className="text-[10px] text-text-muted font-normal">
                                       (Bs {formatLocalNumber(pVes)})
                                     </span>
