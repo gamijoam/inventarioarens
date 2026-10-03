@@ -3316,10 +3316,13 @@ export function PosTerminal() {
         newLineId = existing.id;
         return current.map((line) =>
           line.id === existing.id
-            ? {
-                ...line,
-                unit_of_measure: line.unit_of_measure ?? product.unit_of_measure ?? 'unit',
-                quantity: Math.min(line.quantity + quantity, maximumQuantity),
+              ? {
+                  ...line,
+                  unit_of_measure: line.unit_of_measure ?? product.unit_of_measure ?? 'unit',
+                  available_stock: available,
+                  track_stock: product.track_stock !== false,
+                  tracking_type: product.tracking_type ?? line.tracking_type,
+                  quantity: Math.min(line.quantity + quantity, maximumQuantity),
                 selected_serials: scannedSerial
                   ? [
                       ...(line.selected_serials ?? []),
