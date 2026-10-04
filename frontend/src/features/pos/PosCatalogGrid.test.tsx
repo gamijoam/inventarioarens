@@ -190,4 +190,26 @@ describe('PosCatalogGrid', () => {
     const filters = mockUseProducts.mock.calls[0]?.[0] as { warehouse_id?: number } | undefined;
     expect(filters?.warehouse_id).toBeUndefined();
   });
+
+  it('pide los precios (with_prices) para mostrar cada lista de precio', () => {
+    mockUseProducts.mockReturnValue({
+      data: { data: [], meta: { current_page: 1, last_page: 1, per_page: 18, total: 0 } },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseCategories.mockReturnValue({ data: [] });
+
+    render(
+      <PosCatalogGrid
+        warehouseId={4}
+        priceLists={[]}
+        selectedPriceList={null}
+        activeRate={null}
+        onSelectProduct={vi.fn()}
+      />,
+    );
+
+    const filters = mockUseProducts.mock.calls[0]?.[0] as { with_prices?: number } | undefined;
+    expect(filters?.with_prices).toBe(1);
+  });
 });

@@ -143,6 +143,9 @@ export function PosCatalogGrid({
     stock_status: onlyAvailable ? 'available' : 'all',
     page,
     per_page: perPage,
+    // Sin esto, product.prices viene vacio y computeProductPrices usa el
+    // base_price para todas las listas (se veian todas con el mismo precio).
+    with_prices: 1,
   });
 
   const products = useMemo(() => paginatedData?.data ?? [], [paginatedData?.data]);
