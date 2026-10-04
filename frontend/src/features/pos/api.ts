@@ -868,6 +868,7 @@ export const PosBootstrapSchema = z.object({
   open_session: CashRegisterSessionSchema.nullable(),
   allow_negative_stock: z.boolean().optional(),
   allow_rate_edit: z.boolean().optional(),
+  allow_catalog_view: z.boolean().optional(),
 });
 export type PosBootstrap = z.infer<typeof PosBootstrapSchema>;
 

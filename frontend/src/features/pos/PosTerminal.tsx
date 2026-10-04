@@ -799,7 +799,19 @@ export function PosTerminal() {
   const bootstrap = usePosBootstrap();
   const allowNegativeStock = Boolean(bootstrap.data?.allow_negative_stock);
   const allowRateEdit = Boolean(bootstrap.data?.allow_rate_edit);
+  const allowCatalogView = bootstrap.data?.allow_catalog_view !== false;
   const [rateModalOpen, setRateModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!allowCatalogView && posViewMode === 'catalog') {
+      setPosViewMode('ticket');
+      try {
+        localStorage.setItem('pos_view_mode', 'ticket');
+      } catch {
+        // ignore
+      }
+    }
+  }, [allowCatalogView, posViewMode]);
   const bootstrapReady = !bootstrap.isLoading && !bootstrap.isError;
 
   // Fallback: si /api/pos/bootstrap no devolvio warehouses (cache vacio o
@@ -1788,7 +1800,7 @@ export function PosTerminal() {
       hideHeader
     >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
-        <header className="border-border/80 bg-surface/95 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
+        <header className="border-border/80 bg-surface/95 relative z-30 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
           {/* Navegación y Búsqueda */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Button
@@ -2034,38 +2046,40 @@ export function PosTerminal() {
           {/* Contexto, Cliente y Acciones */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Selector persistente de modo de vista: Catálogo vs Ticket */}
-            <div className="flex items-center rounded-xl bg-surface-subtle p-0.5 border border-border shrink-0 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => handleSetPosViewMode('catalog')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
-                  posViewMode === 'catalog'
-                    ? 'bg-primary text-white shadow-xs'
-                    : 'text-text-muted hover:text-text-primary',
-                )}
-                title="Modo Catálogo Visual con fotos, marcas y precios [Persistente]"
-                data-testid="pos-view-mode-catalog"
-              >
-                <LayoutGrid className="size-3.5" />
-                <span>Catálogo</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSetPosViewMode('ticket')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
-                  posViewMode === 'ticket'
-                    ? 'bg-primary text-white shadow-xs'
-                    : 'text-text-muted hover:text-text-primary',
-                )}
-                title="Modo Ticket Clásico / Código de barras [Persistente]"
-                data-testid="pos-view-mode-ticket"
-              >
-                <Receipt className="size-3.5" />
-                <span>Ticket</span>
-              </button>
-            </div>
+            {allowCatalogView && (
+              <div className="flex items-center rounded-xl bg-surface-subtle p-0.5 border border-border shrink-0 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => handleSetPosViewMode('catalog')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                    posViewMode === 'catalog'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-text-muted hover:text-text-primary',
+                  )}
+                  title="Modo Catálogo Visual con fotos, marcas y precios [Persistente]"
+                  data-testid="pos-view-mode-catalog"
+                >
+                  <LayoutGrid className="size-3.5" />
+                  <span>Catálogo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetPosViewMode('ticket')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                    posViewMode === 'ticket'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-text-muted hover:text-text-primary',
+                  )}
+                  title="Modo Ticket Clásico / Código de barras [Persistente]"
+                  data-testid="pos-view-mode-ticket"
+                >
+                  <Receipt className="size-3.5" />
+                  <span>Ticket</span>
+                </button>
+              </div>
+            )}
 
             {activeRate &&
               (allowRateEdit ? (

@@ -142,12 +142,18 @@ class PosBootstrapApiTest extends TestCase
             ->withHeader('X-Tenant', $tenant->slug)
             ->getJson('/api/pos/bootstrap')
             ->assertOk()
-            ->assertJsonPath('allow_rate_edit', false);
+            ->assertJsonPath('allow_rate_edit', false)
+            ->assertJsonPath('allow_catalog_view', true);
 
         DB::table('tenant_settings')->updateOrInsert(
             ['tenant_id' => $tenant->id],
             [
-                'settings' => json_encode(['company' => ['pos_allow_rate_edit' => true]]),
+                'settings' => json_encode([
+                    'company' => [
+                        'pos_allow_rate_edit' => true,
+                        'pos_allow_catalog_view' => false,
+                    ],
+                ]),
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -158,7 +164,8 @@ class PosBootstrapApiTest extends TestCase
             ->withHeader('X-Tenant', $tenant->slug)
             ->getJson('/api/pos/bootstrap')
             ->assertOk()
-            ->assertJsonPath('allow_rate_edit', true);
+            ->assertJsonPath('allow_rate_edit', true)
+            ->assertJsonPath('allow_catalog_view', false);
     }
 
     public function test_bootstrap_only_returns_branches_warehouses_and_registers_in_scope(): void

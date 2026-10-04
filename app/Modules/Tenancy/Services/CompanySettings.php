@@ -28,6 +28,7 @@ class CompanySettings
         'logo_url' => null,
         'allow_negative_stock' => false,
         'pos_allow_rate_edit' => false,
+        'pos_allow_catalog_view' => true,
         'show_on' => [
             'sale_ticket' => true,
             'guide' => true,
@@ -86,5 +87,16 @@ class CompanySettings
         $settings = self::getForTenant($tenant);
 
         return (bool) ($settings['pos_allow_rate_edit'] ?? false);
+    }
+
+    /**
+     * Indica si el POS ofrece la vista de catalogo visual (ademas de la
+     * vista ticket).
+     */
+    public static function allowsPosCatalogView(Tenant $tenant): bool
+    {
+        $settings = self::getForTenant($tenant);
+
+        return (bool) ($settings['pos_allow_catalog_view'] ?? true);
     }
 }

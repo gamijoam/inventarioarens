@@ -69,6 +69,7 @@ export function CompanySettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [allowRateEdit, setAllowRateEdit] = useState(false);
+  const [allowCatalogView, setAllowCatalogView] = useState(true);
 
   useEffect(() => {
     if (!data) return;
@@ -84,6 +85,7 @@ export function CompanySettingsPanel() {
     setLogoUrl(data.logo_url ?? null);
     setAllowNegativeStock(data.allow_negative_stock ?? false);
     setAllowRateEdit(data.pos_allow_rate_edit ?? false);
+    setAllowCatalogView(data.pos_allow_catalog_view ?? true);
     setShowOn({
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
@@ -150,6 +152,7 @@ export function CompanySettingsPanel() {
         logo_url: logoUrl,
         allow_negative_stock: allowNegativeStock,
         pos_allow_rate_edit: allowRateEdit,
+        pos_allow_catalog_view: allowCatalogView,
         show_on: showOn,
       };
       await update.mutateAsync(payload);
@@ -405,6 +408,23 @@ export function CompanySettingsPanel() {
               onChange={(e) => setAllowRateEdit(e.target.checked)}
               className="size-4"
               data-testid="company-pos-allow-rate-edit"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">
+            <div>
+              <div className="text-sm font-medium">Habilitar vista catálogo en el POS</div>
+              <div className="text-text-muted text-xs">
+                Si se desactiva, el POS solo muestra la vista ticket (sin el selector
+                Catálogo/Ticket).
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={allowCatalogView}
+              onChange={(e) => setAllowCatalogView(e.target.checked)}
+              className="size-4"
+              data-testid="company-pos-allow-catalog-view"
             />
           </div>
         </CardContent>
