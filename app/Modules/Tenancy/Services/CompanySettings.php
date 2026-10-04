@@ -29,6 +29,8 @@ class CompanySettings
         'allow_negative_stock' => false,
         'pos_allow_rate_edit' => false,
         'pos_allow_catalog_view' => true,
+        'pos_catalog_stock_edit' => false,
+        'catalog_allow_stock_edit' => false,
         'show_on' => [
             'sale_ticket' => true,
             'guide' => true,
@@ -91,12 +93,28 @@ class CompanySettings
 
     /**
      * Indica si el POS ofrece la vista de catalogo visual (ademas de la
-     * vista ticket).
+     * vista ticket).</p>
      */
     public static function allowsPosCatalogView(Tenant $tenant): bool
     {
         $settings = self::getForTenant($tenant);
 
         return (bool) ($settings['pos_allow_catalog_view'] ?? true);
+    }
+
+    /**
+     * Indica si se permite editar/ajustar el stock de productos directamente
+     * desde la vista catalogo y el formulario rapido de creacion.
+     */
+    public static function allowsCatalogStockEdit(Tenant $tenant): bool
+    {
+        $settings = self::getForTenant($tenant);
+
+        return (bool) ($settings['catalog_allow_stock_edit'] ?? $settings['pos_catalog_stock_edit'] ?? false);
+    }
+
+    public static function allowsPosCatalogStockEdit(Tenant $tenant): bool
+    {
+        return self::allowsCatalogStockEdit($tenant);
     }
 }

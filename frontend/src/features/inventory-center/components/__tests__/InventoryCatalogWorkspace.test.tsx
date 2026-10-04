@@ -43,6 +43,8 @@ vi.mock('@/features/inventory-center/api', () => ({
     ],
     isLoading: false,
   }),
+  useWarehouses: () => ({ data: [{ id: 1, name: 'Almacén Principal' }], isLoading: false }),
+  useSetProductStock: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 // Mock de EditProductDialog
@@ -53,6 +55,7 @@ vi.mock('@/features/inventory-center/dialogs/EditProductDialog', () => ({
 // Mock de preferencias (server-side)
 const { mockUpdateUiPreferences } = vi.hoisted(() => ({ mockUpdateUiPreferences: vi.fn() }));
 vi.mock('@/features/company-settings/api', () => ({
+  useCompanySettings: () => ({ data: { catalog_allow_stock_edit: false } }),
   useUiPreferences: () => ({ data: undefined }),
   useUpdateUiPreferences: () => ({
     mutate: mockUpdateUiPreferences,

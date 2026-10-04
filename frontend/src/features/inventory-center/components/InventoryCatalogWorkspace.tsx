@@ -62,7 +62,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Spinner } from '@/components/ui/Spinner';
 import { pendingItemKey, usePendingPosCart } from '@/features/pos/pendingPosCart';
 import { loadPinnedCategories, savePinnedCategories } from '@/features/inventory-center/pinnedCategories';
-import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
+import { useCompanySettings, useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
 import { useSessionStore } from '@/stores/session';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
@@ -72,8 +72,10 @@ import {
   useDeleteProductImage,
   useProductImages,
   useProductStockByWarehouse,
+  useSetProductStock,
   useUpdateProduct,
   useUploadProductImage,
+  useWarehouses,
   useWarrantyPolicies,
 } from '@/features/inventory-center/api';
 import { putOne } from '@/api/client';
@@ -1033,7 +1035,44 @@ function ProductCatalogDetailModal({
   const { data: brands = [] } = useBrands();
   const { data: categories = [] } = useCategories();
   const { data: warranties = [] } = useWarrantyPolicies();
+  const { data: allWarehouses = [] } = useWarehouses();
+  const setProductStock = useSetProductStock();
+  const { data: companySettings } = useCompanySettings();
+  const allowStockEdit = Boolean(
+    companySettings?.catalog_allow_stock_edit ?? companySettings?.pos_catalog_stock_edit,
+  );
   const { data: stockByWarehouse = [], isLoading: isLoadingStock } = useProductStockByWarehouse(product.id);
+
+  const warehousesToDisplay = useMemo(() => {
+    if (stockByWarehouse.length > 0) {
+      return stockByWarehouse.map((sw) => ({
+        warehouse_id: sw.warehouse_id,
+        warehouse_name: sw.warehouse_name || sw.warehouse_code,
+        available: typeof sw.available === 'string' ? parseFloat(sw.available) : (sw.available ?? 0),
+        reserved: sw.reserved ?? 0,
+      }));
+    }
+    return allWarehouses.map((w) => ({
+      warehouse_id: w.id,
+      warehouse_name: w.name || w.code,
+      available: 0,
+      reserved: 0,
+    }));
+  }, [stockByWarehouse, allWarehouses]);
+
+  const [stockMap, setStockMap] = useState<Record<number, { amount: string; isDirty: boolean }>>({});
+
+  useEffect(() => {
+    setStockMap((prev) => {
+      const next = { ...prev };
+      for (const w of warehousesToDisplay) {
+        if (!next[w.warehouse_id]?.isDirty) {
+          next[w.warehouse_id] = { amount: String(w.available), isDirty: false };
+        }
+      }
+      return next;
+    });
+  }, [warehousesToDisplay]);
 
   const [activeTab, setActiveTab] = useState<'main' | 'advanced'>('main');
 
@@ -1189,10 +1228,39 @@ function ProductCatalogDetailModal({
         await putOne(`/products/${product.id}/prices`, { prices: dirtyPrices });
       }
 
-      toast.success('Producto y tarifas guardados correctamente.');
+      // 3. Guardar stock si la opcion esta activa y hubo cambios
+      if (allowStockEdit) {
+        const dirtyStocks = Object.entries(stockMap)
+          .filter(([, v]) => v.isDirty && v.amount.trim() !== '')
+          .map(([whIdStr, v]) => ({
+            warehouse_id: Number(whIdStr),
+            quantity: parseFloat(v.amount),
+            reason: 'Ajuste directo desde vista catálogo',
+          }))
+          .filter((s) => !isNaN(s.quantity));
+
+        if (dirtyStocks.length > 0) {
+          try {
+            await setProductStock.mutateAsync({
+              id: product.id,
+              stocks: dirtyStocks,
+            });
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? `Cambios guardados, pero falló el ajuste de stock: ${error.message}`
+                : 'Cambios guardados, pero falló el ajuste de stock.',
+            );
+          }
+        }
+      }
+
+      toast.success('Producto, tarifas y existencias guardados correctamente.');
+      void qc.invalidateQueries({ queryKey: productKeys.all });
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
       void qc.invalidateQueries({ queryKey: productKeys.detail(product.id) });
       void qc.invalidateQueries({ queryKey: productKeys.prices(product.id) });
+      void qc.invalidateQueries({ queryKey: productKeys.stockByWarehouse(product.id) });
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar los cambios.');
@@ -1633,33 +1701,54 @@ function ProductCatalogDetailModal({
                     <div className="p-3 text-center text-xs text-text-muted">
                       Consultando...
                     </div>
-                  ) : stockByWarehouse.length === 0 ? (
+                  ) : warehousesToDisplay.length === 0 ? (
                     <div className="p-2 bg-surface-subtle/50 rounded-lg border border-border text-[11px] text-text-muted text-center">
-                      Sin existencias registradas.
+                      Sin almacenes registrados.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-lg border border-border/80 max-h-36 overflow-y-auto">
+                    <div className="overflow-x-auto rounded-lg border border-border/80 max-h-40 overflow-y-auto">
                       <table className="w-full text-[11px] text-left">
                         <thead className="bg-surface-subtle/80 border-b border-border text-text-secondary font-semibold">
                           <tr>
                             <th className="px-2 py-1">Almacén</th>
-                            <th className="px-2 py-1 text-right">Disp.</th>
+                            <th className="px-2 py-1 text-right">
+                              {allowStockEdit ? 'Stock' : 'Disp.'}
+                            </th>
                             <th className="px-2 py-1 text-right">Res.</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                          {stockByWarehouse.map((sw) => {
-                            const avail =
-                              typeof sw.available === 'string'
-                                ? parseFloat(sw.available)
-                                : sw.available;
+                          {warehousesToDisplay.map((sw) => {
+                            const avail = sw.available;
                             return (
                               <tr key={sw.warehouse_id} className="hover:bg-surface-subtle/30">
-                                <td className="px-2 py-1 font-medium text-text-primary truncate max-w-[80px]" title={sw.warehouse_name || sw.warehouse_code}>
-                                  {sw.warehouse_name || sw.warehouse_code}
+                                <td
+                                  className="px-2 py-1 font-medium text-text-primary truncate max-w-[80px]"
+                                  title={sw.warehouse_name}
+                                >
+                                  {sw.warehouse_name}
                                 </td>
-                                <td className="px-2 py-1 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                                  {Number.isFinite(avail) ? avail : 0}
+                                <td className="px-2 py-1 text-right">
+                                  {allowStockEdit ? (
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      value={stockMap[sw.warehouse_id]?.amount ?? String(avail)}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setStockMap((prev) => ({
+                                          ...prev,
+                                          [sw.warehouse_id]: { amount: val, isDirty: true },
+                                        }));
+                                      }}
+                                      className="h-6 text-xs text-right font-bold font-mono w-20 px-1 py-0.5 ml-auto border-emerald-500/40 focus:border-emerald-500"
+                                      placeholder="0"
+                                    />
+                                  ) : (
+                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                      {Number.isFinite(avail) ? avail : 0}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-2 py-1 text-right text-text-muted">
                                   {sw.reserved ?? 0}

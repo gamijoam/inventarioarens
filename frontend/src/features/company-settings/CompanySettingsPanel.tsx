@@ -70,6 +70,7 @@ export function CompanySettingsPanel() {
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [allowRateEdit, setAllowRateEdit] = useState(false);
   const [allowCatalogView, setAllowCatalogView] = useState(true);
+  const [allowCatalogStockEdit, setAllowCatalogStockEdit] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -86,6 +87,7 @@ export function CompanySettingsPanel() {
     setAllowNegativeStock(data.allow_negative_stock ?? false);
     setAllowRateEdit(data.pos_allow_rate_edit ?? false);
     setAllowCatalogView(data.pos_allow_catalog_view ?? true);
+    setAllowCatalogStockEdit(data.catalog_allow_stock_edit ?? data.pos_catalog_stock_edit ?? false);
     setShowOn({
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
@@ -153,6 +155,8 @@ export function CompanySettingsPanel() {
         allow_negative_stock: allowNegativeStock,
         pos_allow_rate_edit: allowRateEdit,
         pos_allow_catalog_view: allowCatalogView,
+        pos_catalog_stock_edit: allowCatalogStockEdit,
+        catalog_allow_stock_edit: allowCatalogStockEdit,
         show_on: showOn,
       };
       await update.mutateAsync(payload);
@@ -425,6 +429,24 @@ export function CompanySettingsPanel() {
               onChange={(e) => setAllowCatalogView(e.target.checked)}
               className="size-4"
               data-testid="company-pos-allow-catalog-view"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">
+            <div>
+              <div className="text-sm font-medium">Edición rápida de stock en catálogo y producto rápido</div>
+              <div className="text-text-muted text-xs">
+                Si se activa, permite ingresar o modificar directamente el stock de los productos
+                desde la vista catálogo y en la creación rápida de producto. El valor ingresado
+                será el stock exacto que tendrá el producto (admite números positivos, cero o negativos).
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={allowCatalogStockEdit}
+              onChange={(e) => setAllowCatalogStockEdit(e.target.checked)}
+              className="size-4"
+              data-testid="company-catalog-stock-edit"
             />
           </div>
         </CardContent>

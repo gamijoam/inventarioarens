@@ -21,4 +21,5 @@ Route::prefix('inventory-center')->group(function (): void {
     Route::get('products/{product}/stock-context', [InventoryCenterController::class, 'productStockContext']);
     Route::post('products/{product}/recalculate-price', [InventoryCenterController::class, 'recalculateProductPrice']);
     Route::patch('products/{product}/profit-margin', [InventoryCenterController::class, 'updateProductProfitMargin']);
+    Route::post('products/{product}/set-stock', [InventoryCenterController::class, 'setProductStock']);
 });

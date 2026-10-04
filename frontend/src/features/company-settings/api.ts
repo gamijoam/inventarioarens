@@ -18,6 +18,8 @@ export const CompanySettingsSchema = z.object({
   allow_negative_stock: z.boolean().optional(),
   pos_allow_rate_edit: z.boolean().optional(),
   pos_allow_catalog_view: z.boolean().optional(),
+  pos_catalog_stock_edit: z.boolean().optional(),
+  catalog_allow_stock_edit: z.boolean().optional(),
   show_on: z
     .object({
       sale_ticket: z.boolean().optional(),

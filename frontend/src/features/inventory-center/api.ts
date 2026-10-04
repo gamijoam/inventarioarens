@@ -781,6 +781,34 @@ export function useUpdateProductProfitMargin() {
   });
 }
 
+export interface SetProductStockPayload {
+  warehouse_id?: number;
+  quantity?: number;
+  reason?: string;
+  stocks?: Array<{
+    warehouse_id: number;
+    quantity: number;
+    reason?: string;
+  }>;
+}
+
+export function useSetProductStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: { id: number } & SetProductStockPayload) =>
+      postOne<SetProductStockPayload, { product_id: number; available_stock: number; warehouses: unknown[] }>(
+        `/inventory-center/products/${id}/set-stock`,
+        payload,
+      ),
+    onSuccess: (_, vars) => {
+      void qc.invalidateQueries({ queryKey: productKeys.all });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(vars.id) });
+      void qc.invalidateQueries({ queryKey: productKeys.stockByWarehouse(vars.id) });
+    },
+  });
+}
+
+
 // =====================================================================
 // Fase 1 - IMEI scanner: lista ProductUnits disponibles de un almacen
 // para el modulo de traslados. Usado por el dialog CreateTransfer cuando

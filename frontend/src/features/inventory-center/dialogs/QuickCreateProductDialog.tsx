@@ -10,7 +10,7 @@
  *      * Pestaña secundaria opcional para parámetros avanzados (garantía, límites de stock, notas).
  *  - Guarda el producto y sus precios en 1 solo clic.
  */
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DollarSign,
   Package,
@@ -43,8 +43,11 @@ import {
   useBrands,
   useCategories,
   useCreateProduct,
+  useSetProductStock,
+  useWarehouses,
   useWarrantyPolicies,
 } from '@/features/inventory-center/api';
+import { useCompanySettings } from '@/features/company-settings/api';
 import { api, putOne } from '@/api/client';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
@@ -77,6 +80,12 @@ export function QuickCreateProductDialog({
   const { data: brands = [] } = useBrands();
   const { data: categories = [] } = useCategories();
   const { data: warranties = [] } = useWarrantyPolicies();
+  const { data: warehouses = [] } = useWarehouses();
+  const setProductStock = useSetProductStock();
+  const { data: companySettings } = useCompanySettings();
+  const allowStockEdit = Boolean(
+    companySettings?.catalog_allow_stock_edit ?? companySettings?.pos_catalog_stock_edit,
+  );
 
   const [activeTab, setActiveTab] = useState<'main' | 'advanced'>('main');
 
@@ -87,11 +96,20 @@ export function QuickCreateProductDialog({
   const [brandId, setBrandId] = useState<number | undefined>(undefined);
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [unitOfMeasure, setUnitOfMeasure] = useState('unit');
+  const [initialStock, setInitialStock] = useState('');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | undefined>(undefined);
   const [imageUrl, setImageUrl] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [isActive, setIsActive] = useState(true);
+
+  // Inicializar almacén por defecto
+  useEffect(() => {
+    if (selectedWarehouseId === undefined && warehouses.length > 0 && warehouses[0]?.id) {
+      setSelectedWarehouseId(warehouses[0].id);
+    }
+  }, [warehouses, selectedWarehouseId]);
 
   // Costo y Precios
   const [cost, setCost] = useState('');
@@ -132,6 +150,7 @@ export function QuickCreateProductDialog({
     setBrandId(undefined);
     setCategoryId(undefined);
     setUnitOfMeasure('unit');
+    setInitialStock('');
     setImageUrl('');
     setPhotoFile(null);
     setPhotoPreview(null);
@@ -223,6 +242,27 @@ export function QuickCreateProductDialog({
               ? `Producto creado, pero no se pudo subir la foto: ${error.message}`
               : 'Producto creado, pero no se pudo subir la foto.',
           );
+        }
+      }
+
+      // 4. Asignar stock inicial si la opcion esta activa y se ingreso un valor
+      if (allowStockEdit && initialStock.trim() !== '' && createdId && selectedWarehouseId) {
+        const stockQty = parseFloat(initialStock);
+        if (!isNaN(stockQty)) {
+          try {
+            await setProductStock.mutateAsync({
+              id: createdId,
+              warehouse_id: selectedWarehouseId,
+              quantity: stockQty,
+              reason: 'Stock inicial en creación rápida',
+            });
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? `Producto creado, pero no se pudo asignar el stock: ${error.message}`
+                : 'Producto creado, pero no se pudo asignar el stock.',
+            );
+          }
         }
       }
 
@@ -411,6 +451,43 @@ export function QuickCreateProductDialog({
                     <Switch checked={isActive} onCheckedChange={setIsActive} />
                   </div>
                 </div>
+
+                {/* Asignación Rápida de Stock Inicial (si la opción está activa en configuración) */}
+                {allowStockEdit && (
+                  <div className="grid grid-cols-2 gap-2 p-2 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <div>
+                      <Label className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                        Stock Inicial
+                      </Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        placeholder="0 (ej: 50 o -5)"
+                        value={initialStock}
+                        onChange={(e) => setInitialStock(e.target.value)}
+                        className="mt-0.5 text-xs h-7 font-bold font-mono"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                        Almacén
+                      </Label>
+                      <Select
+                        value={selectedWarehouseId ? String(selectedWarehouseId) : ''}
+                        onChange={(e) =>
+                          setSelectedWarehouseId(e.target.value ? Number(e.target.value) : undefined)
+                        }
+                        className="mt-0.5 text-xs h-7"
+                      >
+                        {warehouses.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.name || w.code}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
+                )}
 
                 {/* Foto / URL de imagen con vista previa */}
                 <div className="flex flex-col gap-1 pt-0.5">
