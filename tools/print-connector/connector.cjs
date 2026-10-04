@@ -121,16 +121,91 @@ function sendTcp(host, port, buffer, timeoutMs = 5000) {
   });
 }
 
-async function printWithDriver(text, printerName, tempDir = os.tmpdir(), exec = execFileAsync) {
+/**
+ * Imprime un buffer ESC/POS directo a la impresora por nombre, sin pasar por el
+ * render del driver de Windows (que reimprimia el texto minusculo). En Windows
+ * usa el spooler en modo RAW (winspool.drv); en Linux usa `lp -o raw`.
+ */
+const RAW_PRINT_SCRIPT = `param([string]$PrinterName, [string]$FilePath)
+$ErrorActionPreference = 'Stop'
+$code = @'
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+public class InventarioRawPrinter {
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+  public struct DOCINFOA {
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+  }
+  [DllImport("winspool.Drv", EntryPoint="OpenPrinterW", SetLastError=true, CharSet=CharSet.Unicode)]
+  public static extern bool OpenPrinter(string src, out IntPtr hPrinter, IntPtr pd);
+  [DllImport("winspool.Drv", EntryPoint="ClosePrinter", SetLastError=true)]
+  public static extern bool ClosePrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="StartDocPrinterW", SetLastError=true, CharSet=CharSet.Unicode)]
+  public static extern bool StartDocPrinter(IntPtr hPrinter, int level, ref DOCINFOA di);
+  [DllImport("winspool.Drv", EntryPoint="EndDocPrinter", SetLastError=true)]
+  public static extern bool EndDocPrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="StartPagePrinter", SetLastError=true)]
+  public static extern bool StartPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="EndPagePrinter", SetLastError=true)]
+  public static extern bool EndPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true)]
+  public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
+  public static bool SendFile(string printer, string path) {
+    byte[] bytes = File.ReadAllBytes(path);
+    IntPtr hPrinter;
+    DOCINFOA di = new DOCINFOA();
+    di.pDocName = "Inventario Arens Ticket";
+    di.pDataType = "RAW";
+    if (!OpenPrinter(printer, out hPrinter, IntPtr.Zero)) return false;
+    bool ok = StartDocPrinter(hPrinter, 1, ref di);
+    if (ok) ok = StartPagePrinter(hPrinter);
+    IntPtr p = Marshal.AllocCoTaskMem(bytes.Length);
+    Marshal.Copy(bytes, 0, p, bytes.Length);
+    int written;
+    if (ok) ok = WritePrinter(hPrinter, p, bytes.Length, out written);
+    Marshal.FreeCoTaskMem(p);
+    if (ok) { EndPagePrinter(hPrinter); EndDocPrinter(hPrinter); }
+    ClosePrinter(hPrinter);
+    return ok;
+  }
+}
+'@
+Add-Type -TypeDefinition $code -Language CSharp | Out-Null
+if (-not [InventarioRawPrinter]::SendFile($PrinterName, $FilePath)) {
+  throw "No se pudo enviar RAW a la impresora '$PrinterName'."
+}
+`;
+
+async function printRaw(buffer, printerName, tempDir = os.tmpdir(), exec = execFileAsync) {
   if (!printerName) throw makeError('La estacion no tiene printer_name configurado.');
-  const filePath = path.join(tempDir, `inventario-ticket-${crypto.randomUUID()}.txt`);
-  await fs.writeFile(filePath, text, 'ascii');
+  const data = Buffer.isBuffer(buffer) ? buffer : Buffer.from(String(buffer), 'ascii');
+  const filePath = path.join(tempDir, `inventario-ticket-${crypto.randomUUID()}.bin`);
+  await fs.writeFile(filePath, data);
   try {
     if (process.platform === 'win32') {
-      const command = `$content = Get-Content -LiteralPath '${filePath.replaceAll("'", "''")}' -Raw; $content | Out-Printer -Name '${String(printerName).replaceAll("'", "''")}'`;
-      await exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
+      const scriptPath = path.join(tempDir, `inventario-raw-${crypto.randomUUID()}.ps1`);
+      await fs.writeFile(scriptPath, RAW_PRINT_SCRIPT, 'utf8');
+      try {
+        await exec('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          scriptPath,
+          '-PrinterName',
+          String(printerName),
+          '-FilePath',
+          filePath,
+        ]);
+      } finally {
+        await fs.rm(scriptPath, { force: true });
+      }
     } else {
-      await exec('lp', ['-d', printerName, filePath]);
+      await exec('lp', ['-d', printerName, '-o', 'raw', filePath]);
     }
   } finally {
     await fs.rm(filePath, { force: true });
@@ -299,7 +374,17 @@ class PrintConnector {
       );
       return;
     }
-    await printWithDriver(text, station.printer_name, this.config.tempDir, exec);
+    // Impresora por driver/nombre: se manda ESC/POS crudo (spooler RAW) para
+    // que la impresora lo renderice a tamano nativo y no el driver de Windows.
+    await printRaw(
+      buildEscPos(text, {
+        cutPaper: profile.cut_paper,
+        openCashDrawer: profile.open_cash_drawer,
+      }),
+      station.printer_name,
+      this.config.tempDir,
+      exec,
+    );
   }
 
   async run({ signal } = {}) {
@@ -403,6 +488,7 @@ module.exports = {
   buildPlainTicket,
   loadConfig,
   makeError,
+  printRaw,
   resolveCloudApiUrl,
   resolveConnectorVersion,
   saveConfigFile,

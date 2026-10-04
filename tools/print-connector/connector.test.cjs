@@ -7,6 +7,7 @@ const {
   PrintConnector,
   buildEscPos,
   buildPlainTicket,
+  printRaw,
   resolveCloudApiUrl,
   resolveConnectorVersion,
 } = require('./connector.cjs');
@@ -169,6 +170,27 @@ test('builds bounded ticket text and ESC/POS cut command', () => {
   assert.match(text, /Ticket POS #10/);
   assert.match(text, /Total USD: \$5\.00/);
   assert.ok(buildEscPos(text, { cutPaper: true }).includes(Buffer.from('\x1d\x56\x00', 'binary')));
+});
+
+test('imprime RAW por nombre (ESC/POS) en vez de renderizar con el driver de Windows', async () => {
+  const calls = [];
+  const exec = async (cmd, args) => {
+    calls.push({ cmd, args });
+  };
+
+  await printRaw(Buffer.from('TICKET', 'ascii'), 'POS-80', require('node:os').tmpdir(), exec);
+
+  assert.equal(calls.length, 1);
+  if (process.platform === 'win32') {
+    assert.equal(calls[0].cmd, 'powershell.exe');
+    assert.ok(calls[0].args.includes('-PrinterName'));
+    assert.ok(calls[0].args.includes('POS-80'));
+  } else {
+    assert.equal(calls[0].cmd, 'lp');
+    assert.ok(calls[0].args.includes('-o'));
+    assert.ok(calls[0].args.includes('raw'));
+    assert.ok(calls[0].args.includes('POS-80'));
+  }
 });
 
 test('keeps polling after a temporary cloud error', async () => {
