@@ -10,7 +10,7 @@
  *      * Pestaña secundaria opcional para parámetros avanzados (garantía, límites de stock, notas).
  *  - Guarda el producto y sus precios en 1 solo clic.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   DollarSign,
   Package,
@@ -18,6 +18,7 @@ import {
   Sliders,
   Sparkles,
   ExternalLink,
+  Upload,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -43,7 +44,7 @@ import {
   useCreateProduct,
   useWarrantyPolicies,
 } from '@/features/inventory-center/api';
-import { putOne } from '@/api/client';
+import { api, putOne } from '@/api/client';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
   STANDARD_UNITS_OF_MEASURE,
@@ -86,6 +87,9 @@ export function QuickCreateProductDialog({
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [unitOfMeasure, setUnitOfMeasure] = useState('unit');
   const [imageUrl, setImageUrl] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [isActive, setIsActive] = useState(true);
 
   // Costo y Precios
@@ -128,6 +132,8 @@ export function QuickCreateProductDialog({
     setCategoryId(undefined);
     setUnitOfMeasure('unit');
     setImageUrl('');
+    setPhotoFile(null);
+    setPhotoPreview(null);
     setIsActive(true);
     setCost('');
     setBasePrice('');
@@ -201,6 +207,22 @@ export function QuickCreateProductDialog({
 
       if (dirtyPrices.length > 0 && createdId) {
         await putOne(`/products/${createdId}/prices`, { prices: dirtyPrices });
+      }
+
+      // 3. Subir la foto seleccionada (si hay) a la galeria del producto recien creado.
+      if (photoFile && createdId) {
+        try {
+          const formData = new FormData();
+          formData.append('image', photoFile);
+          await api.post(`/products/${createdId}/images`, formData);
+          void qc.invalidateQueries({ queryKey: productKeys.detail(createdId) });
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? `Producto creado, pero no se pudo subir la foto: ${error.message}`
+              : 'Producto creado, pero no se pudo subir la foto.',
+          );
+        }
       }
 
       toast.success('¡Producto creado exitosamente con sus tarifas de precios!');
@@ -391,12 +413,12 @@ export function QuickCreateProductDialog({
 
                 {/* Foto / URL de imagen con vista previa */}
                 <div className="flex flex-col gap-1 pt-0.5">
-                  <Label className="text-[10px] text-text-secondary">URL de Imagen (Opcional)</Label>
+                  <Label className="text-[10px] text-text-secondary">Foto del producto (Opcional)</Label>
                   <div className="flex items-center gap-1.5">
                     <div className="size-7 rounded border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
-                      {imageUrl ? (
+                      {photoPreview || imageUrl ? (
                         <img
-                          src={imageUrl}
+                          src={photoPreview ?? imageUrl}
                           alt="Preview"
                           className="size-full object-contain"
                           onError={(e) => {
@@ -413,7 +435,46 @@ export function QuickCreateProductDialog({
                       onChange={(e) => setImageUrl(e.target.value)}
                       className="text-xs h-7 flex-1"
                     />
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      data-testid="quick-create-photo-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                          toast.error('La imagen debe ser JPG, PNG o WebP.');
+                          return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error('La imagen no puede pesar mas de 5 MB.');
+                          return;
+                        }
+                        if (photoPreview) URL.revokeObjectURL(photoPreview);
+                        setPhotoFile(file);
+                        setPhotoPreview(URL.createObjectURL(file));
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 shrink-0"
+                      onClick={() => photoInputRef.current?.click()}
+                      data-testid="quick-create-upload-photo"
+                    >
+                      <Upload className="size-3.5" />
+                      <span>Subir</span>
+                    </Button>
                   </div>
+                  {photoFile && (
+                    <p className="text-[10px] text-emerald-600">
+                      Foto lista: {photoFile.name} (se sube al guardar)
+                    </p>
+                  )}
                 </div>
               </div>
 
