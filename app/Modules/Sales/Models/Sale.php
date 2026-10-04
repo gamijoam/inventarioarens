@@ -69,7 +69,7 @@ class Sale extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(SaleItem::class);
+        return $this->hasMany(SaleItem::class)->orderBy('id');
     }
 
     public function creator(): BelongsTo

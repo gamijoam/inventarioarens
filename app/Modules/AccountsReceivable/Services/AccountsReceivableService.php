@@ -340,21 +340,25 @@ class AccountsReceivableService
 
     private function recalculate(AccountsReceivable $account): void
     {
-        $account->balance_base_amount = max(0.0, round(
+        // Si el saldo queda por debajo de un centavo (redondeo del POS vs el
+        // total exacto con mas decimales), se considera saldado.
+        $baseBalance = round(
             (float) $account->original_base_amount
             - (float) $account->returned_base_amount
             - (float) $account->collected_base_amount
             - (float) $account->adjusted_base_amount,
             4
-        ));
+        );
+        $account->balance_base_amount = $baseBalance < 0.01 ? 0.0 : $baseBalance;
 
-        $account->balance_local_amount = max(0.0, round(
+        $localBalance = round(
             (float) $account->original_local_amount
             - (float) $account->returned_local_amount
             - (float) $account->collected_local_amount
             - (float) $account->adjusted_local_amount,
             4
-        ));
+        );
+        $account->balance_local_amount = $localBalance < 0.01 ? 0.0 : $localBalance;
 
         if ((float) $account->balance_base_amount <= 0.0) {
             $account->status = AccountsReceivable::STATUS_PAID;

@@ -30,12 +30,12 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Cache\TenantReferenceCache;
 use App\Support\Performance\PerformanceProbe;
 use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
-use App\Modules\Tenancy\Models\Tenant;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -1082,7 +1082,11 @@ class PosCheckoutService
 
     private function coversTotal(float $paidBase, float $totalBase): bool
     {
-        return round($paidBase, 4) + 0.0001 >= round($totalBase, 4);
+        // Tolerancia de un centavo: el POS cobra redondeado a centavos y puede
+        // quedar por debajo del total exacto (p. ej. total 0.173 y pago 0.17).
+        // Sin esto la venta quedaba pendiente con un pago capturado y no se
+        // podia cancelar.
+        return round($paidBase, 4) + 0.01 >= round($totalBase, 4);
     }
 
     private function reserveOrderInventory(PosOrder $order, User $cashier, bool $requireSerialUnits = true): void
