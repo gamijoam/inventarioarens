@@ -2,6 +2,7 @@
 
 namespace App\Modules\Printing\Services;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -363,7 +364,7 @@ class PrinterServer
                 } catch (\Throwable) {
                     $tz = 'America/Caracas';
                 }
-                $formattedPaidAt = \Illuminate\Support\Carbon::parse($rawPaidAt)->setTimezone($tz ?: 'America/Caracas')->format('d/m/Y h:i A');
+                $formattedPaidAt = Carbon::parse($rawPaidAt)->setTimezone($tz ?: 'America/Caracas')->format('d/m/Y h:i A');
             } catch (\Throwable) {
                 $formattedPaidAt = $rawPaidAt;
             }

@@ -168,8 +168,27 @@ test('acknowledges a failed print so the cloud queue can retry it later', async 
 test('builds bounded ticket text and ESC/POS cut command', () => {
   const text = buildPlainTicket(job().payload_snapshot);
   assert.match(text, /Ticket POS #10/);
-  assert.match(text, /Total USD: \$5\.00/);
-  assert.ok(buildEscPos(text, { cutPaper: true }).includes(Buffer.from('\x1d\x56\x00', 'binary')));
+  assert.match(text, /Total USD:/);
+  assert.match(text, /\$5\.00/);
+  // La cantidad x precio y el total quedan alineados (el total a la derecha).
+  assert.match(text, /1 x \$5\.00\s+\$5\.00/);
+
+  const cut = buildEscPos(text, { cutPaper: true });
+  assert.ok(cut.includes(Buffer.from('\x1d\x56\x00', 'binary')));
+  // Avanza papel antes del corte para no cortar informacion pendiente.
+  assert.ok(cut.includes(Buffer.from('\n\n\n\n\x1d\x56\x00', 'binary')));
+});
+
+test('puede ocultar el precio en $ y mostrar la lista de precio por item', () => {
+  const ticket = job().payload_snapshot;
+  ticket.profile.show_item_price = false;
+  ticket.profile.show_item_price_list = true;
+  ticket.items[0].price_list_name = 'Detal USD';
+
+  const text = buildPlainTicket(ticket);
+
+  assert.doesNotMatch(text, /1 x \$5\.00/);
+  assert.match(text, /Lista: Detal USD/);
 });
 
 test('imprime RAW por nombre (ESC/POS) en vez de renderizar con el driver de Windows', async () => {

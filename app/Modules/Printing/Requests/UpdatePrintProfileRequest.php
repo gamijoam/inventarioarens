@@ -36,6 +36,8 @@ class UpdatePrintProfileRequest extends FormRequest
             'show_branch' => ['sometimes', 'boolean'],
             'show_customer' => ['sometimes', 'boolean'],
             'show_item_sku' => ['sometimes', 'boolean'],
+            'show_item_price' => ['sometimes', 'boolean'],
+            'show_item_price_list' => ['sometimes', 'boolean'],
             'show_item_discount' => ['sometimes', 'boolean'],
             'show_item_serials' => ['sometimes', 'boolean'],
             'show_warranty_summary' => ['sometimes', 'boolean'],

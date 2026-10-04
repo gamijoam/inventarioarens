@@ -243,6 +243,8 @@ class PosTicketPrintService
                 'show_branch' => (bool) $profile->show_branch,
                 'show_customer' => (bool) $profile->show_customer,
                 'show_item_sku' => (bool) $profile->show_item_sku,
+                'show_item_price' => (bool) $profile->show_item_price,
+                'show_item_price_list' => (bool) $profile->show_item_price_list,
                 'show_item_discount' => (bool) $profile->show_item_discount,
                 'show_item_serials' => (bool) $profile->show_item_serials,
                 'show_warranty_summary' => (bool) $profile->show_warranty_summary,
@@ -285,6 +287,7 @@ class PosTicketPrintService
             'items' => $items->map(fn ($item): array => [
                 'product_name' => $item->product?->name ?? 'Producto',
                 'sku' => $item->product?->sku,
+                'price_list_name' => $item->price_list_name,
                 'warehouse_name' => $item->warehouse?->name,
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->base_unit_price,
@@ -354,6 +357,7 @@ class PosTicketPrintService
             'items' => [[
                 'product_name' => 'Forro iPhone 11 Transparente',
                 'sku' => 'DEMO-21-CCS',
+                'price_list_name' => 'Detal USD',
                 'warehouse_name' => 'Principal',
                 'quantity' => 1,
                 'unit_price' => 30.35,
@@ -402,6 +406,8 @@ class PosTicketPrintService
             'show_branch' => (bool) $profile->show_branch,
             'show_customer' => (bool) $profile->show_customer,
             'show_item_sku' => (bool) $profile->show_item_sku,
+            'show_item_price' => (bool) $profile->show_item_price,
+            'show_item_price_list' => (bool) $profile->show_item_price_list,
             'show_item_discount' => (bool) $profile->show_item_discount,
             'show_item_serials' => (bool) $profile->show_item_serials,
             'show_warranty_summary' => (bool) $profile->show_warranty_summary,

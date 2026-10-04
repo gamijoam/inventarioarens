@@ -27,6 +27,8 @@ class PrintProfileResource extends JsonResource
             'show_branch' => (bool) $this->show_branch,
             'show_customer' => (bool) $this->show_customer,
             'show_item_sku' => (bool) $this->show_item_sku,
+            'show_item_price' => (bool) $this->show_item_price,
+            'show_item_price_list' => (bool) $this->show_item_price_list,
             'show_item_discount' => (bool) $this->show_item_discount,
             'show_item_serials' => (bool) $this->show_item_serials,
             'show_warranty_summary' => (bool) $this->show_warranty_summary,

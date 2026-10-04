@@ -146,6 +146,7 @@ class ThermalPrinterService
         $buffer .= $text;
 
         if ($cutPaper) {
+            $buffer .= str_repeat("\n", 4); // Avanza papel antes del corte.
             $buffer .= "\x1D\x56\x00"; // GS V 0 -> cut paper full.
         }
 

@@ -50,6 +50,8 @@ const DEFAULT_PROFILE: PrintProfilePayload = {
   show_branch: true,
   show_customer: true,
   show_item_sku: true,
+  show_item_price: true,
+  show_item_price_list: false,
   show_item_discount: true,
   show_item_serials: true,
   show_warranty_summary: true,
@@ -74,6 +76,8 @@ const PROFILE_TOGGLES: Array<{ section: string; key: keyof PrintProfilePayload; 
   { section: 'Datos del ticket', key: 'show_branch', label: 'Sucursal' },
   { section: 'Datos del ticket', key: 'show_customer', label: 'Cliente' },
   { section: 'Items', key: 'show_item_sku', label: 'SKU/codigo' },
+  { section: 'Items', key: 'show_item_price', label: 'Precio en $ (cant. x precio y total)' },
+  { section: 'Items', key: 'show_item_price_list', label: 'Lista de precio por item' },
   { section: 'Items', key: 'show_item_discount', label: 'Descuentos por item' },
   { section: 'Items', key: 'show_item_serials', label: 'IMEI/seriales' },
   { section: 'Garantia', key: 'show_warranty_summary', label: 'Garantia resumida por item' },
@@ -604,7 +608,12 @@ function TicketPreview({ profile }: { profile: PrintProfilePayload }) {
         <div key={item.product_name} className="mb-2">
           <p className="font-bold">{item.product_name}</p>
           {p.show_item_sku && <p className="text-gray-500">{item.sku}</p>}
-          <p className="flex justify-between"><span>{item.quantity} x ${item.unit_price}</span><span>${item.total}</span></p>
+          {p.show_item_price_list && item.price_list_name && (
+            <p className="text-gray-500">Lista: {item.price_list_name}</p>
+          )}
+          {p.show_item_price !== false && (
+            <p className="flex justify-between"><span>{item.quantity} x ${item.unit_price}</span><span>${item.total}</span></p>
+          )}
           {p.show_item_discount && item.discount > 0 && <p>Desc: ${item.discount}</p>}
           {p.show_item_serials && item.serials.map((serial) => <p key={serial.serial_number}>IMEI/Serial: {serial.serial_number}</p>)}
           {p.show_warranty_summary && <p>Garantia: {item.warranty.name} - vence {item.warranty.expires_at}</p>}

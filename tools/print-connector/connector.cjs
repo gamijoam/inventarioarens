@@ -51,6 +51,13 @@ function buildPlainTicket(ticket) {
   const max = Number(profile.paper_width_mm) === 58 ? 32 : 48;
   const lines = [];
   const push = (value = '') => lines.push(String(value).slice(0, max));
+  // Etiqueta a la izquierda y monto alineado a la derecha (usa todo el ancho).
+  const pushPair = (left, right) => {
+    const l = String(left ?? '');
+    const r = String(right ?? '');
+    const space = Math.max(1, max - l.length - r.length);
+    lines.push((l + ' '.repeat(space) + r).slice(0, max));
+  };
   const tenant = ticket?.tenant || {};
   const order = ticket?.pos_order || {};
 
@@ -71,22 +78,27 @@ function buildPlainTicket(ticket) {
   for (const item of ticket?.items || []) {
     push(item.product_name || 'Producto');
     if (profile.show_item_sku !== false && item.sku) push(item.sku);
-    push(
-      `${item.quantity || 0} x $${Number(item.unit_price || 0).toFixed(2)}  $${Number(item.total || 0).toFixed(2)}`,
-    );
+    if (profile.show_item_price_list && item.price_list_name)
+      push(`Lista: ${item.price_list_name}`);
+    if (profile.show_item_price !== false) {
+      pushPair(
+        `${item.quantity || 0} x $${Number(item.unit_price || 0).toFixed(2)}`,
+        `$${Number(item.total || 0).toFixed(2)}`,
+      );
+    }
     if (profile.show_item_serials !== false) {
       for (const serial of item.serials || []) push(`IMEI/Serial: ${serial.serial_number || ''}`);
     }
   }
   push('-'.repeat(max));
   const totals = ticket?.totals || {};
-  push(`Total USD: $${Number(totals.total_base_amount || 0).toFixed(2)}`);
+  pushPair('Total USD:', `$${Number(totals.total_base_amount || 0).toFixed(2)}`);
   if (profile.show_total_local !== false)
-    push(`Total VES: Bs ${Number(totals.total_local_amount || 0).toFixed(2)}`);
-  push(`Pagado USD: $${Number(totals.paid_base_amount || 0).toFixed(2)}`);
+    pushPair('Total VES:', `Bs ${Number(totals.total_local_amount || 0).toFixed(2)}`);
+  pushPair('Pagado USD:', `$${Number(totals.paid_base_amount || 0).toFixed(2)}`);
   push('-'.repeat(max));
   for (const payment of ticket?.payments || []) {
-    push(`${payment.method || 'Pago'} ${payment.currency || ''}: ${payment.amount || 0}`);
+    pushPair(`${payment.method || 'Pago'} ${payment.currency || ''}`, `${payment.amount || 0}`);
     if (profile.show_payment_reference !== false && payment.reference)
       push(`Ref: ${payment.reference}`);
   }
@@ -95,10 +107,12 @@ function buildPlainTicket(ticket) {
   return `${lines.join('\n')}\n\n`;
 }
 
-function buildEscPos(text, { cutPaper = false, openCashDrawer = false } = {}) {
+function buildEscPos(text, { cutPaper = false, openCashDrawer = false, feedLines = 4 } = {}) {
   let output = '';
   if (openCashDrawer) output += '\x1b\x70\x00\x19\xfa';
   output += text;
+  // Avanza el papel antes del corte para no cortar informacion pendiente.
+  if (cutPaper && feedLines > 0) output += '\n'.repeat(feedLines);
   if (cutPaper) output += '\x1d\x56\x00';
   return Buffer.from(output, 'ascii');
 }

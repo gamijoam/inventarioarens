@@ -26,6 +26,8 @@ export const PrintProfileSchema = z.object({
   show_branch: z.boolean(),
   show_customer: z.boolean(),
   show_item_sku: z.boolean(),
+  show_item_price: z.boolean(),
+  show_item_price_list: z.boolean(),
   show_item_discount: z.boolean(),
   show_item_serials: z.boolean(),
   show_warranty_summary: z.boolean(),
@@ -115,6 +117,8 @@ export interface PrintProfilePayload {
   show_branch?: boolean;
   show_customer?: boolean;
   show_item_sku?: boolean;
+  show_item_price?: boolean;
+  show_item_price_list?: boolean;
   show_item_discount?: boolean;
   show_item_serials?: boolean;
   show_warranty_summary?: boolean;
@@ -408,6 +412,7 @@ export function exampleTicketPayload(profile: PrintProfilePayload | PrintProfile
       {
         product_name: 'Forro iPhone 11 Transparente',
         sku: 'DEMO-21-CCS',
+        price_list_name: 'Detal USD',
         quantity: 1,
         unit_price: 30.35,
         total: 30.35,
