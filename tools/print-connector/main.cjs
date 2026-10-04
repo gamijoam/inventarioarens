@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fsSync = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog } = require('electron');
 
@@ -23,7 +24,7 @@ let logFilePath = null;
 function logStartup(message) {
   try {
     if (!logFilePath) {
-      logFilePath = path.join(app.getPath('userData'), 'connector.log');
+      logFilePath = path.join(os.tmpdir(), 'inventario-print-connector.log');
     }
     fsSync.appendFileSync(
       logFilePath,
