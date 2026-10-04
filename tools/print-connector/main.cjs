@@ -1,8 +1,9 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const fsSync = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell, dialog } = require('electron');
 
 const {
   PrintConnector,
@@ -12,6 +13,35 @@ const {
 } = require('./connector.cjs');
 
 const PRODUCT_NAME = 'Inventario Arens Print Connector';
+
+let logFilePath = null;
+
+/**
+ * Log de arranque a un archivo para diagnosticar cuando la app "no abre nada"
+ * (antivirus, crash temprano, etc.). Se escribe antes de crear la ventana.
+ */
+function logStartup(message) {
+  try {
+    if (!logFilePath) {
+      logFilePath = path.join(app.getPath('userData'), 'connector.log');
+    }
+    fsSync.appendFileSync(
+      logFilePath,
+      `${new Date().toISOString()} ${message}\n`,
+      'utf8',
+    );
+  } catch {
+    // Si no se puede escribir el log, no bloqueamos el arranque.
+  }
+}
+
+logStartup(`start argv=${JSON.stringify(process.argv)} platform=${process.platform}`);
+process.on('uncaughtException', (error) => {
+  logStartup(`uncaughtException ${error?.stack || error}`);
+});
+process.on('unhandledRejection', (reason) => {
+  logStartup(`unhandledRejection ${reason?.stack || reason}`);
+});
 const isBackgroundLaunch = process.argv.includes('--background');
 const TRAY_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#41c7b6"/><path d="M8 10h16v12H8z" fill="#07151a"/><path d="M11 13h10M11 16h7M11 19h10" stroke="#41c7b6" stroke-linecap="round" stroke-width="2"/></svg>`;
 let mainWindow = null;
@@ -177,22 +207,27 @@ function createWindow() {
 }
 
 function createTray() {
-  const trayIcon = nativeImage
-    .createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(TRAY_ICON_SVG).toString('base64')}`)
-    .resize({ width: 16, height: 16 });
-  tray = new Tray(trayIcon);
-  tray.setToolTip(PRODUCT_NAME);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Abrir conector', click: () => mainWindow?.show() },
-      { type: 'separator' },
-      {
-        label: 'Salir',
-        click: quitApplication,
-      },
-    ]),
-  );
-  tray.on('click', () => mainWindow?.show());
+  try {
+    const trayIcon = nativeImage
+      .createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(TRAY_ICON_SVG).toString('base64')}`)
+      .resize({ width: 16, height: 16 });
+    tray = new Tray(trayIcon);
+    tray.setToolTip(PRODUCT_NAME);
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Abrir conector', click: () => mainWindow?.show() },
+        { type: 'separator' },
+        {
+          label: 'Salir',
+          click: quitApplication,
+        },
+      ]),
+    );
+    tray.on('click', () => mainWindow?.show());
+  } catch (error) {
+    // La bandeja puede fallar en algunos Windows; no debe impedir la ventana.
+    logStartup(`createTray failed ${error?.stack || error}`);
+  }
 }
 
 function quitApplication() {
@@ -220,8 +255,10 @@ app.setName(PRODUCT_NAME);
 app.setAppUserModelId('com.inventarioarens.printconnector');
 
 const hasLock = app.requestSingleInstanceLock();
+logStartup(`singleInstanceLock granted=${hasLock}`);
 
 if (!hasLock) {
+  logStartup('otra instancia ya esta corriendo; se cierra esta');
   app.quit();
 } else {
   app.on('second-instance', () => {
@@ -230,12 +267,23 @@ if (!hasLock) {
   });
 
   app.whenReady().then(async () => {
-    configPath = configFile();
-    registerIpc();
-    createWindow();
-    createTray();
-    app.setLoginItemSettings({ openAtLogin: true, args: ['--background'] });
-    await startConnector();
+    try {
+      logStartup('whenReady');
+      configPath = configFile();
+      registerIpc();
+      createWindow();
+      createTray();
+      app.setLoginItemSettings({ openAtLogin: true, args: ['--background'] });
+      await startConnector();
+      logStartup('connector started');
+    } catch (error) {
+      logStartup(`whenReady failed ${error?.stack || error}`);
+      try {
+        dialog.showErrorBox('Print Connector', String(error?.message || error));
+      } catch {
+        // ignore
+      }
+    }
   });
 }
 
