@@ -27,6 +27,7 @@ vi.mock('@/features/inventory-center/api', () => ({
   useBrands: () => ({ data: [{ id: 1, name: 'Pirelli' }] }),
   useWarrantyPolicies: () => ({ data: [] }),
   useUpdateProduct: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUploadProductImage: () => ({ mutate: vi.fn(), isPending: false }),
   useProductStockByWarehouse: () => ({
     data: [
       {
@@ -181,6 +182,9 @@ describe('InventoryCatalogWorkspace', () => {
     expect(screen.getByText('Precios de Venta y Costo')).toBeInTheDocument();
     expect(screen.getByText('Existencias')).toBeInTheDocument();
     expect(screen.getByText('Almacén Principal')).toBeInTheDocument();
+    // Permite subir la foto (ademas de la URL externa).
+    expect(screen.getByTestId('catalog-detail-upload-photo')).toBeInTheDocument();
+    expect(screen.getByTestId('catalog-detail-photo-input')).toBeInTheDocument();
   });
 
   it('abre el diálogo de edición al hacer clic en el botón de edición rápida', () => {

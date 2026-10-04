@@ -27,6 +27,7 @@ import {
   Edit,
   ExternalLink,
   Folder,
+  Loader2,
   Package,
   Plus,
   Save,
@@ -37,6 +38,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 
@@ -69,6 +71,7 @@ import {
   useCategories,
   useProductStockByWarehouse,
   useUpdateProduct,
+  useUploadProductImage,
   useWarrantyPolicies,
 } from '@/features/inventory-center/api';
 import { putOne } from '@/api/client';
@@ -1020,6 +1023,8 @@ function ProductCatalogDetailModal({
 }: ProductCatalogDetailModalProps) {
   const qc = useQueryClient();
   const updateProduct = useUpdateProduct();
+  const uploadImage = useUploadProductImage(product.id);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: brands = [] } = useBrands();
   const { data: categories = [] } = useCategories();
@@ -1300,6 +1305,53 @@ function ProductCatalogDetailModal({
                       onChange={(e) => setImageUrl(e.target.value)}
                       className="text-xs h-7"
                     />
+                  </div>
+
+                  {/* Subir foto desde el equipo (misma carga que la galería) */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      data-testid="catalog-detail-photo-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        uploadImage.mutate(
+                          { file, alt: '' },
+                          {
+                            onSuccess: (img) => {
+                              setImageUrl(img.url);
+                              setActiveImageIndex(0);
+                              toast.success('Foto subida.');
+                            },
+                            onError: (err) =>
+                              toast.error(
+                                err instanceof Error ? err.message : 'No se pudo subir la foto.',
+                              ),
+                          },
+                        );
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      disabled={uploadImage.isPending}
+                      onClick={() => photoInputRef.current?.click()}
+                      data-testid="catalog-detail-upload-photo"
+                    >
+                      {uploadImage.isPending ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="size-3.5" />
+                      )}
+                      <span>Subir foto</span>
+                    </Button>
+                    <span className="text-[10px] text-text-muted">JPG/PNG/WebP (max 5 MB)</span>
                   </div>
                 </div>
 
