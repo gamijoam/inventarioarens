@@ -1106,7 +1106,7 @@ export function PosTerminal() {
       panel === null &&
       query.trim().length >= 2 &&
       debouncedSearch.trim().toLocaleLowerCase() === query.trim().toLocaleLowerCase()
-        ? products.slice(0, 4)
+        ? products.slice(0, 6)
         : [],
     [debouncedSearch, panel, products, query],
   );
@@ -1800,7 +1800,7 @@ export function PosTerminal() {
       hideHeader
     >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
-        <header className="border-border/80 bg-surface/95 relative z-30 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
+        <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
           {/* Navegación y Búsqueda */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Button
@@ -1814,7 +1814,7 @@ export function PosTerminal() {
               <span className="hidden sm:inline">Volver</span>
             </Button>
 
-            <div className="relative flex-1 min-w-[200px] max-w-xl">
+            <div className="relative flex-1 min-w-[240px] sm:min-w-[300px] max-w-xl">
               <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
                 ref={searchRef}
@@ -1876,8 +1876,8 @@ export function PosTerminal() {
               {!panel &&
                 query.trim().length >= 2 &&
                 (loadingProducts || quickSearchResults.length > 0) && (
-                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-2xl border shadow-xl">
-                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3 py-2 text-[10px] tracking-wide uppercase">
+                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] left-0 w-[min(680px,calc(100vw-32px))] z-50 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md">
+                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3.5 py-2 text-[10px] tracking-wide uppercase bg-surface-subtle/50">
                       <span>
                         Resultados rápidos
                         {selectedPriceList && (
@@ -1898,11 +1898,11 @@ export function PosTerminal() {
                     </div>
                     <div className="max-h-96 overflow-auto p-2">
                       {loadingProducts && quickSearchResults.length === 0 ? (
-                        <div className="text-text-muted px-2 py-3 text-sm">
+                        <div className="text-text-muted px-3 py-4 text-sm text-center">
                           Buscando productos...
                         </div>
                       ) : quickSearchResults.length === 0 ? (
-                        <div className="text-text-muted px-2 py-3 text-sm">
+                        <div className="text-text-muted px-3 py-4 text-sm text-center">
                           No hay productos con esa búsqueda.
                         </div>
                       ) : (
@@ -1912,6 +1912,8 @@ export function PosTerminal() {
                             activeRate && activeRate.rate > 0
                               ? itemPriceUsd * activeRate.rate
                               : null;
+                          const availStock = Number(product.available_stock ?? 0);
+                          const isAvailable = availStock > 0;
 
                           return (
                             <TapButton
@@ -1926,9 +1928,9 @@ export function PosTerminal() {
                               }}
                               onMouseEnter={() => setQuickSearchIndex(index)}
                               className={cn(
-                                'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                                'hover:bg-primary/8 flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition-all border border-transparent',
                                 index === quickSearchIndex &&
-                                  'bg-primary/15 ring-2 ring-primary/50 shadow-sm scale-[1.01]',
+                                  'bg-primary/10 border-primary/30 shadow-xs',
                               )}
                             >
                               <ProductImageView
@@ -1936,58 +1938,65 @@ export function PosTerminal() {
                                 src={productImageSrc(product) ?? undefined}
                                 alt={product.name}
                                 variant="thumb"
-                                className="border-border bg-bg size-12 shrink-0 rounded-lg border"
+                                className="border-border bg-slate-50 dark:bg-zinc-900 size-12 shrink-0 rounded-xl border object-contain p-1"
                               />
+
+                              {/* Columna central: Nombre en línea 1, SKU + Stock en línea 2 */}
                               <div className="min-w-0 flex-1">
-                                <p
-                                  className={cn(
-                                    'truncate text-sm font-bold text-text-primary',
-                                    index === quickSearchIndex && 'text-primary',
+                                <div className="flex items-center gap-2">
+                                  <p
+                                    className={cn(
+                                      'text-sm font-bold text-text-primary truncate',
+                                      index === quickSearchIndex && 'text-primary',
+                                    )}
+                                  >
+                                    {product.name}
+                                  </p>
+                                  {product.brand?.name && (
+                                    <span className="text-[10px] text-text-muted bg-surface-subtle border border-border/60 px-1.5 py-0.5 rounded shrink-0">
+                                      {product.brand.name}
+                                    </span>
                                   )}
-                                >
-                                  {product.name}
-                                </p>
-                                <p className="text-text-secondary truncate text-xs font-medium mt-0.5">
-                                  <span className="font-mono text-text-primary font-bold bg-bg/80 border border-border/80 px-1.5 py-0.2 rounded mr-1">
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-text-muted flex-wrap">
+                                  <span className="font-mono text-text-primary font-bold bg-surface-subtle border border-border/80 px-1.5 py-0.2 rounded font-semibold text-[11px]">
                                     {product.sku ?? product.barcode ?? 'Sin código'}
                                   </span>
-                                  {product.unit_of_measure &&
-                                    product.unit_of_measure.toLowerCase() !== 'unit' && (
-                                      <span className="ml-1 font-bold text-text-primary uppercase">
-                                        · {product.unit_of_measure}
-                                      </span>
+                                  <span
+                                    className={cn(
+                                      'font-bold text-[11px] inline-flex items-center gap-1',
+                                      isAvailable
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-rose-500',
                                     )}
-                                </p>
+                                  >
+                                    {isAvailable
+                                      ? `📦 ${availStock} ${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? product.unit_of_measure : 'disp.'}`
+                                      : '⚠️ Agotado'}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-right shrink-0 px-1">
-                                <span className="text-sm font-bold text-text-primary block">
+
+                              {/* Columna derecha: Precios USD y Bs */}
+                              <div className="text-right shrink-0 px-2">
+                                <span className="text-sm font-extrabold text-text-primary block tabular-nums">
                                   {money(itemPriceUsd)}
                                 </span>
                                 {itemPriceVes !== null && (
-                                  <span className="text-[10px] text-text-muted font-mono block">
+                                  <span className="text-[10px] text-text-muted font-mono block tabular-nums">
                                     Bs {formatLocalNumber(itemPriceVes)}
                                   </span>
                                 )}
                               </div>
-                              <span
-                                className={cn(
-                                  'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold border',
-                                  Number(product.available_stock ?? 0) > 0
-                                    ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-400'
-                                    : 'bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-400',
-                                )}
-                              >
-                                {Number(product.available_stock ?? 0) > 0
-                                  ? `📦 ${Number(product.available_stock)}${product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit' ? ` ${product.unit_of_measure}` : ''} en stock`
-                                  : '⚠️ Sin stock'}
-                              </span>
+
+                              {/* Botón de Info / Detalle */}
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setDetailProduct(product);
                                 }}
-                                className="shrink-0 p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-bg border border-border/40 hover:border-primary/50 transition-colors"
+                                className="shrink-0 p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-surface-subtle border border-border/50 hover:border-primary/40 transition-colors"
                                 title="Ver detalles y existencia en otras sucursales"
                               >
                                 <Info className="size-4" />
