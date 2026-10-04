@@ -69,6 +69,8 @@ import { PERMISSIONS } from '@/permissions/constants';
 import {
   useBrands,
   useCategories,
+  useDeleteProductImage,
+  useProductImages,
   useProductStockByWarehouse,
   useUpdateProduct,
   useUploadProductImage,
@@ -1024,6 +1026,8 @@ function ProductCatalogDetailModal({
   const qc = useQueryClient();
   const updateProduct = useUpdateProduct();
   const uploadImage = useUploadProductImage(product.id);
+  const deleteImage = useDeleteProductImage(product.id);
+  const { data: galleryImages = [] } = useProductImages(product.id);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: brands = [] } = useBrands();
@@ -1101,15 +1105,21 @@ function ProductCatalogDetailModal({
   const allImages = useMemo(() => {
     const list: string[] = [];
     if (imageUrl && !list.includes(imageUrl)) list.push(imageUrl);
+    for (const img of galleryImages) {
+      if (img.url && !list.includes(img.url)) list.push(img.url);
+    }
     if (product.primary_image_url && !list.includes(product.primary_image_url))
       list.push(product.primary_image_url);
-    if (product.images) {
-      for (const img of product.images) {
-        if (img.url && !list.includes(img.url)) list.push(img.url);
-      }
-    }
     return list;
-  }, [imageUrl, product]);
+  }, [imageUrl, galleryImages, product.primary_image_url]);
+
+  const imageIdByUrl = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const img of galleryImages) {
+      if (img.url) map.set(img.url, img.id);
+    }
+    return map;
+  }, [galleryImages]);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const currentPreviewImage = allImages[activeImageIndex] || imageUrl || null;
@@ -1276,23 +1286,48 @@ function ProductCatalogDetailModal({
                     )}
                   </div>
 
-                  {allImages.length > 1 && (
+                  {allImages.length >= 1 && (
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-                      {allImages.map((img, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setActiveImageIndex(idx)}
-                          className={cn(
-                            'size-8 rounded border overflow-hidden p-0.5 bg-surface transition-all shrink-0',
-                            activeImageIndex === idx
-                              ? 'border-primary ring-2 ring-primary/20'
-                              : 'border-border hover:border-text-secondary',
-                          )}
-                        >
-                          <img src={img} alt={`Thumb ${idx}`} className="size-full object-cover rounded" />
-                        </button>
-                      ))}
+                      {allImages.map((img, idx) => {
+                        const imageId = imageIdByUrl.get(img);
+                        return (
+                          <div key={idx} className="relative shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setActiveImageIndex(idx)}
+                              className={cn(
+                                'size-8 rounded border overflow-hidden p-0.5 bg-surface transition-all',
+                                activeImageIndex === idx
+                                  ? 'border-primary ring-2 ring-primary/20'
+                                  : 'border-border hover:border-text-secondary',
+                              )}
+                            >
+                              <img src={img} alt={`Thumb ${idx}`} className="size-full object-cover rounded" />
+                            </button>
+                            {imageId != null && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  deleteImage.mutate(imageId, {
+                                    onSuccess: () => toast.success('Foto eliminada.'),
+                                    onError: (err) =>
+                                      toast.error(
+                                        err instanceof Error ? err.message : 'No se pudo eliminar la foto.',
+                                      ),
+                                  })
+                                }
+                                disabled={deleteImage.isPending}
+                                className="bg-danger absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full text-white shadow-sm hover:brightness-110 disabled:opacity-50"
+                                title="Eliminar foto"
+                                aria-label="Eliminar foto"
+                                data-testid={`catalog-detail-delete-photo-${imageId}`}
+                              >
+                                <X className="size-2.5" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 

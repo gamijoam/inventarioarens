@@ -28,6 +28,8 @@ vi.mock('@/features/inventory-center/api', () => ({
   useWarrantyPolicies: () => ({ data: [] }),
   useUpdateProduct: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUploadProductImage: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteProductImage: () => ({ mutate: vi.fn(), isPending: false }),
+  useProductImages: () => ({ data: [] }),
   useProductStockByWarehouse: () => ({
     data: [
       {

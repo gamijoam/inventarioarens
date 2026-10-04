@@ -19,6 +19,7 @@ import {
   Sparkles,
   ExternalLink,
   Upload,
+  X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -469,6 +470,25 @@ export function QuickCreateProductDialog({
                       <Upload className="size-3.5" />
                       <span>Subir</span>
                     </Button>
+                    {(photoFile || imageUrl) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="h-7 w-7 shrink-0 text-text-muted hover:text-danger"
+                        title="Quitar foto seleccionada"
+                        aria-label="Quitar foto seleccionada"
+                        data-testid="quick-create-clear-photo"
+                        onClick={() => {
+                          if (photoPreview) URL.revokeObjectURL(photoPreview);
+                          setPhotoFile(null);
+                          setPhotoPreview(null);
+                          setImageUrl('');
+                        }}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    )}
                   </div>
                   {photoFile && (
                     <p className="text-[10px] text-emerald-600">
