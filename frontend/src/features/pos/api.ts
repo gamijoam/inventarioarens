@@ -867,6 +867,7 @@ export const PosBootstrapSchema = z.object({
   exchange_rates: z.array(BootstrapExchangeRateSchema),
   open_session: CashRegisterSessionSchema.nullable(),
   allow_negative_stock: z.boolean().optional(),
+  allow_rate_edit: z.boolean().optional(),
 });
 export type PosBootstrap = z.infer<typeof PosBootstrapSchema>;
 

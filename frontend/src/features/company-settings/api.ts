@@ -16,6 +16,7 @@ export const CompanySettingsSchema = z.object({
   regimen: z.string().nullable().optional(),
   logo_url: z.string().nullable().optional(),
   allow_negative_stock: z.boolean().optional(),
+  pos_allow_rate_edit: z.boolean().optional(),
   show_on: z
     .object({
       sale_ticket: z.boolean().optional(),

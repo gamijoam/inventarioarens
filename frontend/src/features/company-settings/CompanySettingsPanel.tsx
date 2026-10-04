@@ -68,6 +68,7 @@ export function CompanySettingsPanel() {
   });
   const [saving, setSaving] = useState(false);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [allowRateEdit, setAllowRateEdit] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -82,6 +83,7 @@ export function CompanySettingsPanel() {
     setRegimen(data.regimen ?? '');
     setLogoUrl(data.logo_url ?? null);
     setAllowNegativeStock(data.allow_negative_stock ?? false);
+    setAllowRateEdit(data.pos_allow_rate_edit ?? false);
     setShowOn({
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
@@ -147,6 +149,7 @@ export function CompanySettingsPanel() {
         regimen: regimen.trim() || null,
         logo_url: logoUrl,
         allow_negative_stock: allowNegativeStock,
+        pos_allow_rate_edit: allowRateEdit,
         show_on: showOn,
       };
       await update.mutateAsync(payload);
@@ -385,6 +388,23 @@ export function CompanySettingsPanel() {
               onChange={(e) => setAllowNegativeStock(e.target.checked)}
               className="size-4"
               data-testid="company-allow-negative-stock"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">
+            <div>
+              <div className="text-sm font-medium">Permitir cambiar la tasa desde el POS</div>
+              <div className="text-text-muted text-xs">
+                Si se activa, en el POS podés tocar la tasa de la barra superior para abrir un modal
+                y cargar una nueva tasa.
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={allowRateEdit}
+              onChange={(e) => setAllowRateEdit(e.target.checked)}
+              className="size-4"
+              data-testid="company-pos-allow-rate-edit"
             />
           </div>
         </CardContent>

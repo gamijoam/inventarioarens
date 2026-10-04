@@ -67,6 +67,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/Sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/Dialog';
+import { useCreateExchangeRate } from '@/features/inventory-center/api';
 import { Textarea } from '@/components/ui/Textarea';
 import { PosShell, type PosShellAction, type PosShellContext } from '@/components/layout/PosShell';
 import { PERMISSIONS } from '@/permissions/constants';
@@ -789,6 +798,8 @@ export function PosTerminal() {
   const bootstrapRefs = useBootstrapRefsForPos();
   const bootstrap = usePosBootstrap();
   const allowNegativeStock = Boolean(bootstrap.data?.allow_negative_stock);
+  const allowRateEdit = Boolean(bootstrap.data?.allow_rate_edit);
+  const [rateModalOpen, setRateModalOpen] = useState(false);
   const bootstrapReady = !bootstrap.isLoading && !bootstrap.isError;
 
   // Fallback: si /api/pos/bootstrap no devolvio warehouses (cache vacio o
@@ -2056,17 +2067,32 @@ export function PosTerminal() {
               </button>
             </div>
 
-            {activeRate && (
-              <div
-                className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-[11px] font-mono font-medium text-text-secondary shrink-0"
-                title={`Tasa activa: ${activeRate.name ?? activeRate.code}`}
-              >
-                <span className="text-text-muted font-normal">{activeRate.code}:</span>
-                <span className="font-bold text-text-primary">
-                  {formatLocalNumber(activeRate.rate)} VES
-                </span>
-              </div>
-            )}
+            {activeRate &&
+              (allowRateEdit ? (
+                <button
+                  type="button"
+                  onClick={() => setRateModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-[11px] font-mono font-medium text-text-secondary shrink-0 hover:border-primary/60 hover:text-text-primary cursor-pointer"
+                  title="Tasa activa. Clic para cambiarla"
+                  data-testid="pos-rate-edit-trigger"
+                >
+                  <span className="text-text-muted font-normal">{activeRate.code}:</span>
+                  <span className="font-bold text-text-primary">
+                    {formatLocalNumber(activeRate.rate)} VES
+                  </span>
+                  <Settings2 className="size-3 opacity-70" />
+                </button>
+              ) : (
+                <div
+                  className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-[11px] font-mono font-medium text-text-secondary shrink-0"
+                  title={`Tasa activa: ${activeRate.name ?? activeRate.code}`}
+                >
+                  <span className="text-text-muted font-normal">{activeRate.code}:</span>
+                  <span className="font-bold text-text-primary">
+                    {formatLocalNumber(activeRate.rate)} VES
+                  </span>
+                </div>
+              ))}
 
             {/* Botón Cliente [F4] */}
             <Button
@@ -3225,6 +3251,14 @@ export function PosTerminal() {
             }}
           />
         )}
+
+        {/* Modal para cambiar la tasa (solo si la empresa lo habilita) */}
+        <PosRateEditDialog
+          open={rateModalOpen}
+          onOpenChange={setRateModalOpen}
+          rateTypes={exchangeRateTypes}
+          activeRate={activeRate}
+        />
 
         {/* Previsualizacion centrada del ticket al cobrar (F10) */}
         <TicketPreviewDialog
@@ -5101,6 +5135,106 @@ function SerialSelectionPanel({
         </div>
       )}
     </div>
+  );
+}
+
+function PosRateEditDialog({
+  open,
+  onOpenChange,
+  rateTypes,
+  activeRate,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rateTypes: { id: number; code: string; name?: string; is_active?: boolean }[];
+  activeRate: { exchange_rate_type_id: number; code: string; name?: string; rate: number } | null;
+}) {
+  const createRate = useCreateExchangeRate();
+  const [typeId, setTypeId] = useState<number>(activeRate?.exchange_rate_type_id ?? 0);
+  const [value, setValue] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setTypeId(activeRate?.exchange_rate_type_id ?? rateTypes[0]?.id ?? 0);
+    setValue(activeRate ? String(activeRate.rate) : '');
+  }, [open, activeRate, rateTypes]);
+
+  const activeTypes = rateTypes.filter((type) => type.is_active !== false);
+
+  async function saveRate() {
+    const numeric = Number(String(value).replace(',', '.'));
+    if (!typeId) {
+      toast.error('Selecciona el tipo de tasa.');
+      return;
+    }
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      toast.error('Ingresa una tasa mayor que cero.');
+      return;
+    }
+    try {
+      await createRate.mutateAsync({
+        exchange_rate_type_id: typeId,
+        base_currency: 'USD',
+        quote_currency: 'VES',
+        rate: numeric,
+        effective_at: new Date().toISOString(),
+        source: 'manual',
+        is_active: true,
+      });
+      toast.success('Tasa actualizada.');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar la tasa.');
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" data-testid="pos-rate-edit-dialog">
+        <DialogHeader>
+          <DialogTitle>Cambiar tasa</DialogTitle>
+          <DialogDescription>
+            Carga una nueva tasa USD/VES. Se activa y reemplaza la vigente del mismo tipo.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text-muted">Tipo de tasa</label>
+            <Select value={String(typeId)} onChange={(event) => setTypeId(Number(event.target.value))}>
+              {activeTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name ?? type.code} ({type.code})
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text-muted">
+              Nueva tasa (VES por USD)
+            </label>
+            <Input
+              inputMode="decimal"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder="Ej. 850,50"
+              data-testid="pos-rate-edit-value"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={createRate.isPending}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => void saveRate()}
+            loading={createRate.isPending}
+            data-testid="pos-rate-edit-save"
+          >
+            Guardar tasa
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

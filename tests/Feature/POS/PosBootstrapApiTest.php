@@ -16,6 +16,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -123,6 +124,41 @@ class PosBootstrapApiTest extends TestCase
             ->assertJsonPath('open_session.status', CashRegisterSession::STATUS_OPEN)
             ->assertJsonPath('open_session.tenant_id', $tenant->id)
             ->assertJsonPath('open_session.cashier_id', $cashier->id);
+    }
+
+    public function test_bootstrap_exposes_allow_rate_edit_from_company_settings(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Tasa', 'slug' => 'empresa-tasa-bootstrap']);
+        $this->useTenant($tenant);
+
+        $branch = Branch::create(['name' => 'Sucursal Tasa', 'code' => 'BR-TASA']);
+        Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen Tasa', 'code' => 'WH-TASA']);
+        $cashier = User::factory()->create();
+        $cashier->tenants()->attach($tenant, ['status' => 'active']);
+        $this->grantRole($tenant, $cashier, 'Cajero', ['pos.view']);
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonPath('allow_rate_edit', false);
+
+        DB::table('tenant_settings')->updateOrInsert(
+            ['tenant_id' => $tenant->id],
+            [
+                'settings' => json_encode(['company' => ['pos_allow_rate_edit' => true]]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        );
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/pos/bootstrap')
+            ->assertOk()
+            ->assertJsonPath('allow_rate_edit', true);
     }
 
     public function test_bootstrap_only_returns_branches_warehouses_and_registers_in_scope(): void

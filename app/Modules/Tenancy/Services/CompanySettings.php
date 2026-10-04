@@ -27,6 +27,7 @@ class CompanySettings
         'regimen' => null,
         'logo_url' => null,
         'allow_negative_stock' => false,
+        'pos_allow_rate_edit' => false,
         'show_on' => [
             'sale_ticket' => true,
             'guide' => true,
@@ -74,5 +75,16 @@ class CompanySettings
         $settings = self::getForTenant($tenant);
 
         return (bool) ($settings['allow_negative_stock'] ?? false);
+    }
+
+    /**
+     * Indica si el POS permite cambiar la tasa de cambio desde la barra
+     * superior (modal de tasa).
+     */
+    public static function allowsPosRateEdit(Tenant $tenant): bool
+    {
+        $settings = self::getForTenant($tenant);
+
+        return (bool) ($settings['pos_allow_rate_edit'] ?? false);
     }
 }

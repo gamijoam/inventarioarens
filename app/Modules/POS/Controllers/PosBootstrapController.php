@@ -133,6 +133,7 @@ class PosBootstrapController extends Controller
                 ->all(),
             'open_session' => $this->resolveOpenSession($user, $tenantId),
             'allow_negative_stock' => $tenant !== null && CompanySettings::allowsNegativeStock($tenant),
+            'allow_rate_edit' => $tenant !== null && CompanySettings::allowsPosRateEdit($tenant),
         ];
 
         return response()->json($response);
