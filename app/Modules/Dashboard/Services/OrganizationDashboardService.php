@@ -178,8 +178,17 @@ class OrganizationDashboardService
             ) ap on ap.tenant_id = t.id
             left join (
                 select tenant_id, count(*) as low_stock_count
-                from stock_balances
-                where tenant_id in ({$placeholders}) and quantity_available <= ?
+                from (
+                    select p.tenant_id, p.id
+                    from products p
+                    left join stock_balances sb on sb.product_id = p.id and sb.tenant_id = p.tenant_id
+                    where p.tenant_id in ({$placeholders})
+                      and p.is_active = true
+                      and p.track_stock = true
+                    group by p.tenant_id, p.id, p.min_stock
+                    having coalesce(sum(sb.quantity_available), 0) > 0
+                       and coalesce(sum(sb.quantity_available), 0) <= coalesce(p.min_stock, ?)
+                ) sub
                 group by tenant_id
             ) sb on sb.tenant_id = t.id
             left join (

@@ -21,6 +21,7 @@ class DashboardSummaryService
         $metrics = $this->aggregatedMetrics($dateFrom, $dateTo, $threshold);
 
         $lowStockCount = (int) ($metrics['low_stock_count'] ?? 0);
+        $outOfStockCount = (int) ($metrics['out_of_stock_count'] ?? 0);
         $tz = BusinessDateRange::timezone();
 
         $salesTotal = (float) ($metrics['sales_total'] ?? 0);
@@ -68,6 +69,7 @@ class DashboardSummaryService
             ],
             'inventory' => [
                 'low_stock_count' => $lowStockCount,
+                'out_of_stock_count' => $outOfStockCount,
                 'low_stock_threshold' => $threshold,
                 'low_stock_items' => $this->lowStockItems($threshold),
                 'stock_cost_value' => round((float) ($metrics['stock_cost_value'] ?? 0), 4),
@@ -113,7 +115,30 @@ class DashboardSummaryService
             union all
             select 'cash_open_sessions' as metric, cast(count(*) as text) as val_num from cash_register_sessions where tenant_id = ? and status = ?
             union all
-            select 'low_stock_count' as metric, cast(count(*) as text) as val_num from stock_balances where tenant_id = ? and quantity_available <= ?
+            select 'low_stock_count' as metric, cast(coalesce(count(*), 0) as text) as val_num
+                from (
+                    select p.id
+                    from products p
+                    left join stock_balances sb on sb.product_id = p.id and sb.tenant_id = p.tenant_id
+                    where p.tenant_id = ?
+                      and p.is_active = true
+                      and p.track_stock = true
+                    group by p.id, p.min_stock
+                    having coalesce(sum(sb.quantity_available), 0) > 0
+                       and coalesce(sum(sb.quantity_available), 0) <= coalesce(p.min_stock, ?)
+                ) low_stock_products
+            union all
+            select 'out_of_stock_count' as metric, cast(coalesce(count(*), 0) as text) as val_num
+                from (
+                    select p.id
+                    from products p
+                    left join stock_balances sb on sb.product_id = p.id and sb.tenant_id = p.tenant_id
+                    where p.tenant_id = ?
+                      and p.is_active = true
+                      and p.track_stock = true
+                    group by p.id
+                    having coalesce(sum(sb.quantity_available), 0) <= 0
+                ) out_stock_products
             union all
             select 'receivable_count' as metric, cast(count(*) as text) as val_num from accounts_receivables where tenant_id = ? and status in ({$arActive})
             union all
@@ -173,6 +198,7 @@ class DashboardSummaryService
             $tenantId,
             $tenantId,
             $tenantId,
+            $tenantId,
             $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
             $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
             $tenantId, $salesConfirmed, $dateFromStr, $dateToStr,
@@ -221,14 +247,26 @@ class DashboardSummaryService
     private function lowStockItems(float $threshold): array
     {
         return StockBalance::query()
-            ->where('quantity_available', '<=', $threshold)
-            ->select(['id', 'warehouse_id', 'product_id', 'quantity_available'])
+            ->join('products as p', function ($join): void {
+                $join->on('p.id', '=', 'stock_balances.product_id')
+                    ->on('p.tenant_id', '=', 'stock_balances.tenant_id');
+            })
+            ->where('stock_balances.quantity_available', '>', 0)
+            ->whereRaw('stock_balances.quantity_available <= coalesce(p.min_stock, ?)', [$threshold])
+            ->where('p.is_active', true)
+            ->where('p.track_stock', true)
+            ->select([
+                'stock_balances.id',
+                'stock_balances.warehouse_id',
+                'stock_balances.product_id',
+                'stock_balances.quantity_available',
+            ])
             ->with([
                 'product:id,name,sku',
                 'warehouse:id,name',
             ])
-            ->orderBy('quantity_available')
-            ->orderBy('product_id')
+            ->orderBy('stock_balances.quantity_available')
+            ->orderBy('stock_balances.product_id')
             ->limit(5)
             ->get()
             ->map(fn (StockBalance $balance): array => [

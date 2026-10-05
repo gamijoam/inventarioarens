@@ -125,9 +125,10 @@ class AdminDashboardService
             ->selectRaw('SUM(sb.quantity_available) as available')
             ->where('sb.tenant_id', $tenantId)
             ->where('p.is_active', true)
-            ->groupBy('sb.product_id')
+            ->where('p.track_stock', true)
+            ->groupBy('sb.product_id', 'p.min_stock')
             ->havingRaw('SUM(sb.quantity_available) > 0')
-            ->havingRaw('SUM(sb.quantity_available) <= CAST(? AS NUMERIC)', [$threshold]);
+            ->havingRaw('SUM(sb.quantity_available) <= COALESCE(p.min_stock, CAST(? AS NUMERIC))', [$threshold]);
         $lowStockCount = DB::query()
             ->fromSub($lowStockProducts, 'low_stock_products')
             ->count();
