@@ -1349,7 +1349,7 @@ export function PosTerminal() {
       exitDisabled={exitingPos}
       embedded
     >
-      <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME}`}>
+      <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} h-full`}>
         <header className="bg-white/95 rounded-2xl border border-orange-100 shadow-sm backdrop-blur-sm p-4 mb-3 flex shrink-0 flex-wrap items-center gap-3">
           <div className="order-3 grid w-full min-w-0 gap-2.5 md:grid-cols-[minmax(260px,1fr)_210px_230px]">
             <div className="space-y-1">
@@ -1712,9 +1712,9 @@ export function PosTerminal() {
           </div>
         </header>
 
-        <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4 overflow-hidden xl:grid-cols-[minmax(640px,1fr)_430px]">
-          <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex min-h-0 flex-col overflow-hidden">
-            <div className="bg-gradient-to-r from-amber-50/50 to-transparent flex items-center justify-between border-b border-slate-100 p-4">
+        <main className="grid min-h-0 min-w-0 flex-1 gap-4 overflow-y-auto lg:overflow-hidden grid-rows-[auto_auto] lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(640px,1fr)_430px]">
+          <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex min-h-0 flex-col overflow-hidden min-h-[360px] lg:min-h-0">
+            <div className="bg-gradient-to-r from-amber-50/50 to-transparent flex shrink-0 items-center justify-between border-b border-slate-100 p-4">
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-bold text-slate-900 text-base">Ticket actual</h2>
@@ -1751,7 +1751,7 @@ export function PosTerminal() {
                 setCustomerName('Consumidor Final');
               }}
             />
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/40 p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/40 p-3 custom-scrollbar touch-pan-y">
               {cart.length === 0 ? (
                 <div className="border-2 border-dashed border-slate-200 bg-white text-slate-500 flex h-full items-center justify-center rounded-2xl p-6 text-center text-sm">
                   <div>
@@ -1784,7 +1784,7 @@ export function PosTerminal() {
           </section>
 
           <aside className="bg-white rounded-2xl border border-slate-200/90 shadow-sm flex min-h-0 flex-col overflow-hidden">
-            <div className="bg-gradient-to-br from-navy-900 via-[#142642] to-navy-950 p-5 text-white border-b border-slate-800 shadow-inner">
+            <div className="bg-gradient-to-br from-navy-900 via-[#142642] to-navy-950 p-5 text-white border-b border-slate-800 shadow-inner shrink-0">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-bold tracking-wider text-amber-400 uppercase">Total a cobrar</p>
@@ -1807,7 +1807,7 @@ export function PosTerminal() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto custom-scrollbar p-4 touch-pan-y">
               {activePaymentMethods.length === 0 ? (
                 <div className="border-amber-200 bg-amber-50 text-amber-900 mb-3 rounded-xl border p-3 text-sm">
                   Configura métodos de pago para cobrar rápido.
@@ -4383,7 +4383,7 @@ function CustomerAssignmentBanner({
 
   if (!customer) {
     return (
-      <div className="border-border bg-bg/30 border-b px-3 py-2">
+      <div className="border-border bg-bg/30 border-b px-3 py-2 shrink-0">
         <button
           type="button"
           onClick={onChange}
@@ -4400,7 +4400,7 @@ function CustomerAssignmentBanner({
   }
 
   return (
-    <div className="border-primary/20 bg-primary/5 border-b px-3 py-2">
+    <div className="border-primary/20 bg-primary/5 border-b px-3 py-2 shrink-0">
       <div className="border-primary/30 bg-surface flex items-center justify-between gap-3 rounded border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <UserRound className="text-primary size-5 shrink-0" />

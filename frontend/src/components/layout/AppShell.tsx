@@ -51,16 +51,21 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="bg-bg flex min-h-screen">
+    <div className={cn('bg-bg flex', isPos ? 'h-screen overflow-hidden' : 'min-h-screen')}>
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden h-full">
         <Topbar />
-        <main className={cn('flex-1 overflow-auto bg-warm-ambient custom-scrollbar', isPos && 'p-0')}>
+        <main
+          className={cn(
+            'flex-1 overflow-auto bg-warm-ambient custom-scrollbar',
+            isPos && 'p-0 flex flex-col min-h-0 overflow-hidden',
+          )}
+        >
           <div
             className={cn(
               'mx-auto w-full',
               isPos
-                ? 'max-w-none p-2 sm:p-4 lg:p-5 flex flex-col flex-1'
+                ? 'max-w-none p-2 sm:p-4 lg:p-5 flex flex-col flex-1 min-h-0 h-full'
                 : 'max-w-none px-4 py-6 sm:px-6 lg:px-8 2xl:px-10',
             )}
           >

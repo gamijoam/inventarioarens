@@ -100,7 +100,7 @@ export function PosShell({
     <div
       data-testid="pos-shell"
       data-shell="pos"
-      className={embedded ? 'relative flex min-h-0 w-full flex-1 flex-col' : 'bg-bg relative min-h-screen w-full'}
+      className={embedded ? 'relative flex min-h-0 w-full flex-1 flex-col h-full' : 'bg-bg relative min-h-screen w-full'}
     >
       {!embedded && onExit && (
         <button
