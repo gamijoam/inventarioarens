@@ -65,6 +65,7 @@ interface DashboardSummary {
   };
   inventory: {
     low_stock_count: number;
+    out_of_stock_count?: number;
     low_stock_threshold: number;
     stock_cost_value?: number;
     stock_retail_value?: number;
@@ -342,11 +343,15 @@ function TenantDashboardSummary({
           )}
           {visibility.low_stock && (
             <MetricCard
-              title="Bajo stock"
+              title="Stock bajo"
               icon={Boxes}
               value={String(data.inventory.low_stock_count)}
-              helper={`Umbral ${data.inventory.low_stock_threshold}`}
-              tone={data.inventory.low_stock_count > 0 ? 'danger' : 'default'}
+              helper={
+                data.inventory.out_of_stock_count !== undefined && data.inventory.out_of_stock_count > 0
+                  ? `${data.inventory.out_of_stock_count} sin stock · Umbral ${data.inventory.low_stock_threshold}`
+                  : `Umbral ${data.inventory.low_stock_threshold}`
+              }
+              tone={data.inventory.low_stock_count > 0 ? 'warning' : 'default'}
             />
           )}
           {visibility.receivables && (
