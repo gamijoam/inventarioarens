@@ -3254,11 +3254,6 @@ export function PosTerminal() {
                 onSelect={(methodId) => {
                   addQuickPayment(methodId);
                   setPanel(null);
-                  if (posViewMode === 'classic') {
-                    setTimeout(() => {
-                      void confirmPaidSale();
-                    }, 50);
-                  }
                 }}
               />
             )}
@@ -3821,7 +3816,10 @@ export function PosTerminal() {
       current.map((line) => {
         if (line.id !== id) return line;
         const next = { ...line, ...patch };
-        next.quantity = clampQuantity(Number(next.quantity), next.available_stock);
+        const canExceedStock = allowNegativeStock || next.track_stock === false;
+        next.quantity = canExceedStock
+          ? Math.max(1, Number(next.quantity) || 1)
+          : clampQuantity(Number(next.quantity), next.available_stock);
         if (
           next.tracking_type === 'serialized' &&
           next.selected_serials &&

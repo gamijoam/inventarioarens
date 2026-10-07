@@ -528,39 +528,39 @@ export function ClassicPosView({
         <div className="w-[280px] sm:w-[320px] lg:w-[350px] bg-[#1e40af] text-white p-3 flex flex-col justify-between gap-3 border-r-2 border-blue-900 shrink-0 shadow-lg overflow-y-auto">
           <div className="space-y-3">
             {/* F1. CLIENTE */}
-            <div className="bg-blue-950/60 border border-blue-400/40 rounded-xl p-2.5 shadow-sm space-y-1.5">
+            <div className="bg-blue-950/60 border border-blue-400/40 rounded-xl p-3 shadow-sm space-y-2">
               <button
                 type="button"
                 onClick={onSelectCustomer}
-                className="w-full flex items-center justify-between text-left group cursor-pointer hover:bg-blue-800/40 p-1 rounded-lg transition-colors"
+                className="w-full flex items-center justify-between text-left group cursor-pointer hover:bg-blue-800/40 p-1.5 rounded-lg transition-colors"
                 title="Haga clic o presione F1 para seleccionar cliente"
               >
-                <span className="font-mono font-black text-xs sm:text-sm text-yellow-300 group-hover:text-yellow-200 flex items-center gap-1.5">
-                  <span className="bg-yellow-400 text-blue-950 px-1 py-0.2 rounded font-black text-[11px]">
+                <span className="font-mono font-black text-sm sm:text-base text-yellow-300 group-hover:text-yellow-200 flex items-center gap-2">
+                  <span className="bg-yellow-400 text-blue-950 px-1.5 py-0.5 rounded font-black text-xs">
                     F1
                   </span>
                   <span>Cliente:</span>
                 </span>
-                <span className="text-[11px] font-mono text-blue-200 underline opacity-80 group-hover:opacity-100">
+                <span className="text-xs font-mono text-blue-200 underline opacity-90 group-hover:opacity-100 font-semibold">
                   {selectedCustomer ? 'Cambiar' : 'Seleccionar'}
                 </span>
               </button>
 
               <div className="flex items-center gap-3 pt-1">
-                <div className="size-11 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 border-2 border-white flex items-center justify-center shrink-0 shadow-md">
-                  <Users className="size-6 text-white" />
+                <div className="size-12 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 border-2 border-white flex items-center justify-center shrink-0 shadow-md">
+                  <Users className="size-7 text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold text-xs sm:text-sm uppercase truncate text-white leading-tight">
+                  <p className="font-bold text-sm sm:text-base uppercase truncate text-white leading-tight">
                     {selectedCustomer
                       ? selectedCustomer.name
                       : (customerName ?? 'CONSUMIDOR FINAL')}
                   </p>
-                  <p className="font-mono text-xs text-blue-200 mt-0.5 font-semibold">
+                  <p className="font-mono text-xs sm:text-sm text-blue-200 mt-0.5 font-bold">
                     {getCustomerDoc(selectedCustomer)}
                   </p>
                   {selectedCustomer?.phone && (
-                    <p className="font-mono text-[11px] text-blue-300 truncate">
+                    <p className="font-mono text-xs text-blue-300 truncate">
                       {selectedCustomer.phone}
                     </p>
                   )}
@@ -569,38 +569,38 @@ export function ClassicPosView({
             </div>
 
             {/* F2. VENDEDOR */}
-            <div className="bg-blue-950/40 border border-blue-400/30 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
-              <span className="font-mono font-black text-xs text-yellow-300 flex items-center gap-1.5">
-                <span className="bg-yellow-400 text-blue-950 px-1 py-0.2 rounded font-black text-[10px]">
+            <div className="bg-blue-950/40 border border-blue-400/30 rounded-lg px-3 py-2 flex items-center justify-between">
+              <span className="font-mono font-black text-xs sm:text-sm text-yellow-300 flex items-center gap-2">
+                <span className="bg-yellow-400 text-blue-950 px-1.5 py-0.5 rounded font-black text-xs">
                   F2
                 </span>
                 <span>Vendedor:</span>
               </span>
-              <span className="font-bold text-xs text-white uppercase truncate max-w-[170px]">
+              <span className="font-bold text-xs sm:text-sm text-white uppercase truncate max-w-[180px]">
                 {sellerName ?? 'CAJA PRINCIPAL'}
               </span>
             </div>
 
             {/* F5. BUSCADOR INTELIGENTE EN VIVO CON DROPDOWN Y ESCÁNER */}
-            <div ref={searchContainerRef} className="relative space-y-1">
-              <div className="flex items-center justify-between text-[11px] font-bold text-blue-200">
-                <span className="flex items-center gap-1">
-                  <Barcode className="size-3.5" />
+            <div ref={searchContainerRef} className="relative space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold text-blue-200">
+                <span className="flex items-center gap-1.5">
+                  <Barcode className="size-4" />
                   <span>Escáner / Buscador en Vivo</span>
                 </span>
                 <button
                   type="button"
                   onClick={onOpenProductSearch}
-                  className="font-mono text-[10px] bg-blue-950 hover:bg-blue-900 border border-blue-400/30 px-1.5 py-0.5 rounded text-yellow-300 flex items-center gap-1 cursor-pointer transition-colors"
+                  className="font-mono text-xs bg-blue-950 hover:bg-blue-900 border border-blue-400/30 px-2 py-0.5 rounded text-yellow-300 flex items-center gap-1 cursor-pointer transition-colors"
                   title="Abrir catálogo completo [F3]"
                 >
-                  <Search className="size-2.5" />
+                  <Search className="size-3" />
                   <span>[F3] Catálogo</span>
                 </button>
               </div>
 
               <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-1">
-                <div className="bg-black text-white font-mono font-black text-sm px-2.5 py-2 rounded-l-md border border-slate-700 shrink-0 shadow-inner">
+                <div className="bg-black text-white font-mono font-black text-base px-3 py-2.5 rounded-l-lg border border-slate-700 shrink-0 shadow-inner">
                   F5
                 </div>
                 <input
@@ -614,7 +614,7 @@ export function ClassicPosView({
                   }}
                   placeholder="Escriba nombre o código..."
                   autoComplete="off"
-                  className="flex-1 bg-white text-slate-900 font-mono font-bold text-sm px-3 py-2 rounded-r-md border border-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 shadow-inner"
+                  className="flex-1 bg-white text-slate-900 font-mono font-bold text-base px-3.5 py-2.5 rounded-r-lg border border-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 shadow-inner"
                 />
               </form>
 
@@ -771,14 +771,14 @@ export function ClassicPosView({
         {/* TABLA DERECHA DE RENGLONES (TICKET FACTURA) */}
         <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
           {/* BARRA SUPERIOR DE LA TABLA (CONTROLES RÁPIDOS) */}
-          <div className="bg-slate-100 border-b border-slate-300 px-3 py-1.5 flex items-center justify-between text-xs text-slate-700">
+          <div className="bg-slate-100 border-b border-slate-300 px-4 py-2 flex items-center justify-between text-sm text-slate-700">
             <div className="flex items-center gap-3">
-              <span className="font-bold uppercase tracking-wide text-slate-800">
-                Líneas del Ticket: <span className="font-mono text-blue-700">{cart.length}</span>
+              <span className="font-bold uppercase tracking-wide text-slate-800 text-sm">
+                Líneas del Ticket: <span className="font-mono text-blue-700 font-black text-base">{cart.length}</span>
               </span>
               <span className="text-slate-400">|</span>
-              <span className="text-slate-600 hidden md:inline">
-                Navegue con <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">↑</kbd> <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">↓</kbd>, cambie cantidad con doble clic o <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">*</kbd>
+              <span className="text-slate-600 hidden md:inline text-xs">
+                Navegue con <kbd className="px-1.5 py-0.5 bg-white border rounded font-mono text-xs">↑</kbd> <kbd className="px-1.5 py-0.5 bg-white border rounded font-mono text-xs">↓</kbd>, cambie cantidad con doble clic o <kbd className="px-1.5 py-0.5 bg-white border rounded font-mono text-xs">*</kbd>
               </span>
             </div>
 
@@ -786,10 +786,10 @@ export function ClassicPosView({
               <button
                 type="button"
                 onClick={onClearCart}
-                className="text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-0.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                className="text-red-600 hover:text-red-800 hover:bg-red-50 px-2.5 py-1 rounded-md text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Vaciar ticket completo"
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-4" />
                 <span>Vaciar ticket</span>
               </button>
             )}
@@ -797,35 +797,35 @@ export function ClassicPosView({
 
           {/* TABLA CON ENCABEZADO NEGRO ESTILO 1SISTEMA */}
           <div className="flex-1 overflow-y-auto overscroll-contain bg-white min-h-0">
-            <table className="w-full border-collapse text-left font-sans text-xs sm:text-sm">
+            <table className="w-full border-collapse text-left font-sans text-sm sm:text-base">
               {/* ENCABEZADOS NEGROS */}
-              <thead className="bg-[#0f172a] text-white font-mono sticky top-0 z-10 shadow-xs text-xs">
+              <thead className="bg-[#0f172a] text-white font-mono sticky top-0 z-10 shadow-xs text-xs sm:text-sm">
                 <tr>
-                  <th className="py-2 px-2.5 font-bold uppercase w-12 text-center border-r border-slate-700">
+                  <th className="py-2.5 px-3 font-bold uppercase w-12 text-center border-r border-slate-700">
                     #
                   </th>
-                  <th className="py-2 px-2.5 font-bold uppercase w-32 border-r border-slate-700">
+                  <th className="py-2.5 px-3 font-bold uppercase w-36 border-r border-slate-700">
                     Codigo
                   </th>
-                  <th className="py-2 px-3 font-bold uppercase border-r border-slate-700">
+                  <th className="py-2.5 px-4 font-bold uppercase border-r border-slate-700">
                     Descripcion
                   </th>
-                  <th className="py-2 px-2 font-bold uppercase w-14 text-center border-r border-slate-700">
+                  <th className="py-2.5 px-3 font-bold uppercase w-16 text-center border-r border-slate-700">
                     I.V.A
                   </th>
-                  <th className="py-2 px-2.5 font-bold uppercase w-28 text-right border-r border-slate-700">
+                  <th className="py-2.5 px-3 font-bold uppercase w-32 text-right border-r border-slate-700">
                     Precio (Bs)
                   </th>
-                  <th className="py-2 px-2 font-bold uppercase w-20 text-center border-r border-slate-700">
+                  <th className="py-2.5 px-3 font-bold uppercase w-24 text-center border-r border-slate-700">
                     Cant.
                   </th>
-                  <th className="py-2 px-2 font-bold uppercase w-12 text-center border-r border-slate-700">
+                  <th className="py-2.5 px-3 font-bold uppercase w-14 text-center border-r border-slate-700">
                     Dec.
                   </th>
-                  <th className="py-2 px-3 font-bold uppercase w-32 text-right border-r border-slate-700">
+                  <th className="py-2.5 px-4 font-bold uppercase w-36 text-right border-r border-slate-700">
                     Total (Bs)
                   </th>
-                  <th className="py-2 px-2 font-bold uppercase w-20 text-center">
+                  <th className="py-2.5 px-3 font-bold uppercase w-28 text-center">
                     Acción
                   </th>
                 </tr>
@@ -835,10 +835,10 @@ export function ClassicPosView({
               <tbody className="divide-y divide-slate-200 font-mono">
                 {cart.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-16 text-center text-slate-400 font-sans">
-                      <Package className="size-12 mx-auto mb-2 text-slate-300 stroke-[1.25]" />
-                      <p className="font-bold text-sm text-slate-600">Ticket vacío</p>
-                      <p className="text-xs text-slate-400 mt-1">
+                    <td colSpan={9} className="py-20 text-center text-slate-400 font-sans">
+                      <Package className="size-16 mx-auto mb-3 text-slate-300 stroke-[1.25]" />
+                      <p className="font-bold text-base text-slate-600">Ticket vacío</p>
+                      <p className="text-sm text-slate-400 mt-1">
                         Comience escribiendo o escaneando en el campo [F5] a la izquierda.
                       </p>
                     </td>
@@ -857,7 +857,7 @@ export function ClassicPosView({
                         onClick={() => setSelectedIndex(index)}
                         onDoubleClick={() => openQuantityEditor(line)}
                         className={cn(
-                          'cursor-pointer transition-colors group select-none text-xs sm:text-sm',
+                          'cursor-pointer transition-colors group select-none text-sm sm:text-base',
                           isSelected
                             ? 'bg-[#2563eb] text-white font-bold shadow-xs'
                             : index % 2 === 0
@@ -869,10 +869,10 @@ export function ClassicPosView({
                         {/* 1. NÚMERO DE RENGLÓN */}
                         <td
                           className={cn(
-                            'py-2 px-2 text-center border-r',
+                            'py-3 px-3 text-center border-r',
                             isSelected
                               ? 'border-blue-500 font-black'
-                              : 'border-slate-200 text-slate-500',
+                              : 'border-slate-200 text-slate-500 font-bold',
                           )}
                         >
                           {index + 1}
@@ -881,7 +881,7 @@ export function ClassicPosView({
                         {/* 2. CÓDIGO (BARCODE / SKU) */}
                         <td
                           className={cn(
-                            'py-2 px-2.5 truncate max-w-[120px] border-r font-semibold',
+                            'py-3 px-3 truncate max-w-[140px] border-r font-semibold font-mono text-xs sm:text-sm',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-700',
                           )}
                           title={line.barcode || line.sku || ''}
@@ -892,21 +892,21 @@ export function ClassicPosView({
                         {/* 3. DESCRIPCIÓN */}
                         <td
                           className={cn(
-                            'py-2 px-3 border-r font-sans font-medium',
+                            'py-3 px-4 border-r font-sans font-medium text-sm sm:text-base',
                             isSelected ? 'border-blue-500 text-white font-bold' : 'border-slate-200 text-slate-900',
                           )}
                         >
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate">{line.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate leading-tight">{line.name}</span>
                             {stockIssue && (
                               <span
                                 className={cn(
-                                  'text-[10px] px-1 rounded font-mono shrink-0',
+                                  'text-xs px-1.5 py-0.5 rounded font-mono shrink-0 font-bold',
                                   isSelected ? 'bg-amber-400 text-slate-900' : 'bg-red-100 text-red-700',
                                 )}
                                 title={`Stock disponible: ${line.available_stock}`}
                               >
-                                ⚠️ Stock
+                                ⚠️ Stock ({line.available_stock})
                               </span>
                             )}
                           </div>
@@ -915,7 +915,7 @@ export function ClassicPosView({
                         {/* 4. I.V.A (16% o E) */}
                         <td
                           className={cn(
-                            'py-2 px-2 text-center border-r font-semibold',
+                            'py-3 px-3 text-center border-r font-semibold text-xs sm:text-sm',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-600',
                           )}
                         >
@@ -925,7 +925,7 @@ export function ClassicPosView({
                         {/* 5. PRECIO UNITARIO (BS) */}
                         <td
                           className={cn(
-                            'py-2 px-2.5 text-right border-r tabular-nums font-bold',
+                            'py-3 px-3 text-right border-r tabular-nums font-bold text-sm sm:text-base',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                         >
@@ -939,22 +939,22 @@ export function ClassicPosView({
                             openQuantityEditor(line);
                           }}
                           className={cn(
-                            'py-2 px-2 text-center border-r font-black text-sm hover:underline cursor-pointer',
+                            'py-3 px-3 text-center border-r font-black text-base sm:text-lg hover:underline cursor-pointer',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                           title="Haga clic para editar cantidad directamente"
                         >
-                          <span className="inline-flex items-center gap-1">
+                          <span className="inline-flex items-center gap-1.5">
                             <span>{line.quantity}</span>
-                            <Edit3 className="size-2.5 opacity-60 inline" />
+                            <Edit3 className="size-3.5 opacity-60 inline" />
                           </span>
                         </td>
 
                         {/* 7. DECIMALES */}
                         <td
                           className={cn(
-                            'py-2 px-2 text-center border-r text-slate-400',
-                            isSelected ? 'border-blue-500 text-blue-200' : 'border-slate-200',
+                            'py-3 px-3 text-center border-r text-xs sm:text-sm',
+                            isSelected ? 'border-blue-500 text-blue-200' : 'border-slate-200 text-slate-400',
                           )}
                         >
                           0
@@ -963,7 +963,7 @@ export function ClassicPosView({
                         {/* 8. TOTAL (BS) */}
                         <td
                           className={cn(
-                            'py-2 px-3 text-right border-r tabular-nums font-black text-sm',
+                            'py-3 px-4 text-right border-r tabular-nums font-black text-sm sm:text-base',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                         >
@@ -971,43 +971,44 @@ export function ClassicPosView({
                         </td>
 
                         {/* 9. ACCIONES RÁPIDAS (+, -, TRASH) */}
-                        <td className="py-1 px-1 text-center">
-                          <div className="flex items-center justify-center gap-1">
+                        <td className="py-2 px-2 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onUpdateLine(line.id, { quantity: line.quantity + 1 });
+                                onUpdateLine(line.id, { quantity: Number(line.quantity) + 1 });
                               }}
                               className={cn(
-                                'size-6 rounded flex items-center justify-center text-xs transition-colors cursor-pointer',
+                                'size-8 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95',
                                 isSelected
-                                  ? 'bg-blue-700 hover:bg-blue-800 text-white'
-                                  : 'bg-slate-200 hover:bg-slate-300 text-slate-700',
+                                  ? 'bg-blue-700 hover:bg-blue-800 text-white ring-1 ring-white/40'
+                                  : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-black',
                               )}
                               title="Aumentar cantidad (+)"
                             >
-                              <Plus className="size-3.5" />
+                              <Plus className="size-4.5 stroke-[2.5]" />
                             </button>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (line.quantity > 1) {
-                                  onUpdateLine(line.id, { quantity: line.quantity - 1 });
+                                const currentQ = Number(line.quantity);
+                                if (currentQ > 1) {
+                                  onUpdateLine(line.id, { quantity: currentQ - 1 });
                                 } else {
                                   onRemoveLine(line.id);
                                 }
                               }}
                               className={cn(
-                                'size-6 rounded flex items-center justify-center text-xs transition-colors cursor-pointer',
+                                'size-8 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95',
                                 isSelected
-                                  ? 'bg-blue-700 hover:bg-blue-800 text-white'
-                                  : 'bg-slate-200 hover:bg-slate-300 text-slate-700',
+                                  ? 'bg-blue-700 hover:bg-blue-800 text-white ring-1 ring-white/40'
+                                  : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-black',
                               )}
                               title="Disminuir cantidad (-)"
                             >
-                              <Minus className="size-3.5" />
+                              <Minus className="size-4.5 stroke-[2.5]" />
                             </button>
                             <button
                               type="button"
@@ -1016,14 +1017,14 @@ export function ClassicPosView({
                                 onRemoveLine(line.id);
                               }}
                               className={cn(
-                                'size-6 rounded flex items-center justify-center text-xs transition-colors cursor-pointer',
+                                'size-8 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95',
                                 isSelected
                                   ? 'bg-red-500 hover:bg-red-600 text-white'
                                   : 'hover:bg-red-100 text-slate-400 hover:text-red-600',
                               )}
                               title="Eliminar renglón"
                             >
-                              <Trash2 className="size-3.5" />
+                              <Trash2 className="size-4 stroke-[2]" />
                             </button>
                           </div>
                         </td>
@@ -1036,11 +1037,11 @@ export function ClassicPosView({
           </div>
 
           {/* BARRA INFERIOR DE RESUMEN Y BOTÓN COBRAR */}
-          <div className="bg-slate-100 border-t-2 border-slate-300 p-2.5 flex items-center justify-between text-xs sm:text-sm">
-            <div className="flex items-center gap-4 text-slate-700 font-mono">
+          <div className="bg-slate-100 border-t-2 border-slate-300 px-4 py-3 flex items-center justify-between text-sm sm:text-base">
+            <div className="flex items-center gap-5 text-slate-700 font-mono text-sm sm:text-base">
               <div>
                 <span className="text-slate-500">Subtotal: </span>
-                <span className="font-bold">${formatUsd(cartTotals.subtotal)}</span>
+                <span className="font-bold text-slate-900">${formatUsd(cartTotals.subtotal)}</span>
               </div>
               {cartTotals.discount > 0 && (
                 <div>
@@ -1058,9 +1059,9 @@ export function ClassicPosView({
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {payments.length > 0 && (
-                <div className="flex items-center gap-2 bg-emerald-100 text-emerald-950 border border-emerald-300 px-3 py-1.5 rounded-lg text-xs font-bold font-mono">
+                <div className="flex items-center gap-2 bg-emerald-100 text-emerald-950 border border-emerald-300 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold font-mono">
                   <span>Pagado: ${formatUsd(paymentTotals?.paid ?? 0)}</span>
                   {hasPartialPayments && (
                     <span className="text-amber-800">
@@ -1074,7 +1075,7 @@ export function ClassicPosView({
                       className="text-slate-500 hover:text-red-700 ml-1 p-0.5 rounded cursor-pointer"
                       title="Quitar métodos de pago seleccionados"
                     >
-                      <X className="size-3.5" />
+                      <X className="size-4" />
                     </button>
                   )}
                 </div>
@@ -1085,15 +1086,15 @@ export function ClassicPosView({
                 onClick={onOpenPayment}
                 disabled={cart.length === 0}
                 className={cn(
-                  'font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all cursor-pointer font-sans text-xs sm:text-sm',
+                  'font-bold px-5 py-2.5 rounded-xl flex items-center gap-2.5 shadow-md transition-all cursor-pointer font-sans text-sm sm:text-base',
                   cart.length === 0
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-50'
                     : isFullyPaid
-                      ? 'bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white ring-2 ring-emerald-300 shadow-md animate-pulse'
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white ring-2 ring-emerald-300 shadow-lg animate-pulse'
                       : 'bg-emerald-600 hover:bg-emerald-700 text-white',
                 )}
               >
-                <ShoppingBag className="size-4" />
+                <ShoppingBag className="size-5" />
                 <span>
                   {isFullyPaid
                     ? 'CONFIRMAR Y FACTURAR [F10]'
@@ -1110,12 +1111,12 @@ export function ClassicPosView({
       {/* ========================================================================= */}
       {/* 4. BARRA INFERIOR DE TECLAS DE FUNCIÓN CLÁSICAS (ESTILO VALERY/1SISTEMA)   */}
       {/* ========================================================================= */}
-      <footer className="bg-[#0f172a] border-t-2 border-slate-800 px-3 py-1.5 text-white shrink-0 overflow-x-auto">
-        <div className="flex items-center justify-between gap-1.5 min-w-max text-[11px] font-mono">
+      <footer className="bg-[#0f172a] border-t-2 border-slate-800 px-4 py-2 text-white shrink-0 overflow-x-auto">
+        <div className="flex items-center justify-between gap-2 min-w-max text-xs sm:text-sm font-mono">
           <button
             type="button"
             onClick={onSelectCustomer}
-            className="flex items-center gap-1 bg-slate-800 hover:bg-blue-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
           >
             <span className="font-black text-yellow-400">F1</span>
             <span className="text-slate-300">Cliente</span>
@@ -1124,7 +1125,7 @@ export function ClassicPosView({
           <button
             type="button"
             onClick={onOpenProductSearch}
-            className="flex items-center gap-1 bg-slate-800 hover:bg-blue-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
           >
             <span className="font-black text-yellow-400">F3</span>
             <span className="text-slate-300">Catálogo</span>
@@ -1133,7 +1134,7 @@ export function ClassicPosView({
           <button
             type="button"
             onClick={() => searchInputRef.current?.focus()}
-            className="flex items-center gap-1 bg-slate-800 hover:bg-blue-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
           >
             <span className="font-black text-yellow-400">F5</span>
             <span className="text-slate-300">Escáner</span>
@@ -1145,7 +1146,7 @@ export function ClassicPosView({
               onClick={onHoldSale}
               disabled={cart.length === 0}
               className={cn(
-                'flex items-center gap-1 bg-slate-800 hover:bg-amber-600 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer',
+                'flex items-center gap-1.5 bg-slate-800 hover:bg-amber-600 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
                 cart.length === 0 && 'opacity-50 cursor-not-allowed',
               )}
             >
@@ -1158,7 +1159,7 @@ export function ClassicPosView({
             <button
               type="button"
               onClick={onOpenHoldOrders}
-              className="flex items-center gap-1 bg-slate-800 hover:bg-sky-600 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-sky-600 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
             >
               <span className="font-black text-yellow-400">F7</span>
               <span className="text-slate-300">Recuperar</span>
@@ -1170,12 +1171,12 @@ export function ClassicPosView({
             onClick={onOpenPayment}
             disabled={cart.length === 0}
             className={cn(
-              'flex items-center gap-1 bg-emerald-700 hover:bg-emerald-600 px-3 py-1 rounded border border-emerald-500 font-bold transition-colors cursor-pointer',
+              'flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 px-4 py-1.5 rounded-lg border border-emerald-500 font-bold transition-colors cursor-pointer',
               cart.length === 0 && 'opacity-50 cursor-not-allowed',
             )}
           >
-            <span className="font-black text-white">F10</span>
-            <span className="text-white uppercase">Cobrar</span>
+            <span className="font-black text-white text-base">F10</span>
+            <span className="text-white uppercase font-bold">Cobrar</span>
           </button>
 
           <button
@@ -1185,7 +1186,7 @@ export function ClassicPosView({
             }}
             disabled={!activeLine}
             className={cn(
-              'flex items-center gap-1 bg-slate-800 hover:bg-red-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer',
+              'flex items-center gap-1.5 bg-slate-800 hover:bg-red-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
               !activeLine && 'opacity-50 cursor-not-allowed',
             )}
           >
@@ -1200,15 +1201,16 @@ export function ClassicPosView({
             }}
             disabled={!activeLine}
             className={cn(
-              'flex items-center gap-1 bg-slate-800 hover:bg-purple-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer',
+              'flex items-center gap-1.5 bg-slate-800 hover:bg-purple-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
               !activeLine && 'opacity-50 cursor-not-allowed',
             )}
           >
-            <span className="font-black text-purple-300">*</span>
+            <span className="font-black text-purple-300 text-base">*</span>
             <span className="text-slate-300">Cambiar Cantidad</span>
           </button>
         </div>
       </footer>
+
 
       {/* ========================================================================= */}
       {/* 5. MODAL RÁPIDO PARA EDITAR CANTIDAD DIRECTAMENTE                         */}
