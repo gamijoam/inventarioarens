@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Users,
   Trash2,
@@ -131,7 +132,39 @@ export function ClassicPosView({
   const [showDropdown, setShowDropdown] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Posición del dropdown portal para evitar recortes
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 650,
+  });
+
+  const updateDropdownPosition = useCallback(() => {
+    if (searchContainerRef.current) {
+      const rect = searchContainerRef.current.getBoundingClientRect();
+      const targetWidth = Math.min(720, Math.max(580, window.innerWidth - rect.left - 24));
+      setDropdownPosition({
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: targetWidth,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showDropdown) {
+      updateDropdownPosition();
+      window.addEventListener('resize', updateDropdownPosition);
+      window.addEventListener('scroll', updateDropdownPosition, true);
+      return () => {
+        window.removeEventListener('resize', updateDropdownPosition);
+        window.removeEventListener('scroll', updateDropdownPosition, true);
+      };
+    }
+  }, [showDropdown, updateDropdownPosition, searchResults]);
 
   // Modal rápido de edición de cantidad
   const [editingQtyLine, setEditingQtyLine] = useState<PosCartLine | null>(null);
@@ -183,7 +216,13 @@ export function ClassicPosView({
   // Cerrar dropdown si se hace clic afuera
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
         setShowDropdown(false);
       }
     };
@@ -221,14 +260,11 @@ export function ClassicPosView({
     }, 180);
   };
 
-  // Agregar producto seleccionado al ticket
+  // Agregar producto seleccionado al ticket (sin toast ruidoso)
   const handleSelectProduct = useCallback(
     async (product: Product) => {
       try {
-        const added = await onAddProduct(product);
-        if (added) {
-          toast.success(`Agregado: ${product.name}`);
-        }
+        await onAddProduct(product);
       } catch (err) {
         toast.error('No se pudo agregar el producto');
       } finally {
@@ -643,119 +679,131 @@ export function ClassicPosView({
                 />
               </form>
 
-              {/* DROPDOWN PREDICTIVO FLOTANTE DE RESULTADOS EN TIEMPO REAL REDISEÑADO */}
-              {showDropdown && (
-                <div className="absolute top-full left-0 mt-1.5 bg-white border-2 border-blue-500 rounded-2xl shadow-2xl z-50 overflow-hidden text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150 w-[min(720px,94vw)] sm:w-[580px] md:w-[650px] lg:w-[700px]">
-                  <div className="bg-slate-900 text-white border-b border-slate-800 px-3.5 py-2 text-xs font-bold flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Search className="size-3.5 text-blue-400" />
-                      <span>Sugerencias de búsqueda ({searchResults.length})</span>
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      ↑↓ Navegar • Enter Seleccionar • Esc Cerrar
-                    </span>
-                  </div>
+              {/* DROPDOWN PREDICTIVO FLOTANTE DE RESULTADOS EN TIEMPO REAL (PORTAL SIN RECORTES) */}
+              {showDropdown &&
+                createPortal(
+                  <div
+                    ref={dropdownRef}
+                    style={{
+                      position: 'fixed',
+                      top: `${dropdownPosition.top}px`,
+                      left: `${dropdownPosition.left}px`,
+                      width: `${dropdownPosition.width}px`,
+                      zIndex: 99999,
+                    }}
+                    className="bg-white border-2 border-blue-500 rounded-2xl shadow-2xl overflow-hidden text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150"
+                  >
+                    <div className="bg-slate-900 text-white border-b border-slate-800 px-3.5 py-2 text-xs font-bold flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Search className="size-3.5 text-blue-400" />
+                        <span>Sugerencias de búsqueda ({searchResults.length})</span>
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        ↑↓ Navegar • Enter Seleccionar • Esc Cerrar
+                      </span>
+                    </div>
 
-                  <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100">
-                    {isSearching ? (
-                      <div className="p-6 text-center text-sm font-semibold text-slate-500 flex items-center justify-center gap-2">
-                        <span className="animate-spin size-4 border-2 border-blue-600 border-t-transparent rounded-full" />
-                        <span>Buscando productos en catálogo...</span>
-                      </div>
-                    ) : searchResults.length === 0 ? (
-                      <div className="p-6 text-center text-sm font-medium text-slate-500">
-                        No se encontraron productos coincidentes
-                      </div>
-                    ) : (
-                      searchResults.map((product, idx) => {
-                        const isSelected = idx === activeSearchIndex;
-                        const priceUsd = Number(product.base_price ?? 0);
-                        const priceBs = priceUsd * rateVal;
-                        const stock = Number(product.available_stock ?? 0);
+                    <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100">
+                      {isSearching ? (
+                        <div className="p-6 text-center text-sm font-semibold text-slate-500 flex items-center justify-center gap-2">
+                          <span className="animate-spin size-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                          <span>Buscando productos en catálogo...</span>
+                        </div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="p-6 text-center text-sm font-medium text-slate-500">
+                          No se encontraron productos coincidentes
+                        </div>
+                      ) : (
+                        searchResults.map((product, idx) => {
+                          const isSelected = idx === activeSearchIndex;
+                          const priceUsd = Number(product.base_price ?? 0);
+                          const priceBs = priceUsd * rateVal;
+                          const stock = Number(product.available_stock ?? 0);
 
-                        return (
-                          <div
-                            key={product.id}
-                            onClick={() => void handleSelectProduct(product)}
-                            onMouseEnter={() => setActiveSearchIndex(idx)}
-                            className={cn(
-                              'p-3 sm:p-3.5 flex items-center gap-3.5 cursor-pointer transition-colors',
-                              isSelected ? 'bg-blue-600 text-white' : 'hover:bg-blue-50/80',
-                            )}
-                          >
-                            <ProductImage
-                              src={product.image_url ?? undefined}
-                              alt={product.name}
-                              variant="thumb"
-                              fit="contain"
+                          return (
+                            <div
+                              key={product.id}
+                              onClick={() => void handleSelectProduct(product)}
+                              onMouseEnter={() => setActiveSearchIndex(idx)}
                               className={cn(
-                                'size-14 sm:size-16 rounded-xl border shrink-0 object-contain p-1',
-                                isSelected
-                                  ? 'border-blue-400 bg-white'
-                                  : 'border-slate-200 bg-slate-50',
+                                'p-3 sm:p-3.5 flex items-center gap-3.5 cursor-pointer transition-colors',
+                                isSelected ? 'bg-blue-600 text-white' : 'hover:bg-blue-50/80',
                               )}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p
+                            >
+                              <ProductImage
+                                src={product.image_url ?? undefined}
+                                alt={product.name}
+                                variant="thumb"
+                                fit="contain"
                                 className={cn(
-                                  'font-black text-sm sm:text-base leading-tight line-clamp-2',
-                                  isSelected ? 'text-white' : 'text-slate-900',
+                                  'size-14 sm:size-16 rounded-xl border shrink-0 object-contain p-1',
+                                  isSelected
+                                    ? 'border-blue-400 bg-white'
+                                    : 'border-slate-200 bg-slate-50',
                                 )}
-                              >
-                                {product.name}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-2 mt-1.5 font-mono text-xs">
-                                <span
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p
                                   className={cn(
-                                    'px-2 py-0.5 rounded font-bold',
-                                    isSelected
-                                      ? 'bg-blue-700 text-blue-100'
-                                      : 'bg-slate-100 text-slate-700 border border-slate-200',
+                                    'font-black text-sm sm:text-base leading-tight line-clamp-2',
+                                    isSelected ? 'text-white' : 'text-slate-900',
                                   )}
                                 >
-                                  {product.barcode || product.sku || `ID: ${product.id}`}
-                                </span>
-                                <span
+                                  {product.name}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2 mt-1.5 font-mono text-xs">
+                                  <span
+                                    className={cn(
+                                      'px-2 py-0.5 rounded font-bold',
+                                      isSelected
+                                        ? 'bg-blue-700 text-blue-100'
+                                        : 'bg-slate-100 text-slate-700 border border-slate-200',
+                                    )}
+                                  >
+                                    {product.barcode || product.sku || `ID: ${product.id}`}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      'px-2.5 py-0.5 rounded font-black text-xs',
+                                      stock > 0
+                                        ? isSelected
+                                          ? 'bg-emerald-500 text-white'
+                                          : 'bg-emerald-100 text-emerald-800'
+                                        : isSelected
+                                          ? 'bg-red-400 text-slate-900'
+                                          : 'bg-red-100 text-red-800',
+                                    )}
+                                  >
+                                    Stock: {stock}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0 pl-2">
+                                <p
                                   className={cn(
-                                    'px-2.5 py-0.5 rounded font-black text-xs',
-                                    stock > 0
-                                      ? isSelected
-                                        ? 'bg-emerald-500 text-white'
-                                        : 'bg-emerald-100 text-emerald-800'
-                                      : isSelected
-                                        ? 'bg-red-400 text-slate-900'
-                                        : 'bg-red-100 text-red-800',
+                                    'font-mono font-black text-base sm:text-lg',
+                                    isSelected ? 'text-white' : 'text-slate-900',
                                   )}
                                 >
-                                  Stock: {stock}
-                                </span>
+                                  ${formatUsd(priceUsd)}
+                                </p>
+                                <p
+                                  className={cn(
+                                    'font-mono font-bold text-xs sm:text-sm mt-0.5',
+                                    isSelected ? 'text-blue-200' : 'text-emerald-700',
+                                  )}
+                                >
+                                  Bs {formatBs(priceBs)}
+                                </p>
                               </div>
                             </div>
-                            <div className="text-right shrink-0 pl-2">
-                              <p
-                                className={cn(
-                                  'font-mono font-black text-base sm:text-lg',
-                                  isSelected ? 'text-white' : 'text-slate-900',
-                                )}
-                              >
-                                ${formatUsd(priceUsd)}
-                              </p>
-                              <p
-                                className={cn(
-                                  'font-mono font-bold text-xs sm:text-sm mt-0.5',
-                                  isSelected ? 'text-blue-200' : 'text-emerald-700',
-                                )}
-                              >
-                                Bs {formatBs(priceBs)}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>,
+                  document.body,
+                )}
             </div>
 
             {/* VISOR DE FOTO GRANDE DEL PRODUCTO SELECCIONADO */}
