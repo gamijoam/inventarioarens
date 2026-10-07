@@ -649,6 +649,7 @@ export function PosTerminal() {
   const canDigital = permissions.has(PERMISSIONS.PRINTING_DIGITAL);
 
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const quickSearchListRef = useRef<HTMLDivElement | null>(null);
   const holdSaleRef = useRef<(() => Promise<void>) | null>(null);
   const confirmPaidSaleRef = useRef<(() => Promise<void>) | null>(null);
   const addProductRef = useRef<typeof addProduct | null>(null);
@@ -1123,7 +1124,7 @@ export function PosTerminal() {
       panel === null &&
       query.trim().length >= 2 &&
       debouncedSearch.trim().toLocaleLowerCase() === query.trim().toLocaleLowerCase()
-        ? products.slice(0, 6)
+        ? products.slice(0, 15)
         : [],
     [debouncedSearch, panel, products, query],
   );
@@ -1131,6 +1132,15 @@ export function PosTerminal() {
   useEffect(() => {
     setQuickSearchIndex(0);
   }, [query, quickSearchResults.length]);
+
+  useEffect(() => {
+    if (quickSearchListRef.current && quickSearchResults.length > 0) {
+      const activeEl = quickSearchListRef.current.children[quickSearchIndex] as HTMLElement | undefined;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [quickSearchIndex, quickSearchResults.length]);
   const pendingInvoicePromotion = useMemo(() => {
     const applications = (
       selectedPending?.sale as { promotion_applications?: unknown[] } | undefined
@@ -1894,10 +1904,10 @@ export function PosTerminal() {
               {!panel &&
                 query.trim().length >= 2 &&
                 (loadingProducts || quickSearchResults.length > 0) && (
-                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] left-0 w-[min(680px,calc(100vw-32px))] z-50 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md">
-                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3.5 py-2 text-[10px] tracking-wide uppercase bg-surface-subtle/50">
+                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] left-0 w-[min(680px,calc(100vw-32px))] z-50 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md flex flex-col max-h-[min(480px,calc(100vh-140px))]">
+                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3.5 py-2 text-[10px] tracking-wide uppercase bg-surface-subtle/50 shrink-0">
                       <span>
-                        Resultados rápidos
+                        Resultados rápidos ({quickSearchResults.length})
                         {selectedPriceList && (
                           <span className="ml-1.5 text-primary font-semibold normal-case">
                             ({selectedPriceList.name})
@@ -1914,7 +1924,7 @@ export function PosTerminal() {
                         Ver todos
                       </TapButton>
                     </div>
-                    <div className="max-h-96 overflow-auto p-2">
+                    <div ref={quickSearchListRef} className="overflow-y-auto p-2 flex-1 min-h-0 overscroll-contain">
                       {loadingProducts && quickSearchResults.length === 0 ? (
                         <div className="text-text-muted px-3 py-4 text-sm text-center">
                           Buscando productos...

@@ -573,6 +573,7 @@ export function usePosProducts(
 export async function fetchPosProductsDirect(
   search: string,
   warehouseId?: number | null,
+  perPage: number = 25,
 ): Promise<Product[]> {
   const params = new URLSearchParams({
     search,
@@ -580,7 +581,7 @@ export async function fetchPosProductsDirect(
     stock_status: 'all',
     active_status: 'active',
     page: '1',
-    per_page: '12',
+    per_page: String(perPage),
     with_images: '1',
     with_prices: '1',
   });

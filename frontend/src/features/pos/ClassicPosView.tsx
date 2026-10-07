@@ -133,26 +133,61 @@ export function ClassicPosView({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownListRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Posición del dropdown portal para evitar recortes
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number }>({
-    top: 0,
+  // Posición del dropdown portal para evitar recortes y desbordamientos en pantalla
+  const [dropdownPosition, setDropdownPosition] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  }>({
     left: 0,
     width: 650,
+    maxHeight: 440,
   });
 
   const updateDropdownPosition = useCallback(() => {
     if (searchContainerRef.current) {
       const rect = searchContainerRef.current.getBoundingClientRect();
-      const targetWidth = Math.min(720, Math.max(580, window.innerWidth - rect.left - 24));
-      setDropdownPosition({
-        top: rect.bottom + 6,
-        left: rect.left,
-        width: targetWidth,
-      });
+      const targetWidth = Math.min(720, Math.max(540, window.innerWidth - rect.left - 24));
+      const spaceBelow = window.innerHeight - rect.bottom - 16;
+      const spaceAbove = rect.top - 16;
+      const preferAbove = spaceBelow < 280 && spaceAbove > spaceBelow;
+
+      const maxDropdownHeight = preferAbove
+        ? Math.max(180, Math.min(520, spaceAbove - 10))
+        : Math.max(180, Math.min(520, spaceBelow - 10));
+
+      if (preferAbove) {
+        setDropdownPosition({
+          bottom: Math.max(10, window.innerHeight - rect.top + 6),
+          left: rect.left,
+          width: targetWidth,
+          maxHeight: maxDropdownHeight,
+        });
+      } else {
+        setDropdownPosition({
+          top: rect.bottom + 6,
+          left: rect.left,
+          width: targetWidth,
+          maxHeight: maxDropdownHeight,
+        });
+      }
     }
   }, []);
+
+  // Mantener el elemento seleccionado en el buscador a la vista al navegar con flechas
+  useEffect(() => {
+    if (showDropdown && dropdownListRef.current) {
+      const activeEl = dropdownListRef.current.children[activeSearchIndex] as HTMLElement | undefined;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [activeSearchIndex, showDropdown]);
 
   useEffect(() => {
     if (showDropdown) {
@@ -248,8 +283,8 @@ export function ClassicPosView({
     setIsSearching(true);
     searchDebounceRef.current = setTimeout(async () => {
       try {
-        const results = await fetchPosProductsDirect(val.trim(), warehouseId ?? null);
-        setSearchResults(results.slice(0, 8)); // Top 8 resultados
+        const results = await fetchPosProductsDirect(val.trim(), warehouseId ?? null, 30);
+        setSearchResults(results.slice(0, 30));
         setActiveSearchIndex(0);
         setShowDropdown(results.length > 0);
       } catch {
@@ -686,14 +721,16 @@ export function ClassicPosView({
                     ref={dropdownRef}
                     style={{
                       position: 'fixed',
-                      top: `${dropdownPosition.top}px`,
+                      top: dropdownPosition.top !== undefined ? `${dropdownPosition.top}px` : undefined,
+                      bottom: dropdownPosition.bottom !== undefined ? `${dropdownPosition.bottom}px` : undefined,
                       left: `${dropdownPosition.left}px`,
                       width: `${dropdownPosition.width}px`,
+                      maxHeight: `${dropdownPosition.maxHeight}px`,
                       zIndex: 99999,
                     }}
-                    className="bg-white border-2 border-blue-500 rounded-2xl shadow-2xl overflow-hidden text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150"
+                    className="bg-white border-2 border-blue-500 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150"
                   >
-                    <div className="bg-slate-900 text-white border-b border-slate-800 px-3.5 py-2 text-xs font-bold flex items-center justify-between">
+                    <div className="bg-slate-900 text-white border-b border-slate-800 px-3.5 py-2 text-xs font-bold flex items-center justify-between shrink-0">
                       <span className="flex items-center gap-2">
                         <Search className="size-3.5 text-blue-400" />
                         <span>Sugerencias de búsqueda ({searchResults.length})</span>
@@ -703,7 +740,10 @@ export function ClassicPosView({
                       </span>
                     </div>
 
-                    <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100">
+                    <div
+                      ref={dropdownListRef}
+                      className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 overscroll-contain"
+                    >
                       {isSearching ? (
                         <div className="p-6 text-center text-sm font-semibold text-slate-500 flex items-center justify-center gap-2">
                           <span className="animate-spin size-4 border-2 border-blue-600 border-t-transparent rounded-full" />
