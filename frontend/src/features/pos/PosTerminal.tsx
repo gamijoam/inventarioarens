@@ -44,6 +44,7 @@ import {
   Package,
   X,
   Settings2,
+  Monitor,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
@@ -97,6 +98,7 @@ import { InvoicePromotionDecisionPanel } from './InvoicePromotionDecisionPanel';
 import { VariantPicker } from './VariantPicker';
 import { ProductSearchDetailModal } from './ProductSearchDetailModal';
 import { PosCatalogGrid } from './PosCatalogGrid';
+import { ClassicPosView } from './ClassicPosView';
 import { ProductDetailDialog } from './ProductDetailDialog';
 import { TicketPreviewDialog } from './TicketPreviewDialog';
 import {
@@ -589,10 +591,10 @@ export function PosTerminal() {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [posColorTheme, setPosColorTheme] = useState<PosColorTheme>(loadPosColorTheme);
   const [showVesOnCards, setShowVesOnCards] = useState<boolean>(loadShowVesOnCards);
-  const [posViewMode, setPosViewMode] = useState<'catalog' | 'ticket'>(() => {
+  const [posViewMode, setPosViewMode] = useState<'catalog' | 'ticket' | 'classic'>(() => {
     try {
       const saved = localStorage.getItem('pos_view_mode');
-      if (saved === 'ticket' || saved === 'catalog') return saved;
+      if (saved === 'ticket' || saved === 'catalog' || saved === 'classic') return saved;
     } catch {
       // fallback
     }
@@ -600,7 +602,7 @@ export function PosTerminal() {
   });
   const [ticketDrawerOpen, setTicketDrawerOpen] = useState(false);
 
-  const handleSetPosMode = (mode: 'catalog' | 'ticket') => {
+  const handleSetPosMode = (mode: 'catalog' | 'ticket' | 'classic') => {
     setPosViewMode(mode);
     try {
       localStorage.setItem('pos_view_mode', mode);
@@ -609,6 +611,7 @@ export function PosTerminal() {
     }
   };
   const handleSetPosViewMode = handleSetPosMode;
+  const currentUser = useSessionStore((state) => state.user);
   const { permissions } = usePermissionContext();
   const tenantName = useSessionStore((state) => state.tenant?.name ?? 'Empresa actual');
   const activeTenantId = useSessionStore((state) => state.tenant?.id);
@@ -2081,11 +2084,26 @@ export function PosTerminal() {
                       ? 'bg-primary text-white shadow-xs'
                       : 'text-text-muted hover:text-text-primary',
                   )}
-                  title="Modo Ticket Clásico / Código de barras [Persistente]"
+                  title="Modo Ticket / Código de barras [Persistente]"
                   data-testid="pos-view-mode-ticket"
                 >
                   <Receipt className="size-3.5" />
                   <span>Ticket</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetPosViewMode('classic')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                    posViewMode === 'classic'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-text-muted hover:text-text-primary',
+                  )}
+                  title="Modo Clásico / Facturación Rápida estilo 1Sistema [Persistente]"
+                  data-testid="pos-view-mode-classic"
+                >
+                  <Monitor className="size-3.5" />
+                  <span>Clásico</span>
                 </button>
               </div>
             )}
@@ -2352,13 +2370,69 @@ export function PosTerminal() {
 
         <main
           className={cn(
-            'min-h-0 min-w-0 flex-1 overflow-hidden p-3 relative',
-            posViewMode === 'catalog'
-              ? 'flex flex-col'
-              : 'grid grid-rows-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(680px,1fr)_430px]',
+            'min-h-0 min-w-0 flex-1 overflow-hidden relative',
+            posViewMode === 'classic'
+              ? 'flex flex-col p-0'
+              : posViewMode === 'catalog'
+                ? 'flex flex-col p-3'
+                : 'grid grid-rows-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(680px,1fr)_430px] p-3',
           )}
         >
-          {posViewMode === 'catalog' ? (
+          {posViewMode === 'classic' ? (
+            <ClassicPosView
+              cart={cart}
+              cartTotals={cartTotals}
+              activeRate={activeRate}
+              selectedCustomer={selectedCustomer}
+              customerName={customerName}
+              sellerName={currentUser?.name ?? undefined}
+              canDiscount={canDiscount}
+              allowNegativeStock={allowNegativeStock}
+              onSelectCustomer={() => setPanel('customer')}
+              onOpenPayment={() => {
+                if (cart.length === 0) {
+                  toast.info('El ticket está vacío. Agregue productos para cobrar.');
+                  return;
+                }
+                if (priceListPaymentIssue) {
+                  toast.error(priceListPaymentIssue);
+                  return;
+                }
+                setPanel('pay');
+              }}
+              onClearCart={clearPos}
+              onUpdateLine={(id, patch) => updateLine(id, patch)}
+              onRemoveLine={(id) => removeLine(id)}
+              onSearchSubmit={async (term) => {
+                setQuery(term);
+                try {
+                  const directResults = await fetchPosProductsDirect(term, effectiveWarehouseId);
+                  const normalized = term.toLowerCase().trim();
+                  const exact = directResults.find(
+                    (p) =>
+                      p.barcode?.toLowerCase() === normalized ||
+                      p.sku?.toLowerCase() === normalized,
+                  );
+                  const prod = exact ?? directResults[0];
+                  if (prod) {
+                    const added = await addProduct(prod, undefined, 1);
+                    if (added) {
+                      toast.success(`Agregado: ${prod.name}`);
+                      return true;
+                    }
+                  } else {
+                    toast.error(`Producto no encontrado para: ${term}`);
+                  }
+                } catch {
+                  toast.error('Error al consultar producto');
+                }
+              }}
+              onOpenSerials={(lineId) => {
+                setSerialLineId(lineId);
+                setPanel('serials');
+              }}
+            />
+          ) : posViewMode === 'catalog' ? (
             <>
               <PosCatalogGrid
                 warehouseId={effectiveWarehouseId}
