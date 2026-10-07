@@ -3,6 +3,7 @@
 namespace App\Modules\Reports\Services;
 
 use App\Models\User;
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Inventory\Models\ProductUnit;
@@ -196,7 +197,7 @@ class OperationalReportService
         ];
     }
 
-    public function cashSessions(array $filters): array
+    public function cashSessions(array $filters, User $user): array
     {
         $tenantId = app(TenantManager::class)->require()->id;
         [$from, $to] = $this->dateRange($filters);
@@ -211,6 +212,8 @@ class OperationalReportService
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['cash_register_id'] ?? null, fn ($query, int $registerId) => $query->where('cash_register_id', $registerId))
             ->when($filters['cashier_id'] ?? null, fn ($query, int $cashierId) => $query->where('cashier_id', $cashierId));
+
+        app(ScopeResolver::class)->applyBranchScope($sessionsQuery, $user, 'branch_id');
 
         $summary = (clone $sessionsQuery)
             ->selectRaw(

@@ -182,25 +182,6 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
                   </div>
                 </div>
 
-                {data.counts.length > 0 && (
-                  <div>
-                    <p className="text-text-muted mb-1 text-xs font-semibold uppercase">Conteo</p>
-                    <div className="space-y-1">
-                      {data.counts.map((count, index) => (
-                        <div key={index} className="flex justify-between gap-3 text-xs border-b border-border/40 py-0.5">
-                          <span>
-                            {count.denomination} {count.currency} x{count.quantity}
-                          </span>
-                          <span>
-                            {count.currency === 'VES'
-                              ? formatBs(count.total_amount)
-                              : formatMoney(count.total_amount)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </TabsContent>
 
               <TabsContent value="categorias" className="space-y-3 pt-2">

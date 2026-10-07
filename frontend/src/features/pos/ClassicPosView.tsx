@@ -643,23 +643,27 @@ export function ClassicPosView({
                 />
               </form>
 
-              {/* DROPDOWN PREDICTIVO FLOTANTE DE RESULTADOS EN TIEMPO REAL */}
+              {/* DROPDOWN PREDICTIVO FLOTANTE DE RESULTADOS EN TIEMPO REAL REDISEÑADO */}
               {showDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-blue-500 rounded-xl shadow-2xl z-50 overflow-hidden text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150">
-                  <div className="bg-slate-100 border-b border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 flex items-center justify-between">
-                    <span>Resultados coincidentes ({searchResults.length})</span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      ↑↓ Navegar • Enter Seleccionar
+                <div className="absolute top-full left-0 mt-1.5 bg-white border-2 border-blue-500 rounded-2xl shadow-2xl z-50 overflow-hidden text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150 w-[min(720px,94vw)] sm:w-[580px] md:w-[650px] lg:w-[700px]">
+                  <div className="bg-slate-900 text-white border-b border-slate-800 px-3.5 py-2 text-xs font-bold flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Search className="size-3.5 text-blue-400" />
+                      <span>Sugerencias de búsqueda ({searchResults.length})</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      ↑↓ Navegar • Enter Seleccionar • Esc Cerrar
                     </span>
                   </div>
 
-                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                  <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100">
                     {isSearching ? (
-                      <div className="p-3 text-center text-xs text-slate-500">
-                        Buscando productos...
+                      <div className="p-6 text-center text-sm font-semibold text-slate-500 flex items-center justify-center gap-2">
+                        <span className="animate-spin size-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                        <span>Buscando productos en catálogo...</span>
                       </div>
                     ) : searchResults.length === 0 ? (
-                      <div className="p-3 text-center text-xs text-slate-500">
+                      <div className="p-6 text-center text-sm font-medium text-slate-500">
                         No se encontraron productos coincidentes
                       </div>
                     ) : (
@@ -675,8 +679,8 @@ export function ClassicPosView({
                             onClick={() => void handleSelectProduct(product)}
                             onMouseEnter={() => setActiveSearchIndex(idx)}
                             className={cn(
-                              'p-2 flex items-center gap-2.5 cursor-pointer transition-colors',
-                              isSelected ? 'bg-blue-600 text-white' : 'hover:bg-blue-50',
+                              'p-3 sm:p-3.5 flex items-center gap-3.5 cursor-pointer transition-colors',
+                              isSelected ? 'bg-blue-600 text-white' : 'hover:bg-blue-50/80',
                             )}
                           >
                             <ProductImage
@@ -684,29 +688,36 @@ export function ClassicPosView({
                               alt={product.name}
                               variant="thumb"
                               fit="contain"
-                              className="size-9 rounded border border-slate-200 bg-white shrink-0 object-contain"
+                              className={cn(
+                                'size-14 sm:size-16 rounded-xl border shrink-0 object-contain p-1',
+                                isSelected
+                                  ? 'border-blue-400 bg-white'
+                                  : 'border-slate-200 bg-slate-50',
+                              )}
                             />
                             <div className="min-w-0 flex-1">
                               <p
                                 className={cn(
-                                  'font-bold text-xs truncate leading-snug',
+                                  'font-black text-sm sm:text-base leading-tight line-clamp-2',
                                   isSelected ? 'text-white' : 'text-slate-900',
                                 )}
                               >
                                 {product.name}
                               </p>
-                              <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono">
+                              <div className="flex flex-wrap items-center gap-2 mt-1.5 font-mono text-xs">
                                 <span
                                   className={cn(
-                                    'truncate max-w-[120px]',
-                                    isSelected ? 'text-blue-200' : 'text-slate-500',
+                                    'px-2 py-0.5 rounded font-bold',
+                                    isSelected
+                                      ? 'bg-blue-700 text-blue-100'
+                                      : 'bg-slate-100 text-slate-700 border border-slate-200',
                                   )}
                                 >
                                   {product.barcode || product.sku || `ID: ${product.id}`}
                                 </span>
                                 <span
                                   className={cn(
-                                    'px-1 rounded text-[10px] font-bold',
+                                    'px-2.5 py-0.5 rounded font-black text-xs',
                                     stock > 0
                                       ? isSelected
                                         ? 'bg-emerald-500 text-white'
@@ -720,10 +731,10 @@ export function ClassicPosView({
                                 </span>
                               </div>
                             </div>
-                            <div className="text-right shrink-0">
+                            <div className="text-right shrink-0 pl-2">
                               <p
                                 className={cn(
-                                  'font-mono font-bold text-xs',
+                                  'font-mono font-black text-base sm:text-lg',
                                   isSelected ? 'text-white' : 'text-slate-900',
                                 )}
                               >
@@ -731,8 +742,8 @@ export function ClassicPosView({
                               </p>
                               <p
                                 className={cn(
-                                  'font-mono text-[10px]',
-                                  isSelected ? 'text-blue-200' : 'text-slate-500',
+                                  'font-mono font-bold text-xs sm:text-sm mt-0.5',
+                                  isSelected ? 'text-blue-200' : 'text-emerald-700',
                                 )}
                               >
                                 Bs {formatBs(priceBs)}
@@ -906,7 +917,7 @@ export function ClassicPosView({
                         {/* 2. CÓDIGO (BARCODE / SKU) */}
                         <td
                           className={cn(
-                            'py-3 px-3 truncate max-w-[140px] border-r font-semibold font-mono text-xs sm:text-sm',
+                            'py-3 sm:py-3.5 px-3 truncate max-w-[150px] border-r font-semibold font-mono text-xs sm:text-sm',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-700',
                           )}
                           title={line.barcode || line.sku || ''}
@@ -917,17 +928,19 @@ export function ClassicPosView({
                         {/* 3. DESCRIPCIÓN */}
                         <td
                           className={cn(
-                            'py-3 px-4 border-r font-sans font-medium text-sm sm:text-base',
-                            isSelected ? 'border-blue-500 text-white font-bold' : 'border-slate-200 text-slate-900',
+                            'py-3 sm:py-3.5 px-4 border-r font-sans',
+                            isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="truncate leading-tight">{line.name}</span>
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-black text-base sm:text-lg lg:text-xl leading-snug tracking-tight truncate max-w-xl">
+                              {line.name}
+                            </span>
                             {stockIssue && (
                               <span
                                 className={cn(
-                                  'text-xs px-1.5 py-0.5 rounded font-mono shrink-0 font-bold',
-                                  isSelected ? 'bg-amber-400 text-slate-900' : 'bg-red-100 text-red-700',
+                                  'text-xs px-2 py-0.5 rounded font-mono shrink-0 font-black',
+                                  isSelected ? 'bg-amber-400 text-slate-900' : 'bg-red-100 text-red-700 border border-red-200',
                                 )}
                                 title={`Stock disponible: ${line.available_stock}`}
                               >
@@ -940,7 +953,7 @@ export function ClassicPosView({
                         {/* 4. I.V.A (16% o E) */}
                         <td
                           className={cn(
-                            'py-3 px-3 text-center border-r font-semibold text-xs sm:text-sm',
+                            'py-3 sm:py-3.5 px-3 text-center border-r font-bold text-xs sm:text-sm',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-600',
                           )}
                         >
@@ -950,7 +963,7 @@ export function ClassicPosView({
                         {/* 5. PRECIO UNITARIO (BS) */}
                         <td
                           className={cn(
-                            'py-3 px-3 text-right border-r tabular-nums font-bold text-sm sm:text-base',
+                            'py-3 sm:py-3.5 px-3 text-right border-r tabular-nums font-black text-base sm:text-lg',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                         >
@@ -964,7 +977,7 @@ export function ClassicPosView({
                             openQuantityEditor(line);
                           }}
                           className={cn(
-                            'py-3 px-3 text-center border-r font-black text-base sm:text-lg hover:underline cursor-pointer',
+                            'py-3 sm:py-3.5 px-3 text-center border-r font-black text-lg sm:text-xl hover:underline cursor-pointer',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                           title="Haga clic para editar cantidad directamente"
@@ -978,7 +991,7 @@ export function ClassicPosView({
                         {/* 7. DECIMALES */}
                         <td
                           className={cn(
-                            'py-3 px-3 text-center border-r text-xs sm:text-sm',
+                            'py-3 sm:py-3.5 px-3 text-center border-r text-xs sm:text-sm font-semibold',
                             isSelected ? 'border-blue-500 text-blue-200' : 'border-slate-200 text-slate-400',
                           )}
                         >
@@ -988,7 +1001,7 @@ export function ClassicPosView({
                         {/* 8. TOTAL (BS) */}
                         <td
                           className={cn(
-                            'py-3 px-4 text-right border-r tabular-nums font-black text-sm sm:text-base',
+                            'py-3 sm:py-3.5 px-4 text-right border-r tabular-nums font-black text-base sm:text-lg lg:text-xl',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                         >

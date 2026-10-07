@@ -1084,6 +1084,13 @@ compartan el proceso supervisor. No usar un token de plataforma para sustituir e
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
+## MCP administrativo BalanzaPro (2026-10-07)
+
+- URL remota: `https://app.balanzapro.com/mcp-admin/mcp`.
+- Servicio root-only: `balanzapro-vps-mcp.service`, codigo en `tools/mcp/balanzapro_vps_mcp_server.py`.
+- OAuth 2.1 + PKCE es obligatorio; la configuracion y secretos viven fuera del repo en `/etc/balanzapro-vps-mcp.env` y `/var/lib/balanzapro-vps-mcp/`.
+- Tiene permisos administrativos totales del VPS por solicitud explicita del usuario. No exponer sus credenciales, su base OAuth ni su pantalla de login fuera de clientes de confianza.
+
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
 Rules:

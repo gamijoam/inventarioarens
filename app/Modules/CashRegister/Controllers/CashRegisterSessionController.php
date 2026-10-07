@@ -178,6 +178,12 @@ class CashRegisterSessionController extends Controller
 
     private function authorizeReportZ(CashRegisterSession $session, Request $request): void
     {
+        $canAccessBranch = $this->scopes
+            ->applyBranchScope(CashRegisterSession::query()->whereKey($session->id), $request->user(), 'branch_id')
+            ->exists();
+
+        abort_unless($canAccessBranch, Response::HTTP_FORBIDDEN);
+
         abort_unless(
             $request->user()?->can('cash_register.view') || $request->user()?->can('reports.cash.view'),
             Response::HTTP_FORBIDDEN

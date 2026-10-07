@@ -3,6 +3,7 @@
 namespace App\Modules\CashRegister\Policies;
 
 use App\Models\User;
+use App\Modules\AccessControl\Services\ScopeResolver;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Support\Tenancy\TenantManager;
 
@@ -16,6 +17,7 @@ class CashRegisterSessionPolicy
     public function view(User $user, CashRegisterSession $session): bool
     {
         return $this->ownsResource($session)
+            && $this->canAccessBranch($user, $session)
             && $this->hasTenantPermission($user, 'cash_register.view');
     }
 
@@ -27,12 +29,14 @@ class CashRegisterSessionPolicy
     public function move(User $user, CashRegisterSession $session): bool
     {
         return $this->ownsResource($session)
+            && $this->canAccessBranch($user, $session)
             && $this->hasTenantPermission($user, 'cash_register.move');
     }
 
     public function close(User $user, CashRegisterSession $session): bool
     {
         return $this->ownsResource($session)
+            && $this->canAccessBranch($user, $session)
             && $this->hasTenantPermission($user, 'cash_register.close')
             && (
                 (int) $session->cashier_id === (int) $user->id
@@ -43,6 +47,7 @@ class CashRegisterSessionPolicy
     public function review(User $user, CashRegisterSession $session): bool
     {
         return $this->ownsResource($session)
+            && $this->canAccessBranch($user, $session)
             && $session->status === CashRegisterSession::STATUS_CLOSED
             && $this->hasTenantPermission($user, 'cash_register.review')
             && $this->isCashSupervisor($user);
@@ -73,5 +78,12 @@ class CashRegisterSessionPolicy
         $tenantId = app(TenantManager::class)->id();
 
         return $tenantId !== null && (int) $session->tenant_id === (int) $tenantId;
+    }
+
+    private function canAccessBranch(User $user, CashRegisterSession $session): bool
+    {
+        $branchIds = app(ScopeResolver::class)->branchIdsFor($user);
+
+        return $branchIds === null || $branchIds === [] || in_array($session->branch_id, $branchIds, true);
     }
 }

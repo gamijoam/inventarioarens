@@ -482,7 +482,6 @@ export interface CloseCashSessionPayload {
   counted_cash_ves?: number;
   exchange_rate_type_id?: number | null;
   closing_notes?: string | null;
-  counts?: { currency: 'USD' | 'VES'; denomination: number; quantity: number }[];
   counting_mode?: 'standard' | 'blind';
 }
 

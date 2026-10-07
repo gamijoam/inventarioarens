@@ -38,6 +38,12 @@ class CashRegisterService
                 ]);
             }
 
+            if ((int) $cashier->id !== (int) $operator->id && ! $this->isCashSupervisor($operator)) {
+                throw ValidationException::withMessages([
+                    'cashier_id' => 'Solo un supervisor autorizado puede abrir un turno para otro cajero.',
+                ]);
+            }
+
             if ($physicalRegister) {
                 $physicalRegister = CashRegister::query()->lockForUpdate()->findOrFail($physicalRegister->id);
 
@@ -180,7 +186,6 @@ class CashRegisterService
 
             $counted = $this->closingAmount($data);
             $countedPhysical = $this->closingPhysicalAmounts($data);
-            $counts = $this->cashCounts($data);
             $differenceCashUsd = round($countedPhysical['USD'] - (float) ($session->expected_cash_usd ?? $session->opening_base_amount), 4);
             $differenceCashVes = round($countedPhysical['VES'] - (float) ($session->expected_cash_ves ?? $session->opening_local_amount), 4);
 
@@ -207,13 +212,6 @@ class CashRegisterService
                 'closing_notes' => $data['closing_notes'] ?? null,
                 'counting_mode' => $data['counting_mode'] ?? CashRegisterSession::COUNTING_STANDARD,
             ]);
-
-            if ($counts !== []) {
-                $session->counts()->delete();
-                foreach ($counts as $count) {
-                    $session->counts()->create($count);
-                }
-            }
 
             app(ReportZService::class)->assignZNumber($session);
 
@@ -481,18 +479,6 @@ class CashRegisterService
 
     private function closingAmount(array $data): array
     {
-        // Si vienen counts PERO el cliente ya mando montos explicitos
-        // (counted_base_amount / counted_local_amount), respetar esos montos
-        // (caso POS: denominaciones USD + bolivar manual). Solo derivar de
-        // counts cuando no se enviaron montos explicitos.
-        if (! empty($data['counts'])
-            && ! array_key_exists('counted_base_amount', $data)
-            && ! array_key_exists('counted_local_amount', $data)) {
-            $amounts = $this->cashCountTotals($data['counts']);
-            $data['counted_base_amount'] = $amounts['USD'];
-            $data['counted_local_amount'] = $amounts['VES'];
-        }
-
         if (array_key_exists('counted_base_amount', $data) || array_key_exists('counted_local_amount', $data)) {
             $base = $this->resolveAmount([
                 'currency' => Product::CURRENCY_USD,
@@ -518,32 +504,6 @@ class CashRegisterService
             'amount' => $data['counted_amount'],
             'exchange_rate_type_id' => $data['exchange_rate_type_id'] ?? null,
         ]);
-    }
-
-    private function cashCounts(array $data): array
-    {
-        if (empty($data['counts'])) {
-            return [];
-        }
-
-        return collect($data['counts'])
-            ->map(fn (array $count): array => [
-                'currency' => strtoupper($count['currency']),
-                'denomination' => round((float) $count['denomination'], 4),
-                'quantity' => (int) $count['quantity'],
-                'total_amount' => round((float) $count['denomination'] * (int) $count['quantity'], 4),
-            ])
-            ->filter(fn (array $count): bool => $count['quantity'] > 0)
-            ->values()
-            ->all();
-    }
-
-    private function cashCountTotals(array $counts): array
-    {
-        return collect($counts)
-            ->groupBy(fn (array $count): string => strtoupper($count['currency']))
-            ->map(fn ($group): float => round((float) $group->sum(fn (array $count): float => (float) $count['denomination'] * (int) $count['quantity']), 4))
-            ->all() + ['USD' => 0.0, 'VES' => 0.0];
     }
 
     private function recalculateExpectedTotals(CashRegisterSession $session): void
@@ -581,21 +541,17 @@ class CashRegisterService
 
     private function closingPhysicalAmounts(array $data): array
     {
-        $counts = $this->cashCountTotals($data['counts'] ?? []);
-
         $legacyCurrency = strtoupper($data['counted_currency'] ?? Product::CURRENCY_USD);
         $legacyAmount = array_key_exists('counted_amount', $data)
             ? (float) $data['counted_amount']
             : 0.0;
 
-        // Preferir los montos fisicos explicitos (counted_cash_usd / counted_cash_ves).
-        // Solo derivar de counts o del modo legacy cuando no se enviaron.
         $usd = $data['counted_cash_usd'] ?? $data['counted_base_amount'] ?? null;
         $ves = $data['counted_cash_ves'] ?? $data['counted_local_amount'] ?? null;
 
         return [
-            'USD' => round((float) ($usd ?? (! empty($data['counts']) ? $counts['USD'] : ($legacyCurrency === Product::CURRENCY_USD ? $legacyAmount : 0))), 4),
-            'VES' => round((float) ($ves ?? (! empty($data['counts']) ? $counts['VES'] : ($legacyCurrency === Product::CURRENCY_VES ? $legacyAmount : 0))), 4),
+            'USD' => round((float) ($usd ?? ($legacyCurrency === Product::CURRENCY_USD ? $legacyAmount : 0)), 4),
+            'VES' => round((float) ($ves ?? ($legacyCurrency === Product::CURRENCY_VES ? $legacyAmount : 0)), 4),
         ];
     }
 

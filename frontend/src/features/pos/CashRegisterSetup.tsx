@@ -31,12 +31,7 @@ import { useUsers } from '@/features/users/api';
 import { openReportZPdf } from '@/features/cash-register/reportZApi';
 import { CashRegisterCommandCenter } from './CashRegisterCommandCenter';
 
-export type CashCount = { currency: 'USD' | 'VES'; denomination: number; quantity: number };
-export type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string; counts: CashCount[]; blind: boolean };
-export const CASH_DENOMINATIONS: Record<CashCount['currency'], number[]> = {
-  USD: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100],
-  VES: [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000],
-};
+export type CloseForm = { sessionId: number | null; usd: string; ves: string; notes: string; blind: boolean };
 
 export function CashRegisterSetup() {
   const { data: branches = [], isLoading: loadingBranches } = useBranchesForPos();
@@ -69,7 +64,7 @@ export function CashRegisterSetup() {
   const [registerForm, setRegisterForm] = useState({ name: '', code: '', branch_id: '' });
   const [openForm, setOpenForm] = useState({ branch_id: '', cash_register_id: '', cashier_id: '', opening_base_amount: '0', opening_local_amount: '0' });
   const [movementForm, setMovementForm] = useState({ type: 'outflow', amount: '', notes: '' });
-  const [closeForm, setCloseForm] = useState<CloseForm>({ sessionId: null, usd: '', ves: '', notes: '', counts: [], blind: false });
+  const [closeForm, setCloseForm] = useState<CloseForm>({ sessionId: null, usd: '', ves: '', notes: '', blind: false });
 
   const branchOptions = useMemo(() => branches.filter((branch) => (branch.status ?? 'active') === 'active'), [branches]);
   const registerOptions = useMemo(() => registers.filter((register) => (register.status ?? 'active') === 'active'), [registers]);
@@ -78,35 +73,6 @@ export function CashRegisterSetup() {
   const rateLabel = activeRate
     ? `${activeRate.name} (${activeRate.code}) @ ${formatLocalNumber(activeRate.rate)}`
     : null;
-  const overviewStats = [
-    {
-      label: 'Tu turno',
-      value: activeSession ? 'Abierto' : 'Sin turno',
-      hint: activeSession
-        ? `${activeSession.cash_register?.name ?? 'Caja física'} · ${activeSession.branch?.name ?? 'Sucursal'}`
-        : 'Abre un turno para iniciar operaciones.',
-      tone: activeSession ? 'success' : 'warning',
-    },
-    {
-      label: 'Turnos abiertos',
-      value: String(openSessions.length),
-      hint: 'Historial operativo visible ahora.',
-      tone: 'default',
-    },
-    {
-      label: 'Efectivo esperado',
-      value: activeSession ? money(activeSession.expected_cash_usd ?? activeSession.opening_base_amount) : '$0.00',
-      hint: activeRate ? `USD · ${rateLabel}` : 'USD físico en caja.',
-      tone: activeSession ? 'success' : 'default',
-    },
-    {
-      label: 'Infraestructura',
-      value: `${branchOptions.length} suc. · ${registerOptions.length} cajas`,
-      hint: 'Disponibles para operar.',
-      tone: 'info',
-    },
-  ] as const;
-
   function submitOpen(): void {
     if (!openForm.branch_id || !openForm.cash_register_id) {
       toast.error('Selecciona sucursal y caja física activa.');
@@ -154,9 +120,8 @@ export function CashRegisterSetup() {
   }
 
   function submitClose(session: CashRegisterSession): void {
-    const totals = cashCountTotals(closeForm.counts);
-    const usd = closeForm.counts.length ? totals.USD : Number(closeForm.usd || 0);
-    const ves = closeForm.counts.length ? totals.VES : Number(closeForm.ves || 0);
+    const usd = Number(closeForm.usd || 0);
+    const ves = Number(closeForm.ves || 0);
     const diff = closeDifference(session, closeForm, activeRate?.rate ?? null);
 
     if (usd < 0 || ves < 0) {
@@ -180,12 +145,11 @@ export function CashRegisterSetup() {
          counted_cash_usd: usd,
          counted_cash_ves: ves,
          exchange_rate_type_id: ves > 0 ? activeRate?.exchange_rate_type_id : null,
-         counts: closeForm.counts.length ? closeForm.counts : undefined,
          counting_mode: closeForm.blind ? 'blind' : 'standard',
          closing_notes: closeForm.notes.trim() || null,
       },
     }, {
-       onSuccess: () => setCloseForm({ sessionId: null, usd: '', ves: '', notes: '', counts: [], blind: false }),
+       onSuccess: () => setCloseForm({ sessionId: null, usd: '', ves: '', notes: '', blind: false }),
       onError: (error) => toast.error(errorMessage(error)),
     });
   }
@@ -193,7 +157,7 @@ export function CashRegisterSetup() {
   return (
     <PageLayout
       title="Cajas"
-      description="Opera turnos, arqueos y cajas físicas con control por permisos."
+      description="Abre, opera y cierra tu caja sin perderte entre reportes y configuración."
       actions={
         <Button asChild>
           <Link to="/pos">
@@ -203,37 +167,24 @@ export function CashRegisterSetup() {
       }
     >
       <div className="space-y-4">
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <div className="border-border/80 border-b bg-gradient-to-br from-primary/10 via-surface to-surface px-5 py-5 lg:px-6 lg:py-6">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div className="max-w-2xl space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="primary">Operación de caja</Badge>
-                    <Badge variant={activeRate ? 'success' : 'warning'}>{rateLabel ?? 'Sin tasa activa'}</Badge>
-                    <Badge variant={activeSession ? 'success' : 'default'}>{activeSession ? 'Turno abierto' : 'Sin turno abierto'}</Badge>
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-semibold tracking-tight text-text-primary lg:text-3xl">Control de turnos y arqueos</h2>
-                    <p className="mt-1 max-w-xl text-sm text-text-muted">
-                      La lógica de apertura, movimientos y cierre se mantiene intacta. Solo reorganizamos la pantalla para que la caja se lea como un panel operativo, no como un formulario largo.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {overviewStats.map((stat) => (
-                    <OverviewStat key={stat.label} label={stat.label} value={stat.value} hint={stat.hint} tone={stat.tone} />
-                  ))}
-                </div>
-              </div>
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-text-primary">{activeSession ? 'Tu caja está operativa' : 'No tienes una caja abierta'}</h2>
+              <Badge variant={activeSession ? 'success' : 'outline'}>{activeSession ? 'Turno abierto' : 'Sin turno'}</Badge>
             </div>
-          </CardContent>
-        </Card>
+            <p className="mt-1 text-sm text-text-muted">
+              {activeSession
+                ? `${activeSession.cash_register?.name ?? 'Caja física'} · ${activeSession.branch?.name ?? 'Sucursal'}`
+                : 'Abre un turno cuando estés listo para vender.'}
+            </p>
+          </div>
+          {activeRate ? <Badge variant="outline">{rateLabel}</Badge> : <Badge variant="warning">Configura una tasa para operar con Bs</Badge>}
+        </div>
 
         <Tabs defaultValue="operacion" className="space-y-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:w-fit sm:grid-cols-4">
-            <TabsTrigger value="operacion">Mi turno</TabsTrigger>
+            <TabsTrigger value="operacion">Mi caja</TabsTrigger>
             <TabsTrigger value="supervision">Supervisión</TabsTrigger>
             <TabsTrigger value="historial">Historial</TabsTrigger>
             <TabsTrigger value="infraestructura">Configuración</TabsTrigger>
@@ -353,34 +304,6 @@ export function CashRegisterSetup() {
   );
 }
 
-function OverviewStat({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone: 'success' | 'warning' | 'info' | 'default';
-}) {
-  const badgeVariant: 'outline' | 'success' | 'warning' | 'info' =
-    tone === 'default' ? 'outline' : tone;
-
-  return (
-    <Card className="min-w-[160px] border-border/80 bg-surface/80 shadow-none">
-      <CardContent className="space-y-1 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs uppercase tracking-wide text-text-muted">{label}</p>
-          <Badge variant={badgeVariant}>{tone === 'success' ? 'OK' : tone === 'warning' ? 'Atencion' : tone === 'info' ? 'Dato' : 'Estado'}</Badge>
-        </div>
-        <p className="text-lg font-semibold text-text-primary">{value}</p>
-        <p className="text-xs text-text-muted">{hint}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function CashSessionCard({
   session,
   loading,
@@ -463,8 +386,12 @@ function CashSessionCard({
                   <Input className="sm:col-span-3" value={movementForm.notes} onChange={(event) => onMovementForm({ ...movementForm, notes: event.target.value })} placeholder="Notas del movimiento" />
                 </div>
               )}
-              {canClose ? (
+              {canClose && closeForm.sessionId === session.id ? (
                 <ClosePanel session={session} form={closeForm} rate={rate} closing={closing} onForm={onCloseForm} onClose={onClose} />
+              ) : canClose ? (
+                <Button variant="danger" onClick={() => onCloseForm({ sessionId: session.id, usd: '', ves: '', notes: '', blind: false })}>
+                  Cerrar caja
+                </Button>
               ) : (
                 <p className="text-sm text-text-muted">No tienes permiso para cerrar este turno.</p>
               )}
@@ -564,7 +491,7 @@ function SessionsBoard({
               <div className="flex flex-col items-start gap-2 lg:items-end">
                 <Badge variant={session.status === 'open' ? 'success' : 'default'}>{session.status === 'open' ? 'Abierta' : 'Cerrada'}</Badge>
                 {canClose && session.status === 'open' && (
-                  <Button size="sm" variant="outline" onClick={() => onCloseForm({ sessionId: session.id, usd: '', ves: '', notes: '', counts: [], blind: false })}>
+                   <Button size="sm" variant="outline" onClick={() => onCloseForm({ sessionId: session.id, usd: '', ves: '', notes: '', blind: false })}>
                     Cerrar turno
                   </Button>
                 )}
@@ -645,39 +572,28 @@ function ClosePanel({ session, form, rate, closing, onForm, onClose }: {
   onForm: (value: CloseForm) => void;
   onClose: (session: CashRegisterSession) => void;
 }) {
-  const activeForm = form.sessionId === session.id ? form : { sessionId: session.id, usd: '', ves: '', notes: '', counts: [], blind: false };
-  const totals = cashCountTotals(activeForm.counts);
-  const calculatedForm = activeForm.counts.length ? { ...activeForm, usd: String(totals.USD), ves: String(totals.VES) } : activeForm;
-  const diff = closeDifference(session, calculatedForm, rate);
+  const activeForm = form.sessionId === session.id ? form : { sessionId: session.id, usd: '', ves: '', notes: '', blind: false };
+  const diff = closeDifference(session, activeForm, rate);
   const needsNote = hasDifference(diff.cashUsd, diff.cashVes);
 
   return (
     <div className="space-y-2 rounded border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
         <div><p className="font-semibold">Arqueo de cierre</p><p className="text-xs text-text-muted">{activeForm.blind ? 'El monto esperado está oculto.' : 'Puedes contar con referencia o usar cierre ciego.'}</p></div>
-        <Button size="sm" variant={activeForm.blind ? 'primary' : 'outline'} onClick={() => onForm({ ...activeForm, blind: !activeForm.blind, usd: activeForm.blind ? activeForm.usd : '', ves: activeForm.blind ? activeForm.ves : '', counts: activeForm.blind ? activeForm.counts : [] })}>
+          <Button size="sm" variant={activeForm.blind ? 'primary' : 'outline'} onClick={() => onForm({ ...activeForm, blind: !activeForm.blind, usd: activeForm.blind ? activeForm.usd : '', ves: activeForm.blind ? activeForm.ves : '' })}>
           {activeForm.blind ? <EyeOff className="size-4" /> : <Eye className="size-4" />} {activeForm.blind ? 'Cierre ciego activo' : 'Usar cierre ciego'}
         </Button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Input type="text" inputMode="decimal" value={calculatedForm.usd} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
-        <Input type="text" inputMode="decimal" value={calculatedForm.ves} readOnly={activeForm.counts.length > 0} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado Bs (VES)" />
-      </div>
-      <div className="space-y-3 rounded border border-border/70 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Conteo por denominaciones</p>
-          {activeForm.counts.length > 0 && <Button size="sm" variant="ghost" onClick={() => onForm({ ...activeForm, counts: [] })}>Limpiar conteo</Button>}
-        </div>
-        <p className="text-xs text-text-muted">Si registras denominaciones, los totales anteriores se calculan automáticamente.</p>
-        <DenominationGrid currency="USD" form={activeForm} onForm={onForm} />
-        <DenominationGrid currency="VES" form={activeForm} onForm={onForm} />
+        <Input type="text" inputMode="decimal" value={activeForm.usd} onChange={(event) => onForm({ ...activeForm, usd: event.target.value })} placeholder="Efectivo contado USD" />
+        <Input type="text" inputMode="decimal" value={activeForm.ves} onChange={(event) => onForm({ ...activeForm, ves: event.target.value })} placeholder="Efectivo contado Bs (VES)" />
       </div>
       <div className="grid gap-2 rounded border border-border/70 p-2 text-sm sm:grid-cols-2">
-        <Metric label="Declarado USD" value={money(Number(calculatedForm.usd || 0))} />
-        <Metric label="Declarado Bs (VES)" value={localMoney(Number(calculatedForm.ves || 0))} />
+        <Metric label="Declarado USD" value={money(Number(activeForm.usd || 0))} />
+        <Metric label="Declarado Bs (VES)" value={localMoney(Number(activeForm.ves || 0))} />
         <Metric label="Total equiv. USD" value={money(diff.declaredBase)} />
-        <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-[10px] leading-tight">
-          El total equiv. USD = USD + (Bs ÷ tasa). Cada moneda se declara por separado.
+        <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-xs leading-tight">
+          Equivalente USD: declarado USD + bolívares convertidos con la tasa activa.
         </span>
         {!activeForm.blind && <Metric label="Esperado USD" value={money(diff.expectedUsd)} />}
         {!activeForm.blind && <Metric label="Diferencia física USD" value={money(diff.cashUsd)} />}
@@ -801,50 +717,6 @@ export function hasDifference(base: number, local: number): boolean {
   return Math.abs(base) >= 0.01 || Math.abs(local) >= 0.01;
 }
 
-export function cashCountTotals(counts: CashCount[]): Record<CashCount['currency'], number> {
-  return counts.reduce((totals, count) => {
-    totals[count.currency] += count.denomination * count.quantity;
-    return totals;
-  }, { USD: 0, VES: 0 });
-}
-
-export function DenominationGrid({ currency, form, onForm }: { currency: CashCount['currency']; form: CloseForm; onForm: (value: CloseForm) => void }) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{currency}</p>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {CASH_DENOMINATIONS[currency].map((denomination) => {
-          const count = form.counts.find((item) => item.currency === currency && item.denomination === denomination)?.quantity ?? 0;
-          return (
-            <label key={denomination} className="space-y-1 text-xs text-text-muted">
-              <span>{denomination}</span>
-              <Input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={count === 0 ? '' : String(count)}
-                onChange={(event) => {
-                  const raw = event.target.value.replace(/[^\d]/g, '');
-                  const quantity = Math.max(0, raw === '' ? 0 : Number(raw));
-                  onForm({
-                    ...form,
-                    counts: [
-                      ...form.counts.filter(
-                        (item) => !(item.currency === currency && item.denomination === denomination),
-                      ),
-                      { currency, denomination, quantity },
-                    ],
-                  });
-                }}
-                aria-label={`Cantidad de ${denomination} ${currency}`}
-              />
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (

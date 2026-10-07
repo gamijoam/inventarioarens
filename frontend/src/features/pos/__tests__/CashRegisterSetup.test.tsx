@@ -113,11 +113,11 @@ beforeEach(() => {
 });
 
 describe('<CashRegisterSetup>', () => {
-  it('muestra la nueva estructura visual con hero y tabs', () => {
+  it('muestra la estructura operativa simplificada y tabs', () => {
     render(<CashRegisterSetup />, { wrapper: makeWrapper() });
 
-    expect(screen.getByText('Control de turnos y arqueos')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Mi turno' })).toBeInTheDocument();
+    expect(screen.getByText('Tu caja está operativa')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Mi caja' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Supervisi/ })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Historial' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Configuraci/ })).toBeInTheDocument();
@@ -175,5 +175,11 @@ describe('<CashRegisterSetup>', () => {
       }),
       expect.anything(),
     );
+  });
+
+  it('no muestra conteo por denominaciones al cerrar una caja', () => {
+    render(<CashRegisterSetup />, { wrapper: makeWrapper() });
+
+    expect(screen.queryByText('Conteo por denominaciones')).not.toBeInTheDocument();
   });
 });

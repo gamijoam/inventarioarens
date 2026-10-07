@@ -98,6 +98,7 @@ describe('ReportZDialog', () => {
     render(<ReportZDialog sessionId={5} open onOpenChange={() => undefined} />);
 
     expect(mockUseReportZ).toHaveBeenCalledWith(5, true);
+    expect(screen.queryByText('Conteo')).not.toBeInTheDocument();
     expect(screen.getByText('Reporte Z #3')).toBeInTheDocument();
     expect(screen.getByText('Tickets')).toBeInTheDocument();
     expect(screen.getByText('Total USD')).toBeInTheDocument();

@@ -102,8 +102,6 @@ import { ClassicPosView } from './ClassicPosView';
 import { ProductDetailDialog } from './ProductDetailDialog';
 import { TicketPreviewDialog } from './TicketPreviewDialog';
 import {
-  DenominationGrid,
-  cashCountTotals,
   closeDifference,
   hasDifference,
   localMoney,
@@ -746,7 +744,6 @@ export function PosTerminal() {
     usd: '',
     ves: '',
     notes: '',
-    counts: [],
     blind: true,
   });
   const [creditDueDate, setCreditDueDate] = useState('');
@@ -3167,10 +3164,7 @@ export function PosTerminal() {
                   setCashMovement({ type: 'outflow', amount: '', notes: '' });
                 }}
                 onCloseSession={() => {
-                  const totals = cashCountTotals(cashCloseForm.counts);
-                  const usd = cashCloseForm.counts.length
-                    ? totals.USD
-                    : Number(cashCloseForm.usd || 0);
+                  const usd = Number(cashCloseForm.usd || 0);
                   const ves = Number(cashCloseForm.ves || 0);
                   const diff = closeDifference(activeSession, cashCloseForm, activeRate?.rate ?? null);
 
@@ -3203,7 +3197,6 @@ export function PosTerminal() {
                         counted_cash_ves: ves,
                         exchange_rate_type_id:
                           ves > 0 ? (activeRate?.exchange_rate_type_id ?? null) : null,
-                        counts: cashCloseForm.counts.length ? cashCloseForm.counts : undefined,
                         counting_mode: cashCloseForm.blind ? 'blind' : 'standard',
                         closing_notes: cashCloseForm.notes.trim() || null,
                       },
@@ -3215,7 +3208,6 @@ export function PosTerminal() {
                           usd: '',
                           ves: '',
                           notes: '',
-                          counts: [],
                           blind: true,
                         }),
                       onError: (error) => {
@@ -5693,12 +5685,7 @@ export function CashPanel(props: {
   const hasCounted =
     session.counted_base_amount !== null && session.counted_base_amount !== undefined;
 
-  // Arqueo de cierre (misma logica que el modulo Cajas).
-  const totals = cashCountTotals(props.closeForm.counts);
-  const calculatedForm = props.closeForm.counts.length
-    ? { ...props.closeForm, usd: String(totals.USD), ves: String(totals.VES) }
-    : props.closeForm;
-  const diff = closeDifference(session, calculatedForm, props.rate);
+  const diff = closeDifference(session, props.closeForm, props.rate);
   const needsNote = hasDifference(diff.cashUsd, diff.cashVes);
   // En modo ciego la nota NO es obligatoria por diferencia (no se le revela al
   // cajero que hay descuadre). Solo en standard se exige para justificar.
@@ -5851,7 +5838,6 @@ export function CashPanel(props: {
                       blind: !blind,
                       usd: blind ? props.closeForm.usd : '',
                       ves: blind ? props.closeForm.ves : '',
-                      counts: blind ? props.closeForm.counts : [],
                     })
                   }
                   data-testid="pos-cash-blind-toggle"
@@ -5869,8 +5855,7 @@ export function CashPanel(props: {
                 <Input
                   type="text"
                   inputMode="decimal"
-                  value={calculatedForm.usd}
-                  readOnly={props.closeForm.counts.length > 0}
+                  value={props.closeForm.usd}
                   onChange={(event) =>
                     props.onCloseForm({ ...props.closeForm, usd: event.target.value })
                   }
@@ -5889,35 +5874,14 @@ export function CashPanel(props: {
                 />
               </div>
 
-              <div className="space-y-3 rounded-lg border border-border/70 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">Conteo por denominaciones (USD)</p>
-                  {props.closeForm.counts.length > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => props.onCloseForm({ ...props.closeForm, counts: [] })}
-                    >
-                      Limpiar conteo
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-text-muted">
-                  Si registras denominaciones, el total en USD se calcula automáticamente. El
-                  efectivo en bolívares se ingresa manualmente.
-                </p>
-                <DenominationGrid currency="USD" form={props.closeForm} onForm={props.onCloseForm} />
-              </div>
-
               <div className="grid gap-2 rounded-lg border border-border/70 p-2 text-sm sm:grid-cols-2">
                 <div>
                   <p className="text-text-muted text-xs uppercase">Declarado USD</p>
-                  <p className="font-semibold">{money(Number(calculatedForm.usd || 0))}</p>
+                  <p className="font-semibold">{money(Number(props.closeForm.usd || 0))}</p>
                 </div>
                 <div>
                   <p className="text-text-muted text-xs uppercase">Declarado Bs (VES)</p>
-                  <p className="font-semibold">{localMoney(Number(calculatedForm.ves || 0))}</p>
+                  <p className="font-semibold">{localMoney(Number(props.closeForm.ves || 0))}</p>
                 </div>
                 <div>
                   <p className="text-text-muted text-xs uppercase">Total equiv. USD</p>

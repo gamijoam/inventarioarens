@@ -33,7 +33,7 @@ class OperationalReportController extends Controller
     {
         abort_unless($request->user()->can('reports.view') || $request->user()->can('reports.cash.view'), Response::HTTP_FORBIDDEN);
 
-        return response()->json(['data' => $reports->cashSessions($request->filters())]);
+        return response()->json(['data' => $reports->cashSessions($request->filters(), $request->user())]);
     }
 
     public function paymentMethods(OperationalReportRequest $request, OperationalReportService $reports): JsonResponse

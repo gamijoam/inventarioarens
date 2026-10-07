@@ -27,10 +27,7 @@ class CloseCashRegisterSessionRequest extends FormRequest
             'counted_local_amount' => ['nullable', 'numeric', 'gte:0'],
             'counted_cash_usd' => ['nullable', 'numeric', 'gte:0'],
             'counted_cash_ves' => ['nullable', 'numeric', 'gte:0'],
-            'counts' => ['nullable', 'array', 'min:1'],
-            'counts.*.currency' => ['required_with:counts', 'string', 'size:3', Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES])],
-            'counts.*.denomination' => ['required_with:counts', 'numeric', 'gt:0'],
-            'counts.*.quantity' => ['required_with:counts', 'integer', 'min:0'],
+            'counts' => ['prohibited'],
             'exchange_rate_type_id' => [
                 'nullable',
                 'integer',
