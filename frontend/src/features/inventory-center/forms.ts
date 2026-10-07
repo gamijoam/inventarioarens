@@ -128,7 +128,12 @@ export function useProductForm({
         toast.success('Producto creado correctamente.');
       } else {
         if (!productId) throw new Error('productId requerido en modo edit');
-        result = await update.mutateAsync({ id: productId, ...payload });
+        // En modo edit, si el usuario vació image_url, enviamos explícitamente null para que la BD lo limpie
+        const updatePayload = {
+          ...payload,
+          image_url: payload.image_url ? payload.image_url : null,
+        };
+        result = await update.mutateAsync({ id: productId, ...updatePayload });
         toast.success('Producto actualizado correctamente.');
       }
       onSuccess?.(result);

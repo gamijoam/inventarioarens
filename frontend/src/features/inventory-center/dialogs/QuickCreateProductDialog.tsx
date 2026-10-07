@@ -493,7 +493,7 @@ export function QuickCreateProductDialog({
                 <div className="flex flex-col gap-1 pt-0.5">
                   <Label className="text-[10px] text-text-secondary">Foto del producto (Opcional)</Label>
                   <div className="flex items-center gap-1.5">
-                    <div className="size-7 rounded border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="size-10 rounded-lg border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
                       {photoPreview || imageUrl ? (
                         <img
                           src={photoPreview ?? imageUrl}
@@ -504,15 +504,34 @@ export function QuickCreateProductDialog({
                           }}
                         />
                       ) : (
-                        <Package className="size-3.5 text-text-muted/60" />
+                        <Package className="size-5 text-text-muted/60" />
                       )}
                     </div>
-                    <Input
-                      placeholder="https://ejemplo.com/foto.jpg"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      className="text-xs h-7 flex-1"
-                    />
+                    <div className="relative flex-1 flex items-center">
+                      <Input
+                        placeholder="https://ejemplo.com/foto.jpg"
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        className={cn('text-xs h-7.5 w-full', (imageUrl || photoFile) && 'pr-8')}
+                      />
+                      {(photoFile || imageUrl) && (
+                        <button
+                          type="button"
+                          className="absolute right-1.5 text-text-muted hover:text-rose-600 p-0.5 rounded transition-colors"
+                          title="Quitar foto seleccionada"
+                          aria-label="Quitar foto seleccionada"
+                          data-testid="quick-create-clear-photo"
+                          onClick={() => {
+                            if (photoPreview) URL.revokeObjectURL(photoPreview);
+                            setPhotoFile(null);
+                            setPhotoPreview(null);
+                            setImageUrl('');
+                          }}
+                        >
+                          <X className="size-4 text-rose-500 hover:text-rose-700" />
+                        </button>
+                      )}
+                    </div>
                     <input
                       ref={photoInputRef}
                       type="file"
@@ -540,32 +559,13 @@ export function QuickCreateProductDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 text-xs gap-1.5 shrink-0"
+                      className="h-7.5 text-xs gap-1.5 shrink-0 px-2.5 font-medium"
                       onClick={() => photoInputRef.current?.click()}
                       data-testid="quick-create-upload-photo"
                     >
                       <Upload className="size-3.5" />
                       <span>Subir</span>
                     </Button>
-                    {(photoFile || imageUrl) && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="h-7 w-7 shrink-0 text-text-muted hover:text-danger"
-                        title="Quitar foto seleccionada"
-                        aria-label="Quitar foto seleccionada"
-                        data-testid="quick-create-clear-photo"
-                        onClick={() => {
-                          if (photoPreview) URL.revokeObjectURL(photoPreview);
-                          setPhotoFile(null);
-                          setPhotoPreview(null);
-                          setImageUrl('');
-                        }}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
-                    )}
                   </div>
                   {photoFile && (
                     <p className="text-[10px] text-emerald-600">

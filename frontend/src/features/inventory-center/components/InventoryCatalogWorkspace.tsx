@@ -1355,59 +1355,90 @@ function ProductCatalogDetailModal({
                   </div>
 
                   {allImages.length >= 1 && (
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                    <div className="flex items-center gap-2 overflow-x-auto py-1">
                       {allImages.map((img, idx) => {
                         const imageId = imageIdByUrl.get(img);
+                        const isSelected = activeImageIndex === idx;
                         return (
-                          <div key={idx} className="relative shrink-0">
+                          <div key={idx} className="relative shrink-0 group">
                             <button
                               type="button"
                               onClick={() => setActiveImageIndex(idx)}
                               className={cn(
-                                'size-8 rounded border overflow-hidden p-0.5 bg-surface transition-all',
-                                activeImageIndex === idx
-                                  ? 'border-primary ring-2 ring-primary/20'
+                                'size-14 rounded-lg border overflow-hidden p-1 bg-surface transition-all shadow-2xs',
+                                isSelected
+                                  ? 'border-primary ring-2 ring-primary/30'
                                   : 'border-border hover:border-text-secondary',
                               )}
+                              title={`Ver imagen ${idx + 1}`}
                             >
-                              <img src={img} alt={`Thumb ${idx}`} className="size-full object-cover rounded" />
+                              <img src={img} alt={`Thumb ${idx}`} className="size-full object-contain rounded" />
                             </button>
-                            {imageId != null && (
-                              <button
-                                type="button"
-                                onClick={() =>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (imageId != null) {
                                   deleteImage.mutate(imageId, {
-                                    onSuccess: () => toast.success('Foto eliminada.'),
+                                    onSuccess: () => {
+                                      toast.success('Foto eliminada.');
+                                      if (imageUrl === img) setImageUrl('');
+                                      setActiveImageIndex(0);
+                                    },
                                     onError: (err) =>
                                       toast.error(
                                         err instanceof Error ? err.message : 'No se pudo eliminar la foto.',
                                       ),
-                                  })
+                                  });
+                                } else {
+                                  // Foto por URL externa o imagen principal
+                                  if (imageUrl === img) {
+                                    setImageUrl('');
+                                  }
+                                  setActiveImageIndex(0);
+                                  toast.success('Foto removida del formulario.');
                                 }
-                                disabled={deleteImage.isPending}
-                                className="bg-danger absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full text-white shadow-sm hover:brightness-110 disabled:opacity-50"
-                                title="Eliminar foto"
-                                aria-label="Eliminar foto"
-                                data-testid={`catalog-detail-delete-photo-${imageId}`}
-                              >
-                                <X className="size-2.5" />
-                              </button>
-                            )}
+                              }}
+                              disabled={deleteImage.isPending}
+                              className="bg-rose-600 hover:bg-rose-700 active:scale-95 absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full text-white shadow-md hover:shadow-lg transition-transform border border-white disabled:opacity-50 z-10"
+                              title="Eliminar foto"
+                              aria-label="Eliminar foto"
+                              data-testid={imageId != null ? `catalog-detail-delete-photo-${imageId}` : `catalog-detail-clear-photo-${idx}`}
+                            >
+                              <X className="size-3.5 stroke-[2.5]" />
+                            </button>
                           </div>
                         );
                       })}
                     </div>
                   )}
 
-                  {/* URL de foto editable */}
+                  {/* URL de foto editable con botón de limpiar */}
                   <div className="flex items-center gap-1.5">
                     <Label className="text-[10px] text-text-secondary font-medium shrink-0">URL:</Label>
-                    <Input
-                      placeholder="https://ejemplo.com/foto.jpg"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      className="text-xs h-7"
-                    />
+                    <div className="relative flex-1 flex items-center">
+                      <Input
+                        placeholder="https://ejemplo.com/foto.jpg"
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        className={cn('text-xs h-7.5 pr-8', imageUrl && 'border-primary/40')}
+                      />
+                      {imageUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageUrl('');
+                            setActiveImageIndex(0);
+                            toast.success('URL de imagen limpiada.');
+                          }}
+                          className="absolute right-1.5 text-text-muted hover:text-rose-600 p-0.5 rounded transition-colors"
+                          title="Limpiar URL de imagen"
+                          aria-label="Limpiar URL de imagen"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
                   {/* Subir foto desde el equipo (misma carga que la galería) */}

@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Tag as TagIcon,
   Tags as TagsIcon,
+  Trash2,
 } from 'lucide-react';
 
 import { Input } from '@/components/ui/Input';
@@ -870,7 +871,42 @@ export function ProductForm({
                 hint="Enlace directo a una imagen del fabricante o web externa"
                 error={form.formState.errors.image_url?.message}
               >
-                <Input {...form.register('image_url')} placeholder="https://..." />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input {...form.register('image_url')} placeholder="https://..." className="flex-1" />
+                    {form.watch('image_url') ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => form.setValue('image_url', '', { shouldDirty: true, shouldValidate: true })}
+                        className="h-9 px-3 gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 shrink-0 font-medium"
+                        title="Quitar URL de la imagen"
+                      >
+                        <Trash2 className="size-3.5" />
+                        <span>Quitar URL</span>
+                      </Button>
+                    ) : null}
+                  </div>
+                  {form.watch('image_url') && (
+                    <div className="flex items-center gap-3 p-2 bg-surface-subtle/50 rounded-lg border border-border/60">
+                      <div className="size-16 rounded-md border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
+                        <img
+                          src={form.watch('image_url') || ''}
+                          alt="Vista previa URL"
+                          className="size-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-text-primary">Vista previa URL externa</p>
+                        <p className="text-[11px] text-text-muted truncate">{form.watch('image_url')}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </Field>
             )}
 

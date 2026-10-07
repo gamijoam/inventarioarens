@@ -299,8 +299,9 @@ const StoreProductBaseSchema = z.object({
     .refine((s) => s === '' || /^https?:\/\//.test(s) || s.startsWith('/'), {
       message: 'URL invalida',
     })
+    .nullable()
     .optional()
-    .or(z.literal('').transform(() => undefined)),
+    .or(z.literal('').transform(() => null)),
   tracking_type: z.enum(TRACKING_TYPES).default('quantity'),
   unit_of_measure: z.string().max(20).default('unit'),
   track_stock: z.boolean().default(true),
