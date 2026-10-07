@@ -868,6 +868,8 @@ export const PosBootstrapSchema = z.object({
   allow_negative_stock: z.boolean().optional(),
   allow_rate_edit: z.boolean().optional(),
   allow_catalog_view: z.boolean().optional(),
+  default_view_mode: z.enum(['classic', 'catalog', 'ticket']).optional(),
+  pos_default_view_mode: z.enum(['classic', 'catalog', 'ticket']).optional(),
   next_order_number: z.number().int().optional(),
 });
 export type PosBootstrap = z.infer<typeof PosBootstrapSchema>;

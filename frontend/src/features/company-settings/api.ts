@@ -20,6 +20,7 @@ export const CompanySettingsSchema = z.object({
   pos_allow_catalog_view: z.boolean().optional(),
   pos_catalog_stock_edit: z.boolean().optional(),
   catalog_allow_stock_edit: z.boolean().optional(),
+  pos_default_view_mode: z.enum(['classic', 'catalog', 'ticket']).optional(),
   show_on: z
     .object({
       sale_ticket: z.boolean().optional(),

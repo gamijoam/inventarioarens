@@ -67,6 +67,7 @@ class TenantSettingController extends Controller
             'settings.company.pos_allow_catalog_view' => ['sometimes', 'boolean'],
             'settings.company.pos_catalog_stock_edit' => ['sometimes', 'boolean'],
             'settings.company.catalog_allow_stock_edit' => ['sometimes', 'boolean'],
+            'settings.company.pos_default_view_mode' => ['sometimes', 'string', 'in:classic,catalog,ticket'],
             'settings.company.show_on' => ['sometimes', 'array'],
             'settings.company.show_on.sale_ticket' => ['sometimes', 'boolean'],
             'settings.company.show_on.guide' => ['sometimes', 'boolean'],

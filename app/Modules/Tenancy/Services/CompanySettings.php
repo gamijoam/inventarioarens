@@ -31,6 +31,7 @@ class CompanySettings
         'pos_allow_catalog_view' => true,
         'pos_catalog_stock_edit' => false,
         'catalog_allow_stock_edit' => false,
+        'pos_default_view_mode' => 'classic',
         'show_on' => [
             'sale_ticket' => true,
             'guide' => true,
@@ -116,5 +117,17 @@ class CompanySettings
     public static function allowsPosCatalogStockEdit(Tenant $tenant): bool
     {
         return self::allowsCatalogStockEdit($tenant);
+    }
+
+    /**
+     * Indica el modo de vista principal del POS configurado por defecto.
+     * Retorna 'classic', 'catalog' o 'ticket'.
+     */
+    public static function posDefaultViewMode(Tenant $tenant): string
+    {
+        $settings = self::getForTenant($tenant);
+        $mode = $settings['pos_default_view_mode'] ?? 'classic';
+
+        return in_array($mode, ['classic', 'catalog', 'ticket'], true) ? $mode : 'classic';
     }
 }

@@ -596,7 +596,7 @@ export function PosTerminal() {
     } catch {
       // fallback
     }
-    return 'catalog'; // Modo catálogo por defecto para venta visual
+    return 'classic'; // Modo clásico estilo facturación rápida por defecto
   });
   const [ticketDrawerOpen, setTicketDrawerOpen] = useState(false);
 
@@ -812,6 +812,23 @@ export function PosTerminal() {
       }
     }
   }, [allowCatalogView, posViewMode]);
+
+  const serverDefaultViewMode = bootstrap.data?.default_view_mode ?? bootstrap.data?.pos_default_view_mode;
+  useEffect(() => {
+    if (
+      serverDefaultViewMode &&
+      (serverDefaultViewMode === 'classic' ||
+        serverDefaultViewMode === 'catalog' ||
+        serverDefaultViewMode === 'ticket')
+    ) {
+      setPosViewMode(serverDefaultViewMode);
+      try {
+        localStorage.setItem('pos_view_mode', serverDefaultViewMode);
+      } catch {
+        // ignore
+      }
+    }
+  }, [serverDefaultViewMode]);
   const bootstrapReady = !bootstrap.isLoading && !bootstrap.isError;
 
   // Fallback: si /api/pos/bootstrap no devolvio warehouses (cache vacio o

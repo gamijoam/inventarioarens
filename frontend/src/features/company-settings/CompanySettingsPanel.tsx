@@ -71,6 +71,7 @@ export function CompanySettingsPanel() {
   const [allowRateEdit, setAllowRateEdit] = useState(false);
   const [allowCatalogView, setAllowCatalogView] = useState(true);
   const [allowCatalogStockEdit, setAllowCatalogStockEdit] = useState(false);
+  const [defaultPosViewMode, setDefaultPosViewMode] = useState<'classic' | 'catalog' | 'ticket'>('classic');
 
   useEffect(() => {
     if (!data) return;
@@ -88,6 +89,7 @@ export function CompanySettingsPanel() {
     setAllowRateEdit(data.pos_allow_rate_edit ?? false);
     setAllowCatalogView(data.pos_allow_catalog_view ?? true);
     setAllowCatalogStockEdit(data.catalog_allow_stock_edit ?? data.pos_catalog_stock_edit ?? false);
+    setDefaultPosViewMode((data.pos_default_view_mode as 'classic' | 'catalog' | 'ticket') ?? 'classic');
     setShowOn({
       sale_ticket: data.show_on?.sale_ticket ?? true,
       guide: data.show_on?.guide ?? true,
@@ -157,6 +159,7 @@ export function CompanySettingsPanel() {
         pos_allow_catalog_view: allowCatalogView,
         pos_catalog_stock_edit: allowCatalogStockEdit,
         catalog_allow_stock_edit: allowCatalogStockEdit,
+        pos_default_view_mode: defaultPosViewMode,
         show_on: showOn,
       };
       await update.mutateAsync(payload);
@@ -413,6 +416,27 @@ export function CompanySettingsPanel() {
               className="size-4"
               data-testid="company-pos-allow-rate-edit"
             />
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">
+            <div>
+              <div className="text-sm font-medium">Vista activa predeterminada del POS</div>
+              <div className="text-text-muted text-xs">
+                Seleccione el modo de pantalla principal con el que iniciará el punto de venta en todos los dispositivos de esta empresa.
+              </div>
+            </div>
+            <select
+              value={defaultPosViewMode}
+              onChange={(e) =>
+                setDefaultPosViewMode(e.target.value as 'classic' | 'catalog' | 'ticket')
+              }
+              className="bg-surface text-text-primary border border-border rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0 cursor-pointer"
+              data-testid="company-pos-default-view-mode"
+            >
+              <option value="classic">🖥️ Vista Clásica (Facturación Rápida / 1Sistema)</option>
+              <option value="catalog">🛍️ Vista Catálogo (Cuadrícula con Fotos)</option>
+              <option value="ticket">🧾 Vista Ticket (Código de barras tradicional)</option>
+            </select>
           </div>
 
           <div className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">

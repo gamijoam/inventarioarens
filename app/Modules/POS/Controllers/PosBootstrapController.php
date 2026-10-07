@@ -136,6 +136,8 @@ class PosBootstrapController extends Controller
             'allow_negative_stock' => $tenant !== null && CompanySettings::allowsNegativeStock($tenant),
             'allow_rate_edit' => $tenant !== null && CompanySettings::allowsPosRateEdit($tenant),
             'allow_catalog_view' => $tenant === null || CompanySettings::allowsPosCatalogView($tenant),
+            'default_view_mode' => $tenant !== null ? CompanySettings::posDefaultViewMode($tenant) : 'classic',
+            'pos_default_view_mode' => $tenant !== null ? CompanySettings::posDefaultViewMode($tenant) : 'classic',
             'next_order_number' => ((int) PosOrder::query()->max('id')) + 1,
         ];
 
