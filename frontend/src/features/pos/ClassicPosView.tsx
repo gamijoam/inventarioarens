@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Users,
   Trash2,
@@ -8,11 +8,18 @@ import {
   Package,
   ShoppingBag,
   Clock,
+  Search,
+  Edit3,
+  X,
+  Check,
 } from 'lucide-react';
 import type { PosCartLine, CartTotals } from './posLogic';
 import type { Customer } from './api';
+import type { Product, PriceList } from '@/features/inventory-center/schemas';
+import { fetchPosProductsDirect } from './api';
 import { ProductImage } from '@/features/inventory-center/components/ProductImage';
 import { cn } from '@/lib/cn';
+import { toast } from 'sonner';
 
 export interface ClassicPosViewProps {
   cart: PosCartLine[];
@@ -23,14 +30,18 @@ export interface ClassicPosViewProps {
   sellerName?: string;
   canDiscount?: boolean;
   allowNegativeStock?: boolean;
+  warehouseId?: number | null;
+  selectedPriceList?: PriceList | null;
+  orderNumber?: string;
   onSelectCustomer: () => void;
   onOpenPayment: () => void;
   onClearCart: () => void;
   onUpdateLine: (lineId: string, patch: Partial<PosCartLine>) => void;
   onRemoveLine: (lineId: string) => void;
-  onSearchSubmit: (term: string) => Promise<boolean | void>;
-  onOpenSerials?: (lineId: string) => void;
-  orderNumber?: string;
+  onAddProduct: (product: Product) => Promise<boolean | void>;
+  onOpenProductSearch: () => void;
+  onHoldSale?: () => void;
+  onOpenHoldOrders?: () => void;
 }
 
 function formatBs(value: number): string {
@@ -65,23 +76,36 @@ export function ClassicPosView({
   selectedCustomer,
   customerName,
   sellerName,
-  canDiscount: _canDiscount = false,
   allowNegativeStock = false,
+  warehouseId,
+  orderNumber,
   onSelectCustomer,
   onOpenPayment,
   onClearCart,
   onUpdateLine,
   onRemoveLine,
-  onSearchSubmit,
-  onOpenSerials: _onOpenSerials,
-  orderNumber,
+  onAddProduct,
+  onOpenProductSearch,
+  onHoldSale,
+  onOpenHoldOrders,
 }: ClassicPosViewProps) {
   // Índice del renglón activo en la tabla
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
+
+  // Buscador predictivo en F5
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState<number>(0);
+  const [showDropdown, setShowDropdown] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Modal rápido de edición de cantidad
+  const [editingQtyLine, setEditingQtyLine] = useState<PosCartLine | null>(null);
+  const [newQtyValue, setNewQtyValue] = useState<string>('1');
+  const qtyInputRef = useRef<HTMLInputElement>(null);
 
   // Reloj digital en vivo
   const [currentTime, setCurrentTime] = useState<string>(() => {
@@ -117,7 +141,7 @@ export function ClassicPosView({
     prevCartLengthRef.current = cart.length;
   }, [cart.length]);
 
-  // Producto de la línea seleccionada actualmente
+  // Línea seleccionada actualmente
   const activeLine: PosCartLine | undefined = cart[selectedIndex];
 
   // Total de unidades físicas
@@ -125,73 +149,236 @@ export function ClassicPosView({
     return cart.reduce((acc, line) => acc + (Number(line.quantity) || 0), 0);
   }, [cart]);
 
-  // Manejo de búsqueda por código o Enter
+  // Cerrar dropdown si se hace clic afuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Búsqueda predictiva con debounce al tipear en F5
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!val || val.trim().length < 2) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await fetchPosProductsDirect(val.trim(), warehouseId ?? null);
+        setSearchResults(results.slice(0, 8)); // Top 8 resultados
+        setActiveSearchIndex(0);
+        setShowDropdown(results.length > 0);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 180);
+  };
+
+  // Agregar producto seleccionado al ticket
+  const handleSelectProduct = useCallback(
+    async (product: Product) => {
+      try {
+        const added = await onAddProduct(product);
+        if (added) {
+          toast.success(`Agregado: ${product.name}`);
+        }
+      } catch (err) {
+        toast.error('No se pudo agregar el producto');
+      } finally {
+        setSearchTerm('');
+        setSearchResults([]);
+        setShowDropdown(false);
+        searchInputRef.current?.focus();
+      }
+    },
+    [onAddProduct],
+  );
+
+  // Manejo de Enter o escaneo de código de barras
   const handleBarcodeSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const term = searchTerm.trim();
-    if (!term || isSearching) return;
+    if (!term) return;
 
+    // 1. Si hay una lista desplegable abierta con sugerencias y hay una seleccionada
+    if (showDropdown && searchResults.length > 0) {
+      const target = searchResults[activeSearchIndex] ?? searchResults[0];
+      if (target) {
+        await handleSelectProduct(target);
+        return;
+      }
+    }
+
+    // 2. Si es escaneo directo o búsqueda directa inmediata
+    setIsSearching(true);
     try {
-      setIsSearching(true);
-      await onSearchSubmit(term);
-      setSearchTerm('');
+      const results = await fetchPosProductsDirect(term, warehouseId ?? null);
+      const normalized = term.toLowerCase();
+      const exact = results.find(
+        (p) =>
+          p.barcode?.toLowerCase() === normalized ||
+          p.sku?.toLowerCase() === normalized ||
+          p.id.toString() === normalized,
+      );
+
+      const target = exact ?? results[0];
+      if (target) {
+        await handleSelectProduct(target);
+      } else {
+        toast.error(`Producto no encontrado para: "${term}"`);
+      }
+    } catch {
+      toast.error('Error al consultar el producto');
     } finally {
       setIsSearching(false);
-      searchInputRef.current?.focus();
     }
   };
 
-  // Atajos de teclado locales para navegación de filas y funciones
+  // Guardar edición rápida de cantidad
+  const handleSaveQuantity = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingQtyLine) return;
+
+    const parsed = parseFloat(newQtyValue.replace(',', '.'));
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error('Ingrese una cantidad válida mayor a 0');
+      return;
+    }
+
+    onUpdateLine(editingQtyLine.id, { quantity: parsed });
+    setEditingQtyLine(null);
+    searchInputRef.current?.focus();
+  };
+
+  // Abrir diálogo de edición de cantidad
+  const openQuantityEditor = (line: PosCartLine) => {
+    setEditingQtyLine(line);
+    setNewQtyValue(String(line.quantity));
+    setTimeout(() => {
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
+    }, 50);
+  };
+
+  // Atajos de teclado globales y locales
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Si el foco está en un input pero presiona F5 o F1 o F10
+      // Si el modal de cantidad está abierto, manejar Enter y Escape
+      if (editingQtyLine) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setEditingQtyLine(null);
+          searchInputRef.current?.focus();
+        }
+        return;
+      }
+
+      // F1: Cliente
+      if (event.key === 'F1') {
+        event.preventDefault();
+        onSelectCustomer();
+        return;
+      }
+      // F3: Catálogo completo
+      if (event.key === 'F3') {
+        event.preventDefault();
+        onOpenProductSearch();
+        return;
+      }
+      // F5: Foco en escáner / buscador
       if (event.key === 'F5') {
         event.preventDefault();
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
         return;
       }
-      if (event.key === 'F1') {
+      // F6: En Espera (Hold)
+      if (event.key === 'F6') {
         event.preventDefault();
-        onSelectCustomer();
+        onHoldSale?.();
         return;
       }
+      // F7: Recuperar pedidos en espera
+      if (event.key === 'F7') {
+        event.preventDefault();
+        onOpenHoldOrders?.();
+        return;
+      }
+      // F10: Cobrar
       if (event.key === 'F10') {
         event.preventDefault();
         onOpenPayment();
         return;
       }
 
-      // Si estamos dentro del input de búsqueda, solo atender flechas si no hay texto
+      // Navegación dentro del dropdown del buscador
       const isInput = document.activeElement === searchInputRef.current;
-      if (isInput && searchTerm.length > 0) {
-        return;
+      if (isInput && showDropdown && searchResults.length > 0) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          setActiveSearchIndex((prev) => (prev + 1) % searchResults.length);
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          setActiveSearchIndex((prev) => (prev - 1 + searchResults.length) % searchResults.length);
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setShowDropdown(false);
+          return;
+        }
       }
 
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setSelectedIndex((prev) => (cart.length > 0 ? Math.min(prev + 1, cart.length - 1) : 0));
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setSelectedIndex((prev) => (cart.length > 0 ? Math.max(prev - 1, 0) : 0));
-      } else if (event.key === '+' || event.key === 'Add') {
-        if (!isInput && activeLine) {
+      // Si no estamos en el input de búsqueda, permitir atajos de ticket
+      if (!isInput) {
+        if (event.key === 'ArrowDown') {
           event.preventDefault();
-          onUpdateLine(activeLine.id, { quantity: activeLine.quantity + 1 });
-        }
-      } else if (event.key === '-' || event.key === 'Subtract') {
-        if (!isInput && activeLine) {
+          setSelectedIndex((prev) => (cart.length > 0 ? Math.min(prev + 1, cart.length - 1) : 0));
+        } else if (event.key === 'ArrowUp') {
           event.preventDefault();
-          if (activeLine.quantity > 1) {
-            onUpdateLine(activeLine.id, { quantity: activeLine.quantity - 1 });
-          } else {
+          setSelectedIndex((prev) => (cart.length > 0 ? Math.max(prev - 1, 0) : 0));
+        } else if (event.key === '+' || event.key === 'Add') {
+          if (activeLine) {
+            event.preventDefault();
+            onUpdateLine(activeLine.id, { quantity: activeLine.quantity + 1 });
+          }
+        } else if (event.key === '-' || event.key === 'Subtract') {
+          if (activeLine) {
+            event.preventDefault();
+            if (activeLine.quantity > 1) {
+              onUpdateLine(activeLine.id, { quantity: activeLine.quantity - 1 });
+            } else {
+              onRemoveLine(activeLine.id);
+            }
+          }
+        } else if (event.key === 'Delete') {
+          if (activeLine) {
+            event.preventDefault();
             onRemoveLine(activeLine.id);
           }
-        }
-      } else if (event.key === 'Delete') {
-        if (!isInput && activeLine) {
-          event.preventDefault();
-          onRemoveLine(activeLine.id);
+        } else if (event.key === '*' || event.key === 'Multiply') {
+          if (activeLine) {
+            event.preventDefault();
+            openQuantityEditor(activeLine);
+          }
         }
       }
     };
@@ -201,11 +388,17 @@ export function ClassicPosView({
   }, [
     activeLine,
     cart.length,
+    editingQtyLine,
+    handleSelectProduct,
+    onHoldSale,
+    onOpenHoldOrders,
     onOpenPayment,
+    onOpenProductSearch,
     onRemoveLine,
     onSelectCustomer,
     onUpdateLine,
-    searchTerm.length,
+    searchResults,
+    showDropdown,
   ]);
 
   // Cálculos monetarios para los números gigantes superiores
@@ -216,7 +409,10 @@ export function ClassicPosView({
   const totalUsd = Number(cartTotals.total) || 0;
   const totalBs = totalUsd * rateVal;
 
-  const docNumber = orderNumber ? `FAC${orderNumber.padStart(8, '0')}` : 'FAC00000001';
+  // Número correlativo real de factura/ticket
+  const formattedDocNo = orderNumber
+    ? `FAC${orderNumber.replace(/\D/g, '').padStart(8, '0')}`
+    : 'FAC00000143';
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 bg-[#f1f5f9] select-none font-sans overflow-hidden">
@@ -224,14 +420,17 @@ export function ClassicPosView({
       {/* 1. HEADER SUPERIOR CON INDICADORES GIGANTES (ESTILO 1SISTEMA / VALERY)      */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-12 gap-1.5 p-2 bg-[#0b1329] border-b-2 border-blue-900 text-white shrink-0 items-stretch">
-        {/* BLOQUE FECHA / HORA / FACTURA */}
+        {/* BLOQUE FECHA / HORA / FACTURA CORRELATIVA REAL */}
         <div className="col-span-12 sm:col-span-3 flex flex-col justify-between gap-1">
           <div className="bg-[#1e293b] border border-blue-900/80 rounded px-2.5 py-1 text-center font-mono text-xs sm:text-sm font-semibold tracking-wide text-blue-200 shadow-inner flex items-center justify-center gap-1.5">
             <Clock className="size-3.5 text-blue-400 shrink-0" />
             <span>{currentTime}</span>
           </div>
-          <div className="bg-red-950/80 border-2 border-red-500 rounded px-2.5 py-0.5 text-center font-mono text-xs sm:text-sm font-black tracking-widest text-red-300 shadow-inner">
-            {docNumber}
+          <div
+            className="bg-red-950/80 border-2 border-red-500 rounded px-2.5 py-0.5 text-center font-mono text-xs sm:text-sm font-black tracking-widest text-red-300 shadow-inner"
+            title="Número correlativo de factura / ticket para esta venta"
+          >
+            {formattedDocNo}
           </div>
         </div>
 
@@ -300,7 +499,7 @@ export function ClassicPosView({
         </div>
         <div className="flex-1 bg-white border-2 border-slate-700 rounded-md px-3 py-1.5 shadow-inner min-w-0">
           <p className="font-mono font-black text-base sm:text-xl lg:text-2xl text-slate-900 truncate uppercase tracking-tight">
-            {activeLine ? activeLine.name : 'SIN ARTÍCULOS - ESCANEE O BUSQUE UN PRODUCTO'}
+            {activeLine ? activeLine.name : 'SIN ARTÍCULOS - ESCANEE O BUSQUE UN PRODUCTO [F5]'}
           </p>
         </div>
       </div>
@@ -366,21 +565,25 @@ export function ClassicPosView({
               </span>
             </div>
 
-            {/* F5. BUSCADOR / ENTRADA DE CÓDIGO DE BARRAS */}
-            <form onSubmit={handleBarcodeSubmit} className="space-y-1">
-              <label
-                htmlFor="pos-classic-barcode-input"
-                className="text-[11px] font-bold text-blue-200 flex items-center justify-between"
-              >
+            {/* F5. BUSCADOR INTELIGENTE EN VIVO CON DROPDOWN Y ESCÁNER */}
+            <div ref={searchContainerRef} className="relative space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-bold text-blue-200">
                 <span className="flex items-center gap-1">
                   <Barcode className="size-3.5" />
-                  <span>Escáner / Código de barras</span>
+                  <span>Escáner / Buscador en Vivo</span>
                 </span>
-                <span className="font-mono text-[10px] bg-blue-950 px-1.5 py-0.5 rounded text-blue-300">
-                  Enter para agregar
-                </span>
-              </label>
-              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={onOpenProductSearch}
+                  className="font-mono text-[10px] bg-blue-950 hover:bg-blue-900 border border-blue-400/30 px-1.5 py-0.5 rounded text-yellow-300 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Abrir catálogo completo [F3]"
+                >
+                  <Search className="size-2.5" />
+                  <span>[F3] Catálogo</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-1">
                 <div className="bg-black text-white font-mono font-black text-sm px-2.5 py-2 rounded-l-md border border-slate-700 shrink-0 shadow-inner">
                   F5
                 </div>
@@ -389,14 +592,119 @@ export function ClassicPosView({
                   ref={searchInputRef}
                   type="text"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Escanee o escriba código..."
-                  disabled={isSearching}
+                  onChange={handleSearchChange}
+                  onFocus={() => {
+                    if (searchResults.length > 0) setShowDropdown(true);
+                  }}
+                  placeholder="Escriba nombre o código..."
                   autoComplete="off"
                   className="flex-1 bg-white text-slate-900 font-mono font-bold text-sm px-3 py-2 rounded-r-md border border-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 shadow-inner"
                 />
-              </div>
-            </form>
+              </form>
+
+              {/* DROPDOWN PREDICTIVO FLOTANTE DE RESULTADOS EN TIEMPO REAL */}
+              {showDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-blue-500 rounded-xl shadow-2xl z-50 overflow-hidden text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150">
+                  <div className="bg-slate-100 border-b border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                    <span>Resultados coincidentes ({searchResults.length})</span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      ↑↓ Navegar • Enter Seleccionar
+                    </span>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                    {isSearching ? (
+                      <div className="p-3 text-center text-xs text-slate-500">
+                        Buscando productos...
+                      </div>
+                    ) : searchResults.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-slate-500">
+                        No se encontraron productos coincidentes
+                      </div>
+                    ) : (
+                      searchResults.map((product, idx) => {
+                        const isSelected = idx === activeSearchIndex;
+                        const priceUsd = Number(product.base_price ?? 0);
+                        const priceBs = priceUsd * rateVal;
+                        const stock = Number(product.available_stock ?? 0);
+
+                        return (
+                          <div
+                            key={product.id}
+                            onClick={() => void handleSelectProduct(product)}
+                            onMouseEnter={() => setActiveSearchIndex(idx)}
+                            className={cn(
+                              'p-2 flex items-center gap-2.5 cursor-pointer transition-colors',
+                              isSelected ? 'bg-blue-600 text-white' : 'hover:bg-blue-50',
+                            )}
+                          >
+                            <ProductImage
+                              src={product.image_url ?? undefined}
+                              alt={product.name}
+                              variant="thumb"
+                              fit="contain"
+                              className="size-9 rounded border border-slate-200 bg-white shrink-0 object-contain"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={cn(
+                                  'font-bold text-xs truncate leading-snug',
+                                  isSelected ? 'text-white' : 'text-slate-900',
+                                )}
+                              >
+                                {product.name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono">
+                                <span
+                                  className={cn(
+                                    'truncate max-w-[120px]',
+                                    isSelected ? 'text-blue-200' : 'text-slate-500',
+                                  )}
+                                >
+                                  {product.barcode || product.sku || `ID: ${product.id}`}
+                                </span>
+                                <span
+                                  className={cn(
+                                    'px-1 rounded text-[10px] font-bold',
+                                    stock > 0
+                                      ? isSelected
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                      : isSelected
+                                        ? 'bg-red-400 text-slate-900'
+                                        : 'bg-red-100 text-red-800',
+                                  )}
+                                >
+                                  Stock: {stock}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p
+                                className={cn(
+                                  'font-mono font-bold text-xs',
+                                  isSelected ? 'text-white' : 'text-slate-900',
+                                )}
+                              >
+                                ${formatUsd(priceUsd)}
+                              </p>
+                              <p
+                                className={cn(
+                                  'font-mono text-[10px]',
+                                  isSelected ? 'text-blue-200' : 'text-slate-500',
+                                )}
+                              >
+                                Bs {formatBs(priceBs)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* VISOR DE FOTO GRANDE DEL PRODUCTO SELECCIONADO */}
             <div className="bg-white rounded-xl border-2 border-blue-300/80 p-2 shadow-inner flex flex-col items-center justify-center min-h-[170px] sm:min-h-[200px] lg:min-h-[220px] max-h-[260px] overflow-hidden relative">
@@ -454,7 +762,7 @@ export function ClassicPosView({
               </span>
               <span className="text-slate-400">|</span>
               <span className="text-slate-600 hidden md:inline">
-                Navegue con <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">↑</kbd> <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">↓</kbd>, <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">+</kbd> <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">-</kbd>, o <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">Supr</kbd>
+                Navegue con <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">↑</kbd> <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">↓</kbd>, cambie cantidad con doble clic o <kbd className="px-1 py-0.5 bg-white border rounded font-mono text-[10px]">*</kbd>
               </span>
             </div>
 
@@ -472,10 +780,7 @@ export function ClassicPosView({
           </div>
 
           {/* TABLA CON ENCABEZADO NEGRO ESTILO 1SISTEMA */}
-          <div
-            ref={tableContainerRef}
-            className="flex-1 overflow-y-auto overscroll-contain bg-white min-h-0"
-          >
+          <div className="flex-1 overflow-y-auto overscroll-contain bg-white min-h-0">
             <table className="w-full border-collapse text-left font-sans text-xs sm:text-sm">
               {/* ENCABEZADOS NEGROS */}
               <thead className="bg-[#0f172a] text-white font-mono sticky top-0 z-10 shadow-xs text-xs">
@@ -495,7 +800,7 @@ export function ClassicPosView({
                   <th className="py-2 px-2.5 font-bold uppercase w-28 text-right border-r border-slate-700">
                     Precio (Bs)
                   </th>
-                  <th className="py-2 px-2 font-bold uppercase w-16 text-center border-r border-slate-700">
+                  <th className="py-2 px-2 font-bold uppercase w-20 text-center border-r border-slate-700">
                     Cant.
                   </th>
                   <th className="py-2 px-2 font-bold uppercase w-12 text-center border-r border-slate-700">
@@ -518,7 +823,7 @@ export function ClassicPosView({
                       <Package className="size-12 mx-auto mb-2 text-slate-300 stroke-[1.25]" />
                       <p className="font-bold text-sm text-slate-600">Ticket vacío</p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Escanee un código de barras en el campo F5 o presione F3 para buscar.
+                        Comience escribiendo o escaneando en el campo [F5] a la izquierda.
                       </p>
                     </td>
                   </tr>
@@ -534,6 +839,7 @@ export function ClassicPosView({
                       <tr
                         key={line.id}
                         onClick={() => setSelectedIndex(index)}
+                        onDoubleClick={() => openQuantityEditor(line)}
                         className={cn(
                           'cursor-pointer transition-colors group select-none text-xs sm:text-sm',
                           isSelected
@@ -590,7 +896,7 @@ export function ClassicPosView({
                           </div>
                         </td>
 
-                        {/* 4. I.V.A */}
+                        {/* 4. I.V.A (16% o E) */}
                         <td
                           className={cn(
                             'py-2 px-2 text-center border-r font-semibold',
@@ -610,14 +916,22 @@ export function ClassicPosView({
                           {formatBs(linePriceBs)}
                         </td>
 
-                        {/* 6. CANTIDAD */}
+                        {/* 6. CANTIDAD (EDITABLE CON CLIC O DOBLE CLIC) */}
                         <td
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openQuantityEditor(line);
+                          }}
                           className={cn(
-                            'py-2 px-2 text-center border-r font-black text-sm',
+                            'py-2 px-2 text-center border-r font-black text-sm hover:underline cursor-pointer',
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
+                          title="Haga clic para editar cantidad directamente"
                         >
-                          {line.quantity}
+                          <span className="inline-flex items-center gap-1">
+                            <span>{line.quantity}</span>
+                            <Edit3 className="size-2.5 opacity-60 inline" />
+                          </span>
                         </td>
 
                         {/* 7. DECIMALES */}
@@ -705,7 +1019,7 @@ export function ClassicPosView({
             </table>
           </div>
 
-          {/* BARRA INFERIOR DE RESUMEN Y ACCESO DIRECTO A COBRAR */}
+          {/* BARRA INFERIOR DE RESUMEN Y BOTÓN COBRAR */}
           <div className="bg-slate-100 border-t-2 border-slate-300 p-2.5 flex items-center justify-between text-xs sm:text-sm">
             <div className="flex items-center gap-4 text-slate-700 font-mono">
               <div>
@@ -743,6 +1057,176 @@ export function ClassicPosView({
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* 4. BARRA INFERIOR DE TECLAS DE FUNCIÓN CLÁSICAS (ESTILO VALERY/1SISTEMA)   */}
+      {/* ========================================================================= */}
+      <footer className="bg-[#0f172a] border-t-2 border-slate-800 px-3 py-1.5 text-white shrink-0 overflow-x-auto">
+        <div className="flex items-center justify-between gap-1.5 min-w-max text-[11px] font-mono">
+          <button
+            type="button"
+            onClick={onSelectCustomer}
+            className="flex items-center gap-1 bg-slate-800 hover:bg-blue-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+          >
+            <span className="font-black text-yellow-400">F1</span>
+            <span className="text-slate-300">Cliente</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenProductSearch}
+            className="flex items-center gap-1 bg-slate-800 hover:bg-blue-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+          >
+            <span className="font-black text-yellow-400">F3</span>
+            <span className="text-slate-300">Catálogo</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => searchInputRef.current?.focus()}
+            className="flex items-center gap-1 bg-slate-800 hover:bg-blue-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+          >
+            <span className="font-black text-yellow-400">F5</span>
+            <span className="text-slate-300">Escáner</span>
+          </button>
+
+          {onHoldSale && (
+            <button
+              type="button"
+              onClick={onHoldSale}
+              disabled={cart.length === 0}
+              className={cn(
+                'flex items-center gap-1 bg-slate-800 hover:bg-amber-600 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer',
+                cart.length === 0 && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              <span className="font-black text-yellow-400">F6</span>
+              <span className="text-slate-300">En Espera</span>
+            </button>
+          )}
+
+          {onOpenHoldOrders && (
+            <button
+              type="button"
+              onClick={onOpenHoldOrders}
+              className="flex items-center gap-1 bg-slate-800 hover:bg-sky-600 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer"
+            >
+              <span className="font-black text-yellow-400">F7</span>
+              <span className="text-slate-300">Recuperar</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onOpenPayment}
+            disabled={cart.length === 0}
+            className={cn(
+              'flex items-center gap-1 bg-emerald-700 hover:bg-emerald-600 px-3 py-1 rounded border border-emerald-500 font-bold transition-colors cursor-pointer',
+              cart.length === 0 && 'opacity-50 cursor-not-allowed',
+            )}
+          >
+            <span className="font-black text-white">F10</span>
+            <span className="text-white uppercase">Cobrar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (activeLine) onRemoveLine(activeLine.id);
+            }}
+            disabled={!activeLine}
+            className={cn(
+              'flex items-center gap-1 bg-slate-800 hover:bg-red-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer',
+              !activeLine && 'opacity-50 cursor-not-allowed',
+            )}
+          >
+            <span className="font-black text-red-400">Supr</span>
+            <span className="text-slate-300">Eliminar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (activeLine) openQuantityEditor(activeLine);
+            }}
+            disabled={!activeLine}
+            className={cn(
+              'flex items-center gap-1 bg-slate-800 hover:bg-purple-700 px-2.5 py-1 rounded border border-slate-700 transition-colors cursor-pointer',
+              !activeLine && 'opacity-50 cursor-not-allowed',
+            )}
+          >
+            <span className="font-black text-purple-300">*</span>
+            <span className="text-slate-300">Cambiar Cantidad</span>
+          </button>
+        </div>
+      </footer>
+
+      {/* ========================================================================= */}
+      {/* 5. MODAL RÁPIDO PARA EDITAR CANTIDAD DIRECTAMENTE                         */}
+      {/* ========================================================================= */}
+      {editingQtyLine && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-blue-600 max-w-sm w-full p-5 text-slate-900 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Edit3 className="size-5 text-blue-600" />
+                <h3 className="font-bold text-base">Modificar Cantidad</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingQtyLine(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuantity} className="mt-4 space-y-4">
+              <div>
+                <p className="font-semibold text-xs text-slate-500 uppercase">Producto</p>
+                <p className="font-bold text-sm text-slate-900 truncate mt-0.5">
+                  {editingQtyLine.name}
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="quick-quantity-input"
+                  className="block font-semibold text-xs text-slate-700 uppercase"
+                >
+                  Nueva Cantidad
+                </label>
+                <input
+                  id="quick-quantity-input"
+                  ref={qtyInputRef}
+                  type="text"
+                  inputMode="decimal"
+                  value={newQtyValue}
+                  onChange={(e) => setNewQtyValue(e.target.value)}
+                  className="mt-1 w-full bg-slate-50 text-slate-900 font-mono font-black text-2xl text-center px-4 py-2.5 border-2 border-blue-500 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingQtyLine(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancelar [Esc]
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Check className="size-4" />
+                  <span>Aceptar [Enter]</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1817,9 +1817,10 @@ export function PosTerminal() {
               <span className="hidden sm:inline">Volver</span>
             </Button>
 
-            <div className="relative flex-1 min-w-[240px] sm:min-w-[300px] max-w-xl">
-              <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
+            {posViewMode !== 'classic' ? (
+              <div className="relative flex-1 min-w-[240px] sm:min-w-[300px] max-w-xl">
+                <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                <Input
                 ref={searchRef}
                 value={query}
                 onChange={(event) => {
@@ -2011,7 +2012,17 @@ export function PosTerminal() {
                     </div>
                   </div>
                 )}
-            </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-2 text-xs font-bold text-text-secondary">
+                <span className="bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-lg font-mono text-[11px] font-black uppercase">
+                  Modo Clásico Activo
+                </span>
+                <span className="hidden sm:inline text-text-muted font-normal text-xs">
+                  (Escáner y búsqueda en panel F5)
+                </span>
+              </div>
+            )}
 
             {/* Selector de Almacén */}
             <div className="hidden lg:block w-36 shrink-0">
@@ -2388,6 +2399,12 @@ export function PosTerminal() {
               sellerName={currentUser?.name ?? undefined}
               canDiscount={canDiscount}
               allowNegativeStock={allowNegativeStock}
+              warehouseId={effectiveWarehouseId}
+              selectedPriceList={selectedPriceList}
+              orderNumber={String(
+                bootstrap.data?.next_order_number ??
+                  (recentPaidOrders[0]?.id ? recentPaidOrders[0].id + 1 : 1),
+              )}
               onSelectCustomer={() => setPanel('customer')}
               onOpenPayment={() => {
                 if (cart.length === 0) {
@@ -2403,34 +2420,13 @@ export function PosTerminal() {
               onClearCart={clearPos}
               onUpdateLine={(id, patch) => updateLine(id, patch)}
               onRemoveLine={(id) => removeLine(id)}
-              onSearchSubmit={async (term) => {
-                setQuery(term);
-                try {
-                  const directResults = await fetchPosProductsDirect(term, effectiveWarehouseId);
-                  const normalized = term.toLowerCase().trim();
-                  const exact = directResults.find(
-                    (p) =>
-                      p.barcode?.toLowerCase() === normalized ||
-                      p.sku?.toLowerCase() === normalized,
-                  );
-                  const prod = exact ?? directResults[0];
-                  if (prod) {
-                    const added = await addProduct(prod, undefined, 1);
-                    if (added) {
-                      toast.success(`Agregado: ${prod.name}`);
-                      return true;
-                    }
-                  } else {
-                    toast.error(`Producto no encontrado para: ${term}`);
-                  }
-                } catch {
-                  toast.error('Error al consultar producto');
-                }
+              onAddProduct={(prod) => addProduct(prod, undefined, 1)}
+              onOpenProductSearch={() => {
+                setProductSearch(query || '');
+                setPanel('product-search');
               }}
-              onOpenSerials={(lineId) => {
-                setSerialLineId(lineId);
-                setPanel('serials');
-              }}
+              onHoldSale={() => void holdSaleRef.current?.()}
+              onOpenHoldOrders={() => setPanel('hold')}
             />
           ) : posViewMode === 'catalog' ? (
             <>

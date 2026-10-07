@@ -11,6 +11,7 @@ use App\Modules\CashRegister\Resources\CashRegisterSessionResource;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
+use App\Modules\POS\Models\PosOrder;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -135,6 +136,7 @@ class PosBootstrapController extends Controller
             'allow_negative_stock' => $tenant !== null && CompanySettings::allowsNegativeStock($tenant),
             'allow_rate_edit' => $tenant !== null && CompanySettings::allowsPosRateEdit($tenant),
             'allow_catalog_view' => $tenant === null || CompanySettings::allowsPosCatalogView($tenant),
+            'next_order_number' => ((int) PosOrder::query()->max('id')) + 1,
         ];
 
         return response()->json($response);
