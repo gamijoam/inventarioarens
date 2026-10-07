@@ -81,11 +81,7 @@ function formatDate(value: string | null | undefined): string {
   });
 }
 
-function customerLabel(sale: Sale): string {
-  if (!sale.customer) return 'Consumidor Final';
-  const doc = sale.customer.document_number ? ` - ${sale.customer.document_number}` : '';
-  return `${sale.customer.name}${doc}`;
-}
+
 
 function receivableStatusLabel(sale: Sale): string {
   if (!sale.receivable) return 'Sin CxC';
@@ -920,7 +916,6 @@ function SaleDetail({
   const [returnLines, setReturnLines] = useState<Record<number, { quantity: number; condition: 'sellable' | 'damaged'; reason: string; unitIds: number[] }>>({});
   const current = detail ?? sale;
   const items = current.items ?? [];
-  const actor = current.pos_order?.cashier_name ?? current.created_by_name ?? 'Sin usuario';
   const returnLabel = returnStatusLabel(current);
   const returnedProducts = getReturnedProducts(current);
   const canReturnCurrentSale = canCreateReturn && current.status === 'confirmed' && hasReturnableItems(current);
@@ -929,52 +924,66 @@ function SaleDetail({
 
   if (isLoading && !detail) return <Skeleton className="h-36 w-full" />;
 
+  const posPayments = current.pos_order?.payments ?? [];
+  const receivable = current.receivable;
+
   return (
-    <div className="space-y-4" onClick={(event) => event.stopPropagation()}>
-      {/* CABECERA RESUMEN DE LA VENTA */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Cliente</div>
-          <div className="mt-1 font-bold text-slate-900 dark:text-white text-sm truncate">
-            {customerLabel(current)}
+    <div className="space-y-3" onClick={(event) => event.stopPropagation()}>
+      {/* TIRA COMPACTA DE PAGO / COBRO ESTILO RECIBO POS (SOLO SI TIENE INFORMACIÓN) */}
+      {(posPayments.length > 0 || (receivable && receivable.balance_base_amount > 0) || current.pos_order?.cashier_name) && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-900/90 text-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            {current.pos_order?.cashier_name && (
+              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-slate-400">Caja:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {current.pos_order.cash_register_session?.cash_register_name ?? 'POS'}
+                </span>
+                <span className="text-slate-400">·</span>
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {current.pos_order.cashier_name}
+                </span>
+              </div>
+            )}
+
+            {posPayments.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-semibold text-slate-400">Pagos:</span>
+                {posPayments.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 font-mono px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs text-[11px]"
+                  >
+                    <span className="font-sans font-bold text-slate-700 dark:text-slate-300">
+                      {p.payment_method_name ?? p.method}:
+                    </span>
+                    <strong className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatMoney(p.amount, p.currency === 'VES' ? 'Bs ' : '$')}
+                    </strong>
+                    {p.reference && (
+                      <span className="text-slate-400 text-[10px]">({p.reference})</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-          {current.customer?.document_number && (
-            <div className="text-[11px] font-mono text-slate-500 mt-0.5">
-              Doc: {current.customer.document_number}
+
+          {receivable && receivable.balance_base_amount > 0 && (
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200">
+              <span className="font-bold text-[11px] uppercase tracking-wide">Crédito Pendiente:</span>
+              <strong className="font-mono font-black text-xs">
+                {formatMoney(receivable.balance_base_amount)}
+              </strong>
+              {receivable.due_date && (
+                <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                  (Vence: {receivable.due_date})
+                </span>
+              )}
             </div>
           )}
         </div>
-
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Responsable / Cajero</div>
-          <div className="mt-1 font-bold text-slate-900 dark:text-white text-sm truncate">{actor}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Operador de registro</div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Canal y Origen</div>
-          <div className="mt-1 font-mono font-bold text-blue-600 dark:text-blue-400 text-sm">
-            {current.pos_order ? `Terminal POS #${current.pos_order.id}` : 'Venta Manual'}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
-            {current.pos_order?.cash_register_session?.branch_name ? `Sucursal: ${current.pos_order.cash_register_session.branch_name}` : 'Sede Principal'}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Fecha y Hora</div>
-          <div className="mt-1 font-mono font-bold text-slate-900 dark:text-white text-sm">
-            {formatDate(current.confirmed_at ?? current.created_at)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Hora local del comprobante</div>
-        </div>
-      </div>
-
-      {/* AUDITORÍAS DE COBRANZA Y POS */}
-      <div className="grid gap-3.5 lg:grid-cols-2">
-        <ReceivableAudit sale={current} />
-        <PosAudit sale={current} />
-      </div>
+      )}
 
       {current.promotion_applications && current.promotion_applications.length > 0 && (
         <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 dark:border-blue-900/60 dark:bg-blue-950/20 p-3.5">
@@ -1192,56 +1201,6 @@ function SaleDetail({
   );
 }
 
-function ReceivableAudit({ sale }: { sale: Sale }) {
-  const receivable = sale.receivable;
-  if (!receivable) {
-    return (
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Cobranza / CxC</h3>
-        <p className="mt-2 text-xs text-slate-500">No hay cuenta por cobrar asociada a esta venta.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-          Auditoría de Cobranza
-        </h3>
-        <Badge variant={receivableVariant(receivable.status)} className="font-semibold text-xs">
-          {RECEIVABLE_STATUS_LABELS[receivable.status] ?? receivable.status}
-        </Badge>
-      </div>
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <div className="bg-slate-50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-          <dt className="text-[10px] font-bold uppercase text-slate-400">Monto Original</dt>
-          <dd className="font-mono font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5">
-            {formatMoney(receivable.original_base_amount)}
-          </dd>
-        </div>
-        <div className="bg-slate-50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-          <dt className="text-[10px] font-bold uppercase text-slate-400">Total Cobrado</dt>
-          <dd className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-0.5">
-            {formatMoney(receivable.collected_base_amount)}
-          </dd>
-        </div>
-        <div className="bg-amber-50/50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-200/60 dark:border-amber-900/40">
-          <dt className="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-400">Saldo Pendiente</dt>
-          <dd className="font-mono font-black text-amber-800 dark:text-amber-300 text-sm mt-0.5">
-            {formatMoney(receivable.balance_base_amount)}
-          </dd>
-        </div>
-        <div className="bg-slate-50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-          <dt className="text-[10px] font-bold uppercase text-slate-400">Vencimiento</dt>
-          <dd className="font-mono font-semibold text-slate-700 dark:text-slate-300 text-sm mt-0.5">
-            {receivable.due_date ?? 'De contado'}
-          </dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
 
 function SalesReturnForm({
   sale,
@@ -1402,77 +1361,6 @@ function SalesReturnForm({
             Registrar devolución
           </Button>
         </div>
-      </div>
-    </section>
-  );
-}
-
-function PosAudit({ sale }: { sale: Sale }) {
-  const order = sale.pos_order;
-  if (!order) {
-    return (
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Auditoría POS</h3>
-        <p className="mt-2 text-xs text-slate-500">Esta venta fue generada de forma manual o administrativa.</p>
-      </section>
-    );
-  }
-  const session = order.cash_register_session;
-
-  return (
-    <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-          Auditoría de Terminal POS
-        </h3>
-        <Badge variant={order.status === 'paid' ? 'success' : order.status === 'cancelled' ? 'danger' : 'warning'} className="font-semibold text-xs">
-          {order.status === 'paid' ? 'Cobrada en caja' : order.status}
-        </Badge>
-      </div>
-      <div className="mt-3 grid gap-2 grid-cols-2 text-xs">
-        <div className="bg-slate-50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Cajero</span>
-          <span className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5 block truncate">
-            {order.cashier_name ?? 'Sin cajero'}
-          </span>
-        </div>
-        <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40">
-          <span className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-400 block">Total Pagado</span>
-          <span className="font-mono font-black text-emerald-800 dark:text-emerald-300 text-sm mt-0.5 block">
-            {formatMoney(order.paid_base_amount)}
-          </span>
-        </div>
-        <div className="bg-slate-50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Caja</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-300 text-sm mt-0.5 block truncate">
-            {session?.cash_register_name ?? '-'}
-          </span>
-        </div>
-        <div className="bg-slate-50 dark:bg-slate-800/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Sucursal</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-300 text-sm mt-0.5 block truncate">
-            {session?.branch_name ?? '-'}
-          </span>
-        </div>
-      </div>
-      <div className="mt-3 max-h-36 space-y-2 overflow-auto">
-        {(order.payments ?? []).length === 0 ? (
-          <p className="text-xs text-slate-500">Sin pagos POS registrados.</p>
-        ) : order.payments?.map((payment) => (
-          <div key={payment.id} className="rounded-lg border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 px-3 py-2 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-slate-900 dark:text-white">{payment.payment_method_name ?? payment.method}</span>
-              <span className="font-mono font-black text-slate-900 dark:text-white">
-                {formatMoney(payment.amount, payment.currency === 'VES' ? 'Bs ' : '$')}
-              </span>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-mono text-slate-500">
-              <span>Base: {formatMoney(payment.amount_base)}</span>
-              {payment.exchange_rate_type_code && <span>Tasa: {payment.exchange_rate_type_code} @ {formatMoney(payment.exchange_rate, '')}</span>}
-              {payment.reference && <span>Ref: {payment.reference}</span>}
-            </div>
-          </div>
-        ))}
       </div>
     </section>
   );
