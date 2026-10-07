@@ -13,7 +13,7 @@ import {
   X,
   Check,
 } from 'lucide-react';
-import type { PosCartLine, CartTotals } from './posLogic';
+import type { PosCartLine, CartTotals, PosPaymentLine, PaymentTotals } from './posLogic';
 import type { Customer } from './api';
 import type { Product, PriceList } from '@/features/inventory-center/schemas';
 import { fetchPosProductsDirect } from './api';
@@ -24,6 +24,8 @@ import { toast } from 'sonner';
 export interface ClassicPosViewProps {
   cart: PosCartLine[];
   cartTotals: CartTotals;
+  payments?: PosPaymentLine[];
+  paymentTotals?: PaymentTotals;
   activeRate: { code: string; rate: number } | null;
   selectedCustomer: Customer | null;
   customerName?: string;
@@ -35,6 +37,7 @@ export interface ClassicPosViewProps {
   orderNumber?: string;
   onSelectCustomer: () => void;
   onOpenPayment: () => void;
+  onClearPayments?: () => void;
   onClearCart: () => void;
   onUpdateLine: (lineId: string, patch: Partial<PosCartLine>) => void;
   onRemoveLine: (lineId: string) => void;
@@ -72,6 +75,8 @@ function getCustomerDoc(customer: Customer | null): string {
 export function ClassicPosView({
   cart,
   cartTotals,
+  payments = [],
+  paymentTotals,
   activeRate,
   selectedCustomer,
   customerName,
@@ -81,6 +86,7 @@ export function ClassicPosView({
   orderNumber,
   onSelectCustomer,
   onOpenPayment,
+  onClearPayments,
   onClearCart,
   onUpdateLine,
   onRemoveLine,
@@ -414,6 +420,10 @@ export function ClassicPosView({
     ? `FAC${orderNumber.replace(/\D/g, '').padStart(8, '0')}`
     : 'FAC00000143';
 
+  // Estado de los pagos
+  const isFullyPaid = payments.length > 0 && (paymentTotals?.remaining ?? 0) <= 0;
+  const hasPartialPayments = payments.length > 0 && (paymentTotals?.remaining ?? 0) > 0;
+
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 bg-[#f1f5f9] select-none font-sans overflow-hidden">
       {/* ========================================================================= */}
@@ -459,27 +469,33 @@ export function ClassicPosView({
           </div>
         </div>
 
-        {/* BLOQUE GRAN TOTAL FACTURA (ROJO GIGANTE - BOTÓN DE COBRO F10) */}
+        {/* BLOQUE GRAN TOTAL FACTURA (ROJO GIGANTE / VERDE SI YA ESTÁ PAGADO) */}
         <button
           type="button"
           onClick={onOpenPayment}
           disabled={cart.length === 0}
-          title="Haga clic aquí o presione F10 para cobrar"
+          title={
+            isFullyPaid
+              ? 'Haga clic aquí o presione F10 para confirmar y emitir factura'
+              : 'Haga clic aquí o presione F10 para cobrar'
+          }
           className={cn(
             'col-span-5 sm:col-span-4 bg-gradient-to-b from-[#ef4444] to-[#b91c1c] rounded-lg p-1.5 sm:p-2 border-2 border-red-300 flex flex-col justify-between shadow-lg transition-transform active:scale-[0.99] text-left cursor-pointer group',
+            isFullyPaid &&
+              'from-emerald-600 to-green-700 border-emerald-300 ring-2 ring-emerald-400 shadow-emerald-900/50',
             cart.length === 0 && 'opacity-70 cursor-not-allowed',
           )}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-red-950">
-                TOTAL [F10]
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white">
+                {isFullyPaid ? 'CONFIRMAR [F10]' : 'TOTAL [F10]'}
               </span>
-              <span className="hidden lg:inline-block text-[9px] bg-red-900/60 text-red-100 px-1 rounded uppercase font-bold">
-                COBRAR
+              <span className="hidden lg:inline-block text-[9px] bg-black/40 text-white px-1.5 py-0.2 rounded uppercase font-bold">
+                {isFullyPaid ? 'LISTO' : 'COBRAR'}
               </span>
             </div>
-            <span className="bg-white/95 text-red-900 font-mono font-black text-[10px] sm:text-xs px-2 py-0.2 rounded shadow-xs">
+            <span className="bg-white/95 text-slate-900 font-mono font-black text-[10px] sm:text-xs px-2 py-0.2 rounded shadow-xs">
               REF {formatUsd(totalUsd)}
             </span>
           </div>
@@ -1042,18 +1058,51 @@ export function ClassicPosView({
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={onOpenPayment}
-              disabled={cart.length === 0}
-              className={cn(
-                'bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all cursor-pointer font-sans text-xs sm:text-sm',
-                cart.length === 0 && 'opacity-50 cursor-not-allowed',
+            <div className="flex items-center gap-2">
+              {payments.length > 0 && (
+                <div className="flex items-center gap-2 bg-emerald-100 text-emerald-950 border border-emerald-300 px-3 py-1.5 rounded-lg text-xs font-bold font-mono">
+                  <span>Pagado: ${formatUsd(paymentTotals?.paid ?? 0)}</span>
+                  {hasPartialPayments && (
+                    <span className="text-amber-800">
+                      (Resta: ${formatUsd(paymentTotals?.remaining ?? 0)})
+                    </span>
+                  )}
+                  {onClearPayments && (
+                    <button
+                      type="button"
+                      onClick={onClearPayments}
+                      className="text-slate-500 hover:text-red-700 ml-1 p-0.5 rounded cursor-pointer"
+                      title="Quitar métodos de pago seleccionados"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
-            >
-              <ShoppingBag className="size-4" />
-              <span>COBRAR FACTURA [F10]</span>
-            </button>
+
+              <button
+                type="button"
+                onClick={onOpenPayment}
+                disabled={cart.length === 0}
+                className={cn(
+                  'font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all cursor-pointer font-sans text-xs sm:text-sm',
+                  cart.length === 0
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-50'
+                    : isFullyPaid
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white ring-2 ring-emerald-300 shadow-md animate-pulse'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                )}
+              >
+                <ShoppingBag className="size-4" />
+                <span>
+                  {isFullyPaid
+                    ? 'CONFIRMAR Y FACTURAR [F10]'
+                    : hasPartialPayments
+                      ? 'COMPLETAR PAGO [F10]'
+                      : 'COBRAR FACTURA [F10]'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

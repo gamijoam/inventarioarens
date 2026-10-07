@@ -2405,6 +2405,9 @@ export function PosTerminal() {
                 bootstrap.data?.next_order_number ??
                   (recentPaidOrders[0]?.id ? recentPaidOrders[0].id + 1 : 1),
               )}
+              payments={payments}
+              paymentTotals={paymentTotals}
+              onClearPayments={() => setPayments([])}
               onSelectCustomer={() => setPanel('customer')}
               onOpenPayment={() => {
                 if (cart.length === 0) {
@@ -2415,7 +2418,13 @@ export function PosTerminal() {
                   toast.error(priceListPaymentIssue);
                   return;
                 }
-                setPanel('pay');
+                // Si aún no hay pagos o falta cubrir el total, abrir panel de métodos
+                if (payments.length === 0 || paymentTotals.remaining > 0) {
+                  setPanel('pay');
+                  return;
+                }
+                // Si ya está pagado en su totalidad, confirmar y facturar directamente
+                void confirmPaidSale();
               }}
               onClearCart={clearPos}
               onUpdateLine={(id, patch) => updateLine(id, patch)}
@@ -3245,6 +3254,11 @@ export function PosTerminal() {
                 onSelect={(methodId) => {
                   addQuickPayment(methodId);
                   setPanel(null);
+                  if (posViewMode === 'classic') {
+                    setTimeout(() => {
+                      void confirmPaidSale();
+                    }, 50);
+                  }
                 }}
               />
             )}
