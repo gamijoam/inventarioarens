@@ -1803,7 +1803,8 @@ export function PosTerminal() {
       hideHeader
     >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
-        <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
+        {posViewMode !== 'classic' && (
+          <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
           {/* Navegación y Búsqueda */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Button
@@ -1817,8 +1818,7 @@ export function PosTerminal() {
               <span className="hidden sm:inline">Volver</span>
             </Button>
 
-            {posViewMode !== 'classic' ? (
-              <div className="relative flex-1 min-w-[240px] sm:min-w-[300px] max-w-xl">
+            <div className="relative flex-1 min-w-[240px] sm:min-w-[300px] max-w-xl">
                 <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                 <Input
                 ref={searchRef}
@@ -2013,16 +2013,6 @@ export function PosTerminal() {
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex items-center gap-2 px-2 text-xs font-bold text-text-secondary">
-                <span className="bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-lg font-mono text-[11px] font-black uppercase">
-                  Modo Clásico Activo
-                </span>
-                <span className="hidden sm:inline text-text-muted font-normal text-xs">
-                  (Escáner y búsqueda en panel F5)
-                </span>
-              </div>
-            )}
 
             {/* Selector de Almacén */}
             <div className="hidden lg:block w-36 shrink-0">
@@ -2106,7 +2096,7 @@ export function PosTerminal() {
                   onClick={() => handleSetPosViewMode('classic')}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
-                    posViewMode === 'classic'
+                    (posViewMode as string) === 'classic'
                       ? 'bg-primary text-white shadow-xs'
                       : 'text-text-muted hover:text-text-primary',
                   )}
@@ -2378,6 +2368,7 @@ export function PosTerminal() {
             />
           </div>
         </header>
+      )}
 
         <main
           className={cn(
@@ -2436,6 +2427,15 @@ export function PosTerminal() {
               }}
               onHoldSale={() => void holdSaleRef.current?.()}
               onOpenHoldOrders={() => setPanel('hold')}
+              pendingCount={pendingCount}
+              allowRateEdit={allowRateEdit}
+              onExitPos={() => void exitPos()}
+              onChangeViewMode={(mode) => handleSetPosViewMode(mode)}
+              onOpenCashRegister={() => setPanel('cash')}
+              onOpenReceipt={() => setPanel('receipt')}
+              onOpenQuotation={() => setQuotationOpen(true)}
+              onOpenQuotations={() => setQuotationsOpen(true)}
+              onEditRate={() => setRateModalOpen(true)}
             />
           ) : posViewMode === 'catalog' ? (
             <>

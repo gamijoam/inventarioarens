@@ -12,6 +12,13 @@ import {
   Edit3,
   X,
   Check,
+  ArrowLeft,
+  LayoutGrid,
+  Receipt,
+  Wallet,
+  FileText,
+  Settings2,
+  ClipboardList,
 } from 'lucide-react';
 import type { PosCartLine, CartTotals, PosPaymentLine, PaymentTotals } from './posLogic';
 import type { Customer } from './api';
@@ -35,6 +42,8 @@ export interface ClassicPosViewProps {
   warehouseId?: number | null;
   selectedPriceList?: PriceList | null;
   orderNumber?: string;
+  pendingCount?: number;
+  allowRateEdit?: boolean;
   onSelectCustomer: () => void;
   onOpenPayment: () => void;
   onClearPayments?: () => void;
@@ -45,6 +54,13 @@ export interface ClassicPosViewProps {
   onOpenProductSearch: () => void;
   onHoldSale?: () => void;
   onOpenHoldOrders?: () => void;
+  onExitPos?: () => void;
+  onChangeViewMode?: (mode: 'catalog' | 'ticket') => void;
+  onOpenCashRegister?: () => void;
+  onOpenReceipt?: () => void;
+  onOpenQuotation?: () => void;
+  onOpenQuotations?: () => void;
+  onEditRate?: () => void;
 }
 
 function formatBs(value: number): string {
@@ -84,6 +100,8 @@ export function ClassicPosView({
   allowNegativeStock = false,
   warehouseId,
   orderNumber,
+  pendingCount = 0,
+  allowRateEdit = false,
   onSelectCustomer,
   onOpenPayment,
   onClearPayments,
@@ -94,6 +112,13 @@ export function ClassicPosView({
   onOpenProductSearch,
   onHoldSale,
   onOpenHoldOrders,
+  onExitPos,
+  onChangeViewMode,
+  onOpenCashRegister,
+  onOpenReceipt,
+  onOpenQuotation,
+  onOpenQuotations,
+  onEditRate,
 }: ClassicPosViewProps) {
   // Índice del renglón activo en la tabla
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
@@ -1109,105 +1134,216 @@ export function ClassicPosView({
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. BARRA INFERIOR DE TECLAS DE FUNCIÓN CLÁSICAS (ESTILO VALERY/1SISTEMA)   */}
+      {/* 4. BARRA INFERIOR DE TECLAS DE FUNCIÓN Y CONTROLES DEL SISTEMA           */}
       {/* ========================================================================= */}
-      <footer className="bg-[#0f172a] border-t-2 border-slate-800 px-4 py-2 text-white shrink-0 overflow-x-auto">
+      <footer className="bg-[#0f172a] border-t-2 border-slate-800 px-3 py-2 text-white shrink-0 overflow-x-auto shadow-2xl">
         <div className="flex items-center justify-between gap-2 min-w-max text-xs sm:text-sm font-mono">
-          <button
-            type="button"
-            onClick={onSelectCustomer}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
-          >
-            <span className="font-black text-yellow-400">F1</span>
-            <span className="text-slate-300">Cliente</span>
-          </button>
+          {/* GRUPO 1: VOLVER Y CAMBIO DE VISTA */}
+          <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700">
+            {onExitPos && (
+              <button
+                type="button"
+                onClick={onExitPos}
+                className="flex items-center gap-1.5 bg-rose-950/80 hover:bg-rose-800 text-rose-200 hover:text-white px-2.5 py-1.5 rounded-lg border border-rose-700/60 transition-colors cursor-pointer"
+                title="Volver atrás / Salir del POS [Esc]"
+              >
+                <ArrowLeft className="size-4" />
+                <span className="font-bold font-sans">Volver</span>
+              </button>
+            )}
 
-          <button
-            type="button"
-            onClick={onOpenProductSearch}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
-          >
-            <span className="font-black text-yellow-400">F3</span>
-            <span className="text-slate-300">Catálogo</span>
-          </button>
+            {onChangeViewMode && (
+              <button
+                type="button"
+                onClick={() => onChangeViewMode('catalog')}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                title="Cambiar a vista Catálogo"
+              >
+                <LayoutGrid className="size-4 text-sky-400" />
+                <span className="font-sans text-xs">Catálogo</span>
+              </button>
+            )}
+          </div>
 
-          <button
-            type="button"
-            onClick={() => searchInputRef.current?.focus()}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
-          >
-            <span className="font-black text-yellow-400">F5</span>
-            <span className="text-slate-300">Escáner</span>
-          </button>
-
-          {onHoldSale && (
+          {/* GRUPO 2: ATAJOS DE VENTA CLÁSICOS (F1 a F10) */}
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={onHoldSale}
+              onClick={onSelectCustomer}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+            >
+              <span className="font-black text-yellow-400">F1</span>
+              <span className="text-slate-300">Cliente</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenProductSearch}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+            >
+              <span className="font-black text-yellow-400">F3</span>
+              <span className="text-slate-300">Catálogo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => searchInputRef.current?.focus()}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+            >
+              <span className="font-black text-yellow-400">F5</span>
+              <span className="text-slate-300">Escáner</span>
+            </button>
+
+            {onHoldSale && (
+              <button
+                type="button"
+                onClick={onHoldSale}
+                disabled={cart.length === 0}
+                className={cn(
+                  'flex items-center gap-1.5 bg-slate-800 hover:bg-amber-600 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
+                  cart.length === 0 && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                <span className="font-black text-yellow-400">F6</span>
+                <span className="text-slate-300">En Espera</span>
+              </button>
+            )}
+
+            {onOpenHoldOrders && (
+              <button
+                type="button"
+                onClick={onOpenHoldOrders}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-sky-600 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer relative"
+              >
+                <span className="font-black text-yellow-400">F7</span>
+                <span className="text-slate-300">Pendientes</span>
+                {pendingCount > 0 && (
+                  <span className="bg-amber-400 text-slate-950 font-black rounded-full px-1.5 text-[10px]">
+                    {pendingCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onOpenPayment}
               disabled={cart.length === 0}
               className={cn(
-                'flex items-center gap-1.5 bg-slate-800 hover:bg-amber-600 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
+                'flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 px-3.5 py-1.5 rounded-lg border border-emerald-500 font-bold transition-colors cursor-pointer',
                 cart.length === 0 && 'opacity-50 cursor-not-allowed',
               )}
             >
-              <span className="font-black text-yellow-400">F6</span>
-              <span className="text-slate-300">En Espera</span>
+              <span className="font-black text-white text-base">F10</span>
+              <span className="text-white uppercase font-bold">Cobrar</span>
             </button>
-          )}
 
-          {onOpenHoldOrders && (
             <button
               type="button"
-              onClick={onOpenHoldOrders}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-sky-600 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+              onClick={() => {
+                if (activeLine) onRemoveLine(activeLine.id);
+              }}
+              disabled={!activeLine}
+              className={cn(
+                'flex items-center gap-1.5 bg-slate-800 hover:bg-red-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
+                !activeLine && 'opacity-50 cursor-not-allowed',
+              )}
             >
-              <span className="font-black text-yellow-400">F7</span>
-              <span className="text-slate-300">Recuperar</span>
+              <span className="font-black text-red-400">Supr</span>
+              <span className="text-slate-300">Eliminar</span>
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={onOpenPayment}
-            disabled={cart.length === 0}
-            className={cn(
-              'flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 px-4 py-1.5 rounded-lg border border-emerald-500 font-bold transition-colors cursor-pointer',
-              cart.length === 0 && 'opacity-50 cursor-not-allowed',
-            )}
-          >
-            <span className="font-black text-white text-base">F10</span>
-            <span className="text-white uppercase font-bold">Cobrar</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (activeLine) openQuantityEditor(activeLine);
+              }}
+              disabled={!activeLine}
+              className={cn(
+                'flex items-center gap-1.5 bg-slate-800 hover:bg-purple-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
+                !activeLine && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              <span className="font-black text-purple-300 text-base">*</span>
+              <span className="text-slate-300">Cantidad</span>
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (activeLine) onRemoveLine(activeLine.id);
-            }}
-            disabled={!activeLine}
-            className={cn(
-              'flex items-center gap-1.5 bg-slate-800 hover:bg-red-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
-              !activeLine && 'opacity-50 cursor-not-allowed',
+          {/* GRUPO 3: OPERACIONES ADICIONALES (Caja, Recibo, Cotización, Tasa) */}
+          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700">
+            {onOpenCashRegister && (
+              <button
+                type="button"
+                onClick={onOpenCashRegister}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-emerald-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                title="Movimientos y cierre de caja"
+              >
+                <Wallet className="size-3.5 text-emerald-400" />
+                <span className="text-slate-300">Caja</span>
+              </button>
             )}
-          >
-            <span className="font-black text-red-400">Supr</span>
-            <span className="text-slate-300">Eliminar</span>
-          </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (activeLine) openQuantityEditor(activeLine);
-            }}
-            disabled={!activeLine}
-            className={cn(
-              'flex items-center gap-1.5 bg-slate-800 hover:bg-purple-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
-              !activeLine && 'opacity-50 cursor-not-allowed',
+            {onOpenReceipt && (
+              <button
+                type="button"
+                onClick={onOpenReceipt}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-blue-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                title="Reimprimir último recibo"
+              >
+                <Receipt className="size-3.5 text-blue-400" />
+                <span className="text-slate-300">Recibo</span>
+              </button>
             )}
-          >
-            <span className="font-black text-purple-300 text-base">*</span>
-            <span className="text-slate-300">Cambiar Cantidad</span>
-          </button>
+
+            {onOpenQuotation && (
+              <button
+                type="button"
+                onClick={onOpenQuotation}
+                disabled={cart.length === 0}
+                className={cn(
+                  'flex items-center gap-1.5 bg-slate-800 hover:bg-purple-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer',
+                  cart.length === 0 && 'opacity-50 cursor-not-allowed',
+                )}
+                title="Crear cotización a partir de este carrito"
+              >
+                <FileText className="size-3.5 text-purple-400" />
+                <span className="text-slate-300">Cotizar</span>
+              </button>
+            )}
+
+            {onOpenQuotations && (
+              <button
+                type="button"
+                onClick={onOpenQuotations}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-indigo-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                title="Ver lista de cotizaciones guardadas"
+              >
+                <ClipboardList className="size-3.5 text-indigo-400" />
+                <span className="text-slate-300">Cotizaciones</span>
+              </button>
+            )}
+
+            {activeRate && (
+              <div
+                onClick={onEditRate}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-900/90 text-xs font-bold font-mono',
+                  allowRateEdit && onEditRate
+                    ? 'hover:border-yellow-400 text-yellow-300 cursor-pointer'
+                    : 'text-slate-300',
+                )}
+                title={
+                  allowRateEdit
+                    ? 'Tasa de cambio activa. Clic para editar.'
+                    : 'Tasa de cambio activa'
+                }
+              >
+                <span>{activeRate.code}:</span>
+                <span className="text-white">{formatBs(activeRate.rate)}</span>
+                {allowRateEdit && onEditRate && <Settings2 className="size-3 opacity-70 ml-0.5" />}
+              </div>
+            )}
+          </div>
         </div>
       </footer>
 
