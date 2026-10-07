@@ -1335,27 +1335,44 @@ function ProductCatalogDetailModal({
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
               {/* Columna 1: Foto & Datos Básicos (4 cols) */}
               <div className="lg:col-span-4 flex flex-col gap-2">
-                {/* Foto del Producto con miniaturas */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="w-full h-28 sm:h-32 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-border overflow-hidden flex items-center justify-center p-2 relative group">
+                {/* Tarjeta Multimedia del Producto (Foto grande + miniaturas + controles) */}
+                <div className="bg-surface border border-border/80 rounded-xl p-3 shadow-2xs flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                      <Package className="size-3.5 text-primary" />
+                      Imagen del producto
+                    </span>
+                    {allImages.length > 0 && (
+                      <span className="text-[10px] font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/50">
+                        {allImages.length} {allImages.length === 1 ? 'imagen' : 'imágenes'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Foto Principal Ampliada */}
+                  <div className="w-full h-48 sm:h-56 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-border/80 overflow-hidden flex items-center justify-center p-3 relative group shadow-inner">
                     {currentPreviewImage ? (
                       <img
                         src={currentPreviewImage}
                         alt={name}
-                        className="size-full object-contain"
+                        className="size-full object-contain transition-transform duration-200 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="flex flex-col items-center justify-center gap-1 text-text-muted">
-                        <Package className="size-10 stroke-[1.25] text-text-muted/50" />
-                        <span className="text-[10px] font-medium text-text-muted/60">
+                      <div className="flex flex-col items-center justify-center gap-2 text-text-muted">
+                        <Package className="size-12 stroke-[1.2] text-text-muted/40" />
+                        <span className="text-xs font-medium text-text-muted/70">
                           Sin imagen registrada
+                        </span>
+                        <span className="text-[10px] text-text-muted/50">
+                          Ingresa una URL o sube una foto abajo
                         </span>
                       </div>
                     )}
                   </div>
 
+                  {/* Tira de Miniaturas */}
                   {allImages.length >= 1 && (
-                    <div className="flex items-center gap-2 overflow-x-auto py-1">
+                    <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5">
                       {allImages.map((img, idx) => {
                         const imageId = imageIdByUrl.get(img);
                         const isSelected = activeImageIndex === idx;
@@ -1441,8 +1458,8 @@ function ProductCatalogDetailModal({
                     </div>
                   </div>
 
-                  {/* Subir foto desde el equipo (misma carga que la galería) */}
-                  <div className="flex items-center gap-2">
+                  {/* Subir foto desde el equipo */}
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
                     <input
                       ref={photoInputRef}
                       type="file"
@@ -1473,7 +1490,7 @@ function ProductCatalogDetailModal({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 text-xs gap-1.5"
+                      className="h-7 text-xs gap-1.5 font-medium"
                       disabled={uploadImage.isPending}
                       onClick={() => photoInputRef.current?.click()}
                       data-testid="catalog-detail-upload-photo"
@@ -1485,104 +1502,114 @@ function ProductCatalogDetailModal({
                       )}
                       <span>Subir foto</span>
                     </Button>
-                    <span className="text-[10px] text-text-muted">JPG/PNG/WebP (max 5 MB)</span>
+                    <span className="text-[10px] text-text-muted">JPG, PNG o WebP (máx. 5 MB)</span>
                   </div>
                 </div>
 
-                {/* Nombre del Producto */}
-                <div>
-                  <Label className="text-[11px] font-semibold text-text-primary">
-                    Nombre del Producto <span className="text-rose-500">*</span>
-                  </Label>
-                  <Input
-                    placeholder="Ej. Bujía Denso K20PR-U"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="mt-0.5 font-medium h-7 text-xs"
-                  />
-                </div>
+                {/* Datos de Identificación del Producto */}
+                <div className="bg-surface border border-border/80 rounded-xl p-3 shadow-2xs flex flex-col gap-2.5">
+                  <div className="border-b border-border/60 pb-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                      <Sparkles className="size-3.5 text-primary" />
+                      Datos de Identificación
+                    </span>
+                  </div>
 
-                {/* SKU y Código de Barras */}
-                <div className="grid grid-cols-2 gap-2">
+                  {/* Nombre del Producto */}
                   <div>
-                    <Label className="text-[10px] text-text-secondary">Código / SKU</Label>
-                    <Input
-                      placeholder="SKU-1234"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value)}
-                      className="mt-0.5 font-mono text-xs h-7"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-text-secondary">Código de barras</Label>
-                    <Input
-                      placeholder="759123456789"
-                      value={barcode}
-                      onChange={(e) => setBarcode(e.target.value)}
-                      className="mt-0.5 font-mono text-xs h-7"
-                    />
-                  </div>
-                </div>
-
-                {/* Categoría y Marca */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-[10px] text-text-secondary">Categoría</Label>
-                    <Select
-                      value={categoryId ? String(categoryId) : ''}
-                      onChange={(e) =>
-                        setCategoryId(e.target.value ? Number(e.target.value) : undefined)
-                      }
-                      className="mt-0.5 text-xs h-7"
-                    >
-                      <option value="">(Sin categoría)</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-text-secondary">Marca</Label>
-                    <Select
-                      value={brandId ? String(brandId) : ''}
-                      onChange={(e) =>
-                        setBrandId(e.target.value ? Number(e.target.value) : undefined)
-                      }
-                      className="mt-0.5 text-xs h-7"
-                    >
-                      <option value="">(Sin marca)</option>
-                      {brands.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Unidad de Medida y Switch Activo */}
-                <div className="grid grid-cols-2 gap-2 items-center">
-                  <div>
-                    <Label className="text-[10px] text-text-secondary">Unidad de Medida</Label>
-                    <Select
-                      value={unitOfMeasure}
-                      onChange={(e) => setUnitOfMeasure(e.target.value)}
-                      className="mt-0.5 text-xs h-7"
-                    >
-                      {STANDARD_UNITS_OF_MEASURE.map((u) => (
-                        <option key={u.value} value={u.value}>
-                          {u.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div className="flex items-center justify-between bg-surface-subtle/50 border border-border/80 rounded-md px-2.5 h-7 mt-3.5">
-                    <Label className="text-xs cursor-pointer" onClick={() => setIsActive(!isActive)}>
-                      Activo
+                    <Label className="text-[11px] font-semibold text-text-primary">
+                      Nombre del Producto <span className="text-rose-500">*</span>
                     </Label>
-                    <Switch checked={isActive} onCheckedChange={setIsActive} />
+                    <Input
+                      placeholder="Ej. Bujía Denso K20PR-U"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="mt-0.5 font-medium h-7.5 text-xs"
+                    />
+                  </div>
+
+                  {/* SKU y Código de Barras */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-text-secondary">Código / SKU</Label>
+                      <Input
+                        placeholder="SKU-1234"
+                        value={sku}
+                        onChange={(e) => setSku(e.target.value)}
+                        className="mt-0.5 font-mono text-xs h-7.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-text-secondary">Código de barras</Label>
+                      <Input
+                        placeholder="759123456789"
+                        value={barcode}
+                        onChange={(e) => setBarcode(e.target.value)}
+                        className="mt-0.5 font-mono text-xs h-7.5"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Categoría y Marca */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-text-secondary">Categoría</Label>
+                      <Select
+                        value={categoryId ? String(categoryId) : ''}
+                        onChange={(e) =>
+                          setCategoryId(e.target.value ? Number(e.target.value) : undefined)
+                        }
+                        className="mt-0.5 text-xs h-7.5"
+                      >
+                        <option value="">(Sin categoría)</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-text-secondary">Marca</Label>
+                      <Select
+                        value={brandId ? String(brandId) : ''}
+                        onChange={(e) =>
+                          setBrandId(e.target.value ? Number(e.target.value) : undefined)
+                        }
+                        className="mt-0.5 text-xs h-7.5"
+                      >
+                        <option value="">(Sin marca)</option>
+                        {brands.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Unidad de Medida y Switch Activo */}
+                  <div className="grid grid-cols-2 gap-2 items-center">
+                    <div>
+                      <Label className="text-[10px] text-text-secondary">Unidad de Medida</Label>
+                      <Select
+                        value={unitOfMeasure}
+                        onChange={(e) => setUnitOfMeasure(e.target.value)}
+                        className="mt-0.5 text-xs h-7.5"
+                      >
+                        {STANDARD_UNITS_OF_MEASURE.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="flex items-center justify-between bg-surface-subtle/50 border border-border/80 rounded-md px-2.5 h-7.5 mt-3.5">
+                      <Label className="text-xs cursor-pointer font-medium" onClick={() => setIsActive(!isActive)}>
+                        Activo
+                      </Label>
+                      <Switch checked={isActive} onCheckedChange={setIsActive} />
+                    </div>
                   </div>
                 </div>
               </div>
