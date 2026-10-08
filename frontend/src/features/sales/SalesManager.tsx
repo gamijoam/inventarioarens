@@ -386,7 +386,7 @@ export function SalesManager() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cliente, documento, producto, SKU o venta #"
-              className="h-10 pl-9 pr-9 font-medium text-sm rounded-xl border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 focus:bg-white dark:focus:bg-slate-900"
+              className="h-10 pl-9 pr-9 font-medium text-ui-control rounded-xl border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 focus:bg-white dark:focus:bg-slate-900"
             />
             {search && (
               <button
@@ -430,7 +430,7 @@ export function SalesManager() {
                   type="button"
                   onClick={() => updateFilters({ status: tab.value as SaleListFilters['status'] })}
                   className={cn(
-                    'px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap',
+                    'px-3 py-1.5 text-ui-caption font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap',
                     active
                       ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white/50',
@@ -440,7 +440,7 @@ export function SalesManager() {
                   {tab.count !== undefined && (
                     <span
                       className={cn(
-                        'text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold',
+                        'text-ui-caption font-mono px-1.5 py-0.2 rounded-full font-bold',
                         active
                           ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                           : 'bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
@@ -459,7 +459,7 @@ export function SalesManager() {
             variant="secondary"
             onClick={() => void refetch()}
             disabled={isFetching}
-            className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs gap-2 shrink-0 font-semibold text-xs"
+            className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs gap-2 shrink-0 font-semibold text-ui-caption"
           >
             <RefreshCw className={cn('size-3.5 text-blue-600', isFetching && 'animate-spin')} />
             <span>Actualizar</span>
@@ -467,7 +467,7 @@ export function SalesManager() {
         </div>
 
         {/* FILA 2: FECHAS + PROMOCIÓN + LIMPIAR */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-1 text-xs border-t border-slate-100 dark:border-slate-800/70">
+        <div className="flex flex-wrap items-center gap-2.5 pt-1 text-ui-caption border-t border-slate-100 dark:border-slate-800/70">
           <div className="flex items-center gap-1.5 text-slate-500 font-semibold">
             <Calendar className="size-3.5 text-slate-400" />
             <span>Rango:</span>
@@ -478,7 +478,7 @@ export function SalesManager() {
               type="date"
               value={filters.date_from ?? ''}
               onChange={(e) => updateFilters({ date_from: e.target.value || undefined })}
-              className="h-8 w-36 text-xs rounded-lg font-mono border-slate-300 dark:border-slate-700"
+              className="h-8 w-36 text-ui-caption rounded-lg font-mono border-slate-300 dark:border-slate-700"
               title="Fecha desde"
             />
             <span className="text-slate-400 font-bold">-</span>
@@ -486,7 +486,7 @@ export function SalesManager() {
               type="date"
               value={filters.date_to ?? ''}
               onChange={(e) => updateFilters({ date_to: e.target.value || undefined })}
-              className="h-8 w-36 text-xs rounded-lg font-mono border-slate-300 dark:border-slate-700"
+              className="h-8 w-36 text-ui-caption rounded-lg font-mono border-slate-300 dark:border-slate-700"
               title="Fecha hasta"
             />
           </div>
@@ -499,7 +499,7 @@ export function SalesManager() {
                 const today = businessDateKey(new Date());
                 updateFilters({ date_from: today, date_to: today });
               }}
-              className="px-2 py-1 text-[11px] font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+              className="px-2 py-1 text-ui-caption font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
             >
               Hoy
             </button>
@@ -511,7 +511,7 @@ export function SalesManager() {
                 const today = businessDateKey(now);
                 updateFilters({ date_from: past7, date_to: today });
               }}
-              className="px-2 py-1 text-[11px] font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+              className="px-2 py-1 text-ui-caption font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
             >
               7 días
             </button>
@@ -524,7 +524,7 @@ export function SalesManager() {
                 const today = businessDateKey(now);
                 updateFilters({ date_from: firstDay, date_to: today });
               }}
-              className="px-2 py-1 text-[11px] font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+              className="px-2 py-1 text-ui-caption font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
             >
               Este mes
             </button>
@@ -538,7 +538,7 @@ export function SalesManager() {
               id="sales-promotion-scope"
               value={filters.promotion_scope ?? 'all'}
               onChange={(e) => updateFilters({ promotion_scope: e.target.value as SaleListFilters['promotion_scope'] })}
-              className="h-8 text-xs rounded-lg border-slate-300 dark:border-slate-700 w-44"
+              className="h-8 text-ui-caption rounded-lg border-slate-300 dark:border-slate-700 w-44"
             >
               {PROMOTION_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -551,7 +551,7 @@ export function SalesManager() {
             <button
               type="button"
               onClick={resetAllFilters}
-              className="ml-auto flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:underline cursor-pointer"
+              className="ml-auto flex items-center gap-1 text-ui-caption font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:underline cursor-pointer"
             >
               <X className="size-3" />
               <span>Limpiar filtros</span>
@@ -647,7 +647,7 @@ export function SalesManager() {
         <div className={cn('rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden', isFetching ? 'opacity-75 transition-opacity' : '')}>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-900 text-white dark:bg-slate-950 text-[11px] font-bold uppercase tracking-wider">
+              <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-900 text-white dark:bg-slate-950 text-ui-caption font-bold uppercase tracking-wider">
                 <tr>
                   <th className="w-9 px-3 py-3" />
                   <th className="px-3.5 py-3">Venta #</th>
@@ -664,7 +664,7 @@ export function SalesManager() {
                   <th className="px-3.5 py-3 text-center">Ítems</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-ui-table">
                 {sales.map((sale) => (
                   <SaleRow
                     key={sale.id}
@@ -686,7 +686,7 @@ export function SalesManager() {
             </table>
           </div>
           {meta && (
-            <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 px-4 py-3 text-xs text-slate-500 font-medium">
+            <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 px-4 py-3 text-ui-caption text-slate-500 font-medium">
               <span>
                 Página <strong className="text-slate-900 dark:text-white font-mono">{meta.current_page}</strong> de{' '}
                 <strong className="text-slate-900 dark:text-white font-mono">{meta.last_page}</strong> ·{' '}
@@ -699,7 +699,7 @@ export function SalesManager() {
                   disabled={meta.current_page <= 1}
                   leftIcon={<ChevronLeft className="size-4" />}
                   onClick={() => setFilters((f) => ({ ...f, page: Math.max(1, (f.page ?? 1) - 1) }))}
-                  className="h-8 text-xs font-semibold rounded-lg shadow-xs"
+                  className="h-8 text-ui-caption font-semibold rounded-lg shadow-xs"
                 >
                   Anterior
                 </Button>
@@ -709,7 +709,7 @@ export function SalesManager() {
                   disabled={meta.current_page >= meta.last_page}
                   rightIcon={<ChevronRight className="size-4" />}
                   onClick={() => setFilters((f) => ({ ...f, page: (f.page ?? 1) + 1 }))}
-                  className="h-8 text-xs font-semibold rounded-lg shadow-xs"
+                  className="h-8 text-ui-caption font-semibold rounded-lg shadow-xs"
                 >
                   Siguiente
                 </Button>
@@ -771,27 +771,27 @@ function SaleRow({
           </div>
         </td>
         <td className="px-3.5 py-3">
-          <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+          <span className="font-mono font-bold text-ui-caption px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
             #{sale.id}
           </span>
         </td>
-        <td className="px-3.5 py-3 text-xs text-slate-600 dark:text-slate-300 font-mono">
+        <td className="px-3.5 py-3 text-ui-caption text-slate-600 dark:text-slate-300 font-mono">
           <div className="font-semibold text-slate-800 dark:text-slate-200">{formatDate(date).split(',')[0]}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">{formatDate(date).split(',')[1] || ''}</div>
+          <div className="text-ui-caption text-slate-400 mt-0.5">{formatDate(date).split(',')[1] || ''}</div>
         </td>
         <td className="px-3.5 py-3">
-          <div className="font-bold text-slate-900 dark:text-white text-sm">
+          <div className="font-bold text-slate-900 dark:text-white text-ui-table">
             {sale.customer?.name ?? 'Consumidor Final'}
           </div>
           {sale.customer?.document_number && (
-            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-ui-caption font-mono text-slate-500 dark:text-slate-400 mt-0.5">
               Doc: {sale.customer.document_number}
             </div>
           )}
         </td>
         <td className="px-3.5 py-3">
           <div className="flex flex-col gap-1 items-start">
-            <Badge variant={statusVariant(sale.status)} className="font-bold text-xs shadow-2xs">
+            <Badge variant={statusVariant(sale.status)} className="font-bold text-ui-caption shadow-2xs">
               {SALE_STATUS_LABELS[sale.status]}
             </Badge>
             {returnLabel && (
@@ -801,14 +801,14 @@ function SaleRow({
             )}
             {returnedProducts.length > 0 && (
               <div className="mt-1 flex flex-col gap-1 max-w-[240px]">
-                <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                <div className="flex items-center gap-1 text-ui-caption font-semibold text-amber-800 dark:text-amber-300">
                   <RotateCcw className="size-3 shrink-0" />
                   <span>Devuelto:</span>
                 </div>
                 {returnedProducts.map((p) => (
                   <div
                     key={p.saleItemId || p.productId}
-                    className="truncate rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 border border-amber-500/20"
+                    className="truncate rounded bg-amber-500/10 px-1.5 py-0.5 text-ui-caption font-medium text-amber-900 dark:text-amber-200 border border-amber-500/20"
                     title={`${p.productName}${p.productSku ? ` (${p.productSku})` : ''} - ${p.returnedQuantity} de ${p.soldQuantity} und devueltas${p.reasons.length > 0 ? ` · Motivo: ${p.reasons.join(', ')}` : ''}`}
                   >
                     <span className="font-semibold">{p.productName}</span>: <strong className="font-mono text-amber-800 dark:text-amber-300">{p.returnedQuantity}</strong>{p.soldQuantity > p.returnedQuantity ? <span className="opacity-75">/{p.soldQuantity}</span> : ''} und
@@ -820,21 +820,21 @@ function SaleRow({
         </td>
         <td className="px-3.5 py-3">
           <div className="flex flex-col gap-1 items-start">
-            <Badge variant={receivableVariant(sale.receivable?.status)} className="font-semibold text-xs">
+            <Badge variant={receivableVariant(sale.receivable?.status)} className="font-semibold text-ui-caption">
               {receivableStatusLabel(sale)}
             </Badge>
             {sale.receivable && sale.receivable.balance_base_amount > 0 && (
-              <span className="text-[11px] font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/80 dark:border-amber-900/60 mt-0.5">
+              <span className="text-ui-caption font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/80 dark:border-amber-900/60 mt-0.5">
                 Saldo {formatMoney(sale.receivable.balance_base_amount)}
                 {localBalance !== null && ` · ${formatMoney(localBalance, 'Bs ')}`}
               </span>
             )}
           </div>
         </td>
-        <td className="px-3.5 py-3 text-xs">
+        <td className="px-3.5 py-3 text-ui-caption">
           <div className="flex flex-col gap-1 items-start">
             <span className={cn(
-              'px-2 py-0.5 rounded font-bold text-[11px] font-mono uppercase',
+              'px-2 py-0.5 rounded font-bold text-ui-caption font-mono uppercase',
               sale.pos_order
                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
                 : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -842,34 +842,34 @@ function SaleRow({
               {sale.pos_order ? 'POS' : 'Manual'}
             </span>
             {promotionApplicationsLabel(sale).map((label) => (
-              <Badge key={label} variant="info" className="text-[10px]">{label}</Badge>
+              <Badge key={label} variant="info" className="text-ui-caption">{label}</Badge>
             ))}
           </div>
         </td>
         <td className="px-3.5 py-3 text-right font-mono font-black text-slate-900 dark:text-white text-base tabular-nums">
           {formatMoney(sale.total_base_amount)}
         </td>
-        <td className="px-3.5 py-3 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 text-xs tabular-nums">
+        <td className="px-3.5 py-3 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 text-ui-caption tabular-nums">
           {formatMoney(sale.total_local_amount, 'Bs ')}
         </td>
         {canViewCosts && (
           <td className="px-3.5 py-3 text-right font-mono tabular-nums">
             {sale.profit_base_amount !== null && sale.profit_base_amount !== undefined ? (
               <div className="flex flex-col items-end">
-                <span className={`font-black text-xs ${Number(sale.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                <span className={`font-black text-ui-caption ${Number(sale.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                   {Number(sale.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(sale.profit_base_amount)}
                 </span>
-                <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                <span className="text-ui-caption text-slate-400 font-semibold mt-0.5">
                   {Number(sale.profit_margin_percent ?? 0).toFixed(1)}%
                 </span>
               </div>
             ) : (
-              <span className="text-slate-400 text-xs">-</span>
+              <span className="text-slate-400 text-ui-caption">-</span>
             )}
           </td>
         )}
         <td className="px-3.5 py-3 text-center tabular-nums">
-          <span className="inline-flex items-center justify-center font-mono font-bold text-xs bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300">
+          <span className="inline-flex items-center justify-center font-mono font-bold text-ui-caption bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300">
             {sale.items_count ?? sale.items?.length ?? '-'}
           </span>
         </td>
@@ -943,7 +943,7 @@ function SaleDetail({
     <div className="space-y-3" onClick={(event) => event.stopPropagation()}>
       {/* TIRA COMPACTA DE PAGO / COBRO ESTILO RECIBO POS (SOLO SI TIENE INFORMACIÓN) */}
       {(posPayments.length > 0 || (receivable && receivable.balance_base_amount > 0) || current.pos_order?.cashier_name) && (
-        <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-900/90 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-900/90 text-ui-caption">
           <div className="flex flex-wrap items-center gap-3">
             {current.pos_order?.cashier_name && (
               <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
@@ -964,7 +964,7 @@ function SaleDetail({
                 {posPayments.map((p) => (
                   <span
                     key={p.id}
-                    className="inline-flex items-center gap-1 font-mono px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs text-[11px]"
+                    className="inline-flex items-center gap-1 font-mono px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs text-ui-caption"
                   >
                     <span className="font-sans font-bold text-slate-700 dark:text-slate-300">
                       {p.payment_method_name ?? p.method}:
@@ -973,7 +973,7 @@ function SaleDetail({
                       {formatMoney(p.amount, p.currency === 'VES' ? 'Bs ' : '$')}
                     </strong>
                     {p.reference && (
-                      <span className="text-slate-400 text-[10px]">({p.reference})</span>
+                      <span className="text-slate-400 text-ui-caption">({p.reference})</span>
                     )}
                   </span>
                 ))}
@@ -983,12 +983,12 @@ function SaleDetail({
 
           {receivable && receivable.balance_base_amount > 0 && (
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200">
-              <span className="font-bold text-[11px] uppercase tracking-wide">Crédito Pendiente:</span>
-              <strong className="font-mono font-black text-xs">
+              <span className="font-bold text-ui-caption uppercase tracking-wide">Crédito Pendiente:</span>
+              <strong className="font-mono font-black text-ui-caption">
                 {formatMoney(receivable.balance_base_amount)}
               </strong>
               {receivable.due_date && (
-                <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                <span className="text-ui-caption text-amber-700 dark:text-amber-300">
                   (Vence: {receivable.due_date})
                 </span>
               )}
@@ -999,12 +999,12 @@ function SaleDetail({
 
       {current.promotion_applications && current.promotion_applications.length > 0 && (
         <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 dark:border-blue-900/60 dark:bg-blue-950/20 p-3.5">
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
+          <p className="mb-2 text-ui-caption font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
             Promociones aplicadas
           </p>
           <div className="flex flex-wrap gap-2">
             {current.promotion_applications.map((application) => (
-              <Badge key={application.id ?? `${application.scope}-${application.promotion_name}`} variant="info" className="text-xs font-semibold">
+              <Badge key={application.id ?? `${application.scope}-${application.promotion_name}`} variant="info" className="text-ui-caption font-semibold">
                 {promotionScopeLabel(application.scope)}: {application.promotion_name}
               </Badge>
             ))}
@@ -1014,7 +1014,7 @@ function SaleDetail({
 
       {returnedProducts.length > 0 && (
         <div className="rounded-xl border border-amber-300/80 bg-amber-50/80 p-3.5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-          <div className="flex items-center gap-2 font-semibold text-sm">
+          <div className="flex items-center gap-2 font-semibold text-ui-table">
             <RotateCcw className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <span>Productos con devolución en esta venta:</span>
           </div>
@@ -1022,11 +1022,11 @@ function SaleDetail({
             {returnedProducts.map((p) => (
               <div
                 key={p.saleItemId || p.productId}
-                className="flex flex-col justify-between rounded-lg border border-amber-200 bg-white/95 p-2.5 text-xs shadow-xs dark:border-amber-800 dark:bg-slate-900/70"
+                className="flex flex-col justify-between rounded-lg border border-amber-200 bg-white/95 p-2.5 text-ui-caption shadow-xs dark:border-amber-800 dark:bg-slate-900/70"
               >
                 <div>
-                  <div className="font-semibold text-text-primary text-[13px]">{p.productName}</div>
-                  {p.productSku && <div className="text-[11px] text-text-muted">SKU: {p.productSku}</div>}
+                  <div className="font-semibold text-text-primary text-ui-caption">{p.productName}</div>
+                  {p.productSku && <div className="text-ui-caption text-text-muted">SKU: {p.productSku}</div>}
                 </div>
                 <div className="mt-2 pt-1.5 border-t border-amber-100 dark:border-amber-900/40 space-y-0.5">
                   <div className="flex items-center justify-between font-medium">
@@ -1036,13 +1036,13 @@ function SaleDetail({
                     </span>
                   </div>
                   {p.soldQuantity > p.returnedQuantity && (
-                    <div className="flex items-center justify-between text-[11px] text-text-muted">
+                    <div className="flex items-center justify-between text-ui-caption text-text-muted">
                       <span>Restante activa:</span>
                       <span className="font-mono font-semibold">{p.soldQuantity - p.returnedQuantity} und.</span>
                     </div>
                   )}
                   {p.reasons.length > 0 && (
-                    <div className="mt-1 text-[11px] text-text-muted italic truncate" title={p.reasons.join(', ')}>
+                    <div className="mt-1 text-ui-caption text-text-muted italic truncate" title={p.reasons.join(', ')}>
                       Motivo: {p.reasons.join(', ')}
                     </div>
                   )}
@@ -1056,7 +1056,7 @@ function SaleDetail({
       {/* TABLA DE RENGLONES VENDIDOS */}
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
         <table className="w-full text-left border-collapse">
-          <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-900 text-white dark:bg-slate-950 text-[11px] font-bold uppercase tracking-wider">
+          <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-900 text-white dark:bg-slate-950 text-ui-caption font-bold uppercase tracking-wider">
             <tr>
               <th className="px-3.5 py-2.5">Producto</th>
               <th className="px-3.5 py-2.5">Almacén</th>
@@ -1073,7 +1073,7 @@ function SaleDetail({
               <th className="px-3.5 py-2.5">Tasa / Seriales</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-ui-table">
             {items.length === 0 ? (
               <tr>
                 <td colSpan={canViewCosts ? 9 : 7} className="px-4 py-6 text-center text-slate-500 font-medium">
@@ -1140,23 +1140,23 @@ function SaleDetail({
 
       {/* BARRA INFERIOR DE TOTALES Y ACCIONES RÁPIDAS */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-        <div className="flex flex-wrap items-baseline gap-3 text-sm">
-          <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Factura:</span>
+        <div className="flex flex-wrap items-baseline gap-3 text-ui-table">
+          <span className="text-slate-500 text-ui-caption font-bold uppercase tracking-wider">Total Factura:</span>
           <span className="font-mono font-black text-slate-900 dark:text-white text-xl">
             {formatMoney(current.total_base_amount)}
           </span>
-          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
+          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-ui-table">
             ({formatMoney(current.total_local_amount, 'Bs ')})
           </span>
 
           {canViewCosts && current.profit_base_amount !== null && current.profit_base_amount !== undefined && (
-            <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-800 pl-3 ml-1 text-xs">
+            <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-800 pl-3 ml-1 text-ui-caption">
               <span className="text-slate-400">Costo: <strong className="font-mono text-slate-600 dark:text-slate-300">{formatMoney(current.cost_base_amount)}</strong></span>
               <span className="text-slate-400">·</span>
               <span className="text-slate-400">Ganancia: <strong className={cn('font-mono font-bold', Number(current.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
                 {Number(current.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(current.profit_base_amount)}
               </strong></span>
-              <span className="text-[11px] font-mono font-semibold text-slate-400">
+              <span className="text-ui-caption font-mono font-semibold text-slate-400">
                 ({Number(current.profit_margin_percent ?? 0).toFixed(1)}%)
               </span>
             </div>
@@ -1176,7 +1176,7 @@ function SaleDetail({
               size="sm"
               leftIcon={<XCircle className="size-4" />}
               onClick={() => setShowReverseForm(true)}
-              className="font-semibold text-xs rounded-lg"
+              className="font-semibold text-ui-caption rounded-lg"
             >
               Anular
             </Button>
@@ -1187,13 +1187,13 @@ function SaleDetail({
               size="sm"
               leftIcon={<RotateCcw className="size-4" />}
               onClick={() => setShowReturnForm((value) => !value)}
-              className="font-semibold text-xs rounded-lg"
+              className="font-semibold text-ui-caption rounded-lg"
             >
               Devolver
             </Button>
           )}
           {canCreateReturn && current.status === 'confirmed' && items.length > 0 && !hasReturnableItems(current) && (
-            <Badge variant="success" className="text-xs">Sin saldo por devolver</Badge>
+            <Badge variant="success" className="text-ui-caption">Sin saldo por devolver</Badge>
           )}
           {canCancel && current.status === 'draft' && (
             <Button
@@ -1202,7 +1202,7 @@ function SaleDetail({
               loading={cancelling}
               leftIcon={<XCircle className="size-4" />}
               onClick={onCancel}
-              className="font-semibold text-xs rounded-lg"
+              className="font-semibold text-ui-caption rounded-lg"
             >
               Cancelar borrador
             </Button>
@@ -1288,7 +1288,7 @@ function SalesReturnForm({
         </div>
         <div className="overflow-x-auto rounded border border-border">
           <table className="w-full table-dense">
-            <thead className="border-b border-border bg-bg/60 text-left text-xs uppercase text-text-muted">
+            <thead className="border-b border-border bg-bg/60 text-left text-ui-caption uppercase text-text-muted">
               <tr>
                 <th className="px-3 py-2">Producto</th>
                 <th className="px-3 py-2 text-right">Vendida</th>
@@ -1310,7 +1310,7 @@ function SalesReturnForm({
                   <tr key={item.id} className="border-b border-border last:border-0">
                     <td className="px-3 py-2">
                       <div className="font-medium">{item.product_name ?? `Producto #${item.product_id}`}</div>
-                      <div className="text-xs text-text-muted">
+                      <div className="text-ui-caption text-text-muted">
                         {item.product_sku ?? '-'} · Devuelto {returned} · Disponible {remaining}
                       </div>
                     </td>
@@ -1334,13 +1334,13 @@ function SalesReturnForm({
                     </td>
                     <td className="px-3 py-2">
                       {serialUnits.length === 0 ? (
-                        <span className="text-xs text-text-muted">{remaining <= 0 ? 'Ya devuelto' : 'No serializado'}</span>
+                        <span className="text-ui-caption text-text-muted">{remaining <= 0 ? 'Ya devuelto' : 'No serializado'}</span>
                       ) : (
                         <div className="max-h-24 space-y-1 overflow-auto">
                           {serialUnits.map((unit) => {
                             const unitId = Number(unit.id);
                             return (
-                              <label key={unitId} className="flex items-center gap-2 text-xs">
+                              <label key={unitId} className="flex items-center gap-2 text-ui-caption">
                                 <input
                                   type="checkbox"
                                   checked={line.unitIds.includes(unitId)}
@@ -1399,78 +1399,78 @@ function SaleItemRow({
   return (
     <tr className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-850/50 transition-colors">
       <td className="px-3.5 py-2.5">
-        <div className="font-bold text-slate-900 dark:text-white text-sm">
+        <div className="font-bold text-slate-900 dark:text-white text-ui-table">
           {item.product_name ?? `Producto #${item.product_id}`}
         </div>
-        <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+        <div className="text-ui-caption font-mono text-slate-500 mt-0.5">
           {item.product_sku ?? 'Sin SKU'}
         </div>
         {returnedQuantity > 0 && (
           <div className="mt-1">
-            <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 border border-amber-500/30">
+            <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-ui-caption font-semibold text-amber-800 dark:text-amber-300 border border-amber-500/30">
               <RotateCcw className="size-2.5 shrink-0" />
               Devuelto: {returnedQuantity} {returnedQuantity < Number(item.quantity) ? `de ${item.quantity}` : ''} und.
             </span>
           </div>
         )}
       </td>
-      <td className="px-3.5 py-2.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
+      <td className="px-3.5 py-2.5 text-ui-caption text-slate-600 dark:text-slate-400 font-medium">
         {item.warehouse_name ?? `#${item.warehouse_id}`}
       </td>
       <td className="px-3.5 py-2.5 text-right tabular-nums">
-        <div className="font-mono font-bold text-slate-900 dark:text-white text-sm">{item.quantity}</div>
+        <div className="font-mono font-bold text-slate-900 dark:text-white text-ui-table">{item.quantity}</div>
         {returnedQuantity > 0 && (
-          <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+          <div className="text-ui-caption font-semibold text-amber-600 dark:text-amber-400">
             -{returnedQuantity} dev.
             {Number(item.quantity) > returnedQuantity && (
-              <span className="text-slate-400 block font-normal text-[10px]">({Number(item.quantity) - returnedQuantity} rest.)</span>
+              <span className="text-slate-400 block font-normal text-ui-caption">({Number(item.quantity) - returnedQuantity} rest.)</span>
             )}
           </div>
         )}
       </td>
-      <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200 text-xs tabular-nums">
+      <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200 text-ui-caption tabular-nums">
         {formatMoney(item.unit_price, item.sale_currency === 'VES' ? 'Bs ' : '$')}
       </td>
       {canViewCosts && (
-        <td className="px-3.5 py-2.5 text-right font-mono text-xs tabular-nums text-slate-500">
+        <td className="px-3.5 py-2.5 text-right font-mono text-ui-caption tabular-nums text-slate-500">
           {item.base_unit_cost !== null && item.base_unit_cost !== undefined ? formatMoney(item.base_unit_cost) : '-'}
         </td>
       )}
-      <td className="px-3.5 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600 dark:text-slate-400">
+      <td className="px-3.5 py-2.5 text-right font-mono text-ui-caption tabular-nums text-slate-600 dark:text-slate-400">
         {Number(item.discount_amount) > 0 ? (
           <span className="text-amber-600 font-semibold">-{formatMoney(item.discount_amount)}</span>
         ) : (
           '-'
         )}
       </td>
-      <td className="px-3.5 py-2.5 text-right font-mono font-black text-slate-900 dark:text-white text-sm tabular-nums">
+      <td className="px-3.5 py-2.5 text-right font-mono font-black text-slate-900 dark:text-white text-ui-table tabular-nums">
         {formatMoney(item.total_base_amount)}
       </td>
       {canViewCosts && (
         <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">
           {item.profit_base_amount !== null && item.profit_base_amount !== undefined ? (
             <div className="flex flex-col items-end">
-              <span className={`font-bold text-xs ${Number(item.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+              <span className={`font-bold text-ui-caption ${Number(item.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                 {Number(item.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(item.profit_base_amount)}
               </span>
-              <span className="text-[10px] text-slate-400 font-semibold mt-0.5">
+              <span className="text-ui-caption text-slate-400 font-semibold mt-0.5">
                 {Number(item.profit_margin_percent ?? 0).toFixed(1)}%
               </span>
             </div>
           ) : (
-            <span className="text-slate-400 text-xs">-</span>
+            <span className="text-slate-400 text-ui-caption">-</span>
           )}
         </td>
       )}
-      <td className="px-3.5 py-2.5 text-xs text-slate-500">
-        <div className="font-mono text-[11px]">{rate}</div>
-        {serials && <div className="font-mono text-[11px] text-slate-600 mt-0.5">Seriales: {serials}</div>}
+      <td className="px-3.5 py-2.5 text-ui-caption text-slate-500">
+        <div className="font-mono text-ui-caption">{rate}</div>
+        {serials && <div className="font-mono text-ui-caption text-slate-600 mt-0.5">Seriales: {serials}</div>}
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <Badge variant={warrantyValid ? 'success' : item.warranty_policy_id ? 'danger' : 'default'} className="text-[10px]">
+          <Badge variant={warrantyValid ? 'success' : item.warranty_policy_id ? 'danger' : 'default'} className="text-ui-caption">
             {warrantyStatusLabel(item)}
           </Badge>
           {canCreateWarranty && warrantyValid && (
-            <Button size="sm" variant="outline" leftIcon={<ShieldCheck className="size-3.5" />} onClick={onCreateWarranty} className="h-6 text-[11px] px-2 rounded-md">
+            <Button size="sm" variant="outline" leftIcon={<ShieldCheck className="size-3.5" />} onClick={onCreateWarranty} className="h-6 text-ui-caption px-2 rounded-md">
               Garantía
             </Button>
           )}
@@ -1528,7 +1528,7 @@ function WarrantyClaimForm({
       <div className="flex items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold">Crear caso de garantía</h3>
-          <p className="text-sm text-text-muted">
+          <p className="text-ui-table text-text-muted">
             {item.product_name ?? `Producto #${item.product_id}`} · {warrantyStatusLabel(item)}
           </p>
         </div>
@@ -1623,7 +1623,7 @@ function InfoTile({
     >
       <div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <span className="text-ui-caption font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             {label}
           </span>
           {Icon && <Icon className={cn('size-4 shrink-0', toneClasses)} />}
@@ -1632,13 +1632,13 @@ function InfoTile({
           {value}
         </div>
         {subvalue && (
-          <div className="mt-1 text-xs font-semibold font-mono tabular-nums text-slate-500 dark:text-slate-400">
+          <div className="mt-1 text-ui-caption font-semibold font-mono tabular-nums text-slate-500 dark:text-slate-400">
             {subvalue}
           </div>
         )}
       </div>
       {helper && (
-        <div className="mt-2.5 text-[11px] font-medium text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800/80 pt-1.5 truncate">
+        <div className="mt-2.5 text-ui-caption font-medium text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800/80 pt-1.5 truncate">
           {helper}
         </div>
       )}

@@ -82,11 +82,9 @@
   --color-text-inverted: #fafafa;    /* Texto claro sobre fondos oscuros */
 
   /* === Tipografia ===
-   * Sistema de tokens escalables. Para AGRANDAR todo el texto en 1 nivel,
-   * cambia --text-base de 0.875rem a 0.9375rem y todos los demas tokens
-   * escalan automaticamente. La mayoria del codigo usa las utility classes
-   * de Tailwind (text-xs, text-sm, text-base, etc.) que se mapean a estos
-   * tokens automaticamente.
+   * Escala base historica + tokens semanticos recomendados para pantallas nuevas
+   * o redisenadas. Conservamos las utilities antiguas para no cambiar de golpe
+   * la densidad de toda la aplicacion.
    */
   --font-sans:
     'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -104,6 +102,14 @@
   --text-3xl: 1.75rem;    /* 28px - titulos grandes */
   --text-4xl: 2.25rem;    /* 36px - heroes */
   --text-5xl: 3rem;       /* 48px - display */
+
+  /* Tokens semanticos para UI nueva/redisenada: evitar texto menor de 13px. */
+  --text-ui-caption: 0.8125rem; /* 13px - ayudas, metadatos y etiquetas */
+  --text-ui-table: 0.875rem;   /* 14px - filas y encabezados de tabla */
+  --text-ui-body: 0.9375rem;   /* 15px - texto principal */
+  --text-ui-control: 1rem;     /* 16px - campos y acciones principales */
+  --text-ui-section: 1.125rem; /* 18px - titulos de seccion */
+  --text-ui-page: 1.5rem;      /* 24px - titulo de pagina */
 
   /* Pesos */
   --font-weight-normal: 400;
