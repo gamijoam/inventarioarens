@@ -61,11 +61,11 @@ class SaleController extends Controller
         );
 
         if ($dateFrom) {
-            $query->where('created_at', '>=', $dateFrom);
+            $query->whereRaw('COALESCE(sales.confirmed_at, sales.created_at) >= ?', [$dateFrom->toDateTimeString()]);
         }
 
         if ($dateTo) {
-            $query->where('created_at', '<=', $dateTo);
+            $query->whereRaw('COALESCE(sales.confirmed_at, sales.created_at) <= ?', [$dateTo->toDateTimeString()]);
         }
 
         if ($search = $request->string('search')->trim()->toString()) {

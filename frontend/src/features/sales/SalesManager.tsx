@@ -68,11 +68,22 @@ function formatMoney(value: number | null | undefined, currency = '$'): string {
   return `${currency}${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const BUSINESS_TIMEZONE = 'America/Caracas';
+
+function businessDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
 function formatDate(value: string | null | undefined): string {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleString('es-VE', {
+    timeZone: BUSINESS_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -364,11 +375,11 @@ export function SalesManager() {
   return (
     <div className="space-y-4">
       {/* BARRA TÁCTICA DE FILTROS Y CONTROL (ESTILO POS CLÁSICO) */}
-      <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 sm:p-4 shadow-xs space-y-3">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm space-y-4">
         {/* FILA 1: BUSCADOR + PESTAÑAS DE ESTADO + BOTÓN ACTUALIZAR */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+        <div className="flex flex-col items-stretch gap-3 lg:flex-row lg:items-center">
           {/* BUSCADOR ÁGIL */}
-          <div className="relative min-w-[260px] flex-1">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input
               id="sales-search"
@@ -485,7 +496,7 @@ export function SalesManager() {
             <button
               type="button"
               onClick={() => {
-                const today = new Date().toISOString().split('T')[0];
+                const today = businessDateKey(new Date());
                 updateFilters({ date_from: today, date_to: today });
               }}
               className="px-2 py-1 text-[11px] font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
@@ -496,8 +507,8 @@ export function SalesManager() {
               type="button"
               onClick={() => {
                 const now = new Date();
-                const past7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                const today = now.toISOString().split('T')[0];
+                const past7 = businessDateKey(new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000));
+                const today = businessDateKey(now);
                 updateFilters({ date_from: past7, date_to: today });
               }}
               className="px-2 py-1 text-[11px] font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
@@ -508,8 +519,9 @@ export function SalesManager() {
               type="button"
               onClick={() => {
                 const now = new Date();
-                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-                const today = now.toISOString().split('T')[0];
+                const [year, month] = businessDateKey(now).split('-').map(Number);
+                const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
+                const today = businessDateKey(now);
                 updateFilters({ date_from: firstDay, date_to: today });
               }}
               className="px-2 py-1 text-[11px] font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
@@ -549,7 +561,7 @@ export function SalesManager() {
       </div>
 
       {/* TARJETAS TÁCTICAS DE KPIS (RESUMEN OPERATIVO) */}
-      <div className={`grid gap-3 sm:gap-3.5 grid-cols-1 sm:grid-cols-2 ${canViewCosts ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}>
+      <div className={`grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3`}>
         <InfoTile
           label="Venta Neta (período)"
           value={formatMoney(metrics.net_base_total)}
@@ -564,7 +576,7 @@ export function SalesManager() {
         />
         {canViewCosts && (
           <InfoTile
-            label="Ganancia Confirmada"
+            label="Ganancia bruta"
             value={formatMoney(metrics.confirmed_profit_base_total)}
             subvalue={
               metrics.confirmed_profit_margin_percent !== null && metrics.confirmed_profit_margin_percent !== undefined
@@ -574,7 +586,7 @@ export function SalesManager() {
             helper={
               metrics.confirmed_cost_base_total
                 ? `Costo: ${formatMoney(metrics.confirmed_cost_base_total)}`
-                : 'Margen sobre ventas'
+                : 'Antes de devoluciones'
             }
             icon={TrendingUp}
             tone="success"
@@ -632,14 +644,14 @@ export function SalesManager() {
           }
         />
       ) : (
-        <div className={cn('rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden', isFetching ? 'opacity-75 transition-opacity' : '')}>
+        <div className={cn('rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden', isFetching ? 'opacity-75 transition-opacity' : '')}>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-900 text-white dark:bg-slate-950 text-[11px] font-bold uppercase tracking-wider">
                 <tr>
                   <th className="w-9 px-3 py-3" />
                   <th className="px-3.5 py-3">Venta #</th>
-                  <th className="px-3.5 py-3">Fecha y Hora</th>
+                  <th className="px-3.5 py-3">Fecha de venta</th>
                   <th className="px-3.5 py-3">Cliente</th>
                   <th className="px-3.5 py-3">Estado</th>
                   <th className="px-3.5 py-3">Cobranza</th>
