@@ -398,7 +398,7 @@ export function Sidebar() {
     <div
       className={cn(
         'relative shrink-0 min-h-screen transition-[width] duration-200',
-        isPinned ? 'w-60' : 'w-16',
+        isPinned ? 'w-64' : 'w-16',
       )}
       onMouseEnter={() => {
         if (!isPinned) setIsHovered(true);
@@ -411,7 +411,7 @@ export function Sidebar() {
         className={cn(
           'fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-surface border-r border-border transition-all duration-200 ease-in-out h-screen',
           isExpanded
-            ? 'w-60 shadow-2xl ring-1 ring-black/10 dark:ring-white/10'
+            ? 'w-64 shadow-2xl ring-1 ring-black/10 dark:ring-white/10'
             : 'w-16 shadow-none',
         )}
         aria-label="Navegación principal"
@@ -450,7 +450,7 @@ export function Sidebar() {
               const sectionHeader = isNewSection ? (
                 <div
                   className={cn(
-                    'text-text-muted px-2.5 pt-3 pb-1 text-[10px] font-semibold tracking-wider uppercase',
+                    'text-text-muted px-2.5 pt-4 pb-1.5 text-[length:var(--text-ui-caption)] font-bold tracking-wide uppercase',
                     !isExpanded && 'sr-only',
                   )}
                 >
@@ -488,9 +488,9 @@ export function Sidebar() {
                   search={searchForItem(item)}
                   onClick={handleItemClick}
                   className={cn(
-                    'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
+                    'relative flex min-h-11 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-body)] font-medium transition-colors',
                     isActive
-                      ? 'bg-primary/10 text-primary font-semibold'
+                      ? 'bg-primary/10 text-primary font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
                       : 'text-text-secondary hover:bg-bg hover:text-text-primary',
                     !isExpanded && 'justify-center',
                   )}
@@ -528,7 +528,7 @@ export function Sidebar() {
               }
             }}
             className={cn(
-              'text-text-muted hover:bg-bg hover:text-text-secondary flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs transition-colors',
+              'text-text-muted hover:bg-bg hover:text-text-secondary flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-[length:var(--text-ui-caption)] transition-colors',
               !isExpanded && 'justify-center',
             )}
             aria-label={isExpanded ? 'Colapsar menú' : 'Expandir menú'}
@@ -611,9 +611,9 @@ function Group({
         search={item.to === '/users' ? { scope: usersScope } : undefined}
         onClick={onItemClick}
         className={cn(
-          'flex items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
+          'relative flex min-h-11 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-body)] font-medium transition-colors',
           isParentActive
-            ? 'bg-primary/10 text-primary'
+            ? 'bg-primary/10 text-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
             : 'text-text-secondary hover:bg-bg hover:text-text-primary',
           'justify-center',
         )}
@@ -634,9 +634,9 @@ function Group({
           search={item.to === '/users' ? { scope: usersScope } : undefined}
           onClick={onItemClick}
           className={cn(
-            'flex flex-1 items-center gap-3 rounded px-2.5 py-2 text-sm font-medium transition-colors',
+            'relative flex min-h-11 flex-1 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-body)] font-medium transition-colors',
             isParentActive
-              ? 'bg-primary/10 text-primary'
+              ? 'bg-primary/10 text-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
               : 'text-text-secondary hover:bg-bg hover:text-text-primary',
           )}
           title={item.label}
@@ -668,9 +668,9 @@ function Group({
                 search={sub.to === '/users' ? { scope: usersScope } : undefined}
                 onClick={onItemClick}
                 className={cn(
-                  'flex items-center gap-3 rounded px-2.5 py-1.5 text-sm transition-colors',
+                  'relative flex min-h-10 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-table)] transition-colors',
                   isSubActive
-                    ? 'bg-primary/10 text-primary font-medium'
+                    ? 'bg-primary/10 text-primary font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
                     : 'text-text-secondary hover:bg-bg hover:text-text-primary',
                 )}
                 aria-current={isSubActive ? 'page' : undefined}

@@ -123,6 +123,21 @@ describe('<Sidebar>', () => {
     expect(screen.getByRole('link', { name: 'Inventario' })).toBeTruthy();
   });
 
+  it('aplica la escala tipografica del menu y un objetivo de toque comodo', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    const { container } = render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+    const dashboardLink = screen.getByRole('link', { name: 'Dashboard' });
+    const sectionHeader = Array.from(container.querySelectorAll('div')).find(
+      (node) => node.textContent?.trim() === 'Operación',
+    );
+
+    expect(dashboardLink.className).toContain('text-[length:var(--text-ui-body)]');
+    expect(dashboardLink.className).toContain('min-h-11');
+    expect(sectionHeader?.className).toContain('text-[length:var(--text-ui-caption)]');
+    expect(sectionHeader?.className).not.toContain('text-[10px]');
+  });
+
   it('muestra las etiquetas de seccion como encabezados agrupadores', () => {
     mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
 
@@ -176,9 +191,9 @@ describe('<Sidebar>', () => {
     // Estado inicial: colapsado en w-16
     expect(aside.className).toContain('w-16');
 
-    // Hover (mouseEnter): se expande a w-60 con shadow-2xl flotante
+    // Hover (mouseEnter): se expande a w-64 con shadow-2xl flotante
     fireEvent.mouseEnter(wrapperDiv);
-    expect(aside.className).toContain('w-60');
+    expect(aside.className).toContain('w-64');
     expect(aside.className).toContain('shadow-2xl');
 
     // Mouse leave: vuelve a w-16
@@ -187,7 +202,7 @@ describe('<Sidebar>', () => {
 
     // Hover de nuevo y click en una opcion: se colapsa
     fireEvent.mouseEnter(wrapperDiv);
-    expect(aside.className).toContain('w-60');
+    expect(aside.className).toContain('w-64');
 
     const dashboardLink = screen.getByRole('link', { name: 'Dashboard' });
     fireEvent.click(dashboardLink);
