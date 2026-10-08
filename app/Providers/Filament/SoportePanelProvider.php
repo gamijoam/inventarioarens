@@ -7,7 +7,7 @@ use Filament\Http\Middleware\AuthenticateSession;
 use App\Filament\Http\Middleware\EnsurePlatformAdmin;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
+use App\Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -27,9 +27,14 @@ class SoportePanelProvider extends PanelProvider
         return $panel
             ->id('soporte')
             ->path('soporte')
+            ->brandName('Balanza Pro · Soporte')
             ->login()
             ->colors([
                 'primary' => Color::Amber,
+            ])
+            ->navigationGroups([
+                'Plataforma',
+                'Sincronización',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
