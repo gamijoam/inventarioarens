@@ -36,14 +36,22 @@ import {
   useUpdateExchangeRateType,
   useDeleteExchangeRateType,
 } from '@/features/inventory-center/api';
-import { StoreExchangeRateTypeSchema, type ExchangeRateType } from '@/features/inventory-center/schemas';
+import {
+  StoreExchangeRateTypeSchema,
+  type ExchangeRateType,
+} from '@/features/inventory-center/schemas';
+import { useCan } from '@/permissions/useCan';
+import { PERMISSIONS } from '@/permissions/constants';
 
 const formSchema = z.object({
   code: z
     .string()
     .max(50)
     .transform((s) => s.trim().toUpperCase())
-    .refine((s) => /^[A-Z0-9_-]+$/.test(s), 'Solo letras mayusculas, numeros y guiones (sin espacios).'),
+    .refine(
+      (s) => /^[A-Z0-9_-]+$/.test(s),
+      'Solo letras mayusculas, numeros y guiones (sin espacios).',
+    ),
   name: z
     .string()
     .max(255)
@@ -60,7 +68,7 @@ export function ExchangeRateTypesManager() {
   const updateType = useUpdateExchangeRateType();
   const deleteType = useDeleteExchangeRateType();
 
-  const canManage = true; // Se filtra via <Can> en el render.
+  const canManage = useCan(PERMISSIONS.CURRENCY_MANAGE);
 
   const [editing, setEditing] = useState<ExchangeRateType | null>(null);
   const [creating, setCreating] = useState(false);
@@ -131,15 +139,16 @@ export function ExchangeRateTypesManager() {
 
   if (isLoading) return <Skeleton className="h-48" />;
   if (isError) {
-    return <EmptyState title="Error al cargar tipos de tasa" description="Reintenta en unos segundos." />;
+    return (
+      <EmptyState title="Error al cargar tipos de tasa" description="Reintenta en unos segundos." />
+    );
   }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-text-muted">
-          Tipos de tasa disponibles para asignar a productos. Solo uno puede ser el
-          predeterminado.
+        <p className="text-text-muted text-sm">
+          Tipos de tasa disponibles para asignar a productos. Solo uno puede ser el predeterminado.
         </p>
         {canManage && (
           <Button onClick={openCreate} data-testid="new-rate-type">
@@ -156,27 +165,27 @@ export function ExchangeRateTypesManager() {
           icon={<TrendingUp className="size-8" aria-hidden="true" />}
         />
       ) : (
-        <div className="rounded-lg border border-border bg-surface p-2">
-          <table className="w-full table-dense">
-            <thead className="border-b border-border bg-bg/60 text-left">
+        <div className="border-border bg-surface rounded-lg border p-2">
+          <table className="table-dense w-full">
+            <thead className="border-border bg-bg/60 border-b text-left">
               <tr>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Código
                 </th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Nombre
                 </th>
-                <th className="px-3 py-2 font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Estado
                 </th>
-                <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-text-secondary">
+                <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
                   Acciones
                 </th>
               </tr>
             </thead>
             <tbody>
               {types.map((t) => (
-                <tr key={t.id} className="border-b border-border last:border-b-0">
+                <tr key={t.id} className="border-border border-b last:border-b-0">
                   <td className="px-3 py-2 font-mono text-sm">{t.code}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
@@ -231,25 +240,19 @@ export function ExchangeRateTypesManager() {
       )}
 
       {/* Dialog de crear/editar */}
-      <Dialog
-        open={creating || editing !== null}
-        onOpenChange={(o) => !o && closeDialog()}
-      >
+      <Dialog open={creating || editing !== null} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editing ? 'Editar tipo de tasa' : 'Nuevo tipo de tasa'}
-            </DialogTitle>
+            <DialogTitle>{editing ? 'Editar tipo de tasa' : 'Nuevo tipo de tasa'}</DialogTitle>
             <DialogDescription>
-              Define el codigo y nombre del tipo de tasa. Solo uno puede ser
-              predeterminado.
+              Define el codigo y nombre del tipo de tasa. Solo uno puede ser predeterminado.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="code">
                 Codigo <span className="text-danger">*</span>{' '}
-                <span className="text-xs font-normal text-text-muted">(ej: BCV, PARALELO)</span>
+                <span className="text-text-muted text-xs font-normal">(ej: BCV, PARALELO)</span>
               </Label>
               <Input
                 id="code"
@@ -259,9 +262,7 @@ export function ExchangeRateTypesManager() {
                 aria-invalid={Boolean(form.formState.errors.code)}
               />
               {form.formState.errors.code && (
-                <p className="text-xs text-danger">
-                  {form.formState.errors.code.message}
-                </p>
+                <p className="text-danger text-xs">{form.formState.errors.code.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -275,9 +276,7 @@ export function ExchangeRateTypesManager() {
                 aria-invalid={Boolean(form.formState.errors.name)}
               />
               {form.formState.errors.name && (
-                <p className="text-xs text-danger">
-                  {form.formState.errors.name.message}
-                </p>
+                <p className="text-danger text-xs">{form.formState.errors.name.message}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -305,10 +304,7 @@ export function ExchangeRateTypesManager() {
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                loading={createType.isPending || updateType.isPending}
-              >
+              <Button type="submit" loading={createType.isPending || updateType.isPending}>
                 {editing ? 'Guardar cambios' : 'Crear'}
               </Button>
             </DialogFooter>

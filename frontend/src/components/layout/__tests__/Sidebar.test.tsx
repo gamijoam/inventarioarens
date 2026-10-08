@@ -106,6 +106,25 @@ describe('<Sidebar>', () => {
     ]);
   });
 
+  it('muestra el submenu de inventario con opciones agrupadas y un control de expansion grande', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    const { container } = render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+    fireEvent.mouseEnter(container.firstChild as HTMLElement);
+    const inventoryLink = screen.getByRole('link', { name: 'Inventario' });
+    const disclosure = inventoryLink.parentElement?.querySelector('button') as HTMLButtonElement;
+    expect(disclosure.className).toContain('size-10');
+    fireEvent.click(disclosure);
+
+    expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Movimientos' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Catálogos de productos' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Tasas de cambio' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Listas de precios' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Ubicaciones y garantías' })).toBeTruthy();
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('oculta modulos deshabilitados por las capacidades del tenant', () => {
     mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
     mockSessionState.capabilities = new Set([
@@ -148,11 +167,17 @@ describe('<Sidebar>', () => {
         (text): text is string => Boolean(text) && /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ ]+$/.test(text ?? ''),
       );
 
-    ['Inicio', 'Operación', 'Ventas', 'Inventario y compras', 'Finanzas', 'Reportes y datos', 'Administración'].forEach(
-      (section) => {
-        expect(headers).toContain(section);
-      },
-    );
+    [
+      'Inicio',
+      'Operación',
+      'Ventas',
+      'Inventario y compras',
+      'Finanzas',
+      'Reportes y datos',
+      'Administración',
+    ].forEach((section) => {
+      expect(headers).toContain(section);
+    });
   });
 
   it('muestra Acceso con permisos alternativos y oculta Organizaciones sin grupos propios', () => {
@@ -208,4 +233,3 @@ describe('<Sidebar>', () => {
     expect(aside.className).toContain('w-16');
   });
 });
-

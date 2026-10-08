@@ -60,7 +60,7 @@ const formSchema = z.object({
   quote_currency: z.string().default('VES'),
   rate: z.coerce.number().positive('La tasa debe ser mayor a 0.'),
   effective_at: z.string().min(1, 'La fecha efectiva es obligatoria.'),
-  source: z.string().optional(),
+  source: z.enum(['manual', 'bcv_official', 'market_reference', 'import']).default('manual'),
   is_active: z.boolean().default(true),
 });
 type FormValues = z.infer<typeof formSchema>;
@@ -299,6 +299,9 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
                   Tasa
                 </th>
                 <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
+                  Fuente
+                </th>
+                <th className="text-text-secondary px-3 py-2 font-semibold tracking-wide uppercase">
                   Estado
                 </th>
                 <th className="text-text-secondary px-3 py-2 text-right font-semibold tracking-wide uppercase">
@@ -324,6 +327,7 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
                   <td className="px-3 py-2 text-right font-medium tabular-nums">
                     {formatMoney(r.rate, { showCurrency: true })}
                   </td>
+                  <td className="px-3 py-2 text-sm">{formatRateSource(r.source)}</td>
                   <td className="px-3 py-2">
                     {r.is_active ? (
                       <Badge variant="success" className="text-xs">
@@ -439,6 +443,18 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="rate-source">Fuente del dato</Label>
+              <Select id="rate-source" {...form.register('source')}>
+                <option value="manual">Registro manual</option>
+                <option value="bcv_official">Publicación oficial BCV</option>
+                <option value="market_reference">Referencia de mercado</option>
+                <option value="import">Importación</option>
+              </Select>
+              <p className="text-text-muted text-[length:var(--text-ui-caption)]">
+                Indica el origen del valor; no consulta automáticamente esa fuente.
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="rate">
                 Tasa <span className="text-danger">*</span>{' '}
                 <span className="text-text-muted text-xs font-normal">
@@ -504,4 +520,17 @@ interface ExchangeRateRow {
   exchange_rate_type_code?: string | null;
   exchange_rate_type_name?: string | null;
   source?: string | null;
+}
+
+export function formatRateSource(source?: string | null): string {
+  const labels: Record<string, string> = {
+    manual: 'Registro manual',
+    bcv_official: 'Publicación oficial BCV',
+    market_reference: 'Referencia de mercado',
+    import: 'Importación',
+  };
+  if (!source) return 'Sin indicar';
+  return (
+    labels[source] ?? (source.toLowerCase().includes('demo') ? 'Dato de demostración' : source)
+  );
 }

@@ -47,6 +47,7 @@ import { Route as AuthedSettingsCompanyRouteImport } from './routes/_authed/sett
 import { Route as AuthedSettingsCapabilitiesRouteImport } from './routes/_authed/settings/capabilities'
 import { Route as AuthedQuotationsQuotationIdRouteImport } from './routes/_authed/quotations.$quotationId'
 import { Route as AuthedPosArmarRouteImport } from './routes/_authed/pos_.armar'
+import { Route as AuthedInventoryPriceListsRouteImport } from './routes/_authed/inventory/price-lists'
 import { Route as AuthedInventoryManualMovementsRouteImport } from './routes/_authed/inventory/manual-movements'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
 import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/inventory/catalogs'
@@ -252,6 +253,12 @@ const AuthedPosArmarRoute = AuthedPosArmarRouteImport.update({
   path: '/pos/armar',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedInventoryPriceListsRoute =
+  AuthedInventoryPriceListsRouteImport.update({
+    id: '/inventory/price-lists',
+    path: '/inventory/price-lists',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedInventoryManualMovementsRoute =
   AuthedInventoryManualMovementsRouteImport.update({
     id: '/inventory/manual-movements',
@@ -350,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
+  '/inventory/price-lists': typeof AuthedInventoryPriceListsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
   '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
@@ -400,6 +408,7 @@ export interface FileRoutesByTo {
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
+  '/inventory/price-lists': typeof AuthedInventoryPriceListsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
   '/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
@@ -452,6 +461,7 @@ export interface FileRoutesById {
   '/_authed/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
   '/_authed/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
+  '/_authed/inventory/price-lists': typeof AuthedInventoryPriceListsRoute
   '/_authed/pos_/armar': typeof AuthedPosArmarRoute
   '/_authed/quotations/$quotationId': typeof AuthedQuotationsQuotationIdRoute
   '/_authed/settings/capabilities': typeof AuthedSettingsCapabilitiesRoute
@@ -504,6 +514,7 @@ export interface FileRouteTypes {
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/inventory/manual-movements'
+    | '/inventory/price-lists'
     | '/pos/armar'
     | '/quotations/$quotationId'
     | '/settings/capabilities'
@@ -554,6 +565,7 @@ export interface FileRouteTypes {
     | '/inventory/catalogs'
     | '/inventory/currency'
     | '/inventory/manual-movements'
+    | '/inventory/price-lists'
     | '/pos/armar'
     | '/quotations/$quotationId'
     | '/settings/capabilities'
@@ -605,6 +617,7 @@ export interface FileRouteTypes {
     | '/_authed/inventory/catalogs'
     | '/_authed/inventory/currency'
     | '/_authed/inventory/manual-movements'
+    | '/_authed/inventory/price-lists'
     | '/_authed/pos_/armar'
     | '/_authed/quotations/$quotationId'
     | '/_authed/settings/capabilities'
@@ -896,6 +909,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPosArmarRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/inventory/price-lists': {
+      id: '/_authed/inventory/price-lists'
+      path: '/inventory/price-lists'
+      fullPath: '/inventory/price-lists'
+      preLoaderRoute: typeof AuthedInventoryPriceListsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/inventory/manual-movements': {
       id: '/_authed/inventory/manual-movements'
       path: '/inventory/manual-movements'
@@ -1067,6 +1087,7 @@ interface AuthedRouteChildren {
   AuthedInventoryCatalogsRoute: typeof AuthedInventoryCatalogsRoute
   AuthedInventoryCurrencyRoute: typeof AuthedInventoryCurrencyRoute
   AuthedInventoryManualMovementsRoute: typeof AuthedInventoryManualMovementsRoute
+  AuthedInventoryPriceListsRoute: typeof AuthedInventoryPriceListsRoute
   AuthedPosArmarRoute: typeof AuthedPosArmarRoute
   AuthedSettingsCapabilitiesRoute: typeof AuthedSettingsCapabilitiesRoute
   AuthedSettingsCompanyRoute: typeof AuthedSettingsCompanyRoute
@@ -1107,6 +1128,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedInventoryCatalogsRoute: AuthedInventoryCatalogsRoute,
   AuthedInventoryCurrencyRoute: AuthedInventoryCurrencyRoute,
   AuthedInventoryManualMovementsRoute: AuthedInventoryManualMovementsRoute,
+  AuthedInventoryPriceListsRoute: AuthedInventoryPriceListsRoute,
   AuthedPosArmarRoute: AuthedPosArmarRoute,
   AuthedSettingsCapabilitiesRoute: AuthedSettingsCapabilitiesRoute,
   AuthedSettingsCompanyRoute: AuthedSettingsCompanyRoute,

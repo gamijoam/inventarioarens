@@ -11,6 +11,7 @@ import {
   Boxes,
   Tag,
   TrendingUp,
+  ListOrdered,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -167,26 +168,32 @@ const NAV_ITEMS: NavItem[] = [
         permission: PERMISSIONS.PRODUCTS_VIEW,
       },
       {
+        to: '/inventory/manual-movements',
+        label: 'Movimientos',
+        icon: ClipboardList,
+        permission: PERMISSIONS.INVENTORY_MANUAL_MOVEMENTS_VIEW,
+      },
+      {
         to: '/inventory/catalogs',
-        label: 'Catálogos',
+        label: 'Catálogos de productos',
         icon: Tag,
         permission: PERMISSIONS.PRODUCTS_VIEW,
       },
       {
         to: '/inventory/currency',
-        label: 'Tipos de tasa',
+        label: 'Tasas de cambio',
         icon: TrendingUp,
         permission: PERMISSIONS.CURRENCY_VIEW,
       },
       {
-        to: '/inventory/manual-movements',
-        label: 'Movimientos manuales',
-        icon: ClipboardList,
-        permission: PERMISSIONS.INVENTORY_MANUAL_MOVEMENTS_VIEW,
+        to: '/inventory/price-lists',
+        label: 'Listas de precios',
+        icon: ListOrdered,
+        permission: PERMISSIONS.PRICE_LISTS_VIEW,
       },
       {
         to: '/inventory/admin',
-        label: 'Administración',
+        label: 'Ubicaciones y garantías',
         icon: Settings,
         permission: PERMISSIONS.PRODUCTS_VIEW,
       },
@@ -400,7 +407,7 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        'relative shrink-0 min-h-screen transition-[width] duration-200',
+        'relative min-h-screen shrink-0 transition-[width] duration-200',
         isPinned ? 'w-64' : 'w-16',
       )}
       onMouseEnter={() => {
@@ -412,7 +419,7 @@ export function Sidebar() {
     >
       <aside
         className={cn(
-          'fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-surface border-r border-border transition-all duration-200 ease-in-out h-screen',
+          'bg-surface border-border fixed top-0 bottom-0 left-0 z-40 flex h-screen flex-col border-r transition-all duration-200 ease-in-out',
           isExpanded
             ? 'w-64 shadow-2xl ring-1 ring-black/10 dark:ring-white/10'
             : 'w-16 shadow-none',
@@ -420,10 +427,10 @@ export function Sidebar() {
         aria-label="Navegación principal"
       >
         {/* Brand */}
-        <div className="border-border flex h-14 items-center gap-2 border-b px-3 shrink-0">
+        <div className="border-border flex h-14 shrink-0 items-center gap-2 border-b px-3">
           <div
             className={cn(
-              'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-wide overflow-hidden p-0.5',
+              'bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md p-0.5 text-sm font-bold tracking-wide',
               'shadow-sm',
             )}
             aria-hidden="true"
@@ -440,7 +447,7 @@ export function Sidebar() {
             )}
           </div>
           <div className={cn('min-w-0 transition-opacity duration-150', !isExpanded && 'sr-only')}>
-            <p className="truncate text-sm font-semibold">{tenant?.name || APP_SHORT_NAME}</p>
+            <p className="truncate text-sm font-semibold">{tenant?.name ?? APP_SHORT_NAME}</p>
           </div>
         </div>
 
@@ -493,7 +500,7 @@ export function Sidebar() {
                   className={cn(
                     'relative flex min-h-11 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-body)] font-medium transition-colors',
                     isActive
-                      ? 'bg-primary/10 text-primary font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
+                      ? 'bg-primary/10 text-primary before:bg-primary font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r'
                       : 'text-text-secondary hover:bg-bg hover:text-text-primary',
                     !isExpanded && 'justify-center',
                   )}
@@ -519,7 +526,7 @@ export function Sidebar() {
         </nav>
 
         {/* Collapse / Pin Toggle */}
-        <div className="border-border border-t p-2 shrink-0">
+        <div className="border-border shrink-0 border-t p-2">
           <button
             type="button"
             onClick={() => {
@@ -616,7 +623,7 @@ function Group({
         className={cn(
           'relative flex min-h-11 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-body)] font-medium transition-colors',
           isParentActive
-            ? 'bg-primary/10 text-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
+            ? 'bg-primary/10 text-primary before:bg-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r'
             : 'text-text-secondary hover:bg-bg hover:text-text-primary',
           'justify-center',
         )}
@@ -639,7 +646,7 @@ function Group({
           className={cn(
             'relative flex min-h-11 flex-1 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-body)] font-medium transition-colors',
             isParentActive
-              ? 'bg-primary/10 text-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
+              ? 'bg-primary/10 text-primary before:bg-primary before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r'
               : 'text-text-secondary hover:bg-bg hover:text-text-primary',
           )}
           title={item.label}
@@ -651,12 +658,12 @@ function Group({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="text-text-muted hover:bg-bg hover:text-text-secondary rounded p-1.5"
+          className="text-text-muted hover:bg-bg hover:text-text-secondary flex size-10 shrink-0 items-center justify-center rounded-md"
           aria-label={open ? 'Cerrar submenú' : 'Abrir submenú'}
           aria-expanded={open}
         >
           <ChevronDown
-            className={cn('size-3.5 transition-transform', open && 'rotate-180')}
+            className={cn('size-5 transition-transform', open && 'rotate-180')}
             aria-hidden="true"
           />
         </button>
@@ -673,7 +680,7 @@ function Group({
                 className={cn(
                   'relative flex min-h-10 items-center gap-3 rounded-md px-2.5 py-2 text-[length:var(--text-ui-table)] transition-colors',
                   isSubActive
-                    ? 'bg-primary/10 text-primary font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r before:bg-primary'
+                    ? 'bg-primary/10 text-primary before:bg-primary font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r'
                     : 'text-text-secondary hover:bg-bg hover:text-text-primary',
                 )}
                 aria-current={isSubActive ? 'page' : undefined}
@@ -708,7 +715,9 @@ function UnreadTransferRequestsBadge() {
   const currentTenantId = useSessionStore((s) => s.tenant?.id);
   const capabilities = useSessionStore((s) => s.capabilities);
   const hasCapability = capabilities?.size === 0 || capabilities?.has('intercompany');
-  const { data: count } = useUnreadIntercompanyNotificationsCount(Boolean(currentTenantId) && hasCapability);
+  const { data: count } = useUnreadIntercompanyNotificationsCount(
+    Boolean(currentTenantId) && hasCapability,
+  );
 
   if (!count || count <= 0) return null;
 

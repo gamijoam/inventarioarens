@@ -6,11 +6,19 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Support\Realtime\WsHub;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ExchangeRateActivationService
 {
     public function activate(ExchangeRate $rate): ExchangeRate
     {
+        $rate->loadMissing('type');
+        if (! $rate->type?->is_active) {
+            throw ValidationException::withMessages([
+                'exchange_rate_type_id' => 'Activa el tipo de tasa antes de activar una tasa asociada.',
+            ]);
+        }
+
         $activated = DB::transaction(function () use ($rate): ExchangeRate {
             ExchangeRate::query()
                 ->where('exchange_rate_type_id', $rate->exchange_rate_type_id)

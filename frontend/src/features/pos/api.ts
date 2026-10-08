@@ -232,6 +232,7 @@ export const CurrentExchangeRateSchema = z
     quote_currency: z.string(),
     rate: z.union([z.number(), z.string()]).transform(Number),
     effective_at: z.string().optional().nullable(),
+    source: z.string().optional().nullable(),
     is_active: z.boolean().optional(),
   })
   .passthrough();

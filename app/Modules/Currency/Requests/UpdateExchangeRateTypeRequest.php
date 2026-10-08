@@ -30,6 +30,24 @@ class UpdateExchangeRateTypeRequest extends FormRequest
         ];
     }
 
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            $type = $this->route('type');
+            $isDefault = $this->input('is_default', $type?->is_default ?? false);
+            $isActive = $this->input('is_active', $type?->is_active ?? true);
+
+            if (filter_var($isDefault, FILTER_VALIDATE_BOOLEAN) && ! filter_var($isActive, FILTER_VALIDATE_BOOLEAN)) {
+                $validator->errors()->add('is_default', 'El tipo predeterminado debe estar activo.');
+            }
+
+            if ($type && ! filter_var($isActive, FILTER_VALIDATE_BOOLEAN) && $type->rates()->where('is_active', true)->exists()) {
+                $validator->errors()->add('is_active', 'Desactiva primero la tasa vigente de este tipo.');
+            }
+        });
+    }
+
     public function authorize(): bool
     {
         return true;

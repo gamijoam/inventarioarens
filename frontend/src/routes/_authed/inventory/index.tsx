@@ -40,6 +40,7 @@ import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/Expor
 import { BulkPriceAdjustmentModal } from '@/features/inventory-center/dialogs/BulkPriceAdjustmentModal';
 import { InventoryErpWorkspace } from '@/features/inventory-center/components/InventoryErpWorkspace';
 import { InventoryCatalogWorkspace } from '@/features/inventory-center/components/InventoryCatalogWorkspace';
+import { ExchangeRateQuickUpdate } from '@/features/inventory-center/components/ExchangeRateQuickUpdate';
 import {
   DEFAULT_INVENTORY_TABLE_COLUMNS,
   getStoredInventoryColumnsVisibility,
@@ -369,6 +370,7 @@ function InventoryListPage() {
         </div>
       }
     >
+      <ExchangeRateQuickUpdate currentRate={activeRate} />
       {viewMode === 'erp' ? (
         <InventoryErpWorkspace
           products={data?.data ?? []}

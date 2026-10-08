@@ -29,7 +29,7 @@ import {
 
 export function ManualMovementsManager() {
   const [filters, setFilters] = useState<ManualMovementFilters>({
-    status: 'all',
+    status: 'pending',
     type: 'all',
     page: 1,
   });

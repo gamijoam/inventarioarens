@@ -74,7 +74,7 @@ class CurrencyApiTest extends TestCase
                 'rate' => 500,
                 'effective_at' => '2026-07-02T08:00:00-04:00',
                 'is_active' => true,
-                'source' => 'Manual',
+                'source' => 'manual',
             ])
             ->assertCreated()
             ->assertJsonPath('data.exchange_rate_type_code', 'BCV')
@@ -89,7 +89,7 @@ class CurrencyApiTest extends TestCase
                 'rate' => 600,
                 'effective_at' => '2026-07-02T08:05:00-04:00',
                 'is_active' => true,
-                'source' => 'Manual',
+                'source' => 'manual',
             ])
             ->assertCreated()
             ->assertJsonPath('data.exchange_rate_type_code', 'PARALELO')
@@ -241,7 +241,7 @@ class CurrencyApiTest extends TestCase
                 'rate' => 500,
                 'effective_at' => '2026-07-08T08:00:00-04:00',
                 'is_active' => true,
-                'source' => 'Prueba automatizada',
+                'source' => 'import',
             ])
             ->assertCreated();
 
@@ -259,6 +259,66 @@ class CurrencyApiTest extends TestCase
             ->value('payload');
 
         $this->assertSame('BCV', json_decode($payload, true)['exchange_rate_type_code']);
+    }
+
+
+    public function test_default_exchange_rate_type_must_be_active(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Currency Manager', ['currency.view', 'currency.manage']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/currency/rate-types', [
+                'code' => 'BCV',
+                'name' => 'Tasa BCV',
+                'is_default' => true,
+                'is_active' => false,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_default']);
+    }
+
+    public function test_active_rate_cannot_be_created_for_an_inactive_type(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $type = $this->rateTypeFor($tenant, 'BCV', 'Tasa BCV');
+        $type->update(['is_active' => false]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Currency Manager', ['currency.view', 'currency.manage']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/currency/rates', [
+                'exchange_rate_type_id' => $type->id,
+                'rate' => 500,
+                'effective_at' => '2026-10-08T08:00:00-04:00',
+                'is_active' => true,
+                'source' => 'manual',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['exchange_rate_type_id']);
+    }
+
+    public function test_exchange_rate_source_must_be_from_the_supported_catalog(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        $type = $this->rateTypeFor($tenant, 'BCV', 'Tasa BCV');
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Currency Manager', ['currency.view', 'currency.manage']);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/currency/rates', [
+                'exchange_rate_type_id' => $type->id,
+                'rate' => 500,
+                'effective_at' => '2026-10-08T08:00:00-04:00',
+                'is_active' => true,
+                'source' => 'fuente inventada',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['source']);
     }
 
     protected function setUp(): void
