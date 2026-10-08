@@ -4,12 +4,19 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Filament renders inline boot scripts. Give only its panel pages a
+        // per-response nonce so they work under the strict production CSP.
+        $filamentNonce = ($request->path() === 'soporte' || str_starts_with($request->path(), 'soporte/'))
+            ? Vite::useCspNonce()
+            : null;
+
         $response = $next($request);
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -24,7 +31,7 @@ class SecurityHeaders
         if ($this->isApiRequest($request) || $this->isAssetRequest($request)) {
             $response->headers->set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
         } else {
-            $csp = $this->buildWebCsp();
+            $csp = $this->buildWebCsp($filamentNonce);
             $response->headers->set('Content-Security-Policy', $csp);
         }
 
@@ -51,7 +58,7 @@ class SecurityHeaders
             || str_ends_with($path, '.ico');
     }
 
-    private function buildWebCsp(): string
+    private function buildWebCsp(?string $filamentNonce = null): string
     {
         if (app()->environment('local')) {
             $script = "'self' 'unsafe-inline' 'unsafe-eval'";
@@ -61,6 +68,10 @@ class SecurityHeaders
             $script = "'self'";
             $style = "'self' 'unsafe-inline'";
             $connect = "'self' https://app.miinventariofacil.com";
+        }
+
+        if ($filamentNonce !== null) {
+            $script .= " 'nonce-{$filamentNonce}'";
         }
 
         return implode('; ', [
