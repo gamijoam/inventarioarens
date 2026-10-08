@@ -172,7 +172,7 @@ export function PurchaseSummary({ purchase, showItems = false }: PurchaseSummary
               {payable.document_number ?? `CxP #${payable.id}`}
             </InfoRow>
             <div className="border-border bg-surface rounded-md border px-3 py-2">
-              <div className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+              <div className="text-text-muted text-xs font-semibold tracking-wide uppercase">
                 Saldo pendiente
               </div>
               <div className="mt-0.5 text-sm font-semibold tabular-nums">
@@ -185,7 +185,7 @@ export function PurchaseSummary({ purchase, showItems = false }: PurchaseSummary
               )}
             </div>
             <div className="border-border bg-surface rounded-md border px-3 py-2">
-              <div className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+              <div className="text-text-muted text-xs font-semibold tracking-wide uppercase">
                 Vencimiento
               </div>
               <div className="mt-0.5 text-sm">
@@ -234,7 +234,7 @@ export function PurchaseSummary({ purchase, showItems = false }: PurchaseSummary
                         <div className="font-medium">
                           {rec.toFixed(2)} / {qty.toFixed(2)}
                         </div>
-                        <div className="text-text-muted text-[10px] tracking-wide uppercase">
+                        <div className="text-text-muted text-xs tracking-wide uppercase">
                           recibido / pedido
                         </div>
                       </div>
@@ -242,9 +242,9 @@ export function PurchaseSummary({ purchase, showItems = false }: PurchaseSummary
                         <div className="text-text-muted tabular-nums">
                           <div>{formatMoney(cost ?? baseCost)}</div>
                           {purchase.purchase_currency === 'VES' && baseCost != null && (
-                            <div className="text-[10px]">{formatMoney(baseCost)} base</div>
+                            <div className="text-xs">{formatMoney(baseCost)} base</div>
                           )}
-                          <div className="text-[10px] tracking-wide uppercase">c/u</div>
+                          <div className="text-xs tracking-wide uppercase">c/u</div>
                         </div>
                       )}
                       {(totalCost != null || baseTotalCost != null) && (
@@ -253,9 +253,9 @@ export function PurchaseSummary({ purchase, showItems = false }: PurchaseSummary
                             {formatMoney(totalCost ?? baseTotalCost)}
                           </div>
                           {purchase.purchase_currency === 'VES' && baseTotalCost != null && (
-                            <div className="text-[10px]">{formatMoney(baseTotalCost)} base</div>
+                            <div className="text-xs">{formatMoney(baseTotalCost)} base</div>
                           )}
-                          <div className="text-[10px] tracking-wide uppercase">total</div>
+                          <div className="text-xs tracking-wide uppercase">total</div>
                         </div>
                       )}
                     </div>
@@ -283,7 +283,7 @@ function InfoRow({
     <div className="border-border bg-bg/30 flex items-start gap-2 rounded-md border px-3 py-2">
       <span className="text-text-muted mt-0.5">{icon}</span>
       <div className="min-w-0 flex-1">
-        <div className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+        <div className="text-text-muted text-xs font-semibold tracking-wide uppercase">
           {label}
         </div>
         <div className="mt-0.5 truncate text-sm">{children}</div>

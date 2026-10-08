@@ -88,19 +88,19 @@ describe('<Sidebar>', () => {
       'Promociones',
       'Comisiones',
       'Clientes',
-      'Cuentas por cobrar',
-      'Cuentas por pagar',
-      'Metodos de pago',
-      'Proveedores',
       'Inventario',
       'Compras',
+      'Proveedores',
       'Traslados',
       'Solicitudes inter-empresa',
       'Garantías',
       'Taller',
+      'Cuentas por cobrar',
+      'Cuentas por pagar',
+      'Métodos de pago',
       'Reportes',
       'Importar datos',
-      'Impresion',
+      'Impresión',
       'Acceso',
       'Configuración',
     ]);
@@ -135,7 +135,6 @@ describe('<Sidebar>', () => {
     expect(dashboardLink.className).toContain('text-[length:var(--text-ui-body)]');
     expect(dashboardLink.className).toContain('min-h-11');
     expect(sectionHeader?.className).toContain('text-[length:var(--text-ui-caption)]');
-    expect(sectionHeader?.className).not.toContain('text-[10px]');
   });
 
   it('muestra las etiquetas de seccion como encabezados agrupadores', () => {
@@ -146,10 +145,10 @@ describe('<Sidebar>', () => {
     const headers = Array.from(container.querySelectorAll('div'))
       .map((node) => node.textContent?.trim())
       .filter(
-        (text): text is string => Boolean(text) && /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(text ?? ''),
+        (text): text is string => Boolean(text) && /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ ]+$/.test(text ?? ''),
       );
 
-    ['Operación', 'Ventas', 'Finanzas', 'Inventario', 'Analítica', 'Configuración'].forEach(
+    ['Inicio', 'Operación', 'Ventas', 'Inventario y compras', 'Finanzas', 'Reportes y datos', 'Administración'].forEach(
       (section) => {
         expect(headers).toContain(section);
       },

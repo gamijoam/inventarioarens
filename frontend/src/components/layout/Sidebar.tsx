@@ -67,22 +67,25 @@ interface UsersSearch {
 }
 
 const SECTION_LABELS = {
+  INICIO: 'Inicio',
   OPERACION: 'Operación',
   VENTAS: 'Ventas',
   FINANZAS: 'Finanzas',
-  INVENTARIO: 'Inventario',
-  ANALITICA: 'Analítica',
-  CONFIGURACION: 'Configuración',
+  INVENTARIO: 'Inventario y compras',
+  ANALITICA: 'Reportes y datos',
+  CONFIGURACION: 'Administración',
 } as const;
 
 const NAV_ITEMS: NavItem[] = [
-  // ===== Operación =====
+  // ===== Inicio =====
   {
     to: '/dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
-    section: SECTION_LABELS.OPERACION,
+    section: SECTION_LABELS.INICIO,
   },
+  // ===== Operación =====
+
   {
     to: '/pos',
     label: 'POS',
@@ -149,40 +152,7 @@ const NAV_ITEMS: NavItem[] = [
     section: SECTION_LABELS.VENTAS,
   },
 
-  // ===== Finanzas =====
-  {
-    to: '/receivables',
-    label: 'Cuentas por cobrar',
-    icon: Wallet,
-    permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW,
-    capability: 'finance',
-    section: SECTION_LABELS.FINANZAS,
-  },
-  {
-    to: '/payables',
-    label: 'Cuentas por pagar',
-    icon: Receipt,
-    permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW,
-    capability: 'finance',
-    section: SECTION_LABELS.FINANZAS,
-  },
-  {
-    to: '/payment-methods',
-    label: 'Metodos de pago',
-    icon: CreditCard,
-    permission: PERMISSIONS.PAYMENT_METHODS_VIEW,
-    capability: 'pos',
-    section: SECTION_LABELS.FINANZAS,
-  },
-  {
-    to: '/suppliers',
-    label: 'Proveedores',
-    icon: Building,
-    permission: PERMISSIONS.SUPPLIERS_VIEW,
-    section: SECTION_LABELS.FINANZAS,
-  },
-
-  // ===== Inventario =====
+  // ===== Inventario y compras =====
   {
     to: '/inventory',
     label: 'Inventario',
@@ -231,6 +201,13 @@ const NAV_ITEMS: NavItem[] = [
     section: SECTION_LABELS.INVENTARIO,
   },
   {
+    to: '/suppliers',
+    label: 'Proveedores',
+    icon: Building,
+    permission: PERMISSIONS.SUPPLIERS_VIEW,
+    section: SECTION_LABELS.INVENTARIO,
+  },
+  {
     to: '/transfers',
     label: 'Traslados',
     icon: Truck,
@@ -263,7 +240,33 @@ const NAV_ITEMS: NavItem[] = [
     section: SECTION_LABELS.INVENTARIO,
   },
 
-  // ===== Analítica =====
+  // ===== Finanzas =====
+  {
+    to: '/receivables',
+    label: 'Cuentas por cobrar',
+    icon: Wallet,
+    permission: PERMISSIONS.ACCOUNTS_RECEIVABLE_VIEW,
+    capability: 'finance',
+    section: SECTION_LABELS.FINANZAS,
+  },
+  {
+    to: '/payables',
+    label: 'Cuentas por pagar',
+    icon: Receipt,
+    permission: PERMISSIONS.ACCOUNTS_PAYABLE_VIEW,
+    capability: 'finance',
+    section: SECTION_LABELS.FINANZAS,
+  },
+  {
+    to: '/payment-methods',
+    label: 'Métodos de pago',
+    icon: CreditCard,
+    permission: PERMISSIONS.PAYMENT_METHODS_VIEW,
+    capability: 'pos',
+    section: SECTION_LABELS.FINANZAS,
+  },
+
+  // ===== Reportes y datos =====
   {
     to: '/reports',
     label: 'Reportes',
@@ -282,7 +285,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/printing',
-    label: 'Impresion',
+    label: 'Impresión',
     icon: Printer,
     permission: PERMISSIONS.PRINTING_VIEW,
     capability: 'printing',
@@ -343,7 +346,7 @@ const NAV_ITEMS: NavItem[] = [
       },
       {
         to: '/settings/capabilities',
-        label: 'Capacidades y modulos',
+        label: 'Capacidades y módulos',
         icon: SlidersHorizontal,
         permission: PERMISSIONS.SETTINGS_MANAGE,
       },
@@ -717,7 +720,7 @@ function UnreadTransferRequestsBadge() {
       // inter-empresa no es un error ni un peligro, es un aviso de
       // atencion. El toast push usa el mismo color info para
       // consistencia visual.
-      className="bg-info text-info-foreground ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] leading-5 font-semibold"
+      className="bg-info text-info-foreground ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 text-xs leading-5 font-semibold"
       data-testid="unread-transfer-requests-badge"
       aria-label={`${count} solicitudes pendientes`}
     >

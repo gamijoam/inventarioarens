@@ -170,7 +170,7 @@ export function PosShell({
                   {typeof action.badge === 'number' && action.badge > 0 && (
                     <span
                       data-testid={`pos-action-badge-${action.id}`}
-                      className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm"
+                      className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-bold shadow-sm"
                     >
                       {action.badge > 99 ? '99+' : action.badge}
                     </span>

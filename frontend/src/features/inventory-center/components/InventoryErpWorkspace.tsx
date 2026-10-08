@@ -548,7 +548,7 @@ export function InventoryErpWorkspace({
                       <X className="size-3.5" />
                     </button>
                   ) : null}
-                  <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-bg text-text-muted border border-border">
+                  <span className="hidden sm:inline-flex items-center text-xs font-mono font-medium px-1.5 py-0.5 rounded bg-bg text-text-muted border border-border">
                     F3
                   </span>
                 </div>
@@ -652,7 +652,7 @@ export function InventoryErpWorkspace({
                   </span>
                 )}
               </span>
-              <span className="text-[11px]">Navega con [↑] [↓]</span>
+              <span className="text-xs">Navega con [↑] [↓]</span>
             </div>
           </div>
 
@@ -709,11 +709,11 @@ export function InventoryErpWorkspace({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 overflow-hidden">
-                      <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-bg/80 border border-border text-text-muted shrink-0">
+                      <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-bg/80 border border-border text-text-muted shrink-0">
                         {prod.sku || 'SIN SKU'}
                       </span>
                       {prod.barcode && (
-                        <span className="font-mono text-[10px] text-text-muted truncate hidden sm:inline">
+                        <span className="font-mono text-xs text-text-muted truncate hidden sm:inline">
                           CB: {prod.barcode}
                         </span>
                       )}
@@ -722,16 +722,16 @@ export function InventoryErpWorkspace({
                     <div className="flex items-center gap-1.5 shrink-0">
                       {/* Badge de Stock */}
                       {isSerialized ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                           <Boxes className="size-3" />
                           {avail} un.
                         </span>
                       ) : avail > 0 ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                           {avail} un.
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
                           Agotado
                         </span>
                       )}
@@ -752,7 +752,7 @@ export function InventoryErpWorkspace({
                   <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                     {/* Badge de Categoría Destacado */}
                     <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0"
                       title={`Categoría: ${prodCat}`}
                     >
                       <Folder className="size-3 shrink-0" />
@@ -760,13 +760,13 @@ export function InventoryErpWorkspace({
                     </span>
 
                     {prod.brand?.name && (
-                      <span className="text-[11px] text-text-muted truncate max-w-[120px]">
+                      <span className="text-xs text-text-muted truncate max-w-[120px]">
                         {prod.brand.name}
                       </span>
                     )}
 
                     {prod.unit_of_measure && (
-                      <span className="text-[10px] uppercase font-mono text-text-muted">
+                      <span className="text-xs uppercase font-mono text-text-muted">
                         · {prod.unit_of_measure}
                       </span>
                     )}
@@ -908,13 +908,13 @@ export function InventoryErpWorkspace({
                       </span>
                     )}
 
-                    <Badge variant={activeProduct.is_active ? 'success' : 'default'} className="text-[11px]">
+                    <Badge variant={activeProduct.is_active ? 'success' : 'default'} className="text-xs">
                       {activeProduct.is_active ? 'Activo' : 'Inactivo'}
                     </Badge>
                   </div>
 
                   {activeRate && (
-                    <div className="text-text-muted flex items-center gap-1 font-mono text-[11px]">
+                    <div className="text-text-muted flex items-center gap-1 font-mono text-xs">
                       <span>Tasa {activeRate.name || activeRate.exchange_rate_type_code || activeRate.code || 'BCV'}:</span>
                       <strong className="text-text-primary">Bs. {activeRate.rate.toFixed(2)}</strong>
                     </div>
@@ -1033,7 +1033,7 @@ export function InventoryErpWorkspace({
                     {/* Tabla de Tarifas */}
                     <div className="border border-border rounded-lg overflow-hidden">
                       <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-[11px]">
+                        <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-xs">
                           <tr>
                             <th className="p-2.5">Lista de Precio</th>
                             <th className="p-2.5 text-right">Costo Compra</th>
@@ -1062,7 +1062,7 @@ export function InventoryErpWorkspace({
                                 <div className="flex items-center gap-1.5">
                                   <span>{row.label}</span>
                                   {row.isDefault && (
-                                    <span className="text-[10px] px-1 py-0.2 rounded bg-primary/10 text-primary font-mono">
+                                    <span className="text-xs px-1 py-0.2 rounded bg-primary/10 text-primary font-mono">
                                       DEF
                                     </span>
                                   )}
@@ -1092,7 +1092,7 @@ export function InventoryErpWorkspace({
                                 {row.marginPercent != null ? (
                                   <span
                                     className={cn(
-                                      'px-1.5 py-0.5 rounded text-[11px] font-semibold',
+                                      'px-1.5 py-0.5 rounded text-xs font-semibold',
                                       row.marginPercent > 20
                                         ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                         : row.marginPercent > 0
@@ -1116,19 +1116,19 @@ export function InventoryErpWorkspace({
                     {(activeProduct.last_purchase_cost != null || activeProduct.average_cost != null) && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 rounded-lg border border-border bg-surface-subtle/30 text-xs">
                         <div>
-                          <span className="text-text-muted block text-[11px]">Último Costo de Compra:</span>
+                          <span className="text-text-muted block text-xs">Último Costo de Compra:</span>
                           <strong className="text-sm font-mono text-text-primary">
                             {formatMoney(activeProduct.last_purchase_cost)}
                           </strong>
                         </div>
                         <div>
-                          <span className="text-text-muted block text-[11px]">Costo Promedio (WAC):</span>
+                          <span className="text-text-muted block text-xs">Costo Promedio (WAC):</span>
                           <strong className="text-sm font-mono text-text-primary">
                             {formatMoney(activeProduct.average_cost)}
                           </strong>
                         </div>
                         <div>
-                          <span className="text-text-muted block text-[11px]">Margen Configurado:</span>
+                          <span className="text-text-muted block text-xs">Margen Configurado:</span>
                           <strong className="text-sm text-primary">
                             {activeProduct.profit_margin != null
                               ? `${Number(activeProduct.profit_margin).toFixed(1)}%`
@@ -1159,7 +1159,7 @@ export function InventoryErpWorkspace({
                     ) : (
                       <div className="border border-border rounded-lg overflow-hidden">
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-[11px]">
+                          <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-xs">
                             <tr>
                               <th className="p-2.5">Almacén</th>
                               <th className="p-2.5 text-right">Disponible</th>
@@ -1182,7 +1182,7 @@ export function InventoryErpWorkspace({
                                       <Warehouse className="size-3.5 text-text-muted shrink-0" />
                                       <span>{stockItem.warehouse_name || `Almacén #${stockItem.warehouse_id}`}</span>
                                       {stockItem.warehouse_code && (
-                                        <span className="font-mono text-[10px] px-1 py-0.2 rounded bg-bg text-text-muted border border-border">
+                                        <span className="font-mono text-xs px-1 py-0.2 rounded bg-bg text-text-muted border border-border">
                                           {stockItem.warehouse_code}
                                         </span>
                                       )}
@@ -1247,7 +1247,7 @@ export function InventoryErpWorkspace({
                             <Boxes className="size-3.5 text-primary" />
                             Stock en otras sucursales ({crossBranchData.branches.length})
                           </span>
-                          <span className="text-[10px] text-text-muted">En tiempo real</span>
+                          <span className="text-xs text-text-muted">En tiempo real</span>
                         </div>
                         <div className="space-y-1.5">
                           {crossBranchData.branches
@@ -1267,7 +1267,7 @@ export function InventoryErpWorkspace({
                                   <div className="font-semibold text-text-primary truncate">
                                     {b.tenant_name}
                                   </div>
-                                  <div className="text-[11px] text-text-muted mt-0.5">
+                                  <div className="text-xs text-text-muted mt-0.5">
                                     {b.warehouses.length > 0
                                       ? b.warehouses
                                           .map((w) => `${w.warehouse_name}: ${w.quantity_available} disp.`)
@@ -1308,7 +1308,7 @@ export function InventoryErpWorkspace({
                           className="size-full object-contain"
                         />
                       </div>
-                      <span className="text-[11px] text-text-muted text-center">
+                      <span className="text-xs text-text-muted text-center">
                         {activeProduct.images && activeProduct.images.length > 0
                           ? `${activeProduct.images.length} imagen(es) registrada(s)`
                           : 'Sin imagen secundaria'}
@@ -1319,19 +1319,19 @@ export function InventoryErpWorkspace({
                     <div className="md:col-span-8 space-y-3 text-xs">
                       {/* Clasificación */}
                       <div className="p-3 rounded-lg border border-border bg-surface-subtle/20 space-y-2">
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted block">
+                        <span className="text-xs uppercase font-bold tracking-wider text-text-muted block">
                           Clasificación de Inventario
                         </span>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <span className="text-text-muted block text-[11px]">Categoría:</span>
+                            <span className="text-text-muted block text-xs">Categoría:</span>
                             <span className="font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
                               <Folder className="size-3.5 shrink-0" />
                               {activeCategory}
                             </span>
                           </div>
                           <div>
-                            <span className="text-text-muted block text-[11px]">Marca:</span>
+                            <span className="text-text-muted block text-xs">Marca:</span>
                             <span className="font-semibold text-text-primary mt-0.5 block">
                               {activeProduct.brand?.name ?? 'Sin marca'}
                             </span>
@@ -1340,12 +1340,12 @@ export function InventoryErpWorkspace({
 
                         {activeProduct.tags && activeProduct.tags.length > 0 && (
                           <div>
-                            <span className="text-text-muted block text-[11px] mb-1">Etiquetas:</span>
+                            <span className="text-text-muted block text-xs mb-1">Etiquetas:</span>
                             <div className="flex flex-wrap gap-1">
                               {activeProduct.tags.map((t) => (
                                 <span
                                   key={t.id}
-                                  className="text-[10px] px-1.5 py-0.5 rounded bg-bg border border-border text-text-muted flex items-center gap-1"
+                                  className="text-xs px-1.5 py-0.5 rounded bg-bg border border-border text-text-muted flex items-center gap-1"
                                 >
                                   <Tag className="size-2.5" />
                                   {t.name}
@@ -1358,24 +1358,24 @@ export function InventoryErpWorkspace({
 
                       {/* Parámetros de Stock */}
                       <div className="p-3 rounded-lg border border-border bg-surface-subtle/20 space-y-2">
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted block">
+                        <span className="text-xs uppercase font-bold tracking-wider text-text-muted block">
                           Parámetros de Control y Reposición
                         </span>
                         <div className="grid grid-cols-3 gap-2">
                           <div>
-                            <span className="text-text-muted block text-[11px]">Stock Mínimo:</span>
+                            <span className="text-text-muted block text-xs">Stock Mínimo:</span>
                             <strong className="text-sm font-mono text-text-primary">
                               {activeProduct.min_stock ?? '—'}
                             </strong>
                           </div>
                           <div>
-                            <span className="text-text-muted block text-[11px]">Stock Máximo:</span>
+                            <span className="text-text-muted block text-xs">Stock Máximo:</span>
                             <strong className="text-sm font-mono text-text-primary">
                               {activeProduct.max_stock ?? '—'}
                             </strong>
                           </div>
                           <div>
-                            <span className="text-text-muted block text-[11px]">Punto de Reorden:</span>
+                            <span className="text-text-muted block text-xs">Punto de Reorden:</span>
                             <strong className="text-sm font-mono text-text-primary">
                               {activeProduct.reorder_quantity ?? '—'}
                             </strong>
@@ -1386,7 +1386,7 @@ export function InventoryErpWorkspace({
                       {/* Descripción */}
                       {activeProduct.description && (
                         <div className="p-3 rounded-lg border border-border bg-surface-subtle/20 space-y-1">
-                          <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted block">
+                          <span className="text-xs uppercase font-bold tracking-wider text-text-muted block">
                             Descripción / Observaciones
                           </span>
                           <p className="text-text-secondary leading-relaxed">
@@ -1440,7 +1440,7 @@ export function InventoryErpWorkspace({
                         ) : (
                           <div className="border border-border rounded-lg overflow-hidden max-h-[360px] overflow-y-auto">
                             <table className="w-full text-left text-xs border-collapse">
-                              <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-[11px] sticky top-0">
+                              <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-xs sticky top-0">
                                 <tr>
                                   <th className="p-2.5">Serial / Identificador</th>
                                   <th className="p-2.5">Tipo</th>
@@ -1469,7 +1469,7 @@ export function InventoryErpWorkspace({
                                               ? 'default'
                                               : 'warning'
                                         }
-                                        className="text-[10px]"
+                                        className="text-xs"
                                       >
                                         {s.status === 'available'
                                           ? 'Disponible'
@@ -1508,7 +1508,7 @@ export function InventoryErpWorkspace({
                     ) : (
                       <div className="border border-border rounded-lg overflow-hidden max-h-[380px] overflow-y-auto">
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-[11px] sticky top-0">
+                          <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-xs sticky top-0">
                             <tr>
                               <th className="p-2.5">Fecha</th>
                               <th className="p-2.5">Tipo</th>
@@ -1529,7 +1529,7 @@ export function InventoryErpWorkspace({
                                     {mov.created_at ? formatRelative(mov.created_at) : '—'}
                                   </td>
                                   <td className="p-2.5">
-                                    <Badge variant={isEntry ? 'success' : 'default'} className="text-[10px]">
+                                    <Badge variant={isEntry ? 'success' : 'default'} className="text-xs">
                                       {movementTypeLabel(mov.type)}
                                     </Badge>
                                   </td>
@@ -1541,7 +1541,7 @@ export function InventoryErpWorkspace({
                                       {isEntry ? `+${qty}` : `-${qty}`}
                                     </span>
                                   </td>
-                                  <td className="p-2.5 text-text-muted font-mono text-[11px]">
+                                  <td className="p-2.5 text-text-muted font-mono text-xs">
                                     {mov.reference ? referenceTypeLabel(mov.reference) : '—'}
                                   </td>
                                   <td className="p-2.5 text-right text-text-muted">
@@ -1559,7 +1559,7 @@ export function InventoryErpWorkspace({
               </div>
 
               {/* Barra de Atajos de Teclado ERP en el Pie */}
-              <div className="p-2.5 border-t border-border bg-surface-subtle/40 flex items-center justify-between text-[11px] text-text-muted flex-wrap gap-2">
+              <div className="p-2.5 border-t border-border bg-surface-subtle/40 flex items-center justify-between text-xs text-text-muted flex-wrap gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="inline-flex items-center gap-1 font-mono">
                     <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">F2</kbd> Editar
@@ -1587,7 +1587,7 @@ export function InventoryErpWorkspace({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1 text-[10px]">
+                <div className="flex items-center gap-1 text-xs">
                   <span>Modo ERP Dividido</span>
                 </div>
               </div>

@@ -103,7 +103,7 @@ export function CustomizeProductFieldsDialog({
                           {field.label}
                         </span>
                         {field.required && (
-                          <Badge variant="outline" className="ml-1.5 text-[10px] text-danger border-danger/30">
+                          <Badge variant="outline" className="ml-1.5 text-xs text-danger border-danger/30">
                             Obligatorio
                           </Badge>
                         )}

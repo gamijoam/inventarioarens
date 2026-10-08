@@ -124,7 +124,7 @@ export function TransferRequestTimeline({ request, isLoading }: TransferRequestT
                 {formatDateTime(event.at)}
               </time>
               {event.isCurrent && (
-                <span className="text-primary text-[10px] tracking-wide uppercase">(actual)</span>
+                <span className="text-primary text-xs tracking-wide uppercase">(actual)</span>
               )}
             </div>
             <div className="text-text-muted mt-1 text-sm">

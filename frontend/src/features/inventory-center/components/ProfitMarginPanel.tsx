@@ -175,7 +175,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
           )}
 
           {marginNum == null && (
-            <Badge variant="default" className="text-[10px]">
+            <Badge variant="default" className="text-xs">
               Define un margen para que el precio de venta se ajuste
               automaticamente al recibir compras con costo diferente.
             </Badge>

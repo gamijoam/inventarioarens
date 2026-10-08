@@ -128,19 +128,19 @@ export function UserScopesTab({ userId }: UserScopesTabProps) {
           <TabsList>
             <TabsTrigger value="branches">
               <UsersIcon className="size-3.5" aria-hidden="true" /> Sucursales
-              <Badge variant="info" className="ml-1 text-[10px]">{branches.length}</Badge>
+              <Badge variant="info" className="ml-1 text-xs">{branches.length}</Badge>
             </TabsTrigger>
             <TabsTrigger value="warehouses">
               <Package className="size-3.5" aria-hidden="true" /> Almacenes
-              <Badge variant="info" className="ml-1 text-[10px]">{warehouses.length}</Badge>
+              <Badge variant="info" className="ml-1 text-xs">{warehouses.length}</Badge>
             </TabsTrigger>
             <TabsTrigger value="customerGroups">
               <Building2 className="size-3.5" aria-hidden="true" /> Grupos clientes
-              <Badge variant="info" className="ml-1 text-[10px]">{customerGroups.length}</Badge>
+              <Badge variant="info" className="ml-1 text-xs">{customerGroups.length}</Badge>
             </TabsTrigger>
             <TabsTrigger value="vendorOf">
               <Truck className="size-3.5" aria-hidden="true" /> Proveedores
-              <Badge variant="info" className="ml-1 text-[10px]">{vendorOf.length}</Badge>
+              <Badge variant="info" className="ml-1 text-xs">{vendorOf.length}</Badge>
             </TabsTrigger>
           </TabsList>
 

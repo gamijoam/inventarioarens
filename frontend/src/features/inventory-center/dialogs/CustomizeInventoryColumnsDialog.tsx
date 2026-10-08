@@ -149,7 +149,7 @@ export function CustomizeInventoryColumnsDialog({
                         {col.required && (
                           <Badge
                             variant="outline"
-                            className="text-[10px] text-danger border-danger/30"
+                            className="text-xs text-danger border-danger/30"
                           >
                             Obligatorio
                           </Badge>

@@ -287,7 +287,7 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
                         </code>
                       </td>
                       <td className="px-3 py-2 text-text-muted">
-                        <Badge variant={t.validation_mode === 'logistics' ? 'info' : 'default'} className="text-[10px]">
+                        <Badge variant={t.validation_mode === 'logistics' ? 'info' : 'default'} className="text-xs">
                           {t.validation_mode === 'logistics' ? 'Logistico' : 'Directo'}
                         </Badge>
                       </td>
@@ -302,7 +302,7 @@ export function TransfersManager({ onNew, onReceive }: TransfersManagerProps = {
                           {TRANSFER_STATUS_LABELS[t.status]}
                         </Badge>
                         {(t.status === 'prepared_with_differences' || t.status === 'completed_with_differences') && progress > 0 && progress < 100 && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-warning">{progress}%</span>
+                          <span className="ml-2 text-xs uppercase tracking-wide text-warning">{progress}%</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatMoney(t.total_base_amount)}</td>

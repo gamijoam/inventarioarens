@@ -419,13 +419,13 @@ function CashSessionCard({
                     </Select>
                   ) : null}
                   <div className="flex flex-col gap-1">
-                    <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+                    <label className="text-text-muted text-xs font-semibold tracking-wide uppercase">
                       Fondo $ (USD)
                     </label>
                     <Input type="text" inputMode="decimal" value={openForm.opening_base_amount} onChange={(event) => onOpenForm({ ...openForm, opening_base_amount: event.target.value })} placeholder="0.00" data-testid="pos-open-base" />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-text-muted text-[10px] font-semibold tracking-wide uppercase">
+                    <label className="text-text-muted text-xs font-semibold tracking-wide uppercase">
                       Fondo Bs (VES)
                     </label>
                     <Input type="text" inputMode="decimal" value={openForm.opening_local_amount} onChange={(event) => onOpenForm({ ...openForm, opening_local_amount: event.target.value })} placeholder="0.00" data-testid="pos-open-local" />

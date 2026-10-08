@@ -298,7 +298,7 @@ export function CreateInventoryTransferRequestDialog({
                 >
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
                     <div>
-                      <label className="text-text-muted text-[10px] tracking-wide uppercase">
+                      <label className="text-text-muted text-xs tracking-wide uppercase">
                         Producto
                       </label>
                       <TransferRequestProductSearch
@@ -328,7 +328,7 @@ export function CreateInventoryTransferRequestDialog({
                       )}
                     </div>
                     <div>
-                      <label className="text-text-muted text-[10px] tracking-wide uppercase">
+                      <label className="text-text-muted text-xs tracking-wide uppercase">
                         Cantidad
                       </label>
                       <input

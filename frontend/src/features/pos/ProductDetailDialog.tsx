@@ -88,10 +88,10 @@ export function ProductDetailDialog({
             />
             <div className="mt-3 flex items-center justify-between gap-2">
               <div>
-                <p className="text-text-muted text-[10px] font-semibold uppercase">Precio base</p>
+                <p className="text-text-muted text-xs font-semibold uppercase">Precio base</p>
                 <p className="text-2xl font-bold">{money(Number(product.base_price ?? 0))}</p>
               </div>
-              <Badge variant={stock > 0 ? 'success' : 'warning'} className="text-[11px]">
+              <Badge variant={stock > 0 ? 'success' : 'warning'} className="text-xs">
                 {stock > 0 ? `Stock ${stock}` : 'Sin stock'}
               </Badge>
             </div>
@@ -118,10 +118,10 @@ export function ProductDetailDialog({
 
             {product.tags && product.tags.length > 0 && (
               <div>
-                <p className="text-text-muted mb-1 text-[10px] font-semibold uppercase">Tags</p>
+                <p className="text-text-muted mb-1 text-xs font-semibold uppercase">Tags</p>
                 <div className="flex flex-wrap gap-1.5">
                   {product.tags.map((tag) => (
-                    <Badge key={tag.id} variant="default" className="text-[11px]">
+                    <Badge key={tag.id} variant="default" className="text-xs">
                       {tag.name}
                     </Badge>
                   ))}
@@ -131,7 +131,7 @@ export function ProductDetailDialog({
 
             {product.description && (
               <div>
-                <p className="text-text-muted mb-1 text-[10px] font-semibold uppercase">
+                <p className="text-text-muted mb-1 text-xs font-semibold uppercase">
                   Descripción
                 </p>
                 <p className="text-sm">{product.description}</p>
@@ -140,7 +140,7 @@ export function ProductDetailDialog({
 
             {product.long_description && (
               <div>
-                <p className="text-text-muted mb-1 text-[10px] font-semibold uppercase">
+                <p className="text-text-muted mb-1 text-xs font-semibold uppercase">
                   Descripción larga
                 </p>
                 <p className="text-text-secondary whitespace-pre-wrap text-sm">
@@ -151,7 +151,7 @@ export function ProductDetailDialog({
 
             {/* Variantes */}
             <div>
-              <p className="text-text-muted mb-1 text-[10px] font-semibold uppercase">
+              <p className="text-text-muted mb-1 text-xs font-semibold uppercase">
                 Variantes {hasVariants && `(${variants.length})`}
               </p>
               {loadingVariants ? (
@@ -183,7 +183,7 @@ export function ProductDetailDialog({
                             {variant.sku_variant ?? variant.barcode_variant ?? ''}
                           </span>
                         </span>
-                        <Badge variant={vstock > 0 ? 'success' : 'warning'} className="text-[10px]">
+                        <Badge variant={vstock > 0 ? 'success' : 'warning'} className="text-xs">
                           {vstock > 0 ? `${vstock} disp.` : 'Sin stock'}
                         </Badge>
                       </li>
@@ -197,7 +197,7 @@ export function ProductDetailDialog({
             {crossStock && crossStock.branches && crossStock.branches.length > 0 && (
               <div className="rounded-lg border border-border/70 bg-bg-surface p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-text-muted text-[10px] font-semibold uppercase tracking-wider">
+                  <span className="text-text-muted text-xs font-semibold uppercase tracking-wider">
                     Stock en otras sucursales
                   </span>
                   <span className="font-mono text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -222,12 +222,12 @@ export function ProductDetailDialog({
                           {b.tenant_name}
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-text-muted text-[10px]">
+                          <span className="text-text-muted text-xs">
                             {b.warehouses.length} almacén(es)
                           </span>
                           <Badge
                             variant={(b.total_available ?? 0) > 0 ? 'success' : 'outline'}
-                            className="font-mono text-[10px]"
+                            className="font-mono text-xs"
                           >
                             {b.total_available}
                           </Badge>
@@ -269,7 +269,7 @@ function Detail({
 }) {
   return (
     <div>
-      <p className="text-text-muted text-[10px] font-semibold uppercase">{label}</p>
+      <p className="text-text-muted text-xs font-semibold uppercase">{label}</p>
       <p className={cn('text-sm', mono && 'font-mono')}>{value && value !== '' ? value : '—'}</p>
     </div>
   );

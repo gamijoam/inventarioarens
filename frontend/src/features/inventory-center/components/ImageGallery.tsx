@@ -178,7 +178,7 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
 
             {image.is_primary && (
               <span
-                className="absolute left-2 top-2 rounded-full bg-warning/90 px-2 py-0.5 text-[10px] font-semibold uppercase text-warning-foreground"
+                className="absolute left-2 top-2 rounded-full bg-warning/90 px-2 py-0.5 text-xs font-semibold uppercase text-warning-foreground"
                 data-testid="primary-badge"
               >
                 Principal
@@ -324,7 +324,7 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
                   Cancelar
                 </button>
               </div>
-              <p className="text-[11px] text-text-muted">
+              <p className="text-xs text-text-muted">
                 Puedes pegar varias URLs, una por línea. Las descarga a tu galería como fotos
                 propias (WebP, con sync). Ctrl+Enter para descargar.
               </p>

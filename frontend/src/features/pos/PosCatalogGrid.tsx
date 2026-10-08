@@ -274,7 +274,7 @@ export function PosCatalogGrid({
                     )}
                   >
                     <span>Todas</span>
-                    <span className="text-[10px] text-text-muted">{totalProducts}</span>
+                    <span className="text-xs text-text-muted">{totalProducts}</span>
                   </button>
                   {filteredCategories.map((cat) => (
                     <button
@@ -424,7 +424,7 @@ export function PosCatalogGrid({
                       )}
                     >
                       <Package className="size-10 stroke-[1.25] text-text-muted/50" />
-                      <span className="text-[10px] font-bold tracking-wider uppercase text-text-muted/60">
+                      <span className="text-xs font-bold tracking-wider uppercase text-text-muted/60">
                         Sin foto
                       </span>
                     </div>
@@ -432,12 +432,12 @@ export function PosCatalogGrid({
                     {/* Badge de Stock en esquina superior izquierda */}
                     <div className="absolute top-2 left-2 flex flex-col gap-1">
                       {isOutOfStock ? (
-                        <span className="bg-rose-600/95 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                        <span className="bg-rose-600/95 backdrop-blur-xs text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
                           <AlertTriangle className="size-2.5" />
                           Agotado
                         </span>
                       ) : (
-                        <span className="bg-emerald-600/95 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                        <span className="bg-emerald-600/95 backdrop-blur-xs text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
                           <CheckCircle2 className="size-2.5" />
                           {Number.isFinite(stockNum) ? stockNum.toFixed(0) : '0'}{' '}
                           {product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit'
@@ -450,7 +450,7 @@ export function PosCatalogGrid({
                     {/* Badge de Categoría en esquina superior derecha (igual al catálogo de inventario) */}
                     {categoryName && (
                       <span
-                        className="absolute top-2 right-2 bg-surface/90 backdrop-blur-xs text-text-secondary text-[10px] font-semibold px-2 py-0.5 rounded-full border border-border/70 shadow-2xs truncate max-w-[120px]"
+                        className="absolute top-2 right-2 bg-surface/90 backdrop-blur-xs text-text-secondary text-xs font-semibold px-2 py-0.5 rounded-full border border-border/70 shadow-2xs truncate max-w-[120px]"
                         title={categoryName}
                       >
                         {categoryName}
@@ -481,13 +481,13 @@ export function PosCatalogGrid({
                   <div className="p-3 sm:p-3.5 flex flex-col flex-1 justify-between gap-2.5">
                     <div>
                       {/* Fila SKU y Marca */}
-                      <div className="flex items-center justify-between gap-1 text-[11px]">
+                      <div className="flex items-center justify-between gap-1 text-xs">
                         <span className="font-mono text-text-muted truncate">
                           {product.sku || product.barcode || 'Sin código'}
                         </span>
                         {product.brand?.name && (
                           <span
-                            className="font-bold text-primary truncate max-w-[120px] uppercase bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 text-[9px] tracking-wide shrink-0"
+                            className="font-bold text-primary truncate max-w-[120px] uppercase bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 text-xs tracking-wide shrink-0"
                             title={`Marca: ${product.brand.name}`}
                           >
                             {product.brand.name}
@@ -534,7 +534,7 @@ export function PosCatalogGrid({
                                     {formatMoney(p.price)}
                                   </span>
                                   {pVes != null && showVesPrice && (
-                                    <span className="text-[10px] text-text-muted font-normal">
+                                    <span className="text-xs text-text-muted font-normal">
                                       (Bs {formatLocalNumber(pVes)})
                                     </span>
                                   )}
@@ -551,7 +551,7 @@ export function PosCatalogGrid({
                           </div>
                         )}
                         {prices.length > 3 && (
-                          <span className="text-[10px] text-primary font-medium text-right">
+                          <span className="text-xs text-primary font-medium text-right">
                             +{prices.length - 3} tarifas más
                           </span>
                         )}

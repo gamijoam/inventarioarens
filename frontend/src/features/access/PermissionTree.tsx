@@ -147,7 +147,7 @@ export function PermissionTree({
                         <ChevronDown className="size-3.5 shrink-0 text-text-muted" aria-hidden="true" />
                       )}
                       <span className="flex-1">{m.label}</span>
-                      <Badge variant="info" className="text-[10px]">
+                      <Badge variant="info" className="text-xs">
                         {selectedCount}/{m.actions.length}
                       </Badge>
                     </button>
@@ -187,11 +187,11 @@ export function PermissionTree({
                               />
                               <span>{a.label}</span>
                               {a.danger === 'high' && (
-                                <Badge variant="warning" className="ml-auto text-[10px]">
+                                <Badge variant="warning" className="ml-auto text-xs">
                                   Peligroso
                                 </Badge>
                               )}
-                              <code className="ml-auto rounded bg-bg px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
+                              <code className="ml-auto rounded bg-bg px-1.5 py-0.5 font-mono text-xs text-text-muted">
                                 {a.permission}
                               </code>
                             </label>

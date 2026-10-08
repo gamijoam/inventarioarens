@@ -239,7 +239,7 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
                         <div className="flex items-center gap-2">
                           <Layers className="size-4 text-primary" />
                           <span className="font-semibold text-text">{cat.name}</span>
-                          <Badge variant="default" className="text-[10px]">
+                          <Badge variant="default" className="text-xs">
                             {cat.items_count} un.
                           </Badge>
                         </div>
@@ -259,7 +259,7 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
                               <div className="truncate max-w-[240px] sm:max-w-xs">
                                 <span>{prod.name}</span>
                                 {prod.sku && (
-                                  <span className="ml-1 text-[10px] text-text-muted/80">
+                                  <span className="ml-1 text-xs text-text-muted/80">
                                     ({prod.sku})
                                   </span>
                                 )}
@@ -309,12 +309,12 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
                           <Users className="size-3.5 text-primary" />
                           <span className="font-medium text-text">{cust.name}</span>
                           {cust.document && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               {cust.document}
                             </Badge>
                           )}
                         </div>
-                        <div className="text-text-muted text-[11px]">
+                        <div className="text-text-muted text-xs">
                           {cust.orders_count} {cust.orders_count === 1 ? 'ticket' : 'tickets'}
                         </div>
                       </div>
@@ -322,7 +322,7 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
                         <div className="font-bold text-text tabular-nums">
                           {formatMoney(cust.amount_base)}
                         </div>
-                        <div className="text-text-muted text-[11px] tabular-nums">
+                        <div className="text-text-muted text-xs tabular-nums">
                           {formatBs(cust.amount_local)}
                         </div>
                       </div>
@@ -361,7 +361,7 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-border rounded border px-2 py-1.5">
-      <div className="text-text-muted text-[10px] uppercase">{label}</div>
+      <div className="text-text-muted text-xs uppercase">{label}</div>
       <div className="font-semibold tabular-nums">{value}</div>
     </div>
   );

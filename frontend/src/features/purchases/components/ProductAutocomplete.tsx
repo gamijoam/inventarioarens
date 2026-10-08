@@ -28,11 +28,11 @@ export function ProductActiveBadge({ isActive }: { isActive?: boolean | null }) 
   if (isActive === undefined || isActive === null) return null;
 
   return isActive ? (
-    <Badge variant="success" className="text-[10px] font-semibold">
+    <Badge variant="success" className="text-xs font-semibold">
       Activo
     </Badge>
   ) : (
-    <Badge variant="danger" className="text-[10px] font-semibold">
+    <Badge variant="danger" className="text-xs font-semibold">
       Inactivo
     </Badge>
   );
@@ -209,7 +209,7 @@ export function ProductAutocomplete({
             </span>
             <Badge
               variant={selected.tracking_type === 'serialized' ? 'info' : 'default'}
-              className="text-[10px]"
+              className="text-xs"
             >
               {selected.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
             </Badge>
@@ -221,7 +221,7 @@ export function ProductAutocomplete({
             type="button"
             onClick={() => onToggleActive(selected.id, !selected.is_active)}
             className={cn(
-              'rounded border px-2 py-1 text-[11px] font-semibold transition-colors',
+              'rounded border px-2 py-1 text-xs font-semibold transition-colors',
               selected.is_active
                 ? 'border-danger/40 text-danger hover:bg-danger/10'
                 : 'border-success/40 text-success hover:bg-success/10',
@@ -354,7 +354,7 @@ export function ProductAutocomplete({
                           <ProductActiveBadge isActive={product.is_active} />
                           <Badge
                             variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
-                            className="text-[10px]"
+                            className="text-xs"
                           >
                             {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
                           </Badge>

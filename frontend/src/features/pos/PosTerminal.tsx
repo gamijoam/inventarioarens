@@ -530,7 +530,7 @@ function PosColorPicker({
           sideOffset={8}
           className="z-50 w-64 rounded-2xl border border-border bg-surface p-4 shadow-2xl animate-in fade-in-0 zoom-in-95"
         >
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-text-muted">
             🎨 Color del código SKU
           </p>
           <div className="grid grid-cols-5 gap-2">
@@ -554,7 +554,7 @@ function PosColorPicker({
               />
             ))}
           </div>
-          <p className="mt-3 text-[10px] text-text-muted text-center">
+          <p className="mt-3 text-xs text-text-muted text-center">
             {current.label}
           </p>
 
@@ -1905,7 +1905,7 @@ export function PosTerminal() {
                 query.trim().length >= 2 &&
                 (loadingProducts || quickSearchResults.length > 0) && (
                   <div className="border-border bg-surface absolute top-[calc(100%+8px)] left-0 w-[min(680px,calc(100vw-32px))] z-50 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md flex flex-col max-h-[min(480px,calc(100vh-140px))]">
-                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3.5 py-2 text-[10px] tracking-wide uppercase bg-surface-subtle/50 shrink-0">
+                    <div className="border-border text-text-muted flex items-center justify-between border-b px-3.5 py-2 text-xs tracking-wide uppercase bg-surface-subtle/50 shrink-0">
                       <span>
                         Resultados rápidos ({quickSearchResults.length})
                         {selectedPriceList && (
@@ -1981,18 +1981,18 @@ export function PosTerminal() {
                                     {product.name}
                                   </p>
                                   {product.brand?.name && (
-                                    <span className="text-[10px] text-text-muted bg-surface-subtle border border-border/60 px-1.5 py-0.5 rounded shrink-0">
+                                    <span className="text-xs text-text-muted bg-surface-subtle border border-border/60 px-1.5 py-0.5 rounded shrink-0">
                                       {product.brand.name}
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 mt-1 text-xs text-text-muted flex-wrap">
-                                  <span className="font-mono text-text-primary font-bold bg-surface-subtle border border-border/80 px-1.5 py-0.2 rounded font-semibold text-[11px]">
+                                  <span className="font-mono text-text-primary font-bold bg-surface-subtle border border-border/80 px-1.5 py-0.2 rounded font-semibold text-xs">
                                     {product.sku ?? product.barcode ?? 'Sin código'}
                                   </span>
                                   <span
                                     className={cn(
-                                      'font-bold text-[11px] inline-flex items-center gap-1',
+                                      'font-bold text-xs inline-flex items-center gap-1',
                                       isAvailable
                                         ? 'text-emerald-600 dark:text-emerald-400'
                                         : 'text-rose-500',
@@ -2011,7 +2011,7 @@ export function PosTerminal() {
                                   {money(itemPriceUsd)}
                                 </span>
                                 {itemPriceVes !== null && (
-                                  <span className="text-[10px] text-text-muted font-mono block tabular-nums">
+                                  <span className="text-xs text-text-muted font-mono block tabular-nums">
                                     Bs {formatLocalNumber(itemPriceVes)}
                                   </span>
                                 )}
@@ -2138,7 +2138,7 @@ export function PosTerminal() {
                 <button
                   type="button"
                   onClick={() => setRateModalOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-[11px] font-mono font-medium text-text-secondary shrink-0 hover:border-primary/60 hover:text-text-primary cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-xs font-mono font-medium text-text-secondary shrink-0 hover:border-primary/60 hover:text-text-primary cursor-pointer"
                   title="Tasa activa. Clic para cambiarla"
                   data-testid="pos-rate-edit-trigger"
                 >
@@ -2150,7 +2150,7 @@ export function PosTerminal() {
                 </button>
               ) : (
                 <div
-                  className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-[11px] font-mono font-medium text-text-secondary shrink-0"
+                  className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-xs font-mono font-medium text-text-secondary shrink-0"
                   title={`Tasa activa: ${activeRate.name ?? activeRate.code}`}
                 >
                   <span className="text-text-muted font-normal">{activeRate.code}:</span>
@@ -2176,7 +2176,7 @@ export function PosTerminal() {
                 <ShortcutText label="F4" text="Cliente" />
               </span>
               {selectedCustomer && (
-                <span className="max-w-[70px] truncate text-[11px] opacity-80 hidden md:inline">
+                <span className="max-w-[70px] truncate text-xs opacity-80 hidden md:inline">
                   ({selectedCustomer.name.split(' ')[0]})
                 </span>
               )}
@@ -2199,7 +2199,7 @@ export function PosTerminal() {
               <ClipboardList className="size-3.5" />
               <span className="hidden sm:inline">Pendientes</span>
               {pendingCount > 0 && (
-                <span className="bg-primary-foreground text-primary rounded-full px-1.5 py-0.2 text-[10px] font-bold">
+                <span className="bg-primary-foreground text-primary rounded-full px-1.5 py-0.2 text-xs font-bold">
                   {pendingCount}
                 </span>
               )}
@@ -2220,7 +2220,7 @@ export function PosTerminal() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 p-1.5 shadow-xl border-border bg-surface">
-                <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-2 py-1">
+                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-text-muted px-2 py-1">
                   Operaciones de Caja
                 </DropdownMenuLabel>
 
@@ -2229,7 +2229,7 @@ export function PosTerminal() {
                     <Wallet className="size-4 text-emerald-600" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-xs">Caja / Turno</p>
-                      <p className="text-[10px] text-text-muted">Movimientos y cierre de caja</p>
+                      <p className="text-xs text-text-muted">Movimientos y cierre de caja</p>
                     </div>
                   </DropdownMenuItem>
                 )}
@@ -2243,7 +2243,7 @@ export function PosTerminal() {
                     <PauseCircle className="size-4 text-amber-600" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-xs">Poner en espera</p>
-                      <p className="text-[10px] text-text-muted">Guardar ticket actual [F6]</p>
+                      <p className="text-xs text-text-muted">Guardar ticket actual [F6]</p>
                     </div>
                   </DropdownMenuItem>
                 )}
@@ -2257,7 +2257,7 @@ export function PosTerminal() {
                     <PauseCircle className="size-4 text-primary" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-xs">Armar orden</p>
-                      <p className="text-[10px] text-text-muted">Enviar a caja</p>
+                      <p className="text-xs text-text-muted">Enviar a caja</p>
                     </div>
                   </DropdownMenuItem>
                 )}
@@ -2266,13 +2266,13 @@ export function PosTerminal() {
                   <Receipt className="size-4 text-blue-600" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-xs">Último recibo</p>
-                    <p className="text-[10px] text-text-muted">Reimprimir comprobante</p>
+                    <p className="text-xs text-text-muted">Reimprimir comprobante</p>
                   </div>
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator className="my-1" />
 
-                <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-2 py-1">
+                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-text-muted px-2 py-1">
                   Cotizaciones
                 </DropdownMenuLabel>
 
@@ -2284,7 +2284,7 @@ export function PosTerminal() {
                   <FileText className="size-4 text-purple-600" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-xs">Crear cotización</p>
-                    <p className="text-[10px] text-text-muted">Generar con carrito actual</p>
+                    <p className="text-xs text-text-muted">Generar con carrito actual</p>
                   </div>
                 </DropdownMenuItem>
 
@@ -2292,14 +2292,14 @@ export function PosTerminal() {
                   <FileText className="size-4 text-indigo-600" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-xs">Ver cotizaciones</p>
-                    <p className="text-[10px] text-text-muted">Historial y cargar a venta</p>
+                    <p className="text-xs text-text-muted">Historial y cargar a venta</p>
                   </div>
                 </DropdownMenuItem>
 
                 {canViewPromotions && (
                   <>
                     <DropdownMenuSeparator className="my-1" />
-                    <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-2 py-1">
+                    <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-text-muted px-2 py-1">
                       Promociones y Ofertas
                     </DropdownMenuLabel>
 
@@ -2314,7 +2314,7 @@ export function PosTerminal() {
                       <Tag className="size-4 text-amber-500" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-xs">Promoción factura</p>
-                        <p className="text-[10px] text-text-muted">Descuentos globales</p>
+                        <p className="text-xs text-text-muted">Descuentos globales</p>
                       </div>
                     </DropdownMenuItem>
 
@@ -2329,7 +2329,7 @@ export function PosTerminal() {
                       <Gift className="size-4 text-rose-500" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-xs">Combos</p>
-                        <p className="text-[10px] text-text-muted">Packs y promociones</p>
+                        <p className="text-xs text-text-muted">Packs y promociones</p>
                       </div>
                     </DropdownMenuItem>
 
@@ -2344,7 +2344,7 @@ export function PosTerminal() {
                       <Tag className="size-4 text-teal-500" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-xs">Ofertas especiales</p>
-                        <p className="text-[10px] text-text-muted">Precios de oportunidad</p>
+                        <p className="text-xs text-text-muted">Precios de oportunidad</p>
                       </div>
                     </DropdownMenuItem>
                   </>
@@ -2362,7 +2362,7 @@ export function PosTerminal() {
                   <Search className="size-4 text-text-muted" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-xs">Búsqueda avanzada</p>
-                    <p className="text-[10px] text-text-muted">Catálogo detallado [F3]</p>
+                    <p className="text-xs text-text-muted">Catálogo detallado [F3]</p>
                   </div>
                 </DropdownMenuItem>
 
@@ -2374,7 +2374,7 @@ export function PosTerminal() {
                   <Trash2 className="size-4" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-xs">Limpiar POS</p>
-                    <p className="text-[10px] text-danger/80">Vaciar carrito actual</p>
+                    <p className="text-xs text-danger/80">Vaciar carrito actual</p>
                   </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -2492,7 +2492,7 @@ export function PosTerminal() {
                     <span>
                       {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
                     </span>
-                    <span className="hidden md:inline text-[11px] opacity-75">({cart.length} líneas)</span>
+                    <span className="hidden md:inline text-xs opacity-75">({cart.length} líneas)</span>
                     <ChevronUp className="size-3.5 opacity-60 ml-0.5" />
                   </button>
 
@@ -2518,13 +2518,13 @@ export function PosTerminal() {
                 {/* 2. Total destacado en USD y Bs. */}
                 <div className="flex flex-col items-center sm:items-end justify-center text-center sm:text-right shrink-0">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-[11px] font-semibold uppercase text-text-muted hidden sm:inline">Total:</span>
+                    <span className="text-xs font-semibold uppercase text-text-muted hidden sm:inline">Total:</span>
                     <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                       {money(cartTotals.total)}
                     </span>
                   </div>
                   {activeRate && (
-                    <span className="text-[11px] font-mono text-text-muted tabular-nums">
+                    <span className="text-xs font-mono text-text-muted tabular-nums">
                       Bs. {formatLocalNumber(cartTotals.total * activeRate.rate)}
                     </span>
                   )}
@@ -2736,16 +2736,16 @@ export function PosTerminal() {
                     title="Click para cambiar cliente [F4]"
                   >
                     <UserRound className="size-3.5 shrink-0 text-text-muted group-hover:text-primary transition-colors" />
-                    <span className="text-[11px] text-text-muted uppercase font-normal">Cliente:</span>
+                    <span className="text-xs text-text-muted uppercase font-normal">Cliente:</span>
                     <span className="truncate font-medium">
                       {selectedCustomer ? selectedCustomer.name : customerName}
                     </span>
                     {selectedCustomer && customerDocument(selectedCustomer) && (
-                      <span className="text-[10px] text-text-muted font-normal hidden md:inline">
+                      <span className="text-xs text-text-muted font-normal hidden md:inline">
                         ({customerDocument(selectedCustomer)})
                       </span>
                     )}
-                    <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-bg border border-border text-text-muted opacity-70 group-hover:opacity-100">
+                    <span className="text-xs font-mono px-1 py-0.2 rounded bg-bg border border-border text-text-muted opacity-70 group-hover:opacity-100">
                       F4
                     </span>
                   </button>
@@ -2770,7 +2770,7 @@ export function PosTerminal() {
                 </div>
 
                 {exchangeReturnId && (
-                  <span className="text-primary text-[11px] italic">
+                  <span className="text-primary text-xs italic">
                     (Confirma el pago para completar devolución)
                   </span>
                 )}
@@ -2829,7 +2829,7 @@ export function PosTerminal() {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold text-white tracking-wide">
+                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold text-white tracking-wide">
                       {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
                     </span>
                   </div>
@@ -5158,7 +5158,7 @@ function PanelShell({
           <div className="from-primary absolute inset-x-0 top-0 h-1 bg-gradient-to-r via-[#2f238f] to-sky-400" />
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-primary text-[10px] font-semibold tracking-[0.22em] uppercase">
+              <p className="text-primary text-xs font-semibold tracking-[0.22em] uppercase">
                 POS
               </p>
               <SheetTitle className="mt-1 text-xl">{title}</SheetTitle>
@@ -5729,7 +5729,7 @@ export function CashPanel(props: {
               <Wallet className="size-6" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">
                 Turno activo
               </p>
               <h3 className="text-lg leading-tight font-bold">
@@ -5914,7 +5914,7 @@ export function CashPanel(props: {
                   <p className="text-text-muted text-xs uppercase">Total equiv. USD</p>
                   <p className="font-semibold">{money(diff.declaredBase)}</p>
                 </div>
-                <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-[10px] leading-tight">
+                <span className="text-text-muted rounded bg-bg/40 px-2 py-1 text-xs leading-tight">
                   El total equiv. USD = USD + (Bs ÷ tasa). Cada moneda se declara por separado.
                 </span>
                 {!blind && (
@@ -5982,7 +5982,7 @@ export function CashPanel(props: {
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur">
-      <p className="text-[10px] font-semibold tracking-wide text-white/55 uppercase">{label}</p>
+      <p className="text-xs font-semibold tracking-wide text-white/55 uppercase">{label}</p>
       <p className="mt-0.5 truncate text-sm font-semibold">{value}</p>
     </div>
   );
@@ -6235,7 +6235,7 @@ function PanelCard({
           {icon ? <span className="mt-0.5 shrink-0">{icon}</span> : null}
           <div>
             {eyebrow ? (
-              <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">
+              <p className="text-primary text-xs font-semibold tracking-[0.2em] uppercase">
                 {eyebrow}
               </p>
             ) : null}
@@ -6263,7 +6263,7 @@ function LabeledControl({
     <div>
       <label
         htmlFor={htmlFor}
-        className="text-text-muted mb-1.5 block text-[10px] font-semibold tracking-wide uppercase"
+        className="text-text-muted mb-1.5 block text-xs font-semibold tracking-wide uppercase"
       >
         {label}
       </label>

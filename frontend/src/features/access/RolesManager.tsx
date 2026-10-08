@@ -242,7 +242,7 @@ function useColumns(opts: {
         cell: (info) => {
           const perms = info.getValue();
           return perms && perms.length > 0 ? (
-            <Badge variant="default" className="text-[10px]">
+            <Badge variant="default" className="text-xs">
               {perms.length}
             </Badge>
           ) : (

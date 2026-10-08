@@ -147,7 +147,7 @@ export function SingleSelectCombobox({
               <div className="text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
                 {selected.hint && <span className="truncate">{selected.hint}</span>}
                 {selected.badge && (
-                  <Badge variant="info" className="text-[10px]">
+                  <Badge variant="info" className="text-xs">
                     {selected.badge}
                   </Badge>
                 )}
@@ -229,7 +229,7 @@ export function SingleSelectCombobox({
                       )}
                     </div>
                     {option.badge && (
-                      <Badge variant="info" className="shrink-0 text-[10px]">
+                      <Badge variant="info" className="shrink-0 text-xs">
                         {option.badge}
                       </Badge>
                     )}

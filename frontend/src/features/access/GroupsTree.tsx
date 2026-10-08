@@ -166,7 +166,7 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
           <div className="flex items-center gap-2">
             <Building2 className="size-4 shrink-0 text-primary" aria-hidden="true" />
             <CardTitle className="truncate text-base">{group.name}</CardTitle>
-            <Badge variant="default" className="text-[10px]">
+            <Badge variant="default" className="text-xs">
               Owner
             </Badge>
           </div>
@@ -283,7 +283,7 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
                 </p>
               </div>
               {users.length > 0 && (
-                <Badge variant="info" className="text-[10px]">
+                <Badge variant="info" className="text-xs">
                   {users.length} visibles
                 </Badge>
               )}
@@ -361,7 +361,7 @@ function GroupCard({ group, isExpanded, onToggle, onCreated }: GroupCardProps) {
               />
             </ul>
             <p
-              className="mt-2 text-[11px] text-text-muted"
+              className="mt-2 text-xs text-text-muted"
               data-testid={`group-shared-catalog-policy-${group.id}`}
             >
               Politica: solo el Owner del grupo puede crear, editar o desactivar
@@ -415,7 +415,7 @@ function SummaryTile({
 }) {
   return (
     <div className="rounded border border-border bg-bg/30 px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
         {label}
       </p>
       <p className="mt-1 text-lg font-semibold text-text-primary">{value}</p>
@@ -468,7 +468,7 @@ function SharedCatalogProducts({ groupId }: { groupId: number }) {
       data-testid={`shared-catalog-table-${groupId}`}
     >
       <div
-        className="grid items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+        className="grid items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted"
         style={{ gridTemplateColumns: `minmax(180px, 1fr) repeat(${data.spinoffs.length}, minmax(80px, auto))` }}
       >
         <span>Producto maestro</span>
@@ -487,7 +487,7 @@ function SharedCatalogProducts({ groupId }: { groupId: number }) {
         >
           <div className="min-w-0">
             <p className="truncate font-medium text-text-primary">{entry.master.name}</p>
-            <p className="font-mono text-[10px] text-text-muted">{entry.master.sku ?? '-'}</p>
+            <p className="font-mono text-xs text-text-muted">{entry.master.sku ?? '-'}</p>
           </div>
           {entry.copies.map((copy) => {
             const status = !copy.propagated
@@ -505,7 +505,7 @@ function SharedCatalogProducts({ groupId }: { groupId: number }) {
                   : 'warning';
             return (
               <div key={copy.spinoff_id} className="flex items-center justify-center">
-                <Badge variant={variant} className="text-[10px]">
+                <Badge variant={variant} className="text-xs">
                   {status}
                 </Badge>
               </div>
@@ -568,7 +568,7 @@ function UserRow({ user }: { user: GroupUser }) {
           <p className="truncate text-sm font-medium">{user.name}</p>
           <Badge
             variant={user.status === 'active' ? 'success' : 'warning'}
-            className="text-[10px]"
+            className="text-xs"
           >
             {user.status}
           </Badge>
@@ -580,7 +580,7 @@ function UserRow({ user }: { user: GroupUser }) {
               <Badge
                 key={t.id}
                 variant={t.is_group ? 'default' : 'info'}
-                className="text-[10px]"
+                className="text-xs"
               >
                 {t.slug}
               </Badge>
@@ -644,12 +644,12 @@ function SpinoffRow({ spinoff }: { spinoff: TenantSpinoff }) {
           </span>
         )}
         {spinoff.status !== 'active' && (
-          <Badge variant="warning" className="text-[10px]">
+          <Badge variant="warning" className="text-xs">
             {spinoff.status}
           </Badge>
         )}
         {spinoff.status === 'active' && (
-          <Badge variant="success" className="text-[10px]">
+          <Badge variant="success" className="text-xs">
             activa
           </Badge>
         )}

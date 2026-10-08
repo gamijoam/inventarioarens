@@ -122,13 +122,13 @@ export function PermissionPicker({ open, onOpenChange, onPick, existingPermissio
                         >
                           <Badge
                             variant={effect === 'allow' ? 'success' : 'warning'}
-                            className="text-[10px]"
+                            className="text-xs"
                           >
                             {effect === 'allow' ? 'Permitir' : 'Denegar'}
                           </Badge>
                           <span className="flex-1">
                             <span className="block">{p.label}</span>
-                            <code className="font-mono text-[10px] text-text-muted">{p.permission}</code>
+                            <code className="font-mono text-xs text-text-muted">{p.permission}</code>
                           </span>
                           {alreadySet && (
                             <span className="text-xs text-text-muted">ya configurado</span>

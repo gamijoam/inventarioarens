@@ -102,7 +102,7 @@ export function Topbar() {
             {tenant && (
               <Badge
                 variant={tenant.is_group ? 'primary' : tenant.parent_id ? 'info' : 'outline'}
-                className="text-[10px]"
+                className="text-xs"
                 data-testid="tenant-context-badge"
               >
                 {tenant.is_group ? 'Grupo' : tenant.parent_id ? 'Sucursal' : 'Empresa'}
@@ -501,7 +501,7 @@ function TenantSwitcher(_props: TenantSwitcherProps = {}) {
                   <span className="flex-1 truncate">{t.name}</span>
                   {active && <Check className="text-success size-3.5" aria-hidden="true" />}
                   {switching === t.slug && (
-                    <span className="text-text-muted text-[10px]">cambiando...</span>
+                    <span className="text-text-muted text-xs">cambiando...</span>
                   )}
                 </span>
               </DropdownMenuItem>

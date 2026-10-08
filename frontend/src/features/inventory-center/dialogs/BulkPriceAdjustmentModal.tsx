@@ -313,19 +313,19 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
               <div className="flex-1 flex flex-col min-h-0 space-y-3">
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-xl border border-border bg-surface p-3 text-center">
-                    <span className="text-[11px] text-text-muted font-medium block">Productos Afectados</span>
+                    <span className="text-xs text-text-muted font-medium block">Productos Afectados</span>
                     <span className="text-xl font-bold font-mono text-text-primary">
                       {simulation.total_items}
                     </span>
                   </div>
                   <div className="rounded-xl border border-border bg-surface p-3 text-center">
-                    <span className="text-[11px] text-text-muted font-medium block">Variación Promedio</span>
+                    <span className="text-xs text-text-muted font-medium block">Variación Promedio</span>
                     <span className="text-xl font-bold font-mono text-primary">
                       {simulation.average_diff_percent > 0 ? `+${simulation.average_diff_percent}%` : `${simulation.average_diff_percent}%`}
                     </span>
                   </div>
                   <div className="rounded-xl border border-border bg-surface p-3 text-center">
-                    <span className="text-[11px] text-text-muted font-medium block">Impacto en POS</span>
+                    <span className="text-xs text-text-muted font-medium block">Impacto en POS</span>
                     <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1 block">
                       Actualización Instantánea (WS)
                     </span>
@@ -334,7 +334,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
 
                 <div className="flex-1 overflow-auto rounded-xl border border-border bg-surface">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="sticky top-0 bg-bg/90 backdrop-blur-xs border-b border-border text-[11px] font-semibold text-text-muted uppercase">
+                    <thead className="sticky top-0 bg-bg/90 backdrop-blur-xs border-b border-border text-xs font-semibold text-text-muted uppercase">
                       <tr>
                         <th className="py-2.5 px-3">Producto</th>
                         <th className="py-2.5 px-3 text-right">Costo Promedio</th>
@@ -349,7 +349,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
                         <tr key={item.product_id} className="hover:bg-bg/40 transition-colors">
                           <td className="py-2.5 px-3">
                             <div className="font-semibold text-text-primary">{item.name}</div>
-                            <div className="font-mono text-[10px] text-text-muted">{item.sku}</div>
+                            <div className="font-mono text-xs text-text-muted">{item.sku}</div>
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-text-muted">
                             {formatMoney(item.cost)}
@@ -365,7 +365,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
                               {item.diff_amount >= 0 ? `+${formatMoney(item.diff_amount)}` : formatMoney(item.diff_amount)} ({item.diff_percent}%)
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-[11px]">
+                          <td className="py-2.5 px-3 text-right font-mono text-xs">
                             <span className="text-text-muted">{item.margin_before}%</span> ➔{' '}
                             <span className="font-bold text-text-primary">{item.margin_after}%</span>
                           </td>
@@ -416,7 +416,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
             ) : (
               <div className="flex-1 overflow-auto rounded-xl border border-border bg-surface">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="sticky top-0 bg-bg/90 backdrop-blur-xs border-b border-border text-[11px] font-semibold text-text-muted uppercase">
+                  <thead className="sticky top-0 bg-bg/90 backdrop-blur-xs border-b border-border text-xs font-semibold text-text-muted uppercase">
                     <tr>
                       <th className="py-2.5 px-3">Fecha y Nombre</th>
                       <th className="py-2.5 px-3">Objetivo</th>
@@ -434,7 +434,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
                         <tr key={item.id} className="hover:bg-bg/40 transition-colors">
                           <td className="py-2.5 px-3">
                             <div className="font-semibold text-text-primary">{item.name}</div>
-                            <div className="text-[10px] text-text-muted">
+                            <div className="text-xs text-text-muted">
                               {new Date(item.created_at).toLocaleString()}
                             </div>
                           </td>
@@ -451,7 +451,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
                             {item.user?.name || 'Sistema'}
                           </td>
                           <td className="py-2.5 px-3">
-                            <Badge variant={isApplied ? 'success' : 'default'} className="text-[10px]">
+                            <Badge variant={isApplied ? 'success' : 'default'} className="text-xs">
                               {isApplied ? 'Activo' : 'Revertido'}
                             </Badge>
                           </td>
@@ -468,7 +468,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
                                 Revertir
                               </Button>
                             ) : (
-                              <span className="text-[10px] text-text-muted">
+                              <span className="text-xs text-text-muted">
                                 Revertido el {item.reverted_at ? new Date(item.reverted_at).toLocaleDateString() : ''}
                               </span>
                             )}

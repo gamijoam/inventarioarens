@@ -428,7 +428,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                             {fromWarehouseId && (
                               <Badge
                                 variant={availableStock != null && availableStock > 0 ? 'success' : 'warning'}
-                                className="text-[10px]"
+                                className="text-xs"
                               >
                                 {availableStock != null
                                   ? (availableStock > 0 ? `Stock origen: ${availableStock} uds` : 'Sin stock en origen (0 uds)')

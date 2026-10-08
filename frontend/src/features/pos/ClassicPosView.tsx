@@ -543,10 +543,10 @@ export function ClassicPosView({
         {/* BLOQUE PRECIO UNITARIO (VERDE) */}
         <div className="col-span-4 sm:col-span-3 bg-gradient-to-b from-[#22c55e] to-[#15803d] rounded-lg p-1.5 sm:p-2 border-2 border-emerald-400 flex flex-col justify-between shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-950">
+            <span className="text-xs sm:text-xs font-black uppercase tracking-wider text-emerald-950">
               PRECIO/U
             </span>
-            <span className="bg-white/90 text-emerald-900 font-mono font-black text-[10px] sm:text-xs px-1.5 py-0.2 rounded shadow-xs">
+            <span className="bg-white/90 text-emerald-900 font-mono font-black text-xs sm:text-xs px-1.5 py-0.2 rounded shadow-xs">
               ${formatUsd(activeLinePriceUsd)}
             </span>
           </div>
@@ -557,7 +557,7 @@ export function ClassicPosView({
 
         {/* BLOQUE ITEMS TOTALES (NARANJA / AMBAR) */}
         <div className="col-span-3 sm:col-span-2 bg-gradient-to-b from-[#f59e0b] to-[#d97706] rounded-lg p-1.5 sm:p-2 border-2 border-amber-300 flex flex-col justify-between shadow-md">
-          <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-950">
+          <span className="text-xs sm:text-xs font-black uppercase tracking-wider text-amber-950">
             ITEMS
           </span>
           <div className="text-center font-mono font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-none drop-shadow-sm">
@@ -584,14 +584,14 @@ export function ClassicPosView({
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white">
+              <span className="text-xs sm:text-xs font-black uppercase tracking-wider text-white">
                 {isFullyPaid ? 'CONFIRMAR [F10]' : 'TOTAL [F10]'}
               </span>
-              <span className="hidden lg:inline-block text-[9px] bg-black/40 text-white px-1.5 py-0.2 rounded uppercase font-bold">
+              <span className="hidden lg:inline-block text-xs bg-black/40 text-white px-1.5 py-0.2 rounded uppercase font-bold">
                 {isFullyPaid ? 'LISTO' : 'COBRAR'}
               </span>
             </div>
-            <span className="bg-white/95 text-slate-900 font-mono font-black text-[10px] sm:text-xs px-2 py-0.2 rounded shadow-xs">
+            <span className="bg-white/95 text-slate-900 font-mono font-black text-xs sm:text-xs px-2 py-0.2 rounded shadow-xs">
               REF {formatUsd(totalUsd)}
             </span>
           </div>
@@ -735,7 +735,7 @@ export function ClassicPosView({
                         <Search className="size-3.5 text-blue-400" />
                         <span>Sugerencias de búsqueda ({searchResults.length})</span>
                       </span>
-                      <span className="text-[11px] text-slate-400 font-mono">
+                      <span className="text-xs text-slate-400 font-mono">
                         ↑↓ Navegar • Enter Seleccionar • Esc Cerrar
                       </span>
                     </div>
@@ -857,7 +857,7 @@ export function ClassicPosView({
                     fit="contain"
                     className="w-full h-[150px] sm:h-[180px] object-contain rounded-lg"
                   />
-                  <div className="w-full mt-1.5 pt-1 border-t border-slate-200 flex items-center justify-between text-[11px] font-mono text-slate-600 px-1">
+                  <div className="w-full mt-1.5 pt-1 border-t border-slate-200 flex items-center justify-between text-xs font-mono text-slate-600 px-1">
                     <span className="truncate max-w-[140px] font-semibold text-slate-800">
                       {activeLine.sku || activeLine.barcode || 'SKU'}
                     </span>
@@ -870,7 +870,7 @@ export function ClassicPosView({
                 <div className="text-center p-4 text-slate-400 flex flex-col items-center justify-center">
                   <Package className="size-16 stroke-[1.25] text-slate-300 mb-2" />
                   <p className="font-bold text-xs text-slate-600">Vista de Foto del Artículo</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5">
                     Seleccione un renglón para previsualizarlo
                   </p>
                 </div>
@@ -881,12 +881,12 @@ export function ClassicPosView({
           {/* PIE DEL PANEL IZQUIERDO: LOGOTIPO / MARCA ESTILO 1SISTEMA */}
           <div className="pt-2 border-t border-blue-500/40 flex items-center justify-between text-blue-200 text-xs">
             <div className="flex items-center gap-1.5 font-black tracking-wider text-sm text-white">
-              <span className="bg-blue-600 px-1.5 py-0.5 rounded text-[11px] font-mono shadow-xs">
+              <span className="bg-blue-600 px-1.5 py-0.5 rounded text-xs font-mono shadow-xs">
                 POS
               </span>
               <span>BALANZAPRO</span>
             </div>
-            <span className="font-mono text-[10px] text-blue-300 font-semibold opacity-75">
+            <span className="font-mono text-xs text-blue-300 font-semibold opacity-75">
               VISTA CLÁSICA
             </span>
           </div>
@@ -1319,7 +1319,7 @@ export function ClassicPosView({
                 <span className="font-black text-yellow-400">F7</span>
                 <span className="text-slate-300">Pendientes</span>
                 {pendingCount > 0 && (
-                  <span className="bg-amber-400 text-slate-950 font-black rounded-full px-1.5 text-[10px]">
+                  <span className="bg-amber-400 text-slate-950 font-black rounded-full px-1.5 text-xs">
                     {pendingCount}
                   </span>
                 )}

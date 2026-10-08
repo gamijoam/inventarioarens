@@ -55,7 +55,7 @@ export function ProductGalleryPanel({ images, fallbackUrl }: ProductGalleryPanel
               }}
             />
           </div>
-          <p className="mt-2 text-[11px] text-text-muted">
+          <p className="mt-2 text-xs text-text-muted">
             Imagen de referencia (URL externa).
           </p>
         </CardContent>
@@ -110,7 +110,7 @@ export function ProductGalleryPanel({ images, fallbackUrl }: ProductGalleryPanel
                   className="size-full"
                 />
                 {image.is_primary && (
-                  <span className="absolute left-1 top-1 rounded-full bg-warning/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-warning-foreground">
+                  <span className="absolute left-1 top-1 rounded-full bg-warning/90 px-1.5 py-0.5 text-xs font-semibold uppercase text-warning-foreground">
                     Principal
                   </span>
                 )}

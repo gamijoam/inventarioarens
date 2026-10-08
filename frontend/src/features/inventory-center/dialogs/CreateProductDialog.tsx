@@ -123,7 +123,7 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess, initialName
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-8">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
+                  <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
                     ERP
                   </span>
                   <DialogTitle className="text-base font-bold tracking-tight">Nuevo producto</DialogTitle>

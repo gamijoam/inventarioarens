@@ -221,7 +221,7 @@ export function ImeiListInput({
           IMEIs / seriales{' '}
           <span
             className={cn(
-              'ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+              'ml-1 rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums',
               valid
                 ? 'bg-emerald-100 text-emerald-700'
                 : filled > 0

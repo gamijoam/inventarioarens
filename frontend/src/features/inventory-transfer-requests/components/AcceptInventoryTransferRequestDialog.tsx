@@ -404,7 +404,7 @@ function ItemCard({
         <div className="flex items-center justify-center md:px-2">
           <div className="text-text-muted flex flex-col items-center gap-1">
             <ArrowRight className="size-5 rotate-90 md:rotate-0" />
-            <span className="text-[10px] tracking-wide uppercase">
+            <span className="text-xs tracking-wide uppercase">
               {isShipmentOffer ? 'recibirás' : 'enviarás'}
             </span>
           </div>
@@ -447,12 +447,12 @@ function ItemCard({
             </div>
           )}
           {isSerialized && collectsSerials && !mapping.destinationProductId && (
-            <p className="text-text-muted mt-1 text-[11px]">
+            <p className="text-text-muted mt-1 text-xs">
               Selecciona primero el producto que enviarás para ver sus IMEIs disponibles.
             </p>
           )}
           {isSerialized && collectsSerials && mapping.destinationProductId && !warehouseId && (
-            <p className="text-text-muted mt-1 text-[11px]">
+            <p className="text-text-muted mt-1 text-xs">
               Selecciona primero el almacén de salida para ver sus IMEIs disponibles.
             </p>
           )}

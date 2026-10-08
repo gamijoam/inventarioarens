@@ -689,7 +689,7 @@ function useColumns(
         const src = row.primary_image_url ?? row.images?.[0]?.thumb_url ?? row.image_url;
         if (!src) {
           return (
-            <div className="flex size-10 items-center justify-center rounded border border-border bg-bg text-[10px] text-text-muted">
+            <div className="flex size-10 items-center justify-center rounded border border-border bg-bg text-xs text-text-muted">
               —
             </div>
           );
@@ -835,7 +835,7 @@ function useColumns(
           <span>
             Stock
             {search.warehouse_id && (
-              <span className="text-text-muted ml-1 text-[10px] font-normal">(filtrado)</span>
+              <span className="text-text-muted ml-1 text-xs font-normal">(filtrado)</span>
             )}
           </span>
         ),
@@ -1110,7 +1110,7 @@ function PriceListCell({
           </strong>
         </span>
         {prices.length > 1 && (
-          <span className="bg-bg text-text-muted rounded-full px-1.5 text-[10px]">
+          <span className="bg-bg text-text-muted rounded-full px-1.5 text-xs">
             +{prices.length - 1}
           </span>
         )}
@@ -1126,7 +1126,7 @@ function PriceListCell({
             className="border-border bg-surface fixed z-[100] w-64 rounded-lg border p-2 shadow-xl"
             style={{ top: popoverPosition.top, left: popoverPosition.left }}
           >
-            <p className="text-text-muted mb-1 px-1 text-[10px] font-semibold tracking-wide uppercase">
+            <p className="text-text-muted mb-1 px-1 text-xs font-semibold tracking-wide uppercase">
               Precios por lista
             </p>
             {prices.map((price) => (
@@ -1148,7 +1148,7 @@ function PriceListCell({
               </div>
             ))}
             {activeRate && (
-              <p className="text-text-muted mt-1 px-1 text-[10px]">
+              <p className="text-text-muted mt-1 px-1 text-xs">
                 VES calculado con tasa activa {activeRate}.
               </p>
             )}

@@ -85,7 +85,7 @@ function RoleDetailPage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="permissions">
             Permisos
-            <Badge variant="info" className="ml-1 text-[10px]">{permissionCount}</Badge>
+            <Badge variant="info" className="ml-1 text-xs">{permissionCount}</Badge>
           </TabsTrigger>
         </TabsList>
 

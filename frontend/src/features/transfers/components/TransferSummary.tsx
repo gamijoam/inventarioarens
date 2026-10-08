@@ -62,7 +62,7 @@ export function TransferSummary({ transfer, showItems = false }: TransferSummary
               <Badge variant={statusVariant(transfer.status)}>
                 {TRANSFER_STATUS_LABELS[transfer.status]}
               </Badge>
-              <Badge variant={transfer.validation_mode === 'logistics' ? 'info' : 'default'} className="text-[10px]">
+              <Badge variant={transfer.validation_mode === 'logistics' ? 'info' : 'default'} className="text-xs">
                 {transfer.validation_mode === 'logistics' ? 'Logistico' : 'Directo'}
               </Badge>
             </div>
@@ -136,33 +136,33 @@ export function TransferSummary({ transfer, showItems = false }: TransferSummary
             </div>
             <div className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
               <div>
-                <div className="text-[10px] text-text-muted">Nombre</div>
+                <div className="text-xs text-text-muted">Nombre</div>
                 <div className="font-medium">{transfer.driver.name}</div>
               </div>
               {transfer.driver.document_number && (
                 <div>
-                  <div className="text-[10px] text-text-muted">Documento</div>
+                  <div className="text-xs text-text-muted">Documento</div>
                   <div>{transfer.driver.document_number}</div>
                 </div>
               )}
               {transfer.driver.vehicle_plate && (
                 <div>
-                  <div className="text-[10px] text-text-muted">Placa</div>
+                  <div className="text-xs text-text-muted">Placa</div>
                   <div>{transfer.driver.vehicle_plate}</div>
                 </div>
               )}
               {transfer.driver.carrier_company && (
                 <div>
-                  <div className="text-[10px] text-text-muted">Transportista</div>
+                  <div className="text-xs text-text-muted">Transportista</div>
                   <div>{transfer.driver.carrier_company}</div>
                 </div>
               )}
             </div>
             {transfer.driver.is_driver_signed && (
-              <div className="text-[10px] text-success">Firmado por el transportista.</div>
+              <div className="text-xs text-success">Firmado por el transportista.</div>
             )}
             {transfer.driver.is_receiver_signed && (
-              <div className="text-[10px] text-success">Firmado por el receptor.</div>
+              <div className="text-xs text-success">Firmado por el receptor.</div>
             )}
           </div>
         )}
@@ -222,7 +222,7 @@ function InfoRow({
     <div className="flex items-start gap-2 rounded-md border border-border bg-bg/30 px-3 py-2">
       <span className="mt-0.5 text-text-muted">{icon}</span>
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</div>
         <div className="mt-0.5 truncate text-sm">{children}</div>
       </div>
     </div>

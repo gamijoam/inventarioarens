@@ -269,7 +269,7 @@ export function LoginPage() {
             </p>
             <Link
               to="/master/login"
-              className="text-text-muted hover:text-primary mt-2 inline-block text-[11px] hover:underline"
+              className="text-text-muted hover:text-primary mt-2 inline-block text-xs hover:underline"
             >
               Acceso de plataforma
             </Link>
@@ -278,7 +278,7 @@ export function LoginPage() {
 
         <p
           className={cn(
-            'mt-5 text-center text-[11px] tracking-[0.12em] uppercase',
+            'mt-5 text-center text-xs tracking-[0.12em] uppercase',
             'text-text-muted',
           )}
         >

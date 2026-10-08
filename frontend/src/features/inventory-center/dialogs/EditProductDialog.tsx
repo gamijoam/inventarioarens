@@ -65,19 +65,19 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
         <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
           <div className="flex flex-col gap-1 pr-8">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
+              <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
                 ERP
               </span>
               <DialogTitle className="text-base font-bold tracking-tight">
                 Editar: {product.name}
               </DialogTitle>
               {product.sku && (
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
                   SKU: {product.sku}
                 </span>
               )}
               {product.barcode && (
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
                   BAR: {product.barcode}
                 </span>
               )}

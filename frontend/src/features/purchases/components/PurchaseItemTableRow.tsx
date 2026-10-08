@@ -184,12 +184,12 @@ export function PurchaseItemTableRow({
                   {value.product_info?.name}
                 </span>
                 {value.product_info?.sku && (
-                  <code className="bg-bg text-text-muted rounded px-1.5 py-0.5 text-[11px] font-mono font-semibold">
+                  <code className="bg-bg text-text-muted rounded px-1.5 py-0.5 text-xs font-mono font-semibold">
                     {value.product_info.sku}
                   </code>
                 )}
                 {isSerialized && (
-                  <Badge variant={serialsComplete ? 'success' : 'warning'} className="text-[10px] py-0 px-1.5 font-bold">
+                  <Badge variant={serialsComplete ? 'success' : 'warning'} className="text-xs py-0 px-1.5 font-bold">
                     IMEI ({serialsCount}/{quantityNum})
                   </Badge>
                 )}
@@ -283,7 +283,7 @@ export function PurchaseItemTableRow({
             ))}
           </Select>
           {!value.warehouse_id && (
-            <span className="text-[10px] text-warning block mt-0.5">Requerido</span>
+            <span className="text-xs text-warning block mt-0.5">Requerido</span>
           )}
         </td>
 
@@ -309,7 +309,7 @@ export function PurchaseItemTableRow({
             <div className="flex justify-end">
               <Badge
                 variant={quantityNum > 0 ? 'primary' : 'outline'}
-                className="text-[10px] py-0 px-1.5 font-bold"
+                className="text-xs py-0 px-1.5 font-bold"
               >
                 {quantityNum > 0 ? `${quantityNum} ${value.product_info?.unit_of_measure ?? 'uds'}` : 'Sin cant.'}
               </Badge>
@@ -340,7 +340,7 @@ export function PurchaseItemTableRow({
               <button
                 type="button"
                 onClick={() => onChange({ ...value, unit_cost: String(previousCost) })}
-                className="text-[10px] text-primary hover:underline flex items-center justify-end gap-1 ml-auto cursor-pointer"
+                className="text-xs text-primary hover:underline flex items-center justify-end gap-1 ml-auto cursor-pointer"
                 title="Cargar costo anterior"
               >
                 <RefreshCw className="size-2.5" />
@@ -358,7 +358,7 @@ export function PurchaseItemTableRow({
           {costDiff && (
             <span
               className={cn(
-                'text-[10px] font-semibold block',
+                'text-xs font-semibold block',
                 costDiff.diff > 0 ? 'text-warning' : 'text-emerald-600 dark:text-emerald-400',
               )}
             >
@@ -377,7 +377,7 @@ export function PurchaseItemTableRow({
                 variant="outline"
                 onClick={() => onEditProduct(value.product_id!)}
                 title="Editar producto en el inventario"
-                className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:text-primary"
+                className="h-7 gap-1 px-2 text-xs font-semibold text-text-secondary hover:text-primary"
                 data-testid={`purchase-table-edit-product-${index}`}
               >
                 <Pencil className="size-3.5" /> Editar
@@ -390,7 +390,7 @@ export function PurchaseItemTableRow({
                 variant="outline"
                 onClick={() => onCreateProduct()}
                 title="Crear un producto nuevo"
-                className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:text-primary"
+                className="h-7 gap-1 px-2 text-xs font-semibold text-text-secondary hover:text-primary"
                 data-testid={`purchase-table-create-product-${index}`}
               >
                 <PackagePlus className="size-3.5" /> Nuevo
@@ -406,7 +406,7 @@ export function PurchaseItemTableRow({
                   variant="outline"
                   onClick={() => onToggleActive(value.product_id!, !value.product_info?.is_active)}
                   title={value.product_info.is_active ? 'Desactivar producto' : 'Activar producto'}
-                  className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:text-primary"
+                  className="h-7 gap-1 px-2 text-xs font-semibold text-text-secondary hover:text-primary"
                   data-testid={`purchase-table-toggle-active-${index}`}
                 >
                   <Power className="size-3.5" />
@@ -420,7 +420,7 @@ export function PurchaseItemTableRow({
               onClick={() => onToggleExpand(index)}
               title={isExpanded ? 'Ocultar detalles' : 'Ver análisis y seriales'}
               className={cn(
-                'h-7 gap-1 px-2 text-[11px] font-semibold',
+                'h-7 gap-1 px-2 text-xs font-semibold',
                 isExpanded
                   ? 'border-primary/40 bg-primary/10 text-primary'
                   : 'text-text-secondary hover:text-primary',
@@ -436,7 +436,7 @@ export function PurchaseItemTableRow({
                 variant="outline"
                 onClick={onRemove}
                 disabled={disabled}
-                className="h-7 gap-1 px-2 text-[11px] font-semibold text-text-secondary hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                className="h-7 gap-1 px-2 text-xs font-semibold text-text-secondary hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
                 title="Eliminar esta línea de la compra"
                 data-testid={`purchase-table-remove-${index}`}
               >
@@ -507,7 +507,7 @@ export function PurchaseItemTableRow({
                     </strong>
                   </span>
                   {isAutomaticPricing && (
-                    <Badge variant="info" className="text-[10px]">
+                    <Badge variant="info" className="text-xs">
                       Modo auto: se actualizará al recibir
                     </Badge>
                   )}
@@ -566,11 +566,11 @@ export function PurchaseItemTableRow({
                       Captura de Seriales / IMEIs ({serialsCount} de {quantityNum} ingresados)
                     </h4>
                     {serialsComplete ? (
-                      <Badge variant="success" className="text-[10px]">
+                      <Badge variant="success" className="text-xs">
                         ✓ Completos
                       </Badge>
                     ) : (
-                      <Badge variant="warning" className="text-[10px]">
+                      <Badge variant="warning" className="text-xs">
                         Faltan {Math.max(0, quantityNum - serialsCount)} seriales
                       </Badge>
                     )}

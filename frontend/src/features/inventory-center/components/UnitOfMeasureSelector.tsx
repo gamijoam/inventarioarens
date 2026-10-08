@@ -122,7 +122,7 @@ export function UnitOfMeasureSelector({
                 autoFocus
                 required
               />
-              <p className="text-[11px] text-text-muted">
+              <p className="text-xs text-text-muted">
                 Máximo 20 caracteres. Se mostrará en facturas, inventario y punto de venta.
               </p>
             </div>

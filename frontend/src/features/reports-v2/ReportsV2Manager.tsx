@@ -165,7 +165,7 @@ export function ReportsV2Manager() {
             <div className="space-y-4">
               {domains.map(([domain, items]) => (
                 <div key={domain}>
-                  <p className="text-text-muted mb-1 text-[10px] font-semibold uppercase tracking-wider">
+                  <p className="text-text-muted mb-1 text-xs font-semibold uppercase tracking-wider">
                     {REPORT_DOMAIN_LABELS[domain] ?? domain}
                   </p>
                   <div className="flex flex-col gap-1">

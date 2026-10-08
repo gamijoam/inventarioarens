@@ -178,12 +178,12 @@ export function ExportInventoryDialog({
                         <div className="flex items-center gap-1.5 font-medium text-text">
                           <span>{col.label}</span>
                           {isRequired && (
-                            <Badge variant="outline" className="px-1 py-0 text-[10px] leading-tight">
+                            <Badge variant="outline" className="px-1 py-0 text-xs leading-tight">
                               Obligatorio
                             </Badge>
                           )}
                         </div>
-                        <p className="mt-0.5 text-[11px] text-text-muted">{col.description}</p>
+                        <p className="mt-0.5 text-xs text-text-muted">{col.description}</p>
                       </div>
                     </label>
                   );
@@ -218,7 +218,7 @@ export function ExportInventoryDialog({
                       />
                       <div className="flex-1 text-xs">
                         <span className="font-medium text-text">{col.label}</span>
-                        <p className="mt-0.5 text-[11px] text-text-muted">{col.description}</p>
+                        <p className="mt-0.5 text-xs text-text-muted">{col.description}</p>
                       </div>
                     </label>
                   );
@@ -253,7 +253,7 @@ export function ExportInventoryDialog({
                       />
                       <div className="flex-1 text-xs">
                         <span className="font-medium text-text">{col.label}</span>
-                        <p className="mt-0.5 text-[11px] text-text-muted">{col.description}</p>
+                        <p className="mt-0.5 text-xs text-text-muted">{col.description}</p>
                       </div>
                     </label>
                   );

@@ -151,7 +151,7 @@ export function ImeiScanner({
                     )}
                     <span className="font-mono text-xs">{u.serial_number}</span>
                   </span>
-                  <Badge variant="info" className="text-[10px]">
+                  <Badge variant="info" className="text-xs">
                     {u.status}
                   </Badge>
                 </button>
@@ -173,7 +173,7 @@ export function ImeiScanner({
           {selected.map((s) => (
             <span
               key={s}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg/50 px-2 py-0.5 font-mono text-[11px]"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg/50 px-2 py-0.5 font-mono text-xs"
               data-testid={`${dataTestIdPrefix}-chip-${s}`}
             >
               {s}

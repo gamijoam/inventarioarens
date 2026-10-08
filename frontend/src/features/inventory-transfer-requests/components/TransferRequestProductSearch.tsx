@@ -186,14 +186,14 @@ export function TransferRequestProductSearch({
             {selectedProduct.barcode && <span>Codigo: {selectedProduct.barcode}</span>}
             <Badge
               variant={selectedProduct.tracking_type === 'serialized' ? 'info' : 'default'}
-              className="text-[10px]"
+              className="text-xs"
             >
               {selectedProduct.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
             </Badge>
             {selectedProduct.available_stock != null && (
               <Badge
                 variant={Number(selectedProduct.available_stock) > 0 ? 'success' : 'default'}
-                className="text-[10px]"
+                className="text-xs"
               >
                 {Number(selectedProduct.available_stock) > 0
                   ? `Stock disponible: ${selectedProduct.available_stock}`
@@ -333,7 +333,7 @@ export function TransferRequestProductSearch({
                         )}
                         <Badge
                           variant={product.tracking_type === 'serialized' ? 'info' : 'default'}
-                          className="shrink-0 text-[10px]"
+                          className="shrink-0 text-xs"
                         >
                           {product.tracking_type === 'serialized' ? 'Serializado' : 'Por cantidad'}
                         </Badge>

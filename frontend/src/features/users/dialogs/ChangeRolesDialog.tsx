@@ -202,7 +202,7 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
                         <ShieldCheck className="size-3.5 text-text-muted" aria-hidden="true" />
                         <span className="truncate">{r.name}</span>
                         {r.is_protected && (
-                          <span className="ml-auto text-[10px] text-text-muted">Protegido</span>
+                          <span className="ml-auto text-xs text-text-muted">Protegido</span>
                         )}
                         {checked && <X className="size-3 text-danger" aria-hidden="true" />}
                       </label>

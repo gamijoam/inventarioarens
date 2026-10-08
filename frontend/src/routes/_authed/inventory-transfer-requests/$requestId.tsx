@@ -577,7 +577,7 @@ function ItemsTab({ request }: { request: TransferRequest }) {
                       {serialNumbers.map((sn, idx) => (
                         <li
                           key={`${it.id}-sn-${idx}`}
-                          className="bg-primary/10 text-primary inline-flex items-center rounded px-2 py-0.5 font-mono text-[11px]"
+                          className="bg-primary/10 text-primary inline-flex items-center rounded px-2 py-0.5 font-mono text-xs"
                           data-testid={`detail-imei-${it.id}-${idx}`}
                         >
                           {sn}

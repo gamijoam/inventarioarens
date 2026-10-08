@@ -128,12 +128,12 @@ export function UserOverridesTab({ userId }: UserOverridesTabProps) {
                     >
                       <Badge
                         variant={d.effect === 'allow' ? 'success' : 'warning'}
-                        className="text-[10px]"
+                        className="text-xs"
                       >
                         {d.effect === 'allow' ? 'Permitir' : 'Denegar'}
                       </Badge>
                       <code className="flex-1 font-mono text-xs">{d.permission}</code>
-                      {!isServer && <Badge variant="info" className="text-[10px]">nuevo</Badge>}
+                      {!isServer && <Badge variant="info" className="text-xs">nuevo</Badge>}
                       <Button
                         size="icon-sm"
                         variant="ghost"

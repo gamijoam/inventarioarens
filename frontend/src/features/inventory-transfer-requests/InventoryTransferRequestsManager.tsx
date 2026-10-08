@@ -260,7 +260,7 @@ export function InventoryTransferRequestsManager({
                           <ArrowRight className="size-3" />
                           <span>{r.receiver_tenant?.slug ?? r.origin_tenant?.slug ?? `T#${receiverTenantId}`}</span>
                         </div>
-                        <div className="text-[10px] tracking-wide uppercase">
+                        <div className="text-xs tracking-wide uppercase">
                           {isMine ? 'envías' : 'recibes'} ·{' '}
                           {r.flow_type === 'shipment_offer' ? 'propuesta de envío' : 'solicitud de stock'}
                         </div>

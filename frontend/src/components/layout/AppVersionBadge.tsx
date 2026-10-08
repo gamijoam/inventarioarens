@@ -13,7 +13,7 @@ export function AppVersionBadge({ className }: { className?: string }) {
     <span
       data-testid="app-version-badge"
       title={`Version ${APP_VERSION}`}
-      className={`text-text-muted inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${className ?? ''}`}
+      className={`text-text-muted inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${className ?? ''}`}
     >
       v{APP_VERSION}
     </span>

@@ -87,7 +87,7 @@ export function WarehousesManager() {
                       <div className="flex items-center gap-1.5">
                         {w.name}
                         {w.is_default && (
-                          <Badge variant="warning" className="text-[10px] font-normal">
+                          <Badge variant="warning" className="text-xs font-normal">
                             Predeterminado
                           </Badge>
                         )}

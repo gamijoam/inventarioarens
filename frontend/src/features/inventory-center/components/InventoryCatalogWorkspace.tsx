@@ -387,7 +387,7 @@ export function InventoryCatalogWorkspace({
                         )}
                       >
                         <span>Todas las categorías</span>
-                        <span className="text-[10px] opacity-80">({totalProducts})</span>
+                        <span className="text-xs opacity-80">({totalProducts})</span>
                       </button>
 
                       {filteredCategories.map((cat) => {
@@ -499,7 +499,7 @@ export function InventoryCatalogWorkspace({
               className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3"
               data-testid="catalog-pinned-categories"
             >
-              <span className="text-text-muted mr-0.5 text-[11px] font-semibold uppercase tracking-wide">
+              <span className="text-text-muted mr-0.5 text-xs font-semibold uppercase tracking-wide">
                 Fijas:
               </span>
               <button
@@ -639,7 +639,7 @@ export function InventoryCatalogWorkspace({
                     )}
                   >
                     <Package className="size-12 stroke-[1.25] text-text-muted/60" />
-                    <span className="text-[10px] font-medium tracking-wide uppercase text-text-muted/60">
+                    <span className="text-xs font-medium tracking-wide uppercase text-text-muted/60">
                       Sin foto
                     </span>
                   </div>
@@ -647,12 +647,12 @@ export function InventoryCatalogWorkspace({
                   {/* Badge de Stock en esquina superior izquierda */}
                   <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">
                     {isOutOfStock ? (
-                      <span className="bg-rose-600/90 backdrop-blur-xs text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                      <span className="bg-rose-600/90 backdrop-blur-xs text-white text-xs font-bold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
                         <AlertTriangle className="size-3" />
                         Agotado
                       </span>
                     ) : (
-                      <span className="bg-emerald-600/90 backdrop-blur-xs text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                      <span className="bg-emerald-600/90 backdrop-blur-xs text-white text-xs font-semibold px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
                         <CheckCircle2 className="size-3" />
                         {Number.isFinite(stockNum) ? stockNum.toFixed(0) : '0'} disponibles
                       </span>
@@ -662,7 +662,7 @@ export function InventoryCatalogWorkspace({
                   {/* Badge de Categoría en esquina superior derecha */}
                   {categoryName && (
                     <span
-                      className="absolute top-2.5 right-2.5 bg-surface/90 backdrop-blur-xs text-text-secondary text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-border/60 shadow-2xs truncate max-w-[120px]"
+                      className="absolute top-2.5 right-2.5 bg-surface/90 backdrop-blur-xs text-text-secondary text-xs font-medium px-2.5 py-0.5 rounded-full border border-border/60 shadow-2xs truncate max-w-[120px]"
                       title={categoryName}
                     >
                       {categoryName}
@@ -705,7 +705,7 @@ export function InventoryCatalogWorkspace({
                 {/* Contenido de la Tarjeta (Nombre + Marca + Precios de Venta + Costo) */}
                 <div className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-1 text-[11px]">
+                    <div className="flex items-center justify-between gap-1 text-xs">
                       {product.sku ? (
                         <span className="font-mono text-text-muted truncate">
                           SKU: {product.sku}
@@ -715,7 +715,7 @@ export function InventoryCatalogWorkspace({
                       )}
                       {product.brand?.name && (
                         <span
-                          className="font-bold text-primary truncate max-w-[140px] uppercase bg-primary/10 px-2 py-0.5 rounded border border-primary/20 text-[10px] tracking-wide shrink-0"
+                          className="font-bold text-primary truncate max-w-[140px] uppercase bg-primary/10 px-2 py-0.5 rounded border border-primary/20 text-xs tracking-wide shrink-0"
                           title={`Marca: ${product.brand.name}`}
                         >
                           {product.brand.name}
@@ -747,7 +747,7 @@ export function InventoryCatalogWorkspace({
                                 <div className="flex items-baseline gap-1.5 font-bold text-text-primary tabular-nums">
                                   <span className="text-xs sm:text-sm">{formatMoney(p.price)}</span>
                                   {pVes != null && (
-                                    <span className="text-[10px] text-text-muted font-normal">
+                                    <span className="text-xs text-text-muted font-normal">
                                       (Bs {pVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                     </span>
                                   )}
@@ -782,7 +782,7 @@ export function InventoryCatalogWorkspace({
                         </div>
                       )}
                       {prices.length > 3 && (
-                        <span className="text-[10px] text-primary font-medium text-right">
+                        <span className="text-xs text-primary font-medium text-right">
                           +{prices.length - 3} tarifas más
                         </span>
                       )}
@@ -795,13 +795,13 @@ export function InventoryCatalogWorkspace({
                         <span className="font-semibold text-text-primary tabular-nums">
                           {formatMoney(costVal)}
                           {priceVal > costVal && (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold ml-1.5">
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold ml-1.5">
                               (+{(((priceVal - costVal) / costVal) * 100).toFixed(0)}%)
                             </span>
                           )}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-text-muted/60 italic">Sin costo registrado</span>
+                        <span className="text-xs text-text-muted/60 italic">Sin costo registrado</span>
                       )}
                     </div>
                   </div>
@@ -1277,22 +1277,22 @@ function ProductCatalogDetailModal({
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted">
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted">
                   SKU: {sku || 'Sin SKU'}
                 </span>
                 {barcode && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted">
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text-muted">
                     BAR: {barcode}
                   </span>
                 )}
-                <Badge variant={isActive ? 'success' : 'default'} className="text-[9px] py-0 px-1.5">
+                <Badge variant={isActive ? 'success' : 'default'} className="text-xs py-0 px-1.5">
                   {isActive ? 'Activo para venta' : 'Inactivo'}
                 </Badge>
               </div>
               <DialogTitle className="text-base sm:text-lg font-bold text-text-primary mt-0.5">
                 {name || 'Producto sin nombre'}
               </DialogTitle>
-              <DialogDescription className="text-[11px] text-text-muted leading-tight">
+              <DialogDescription className="text-xs text-text-muted leading-tight">
                 Ficha integral: edita datos, precios y consulta existencias en un solo lugar.
               </DialogDescription>
             </div>
@@ -1338,12 +1338,12 @@ function ProductCatalogDetailModal({
                 {/* Tarjeta Multimedia del Producto (Foto grande + miniaturas + controles) */}
                 <div className="bg-surface border border-border/80 rounded-xl p-3 shadow-2xs flex flex-col gap-2.5">
                   <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
                       <Package className="size-3.5 text-primary" />
                       Imagen del producto
                     </span>
                     {allImages.length > 0 && (
-                      <span className="text-[10px] font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/50">
+                      <span className="text-xs font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/50">
                         {allImages.length} {allImages.length === 1 ? 'imagen' : 'imágenes'}
                       </span>
                     )}
@@ -1363,7 +1363,7 @@ function ProductCatalogDetailModal({
                         <span className="text-xs font-medium text-text-muted/70">
                           Sin imagen registrada
                         </span>
-                        <span className="text-[10px] text-text-muted/50">
+                        <span className="text-xs text-text-muted/50">
                           Ingresa una URL o sube una foto abajo
                         </span>
                       </div>
@@ -1432,7 +1432,7 @@ function ProductCatalogDetailModal({
 
                   {/* URL de foto editable con botón de limpiar */}
                   <div className="flex items-center gap-1.5">
-                    <Label className="text-[10px] text-text-secondary font-medium shrink-0">URL:</Label>
+                    <Label className="text-xs text-text-secondary font-medium shrink-0">URL:</Label>
                     <div className="relative flex-1 flex items-center">
                       <Input
                         placeholder="https://ejemplo.com/foto.jpg"
@@ -1502,14 +1502,14 @@ function ProductCatalogDetailModal({
                       )}
                       <span>Subir foto</span>
                     </Button>
-                    <span className="text-[10px] text-text-muted">JPG, PNG o WebP (máx. 5 MB)</span>
+                    <span className="text-xs text-text-muted">JPG, PNG o WebP (máx. 5 MB)</span>
                   </div>
                 </div>
 
                 {/* Datos de Identificación del Producto */}
                 <div className="bg-surface border border-border/80 rounded-xl p-3 shadow-2xs flex flex-col gap-2.5">
                   <div className="border-b border-border/60 pb-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
                       <Sparkles className="size-3.5 text-primary" />
                       Datos de Identificación
                     </span>
@@ -1517,7 +1517,7 @@ function ProductCatalogDetailModal({
 
                   {/* Nombre del Producto */}
                   <div>
-                    <Label className="text-[11px] font-semibold text-text-primary">
+                    <Label className="text-xs font-semibold text-text-primary">
                       Nombre del Producto <span className="text-rose-500">*</span>
                     </Label>
                     <Input
@@ -1531,7 +1531,7 @@ function ProductCatalogDetailModal({
                   {/* SKU y Código de Barras */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[10px] text-text-secondary">Código / SKU</Label>
+                      <Label className="text-xs text-text-secondary">Código / SKU</Label>
                       <Input
                         placeholder="SKU-1234"
                         value={sku}
@@ -1540,7 +1540,7 @@ function ProductCatalogDetailModal({
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-text-secondary">Código de barras</Label>
+                      <Label className="text-xs text-text-secondary">Código de barras</Label>
                       <Input
                         placeholder="759123456789"
                         value={barcode}
@@ -1553,7 +1553,7 @@ function ProductCatalogDetailModal({
                   {/* Categoría y Marca */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[10px] text-text-secondary">Categoría</Label>
+                      <Label className="text-xs text-text-secondary">Categoría</Label>
                       <Select
                         value={categoryId ? String(categoryId) : ''}
                         onChange={(e) =>
@@ -1570,7 +1570,7 @@ function ProductCatalogDetailModal({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-text-secondary">Marca</Label>
+                      <Label className="text-xs text-text-secondary">Marca</Label>
                       <Select
                         value={brandId ? String(brandId) : ''}
                         onChange={(e) =>
@@ -1591,7 +1591,7 @@ function ProductCatalogDetailModal({
                   {/* Unidad de Medida y Switch Activo */}
                   <div className="grid grid-cols-2 gap-2 items-center">
                     <div>
-                      <Label className="text-[10px] text-text-secondary">Unidad de Medida</Label>
+                      <Label className="text-xs text-text-secondary">Unidad de Medida</Label>
                       <Select
                         value={unitOfMeasure}
                         onChange={(e) => setUnitOfMeasure(e.target.value)}
@@ -1623,7 +1623,7 @@ function ProductCatalogDetailModal({
                       Precios de Venta y Costo
                     </h4>
                     {activeRate && (
-                      <span className="text-[10px] font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/60">
+                      <span className="text-xs font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/60">
                         1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
                       </span>
                     )}
@@ -1635,7 +1635,7 @@ function ProductCatalogDetailModal({
                       <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                         Costo de compra (USD)
                       </Label>
-                      <span className="text-[9px] text-text-muted leading-none">
+                      <span className="text-xs text-text-muted leading-none">
                         Base para calcular margen y ganancia
                       </span>
                     </div>
@@ -1685,12 +1685,12 @@ function ProductCatalogDetailModal({
                                   {list.name}
                                 </span>
                                 {isDefault && (
-                                  <span className="text-[8px] font-semibold text-primary bg-primary/10 px-1 py-0.2 rounded shrink-0">
+                                  <span className="text-xs font-semibold text-primary bg-primary/10 px-1 py-0.2 rounded shrink-0">
                                     Predet.
                                   </span>
                                 )}
                                 {list.code && (
-                                  <span className="text-[9px] font-mono text-text-muted truncate">
+                                  <span className="text-xs font-mono text-text-muted truncate">
                                     ({list.code})
                                   </span>
                                 )}
@@ -1712,7 +1712,7 @@ function ProductCatalogDetailModal({
                             </div>
 
                             {/* Conversión en Bs y Margen */}
-                            <div className="flex items-center justify-between text-[10px] text-text-muted pt-0.5 border-t border-border/30">
+                            <div className="flex items-center justify-between text-xs text-text-muted pt-0.5 border-t border-border/30">
                               <span>
                                 {vesVal != null ? (
                                   <span className="font-semibold text-text-secondary">
@@ -1729,7 +1729,7 @@ function ProductCatalogDetailModal({
                               {margin != null && (
                                 <span
                                   className={cn(
-                                    'font-medium text-[9px]',
+                                    'font-medium text-xs',
                                     Number(margin) >= 0
                                       ? 'text-emerald-600 dark:text-emerald-400'
                                       : 'text-rose-600 dark:text-rose-400',
@@ -1760,12 +1760,12 @@ function ProductCatalogDetailModal({
                       Consultando...
                     </div>
                   ) : warehousesToDisplay.length === 0 ? (
-                    <div className="p-2 bg-surface-subtle/50 rounded-lg border border-border text-[11px] text-text-muted text-center">
+                    <div className="p-2 bg-surface-subtle/50 rounded-lg border border-border text-xs text-text-muted text-center">
                       Sin almacenes registrados.
                     </div>
                   ) : (
                     <div className="overflow-x-auto rounded-lg border border-border/80 max-h-40 overflow-y-auto">
-                      <table className="w-full text-[11px] text-left">
+                      <table className="w-full text-xs text-left">
                         <thead className="bg-surface-subtle/80 border-b border-border text-text-secondary font-semibold">
                           <tr>
                             <th className="px-2 py-1">Almacén</th>
@@ -1822,12 +1822,12 @@ function ProductCatalogDetailModal({
 
                 {/* Límites de Stock */}
                 <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1.5">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Límites de Stock
                   </h4>
                   <div className="grid grid-cols-3 gap-1.5">
                     <div>
-                      <Label className="text-[9px] text-text-secondary">Mínimo</Label>
+                      <Label className="text-xs text-text-secondary">Mínimo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -1839,7 +1839,7 @@ function ProductCatalogDetailModal({
                       />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-text-secondary">Máximo</Label>
+                      <Label className="text-xs text-text-secondary">Máximo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -1851,7 +1851,7 @@ function ProductCatalogDetailModal({
                       />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-text-secondary">Reorden</Label>
+                      <Label className="text-xs text-text-secondary">Reorden</Label>
                       <Input
                         type="number"
                         step="any"
@@ -1867,7 +1867,7 @@ function ProductCatalogDetailModal({
 
                 {/* Política de Garantía */}
                 <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1">
-                  <Label className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Garantía
                   </Label>
                   <Select
@@ -1933,7 +1933,7 @@ function ProductCatalogDetailModal({
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-xs">Rastrear existencias</Label>
-                      <p className="text-[10px] text-text-muted">
+                      <p className="text-xs text-text-muted">
                         Afectar inventario en ventas y compras
                       </p>
                     </div>
@@ -1963,7 +1963,7 @@ function ProductCatalogDetailModal({
                   </h5>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label className="text-[11px] text-text-secondary">Mínimo</Label>
+                      <Label className="text-xs text-text-secondary">Mínimo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -1975,7 +1975,7 @@ function ProductCatalogDetailModal({
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] text-text-secondary">Máximo</Label>
+                      <Label className="text-xs text-text-secondary">Máximo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -1987,7 +1987,7 @@ function ProductCatalogDetailModal({
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] text-text-secondary">Punto Reorden</Label>
+                      <Label className="text-xs text-text-secondary">Punto Reorden</Label>
                       <Input
                         type="number"
                         step="any"

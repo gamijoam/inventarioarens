@@ -164,7 +164,7 @@ export function SelectCompanyPage() {
                         {tenant.name}
                       </div>
                       <div className="text-text-muted text-xs truncate">
-                        ID: <span className="font-mono text-[11px]">{tenant.slug}</span>
+                        ID: <span className="font-mono text-xs">{tenant.slug}</span>
                       </div>
                     </div>
                   </div>

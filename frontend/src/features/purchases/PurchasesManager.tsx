@@ -315,7 +315,7 @@ function Row({
               {formatMoney(purchase.received_base_amount)}
             </span>
             {purchase.status === 'partially_received' && (
-              <span className="text-warning text-[10px] tracking-wide uppercase">{progress}%</span>
+              <span className="text-warning text-xs tracking-wide uppercase">{progress}%</span>
             )}
           </div>
         </td>
@@ -324,7 +324,7 @@ function Row({
           {purchase.warehouses && purchase.warehouses.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {purchase.warehouses.map((w) => (
-                <Badge key={w.id} variant="default" className="text-[10px]">
+                <Badge key={w.id} variant="default" className="text-xs">
                   {w.code}
                 </Badge>
               ))}

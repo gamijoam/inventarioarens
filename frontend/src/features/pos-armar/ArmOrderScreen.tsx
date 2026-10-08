@@ -636,7 +636,7 @@ export function ArmOrderScreen() {
           </div>
           <div className="ml-auto flex items-end gap-2">
             <label className="min-w-0 space-y-1">
-              <span className="text-text-muted flex items-center gap-1 text-[10px] font-semibold uppercase">
+              <span className="text-text-muted flex items-center gap-1 text-xs font-semibold uppercase">
                 <Warehouse className="size-3.5" /> Almacen de salida
               </span>
               <Select
@@ -785,7 +785,7 @@ export function ArmOrderScreen() {
                 onClick={() => setCustomerOpen(true)}
                 className="border-border bg-bg/50 mt-3 w-full rounded-lg border px-3 py-2 text-left"
               >
-                <p className="text-text-muted text-[11px] font-semibold uppercase">
+                <p className="text-text-muted text-xs font-semibold uppercase">
                   Cliente asignado
                 </p>
                 <p className="truncate text-sm font-semibold">
@@ -798,7 +798,7 @@ export function ArmOrderScreen() {
                 )}
               </button>
               <label className="mt-3 block space-y-1 text-left">
-                <span className="text-text-muted text-[11px] font-semibold uppercase">
+                <span className="text-text-muted text-xs font-semibold uppercase">
                   Lista de precio
                 </span>
                 <Select
@@ -868,7 +868,7 @@ export function ArmOrderScreen() {
                         {line.quantity} x {money(line.unit_price)}
                       </p>
                       {line.price_list_name && (
-                        <p className="text-primary text-[11px]">{line.price_list_name}</p>
+                        <p className="text-primary text-xs">{line.price_list_name}</p>
                       )}
                     </div>
                     <TapButton

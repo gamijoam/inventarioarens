@@ -810,7 +810,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
                 <div className="rounded-lg border border-border bg-surface overflow-hidden shadow-xs">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-surface-subtle border-b border-border text-[11px] uppercase tracking-wider font-bold text-text-secondary sticky top-0">
+                      <thead className="bg-surface-subtle border-b border-border text-xs uppercase tracking-wider font-bold text-text-secondary sticky top-0">
                         <tr>
                           <th className="p-3 text-center w-14">#</th>
                           <th className="p-3">Producto / Repuesto</th>

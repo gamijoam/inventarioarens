@@ -193,7 +193,7 @@ export function CompanySettingsPanel() {
             ) : (
               <div className="flex flex-col items-center justify-center text-slate-400">
                 <Building2 className="size-8" />
-                <span className="text-[10px] mt-1 font-medium">Sin logo</span>
+                <span className="text-xs mt-1 font-medium">Sin logo</span>
               </div>
             )}
           </div>

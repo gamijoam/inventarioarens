@@ -739,7 +739,7 @@ export function ProductSearchDetailModal({
               className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface"
             >
               {/* Encabezado fijo de la tabla */}
-              <div className="grid grid-cols-12 gap-2 border-b border-border/70 bg-bg/40 px-4 py-3 text-[11px] font-semibold tracking-wider text-text-muted uppercase">
+              <div className="grid grid-cols-12 gap-2 border-b border-border/70 bg-bg/40 px-4 py-3 text-xs font-semibold tracking-wider text-text-muted uppercase">
                 <div className="col-span-4">Código / SKU</div>
                 <div className="col-span-6">Descripción</div>
                 <div className="col-span-2 text-right">Stock</div>
@@ -795,12 +795,12 @@ export function ProductSearchDetailModal({
                               {p.name}
                             </div>
                             <div className="mt-1 flex items-center gap-1.5">
-                              <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                              <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                                 <Folder className="size-2.5 shrink-0" />
                                 <span className="truncate">{getProductCategory(p)}</span>
                               </span>
                               {p.brand?.name && (
-                                <span className="truncate text-[10px] text-text-muted">
+                                <span className="truncate text-xs text-text-muted">
                                   {p.brand.name}
                                 </span>
                               )}
@@ -940,7 +940,7 @@ export function ProductSearchDetailModal({
                     {/* Tabla de Precios de Venta */}
                     <div className="flex-1 overflow-auto rounded-2xl border border-border/70 bg-surface">
                       <table className="w-full text-left text-xs border-collapse">
-                        <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
+                        <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-xs font-semibold text-text-muted uppercase">
                           <tr>
                             <th className="px-5 py-3.5">Nivel / Lista de Precio</th>
                             <th className="px-5 py-3.5 text-right font-bold text-text-primary">
@@ -966,7 +966,7 @@ export function ProductSearchDetailModal({
                                   {row.isDefault && (
                                     <Badge
                                       variant="primary"
-                                      className="px-2 py-0.5 text-[10px]"
+                                      className="px-2 py-0.5 text-xs"
                                     >
                                       Principal
                                     </Badge>
@@ -1015,7 +1015,7 @@ export function ProductSearchDetailModal({
                         </div>
                       ) : (
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
+                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-xs font-semibold text-text-muted uppercase">
                             <tr>
                               <th className="py-2.5 px-3">Almacén</th>
                               <th className="py-2.5 px-3">Sucursal</th>
@@ -1045,12 +1045,12 @@ export function ProductSearchDetailModal({
                                     <div className="flex items-center gap-1.5 font-medium">
                                       <span>{item.warehouse_name || `Almacén #${item.warehouse_id}`}</span>
                                       {item.warehouse_code && (
-                                        <span className="font-mono text-[10px] text-text-muted">
+                                        <span className="font-mono text-xs text-text-muted">
                                           ({item.warehouse_code})
                                         </span>
                                       )}
                                       {isCurrentWarehouse && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/40 text-primary">
+                                        <Badge variant="outline" className="text-xs px-1 py-0 border-primary/40 text-primary">
                                           Terminal
                                         </Badge>
                                       )}
@@ -1091,7 +1091,7 @@ export function ProductSearchDetailModal({
                             <Boxes className="size-3.5 text-primary" />
                             Stock en otras sucursales ({crossBranchData.branches.length})
                           </span>
-                          <span className="text-[10px] text-text-muted">En tiempo real</span>
+                          <span className="text-xs text-text-muted">En tiempo real</span>
                         </div>
                         <div className="space-y-1.5">
                           {crossBranchData.branches
@@ -1109,7 +1109,7 @@ export function ProductSearchDetailModal({
                               >
                                 <div className="min-w-0 flex-1 pr-2">
                                   <div className="font-semibold text-text-primary truncate">{b.tenant_name}</div>
-                                  <div className="text-[11px] text-text-muted mt-0.5">
+                                  <div className="text-xs text-text-muted mt-0.5">
                                     {b.warehouses.length > 0
                                       ? b.warehouses
                                           .map((w) => `${w.warehouse_name}: ${w.quantity_available} disp.`)
@@ -1150,7 +1150,7 @@ export function ProductSearchDetailModal({
                           fit="contain"
                           className="aspect-square w-full rounded-2xl border border-border bg-bg/50 p-2 shadow-xs"
                         />
-                        <span className="text-[11px] text-text-muted">
+                        <span className="text-xs text-text-muted">
                           {selectedProduct.images?.length
                             ? `${selectedProduct.images.length} imágenes`
                             : 'Sin galería'}
@@ -1162,7 +1162,7 @@ export function ProductSearchDetailModal({
                         {/* Descripción corta y extendida */}
                         {selectedProduct.description && (
                           <div className="rounded-xl border border-border bg-bg/25 p-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
                               Descripción Corta
                             </span>
                             <p className="mt-1 text-xs text-text-primary leading-relaxed">
@@ -1173,7 +1173,7 @@ export function ProductSearchDetailModal({
 
                         {selectedProduct.long_description && (
                           <div className="rounded-xl border border-border bg-bg/25 p-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
                               Descripción Detallada / Técnica
                             </span>
                             <p className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap text-xs text-text-secondary leading-relaxed">
@@ -1185,7 +1185,7 @@ export function ProductSearchDetailModal({
                         {/* Clasificación Principal: Categoría, Marca, Unidad */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                           <div className="rounded-xl border border-primary/25 bg-primary/5 p-2.5">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                            <span className="text-xs font-bold uppercase tracking-wider text-primary">
                               Categoría
                             </span>
                             <p className="text-sm font-bold text-text-primary mt-0.5 truncate" title={selectedCategory}>
@@ -1193,7 +1193,7 @@ export function ProductSearchDetailModal({
                             </p>
                           </div>
                           <div className="rounded-xl border border-border bg-surface p-2.5">
-                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                            <span className="text-xs font-semibold uppercase text-text-muted">
                               Marca
                             </span>
                             <p className="text-sm font-bold text-text-primary mt-0.5 truncate">
@@ -1201,7 +1201,7 @@ export function ProductSearchDetailModal({
                             </p>
                           </div>
                           <div className="rounded-xl border border-border bg-surface p-2.5">
-                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                            <span className="text-xs font-semibold uppercase text-text-muted">
                               Unidad de Medida
                             </span>
                             <p className="text-sm font-bold text-text-primary mt-0.5 uppercase">
@@ -1213,7 +1213,7 @@ export function ProductSearchDetailModal({
                         {/* Parámetros de Stock y Parámetros Operativos */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           <div className="rounded-xl border border-border bg-surface p-2.5">
-                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                            <span className="text-xs font-semibold uppercase text-text-muted">
                               Stock Mínimo
                             </span>
                             <p className="text-sm font-bold text-text-primary mt-0.5">
@@ -1221,7 +1221,7 @@ export function ProductSearchDetailModal({
                             </p>
                           </div>
                           <div className="rounded-xl border border-border bg-surface p-2.5">
-                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                            <span className="text-xs font-semibold uppercase text-text-muted">
                               Stock Máximo
                             </span>
                             <p className="text-sm font-bold text-text-primary mt-0.5">
@@ -1229,7 +1229,7 @@ export function ProductSearchDetailModal({
                             </p>
                           </div>
                           <div className="rounded-xl border border-border bg-surface p-2.5">
-                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                            <span className="text-xs font-semibold uppercase text-text-muted">
                               Punto Reorden
                             </span>
                             <p className="text-sm font-bold text-text-primary mt-0.5">
@@ -1237,7 +1237,7 @@ export function ProductSearchDetailModal({
                             </p>
                           </div>
                           <div className="rounded-xl border border-border bg-surface p-2.5">
-                            <span className="text-[10px] font-semibold uppercase text-text-muted">
+                            <span className="text-xs font-semibold uppercase text-text-muted">
                               Control de Stock
                             </span>
                             <p className="text-sm font-bold text-text-primary mt-0.5">
@@ -1249,11 +1249,11 @@ export function ProductSearchDetailModal({
                         {/* Sección de Costos y Rentabilidad */}
                         <div className="rounded-xl border border-border bg-bg/30 p-3">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
                               Costos y Rentabilidad
                             </span>
                             {selectedProduct.average_cost === null && (
-                              <Badge variant="outline" className="text-[10px] text-text-muted gap-1">
+                              <Badge variant="outline" className="text-xs text-text-muted gap-1">
                                 <Lock className="size-3" /> Restringido
                               </Badge>
                             )}
@@ -1328,7 +1328,7 @@ export function ProductSearchDetailModal({
                         </div>
                       ) : (
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-[11px] font-semibold text-text-muted uppercase">
+                          <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-xs font-semibold text-text-muted uppercase">
                             <tr>
                               <th className="px-4 py-3">Número Serial / IMEI</th>
                               <th className="px-4 py-3">Tipo</th>
@@ -1342,7 +1342,7 @@ export function ProductSearchDetailModal({
                                 <td className="px-4 py-3 font-mono font-bold text-text-primary">
                                   {serial.serial_number}
                                 </td>
-                                <td className="px-4 py-3 uppercase text-text-secondary text-[11px]">
+                                <td className="px-4 py-3 uppercase text-text-secondary text-xs">
                                   {serial.serial_type || 'IMEI'}
                                 </td>
                                 <td className="px-4 py-3 text-text-secondary">
@@ -1351,7 +1351,7 @@ export function ProductSearchDetailModal({
                                 <td className="px-4 py-3 text-right">
                                   <Badge
                                     variant={serial.status === 'available' ? 'success' : 'outline'}
-                                    className="text-[10px] uppercase font-semibold"
+                                    className="text-xs uppercase font-semibold"
                                   >
                                     {serial.status === 'available' ? 'Disponible' : serial.status}
                                   </Badge>
@@ -1370,11 +1370,11 @@ export function ProductSearchDetailModal({
                         <p className="text-xs font-semibold text-text-primary">
                           Trazabilidad de lotes y vencimientos
                         </p>
-                        <p className="text-[11px] leading-relaxed text-text-muted">
+                        <p className="text-xs leading-relaxed text-text-muted">
                           Inventario continuo estándar sin fechas de caducidad ni lotes perecederos.
                         </p>
                       </div>
-                      <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
+                      <Badge variant="outline" className="ml-auto shrink-0 text-xs">
                         Control por Unidad ({selectedProduct.unit_of_measure ?? 'UND'})
                       </Badge>
                     </div>
@@ -1410,7 +1410,7 @@ export function ProductSearchDetailModal({
               onClick={handleConfirmSelect}
               className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
             >
-              <kbd className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
+              <kbd className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
                 F2
               </kbd>
               <span>Aceptar</span>
@@ -1424,7 +1424,7 @@ export function ProductSearchDetailModal({
               }}
               className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
             >
-              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-xs font-bold text-text-muted">
                 F3
               </kbd>
               <span>Buscar</span>
@@ -1435,7 +1435,7 @@ export function ProductSearchDetailModal({
               onClick={() => warehouseSelectRef.current?.focus()}
               className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-secondary transition-colors hover:border-primary hover:text-text-primary"
             >
-              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-xs font-bold text-text-muted">
                 F4
               </kbd>
               <span>Almacén</span>
@@ -1451,7 +1451,7 @@ export function ProductSearchDetailModal({
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-xs font-bold text-text-muted">
                 F5
               </kbd>
               <span>Precios</span>
@@ -1467,7 +1467,7 @@ export function ProductSearchDetailModal({
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-xs font-bold text-text-muted">
                 F6
               </kbd>
               <span>Existencia</span>
@@ -1483,7 +1483,7 @@ export function ProductSearchDetailModal({
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-xs font-bold text-text-muted">
                 F7
               </kbd>
               <span>Seriales/Lotes</span>
@@ -1499,7 +1499,7 @@ export function ProductSearchDetailModal({
                   : 'border-border bg-surface text-text-secondary hover:border-primary hover:text-text-primary',
               )}
             >
-              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-[11px] font-bold text-text-muted">
+              <kbd className="rounded bg-bg px-1.5 py-0.5 font-mono text-xs font-bold text-text-muted">
                 F8
               </kbd>
               <span>Datos</span>

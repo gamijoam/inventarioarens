@@ -80,7 +80,7 @@ function GeneralTab({ user }: { user: User }) {
             ) : (
               <div className="flex flex-wrap gap-1">
                 {user.roles.map((r) => (
-                  <Badge key={r.id} variant="info" className="gap-1 text-[10px]">
+                  <Badge key={r.id} variant="info" className="gap-1 text-xs">
                     {r.name}
                     {r.is_protected && (
                       <Lock className="size-2.5" aria-hidden="true" />
@@ -201,7 +201,7 @@ function ActivityTab({ userId }: { userId: number }) {
         <ul className="divide-y divide-border">
           {data.data.map((entry) => (
             <li key={entry.id} className="flex items-start gap-3 py-2">
-              <Badge variant="info" className="shrink-0 text-[10px]">
+              <Badge variant="info" className="shrink-0 text-xs">
                 {entry.action}
               </Badge>
               <div className="flex-1">
@@ -209,7 +209,7 @@ function ActivityTab({ userId }: { userId: number }) {
                   {entry.created_at ? new Date(entry.created_at).toLocaleString() : ''}
                 </div>
                 {entry.new_values && (
-                  <pre className="mt-1 max-h-32 overflow-auto rounded bg-bg p-2 font-mono text-[10px] text-text-secondary">
+                  <pre className="mt-1 max-h-32 overflow-auto rounded bg-bg p-2 font-mono text-xs text-text-secondary">
                     {JSON.stringify(entry.new_values, null, 2)}
                   </pre>
                 )}

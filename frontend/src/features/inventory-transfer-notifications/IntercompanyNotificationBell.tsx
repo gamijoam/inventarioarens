@@ -41,7 +41,7 @@ export function IntercompanyNotificationBell() {
         <Button variant="ghost" size="icon-sm" className="relative" aria-label="Notificaciones interempresa">
           <Bell className="size-4" aria-hidden="true" />
           {count > 0 && (
-            <span className="bg-info text-info-foreground absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-4">
+            <span className="bg-info text-info-foreground absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full px-1 text-xs font-semibold leading-4">
               {count > 99 ? '99+' : count}
             </span>
           )}

@@ -18,7 +18,7 @@ interface ProtectedRoleBadgeProps {
 export function ProtectedRoleBadge({ isProtected, className }: ProtectedRoleBadgeProps) {
   if (!isProtected) return null;
   return (
-    <Badge variant="info" className={cn('gap-1 text-[10px]', className)}>
+    <Badge variant="info" className={cn('gap-1 text-xs', className)}>
       <Lock className="size-2.5" aria-hidden="true" />
       Sistema
     </Badge>

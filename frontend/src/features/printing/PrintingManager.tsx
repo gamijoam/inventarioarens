@@ -584,7 +584,7 @@ function TicketPreview({ profile }: { profile: PrintProfilePayload }) {
       <div className="text-center">
         <p className="font-bold">{p.logo_text || ticket.tenant.name}</p>
         {p.header_text && <p className="whitespace-pre-line">{p.header_text}</p>}
-        {p.show_tenant_slug && <p className="text-[10px] text-gray-500">{ticket.tenant.slug}</p>}
+        {p.show_tenant_slug && <p className="text-xs text-gray-500">{ticket.tenant.slug}</p>}
       </div>
       <Dash />
       <p>Ticket POS #{ticket.pos_order.id}{p.show_sale_number ? ` - Venta #${ticket.pos_order.sale_id}` : ''}</p>
@@ -596,10 +596,10 @@ function TicketPreview({ profile }: { profile: PrintProfilePayload }) {
         <>
           <p>Cliente: {ticket.pos_order.customer_name}</p>
           {(ticket.pos_order as { customer_document?: string }).customer_document && (
-            <p className="text-[10px]">CI/RIF: {(ticket.pos_order as { customer_document?: string }).customer_document}</p>
+            <p className="text-xs">CI/RIF: {(ticket.pos_order as { customer_document?: string }).customer_document}</p>
           )}
           {(ticket.pos_order as { customer_phone?: string }).customer_phone && (
-            <p className="text-[10px]">Telf: {(ticket.pos_order as { customer_phone?: string }).customer_phone}</p>
+            <p className="text-xs">Telf: {(ticket.pos_order as { customer_phone?: string }).customer_phone}</p>
           )}
         </>
       )}
@@ -635,7 +635,7 @@ function TicketPreview({ profile }: { profile: PrintProfilePayload }) {
       <Dash />
       {p.warranty_policy_text && <><p className="whitespace-pre-line">{p.warranty_policy_text}</p><Dash /></>}
       {p.footer_text && <p className="whitespace-pre-line text-center">{p.footer_text}</p>}
-      {p.show_non_fiscal_text && <p className="text-center text-[10px] text-gray-500">{p.legal_text || 'Documento no fiscal'}</p>}
+      {p.show_non_fiscal_text && <p className="text-center text-xs text-gray-500">{p.legal_text || 'Documento no fiscal'}</p>}
     </div>
   );
 }

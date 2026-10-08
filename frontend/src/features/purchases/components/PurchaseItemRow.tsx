@@ -190,9 +190,9 @@ export function PurchaseItemRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-text-muted text-[10px] font-semibold uppercase">Línea {index + 1}</span>
+            <span className="text-text-muted text-xs font-semibold uppercase">Línea {index + 1}</span>
             {value.product_info?.sku && (
-              <code className="bg-bg text-text-secondary rounded px-1.5 py-0.5 text-[11px] font-mono font-bold">
+              <code className="bg-bg text-text-secondary rounded px-1.5 py-0.5 text-xs font-mono font-bold">
                  {value.product_info.sku}
               </code>
             )}
@@ -302,7 +302,7 @@ export function PurchaseItemRow({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-[11px] text-text-muted hover:text-primary"
+                    className="h-7 px-2 text-xs text-text-muted hover:text-primary"
                     onClick={() => onEditProduct(value.product_id!)}
                     data-testid={`purchase-item-edit-product-${index}`}
                   >
@@ -314,7 +314,7 @@ export function PurchaseItemRow({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-[11px] text-text-muted hover:text-primary"
+                    className="h-7 px-2 text-xs text-text-muted hover:text-primary"
                     onClick={() => onCreateProduct()}
                     data-testid={`purchase-item-create-product-${index}`}
                   >
@@ -365,7 +365,7 @@ export function PurchaseItemRow({
                 <span className="text-border">|</span>
                 <span className="inline-flex items-center gap-1">
                   <span className="text-text-secondary font-medium">Margen:</span>
-                  <Badge variant={isAutomaticPricing ? 'info' : 'default'} className="text-[11px] py-0">
+                  <Badge variant={isAutomaticPricing ? 'info' : 'default'} className="text-xs py-0">
                     {configuredMargin != null ? `${configuredMargin.toFixed(1)}%` : 'Manual'}
                     {isAutomaticPricing ? ' (Auto)' : ''}
                   </Badge>
@@ -375,7 +375,7 @@ export function PurchaseItemRow({
                   <button
                     type="button"
                     onClick={() => onChange({ ...value, unit_cost: String(previousCost) })}
-                    className="text-primary hover:underline ml-auto flex items-center gap-1 text-[11px] font-medium cursor-pointer"
+                    className="text-primary hover:underline ml-auto flex items-center gap-1 text-xs font-medium cursor-pointer"
                   >
                     <RefreshCw className="size-3" />
                     Cargar costo anterior (${previousCost.toFixed(2)})
@@ -557,7 +557,7 @@ export function PurchaseItemRow({
                   </strong>
                 </span>
                 {isAutomaticPricing && (
-                  <Badge variant="info" className="text-[10px]">
+                  <Badge variant="info" className="text-xs">
                     Modo auto: se actualizará al recibir
                   </Badge>
                 )}
@@ -605,7 +605,7 @@ export function PurchaseItemRow({
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-8 px-2 text-[11px]"
+                          className="h-8 px-2 text-xs"
                           onClick={() => onChange({ ...value, new_sale_price: String(suggestedPvp) })}
                         >
                           <Sparkles className="size-3 mr-1 text-warning" />

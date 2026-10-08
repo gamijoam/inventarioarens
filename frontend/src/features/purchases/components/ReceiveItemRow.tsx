@@ -79,7 +79,7 @@ export function ReceiveItemRow({ value, onChange, disabled }: ReceiveItemRowProp
               <code className="bg-bg rounded px-1 py-0.5">{value.product_sku}</code>
             )}
             {value.product_variant_name && (
-              <Badge variant="info" className="text-[10px]">
+              <Badge variant="info" className="text-xs">
                 Variante: {value.product_variant_name}
                 {value.product_variant_sku ? ` (${value.product_variant_sku})` : ''}
               </Badge>
@@ -91,7 +91,7 @@ export function ReceiveItemRow({ value, onChange, disabled }: ReceiveItemRowProp
             {isSerialized && (
               <>
                 <span>|</span>
-                <Badge variant="info" className="text-[10px]">
+                <Badge variant="info" className="text-xs">
                   Serializado
                 </Badge>
               </>
@@ -167,9 +167,9 @@ export function ReceiveItemRow({ value, onChange, disabled }: ReceiveItemRowProp
           <label className="text-text-secondary text-xs font-semibold tracking-wide uppercase flex items-center justify-between">
             <span>PVP al recibir</span>
             {value.product_pricing_mode === 'automatic' ? (
-              <Badge variant="info" className="text-[10px] py-0 font-normal">Auto</Badge>
+              <Badge variant="info" className="text-xs py-0 font-normal">Auto</Badge>
             ) : value.product_base_price != null ? (
-              <span className="text-[10px] text-text-muted font-normal">
+              <span className="text-xs text-text-muted font-normal">
                 Act: ${Number(value.product_base_price).toFixed(2)}
               </span>
             ) : null}

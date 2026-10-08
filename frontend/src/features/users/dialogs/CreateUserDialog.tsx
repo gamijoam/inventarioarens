@@ -198,7 +198,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
                     />
                     <span className="truncate">{r.name}</span>
                     {r.is_protected && (
-                      <span className="ml-auto text-[10px] text-text-muted">Protegido</span>
+                      <span className="ml-auto text-xs text-text-muted">Protegido</span>
                     )}
                   </label>
                 ))}

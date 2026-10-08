@@ -297,7 +297,7 @@ export function QuickCreateProductDialog({
                   Crear Producto
                 </DialogTitle>
               </div>
-              <DialogDescription className="text-[11px] text-text-muted mt-0.5">
+              <DialogDescription className="text-xs text-text-muted mt-0.5">
                 Ingresa datos clave, costo y tarifas de precios en una sola pantalla sin desplazarte.
               </DialogDescription>
             </div>
@@ -356,7 +356,7 @@ export function QuickCreateProductDialog({
               <div className="lg:col-span-4 flex flex-col gap-2">
                 {/* Nombre */}
                 <div>
-                  <Label className="text-[11px] font-semibold text-text-primary">
+                  <Label className="text-xs font-semibold text-text-primary">
                     Nombre del Producto <span className="text-rose-500">*</span>
                   </Label>
                   <Input
@@ -371,7 +371,7 @@ export function QuickCreateProductDialog({
                 {/* SKU y Código de Barras */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-[10px] text-text-secondary">Código / SKU</Label>
+                    <Label className="text-xs text-text-secondary">Código / SKU</Label>
                     <Input
                       placeholder="SKU-1234"
                       value={sku}
@@ -380,7 +380,7 @@ export function QuickCreateProductDialog({
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-text-secondary">Código de barras</Label>
+                    <Label className="text-xs text-text-secondary">Código de barras</Label>
                     <Input
                       placeholder="759123456789"
                       value={barcode}
@@ -393,7 +393,7 @@ export function QuickCreateProductDialog({
                 {/* Categoría y Marca */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-[10px] text-text-secondary">Categoría</Label>
+                    <Label className="text-xs text-text-secondary">Categoría</Label>
                     <Select
                       value={categoryId ? String(categoryId) : ''}
                       onChange={(e) =>
@@ -410,7 +410,7 @@ export function QuickCreateProductDialog({
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-text-secondary">Marca</Label>
+                    <Label className="text-xs text-text-secondary">Marca</Label>
                     <Select
                       value={brandId ? String(brandId) : ''}
                       onChange={(e) =>
@@ -431,7 +431,7 @@ export function QuickCreateProductDialog({
                 {/* Unidad de Medida y Switch Activo */}
                 <div className="grid grid-cols-2 gap-2 items-center">
                   <div>
-                    <Label className="text-[10px] text-text-secondary">Unidad de Medida</Label>
+                    <Label className="text-xs text-text-secondary">Unidad de Medida</Label>
                     <Select
                       value={unitOfMeasure}
                       onChange={(e) => setUnitOfMeasure(e.target.value)}
@@ -456,7 +456,7 @@ export function QuickCreateProductDialog({
                 {allowStockEdit && (
                   <div className="grid grid-cols-2 gap-2 p-2 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                     <div>
-                      <Label className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      <Label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         Stock Inicial
                       </Label>
                       <Input
@@ -469,7 +469,7 @@ export function QuickCreateProductDialog({
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      <Label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         Almacén
                       </Label>
                       <Select
@@ -491,7 +491,7 @@ export function QuickCreateProductDialog({
 
                 {/* Foto / URL de imagen con vista previa */}
                 <div className="flex flex-col gap-1 pt-0.5">
-                  <Label className="text-[10px] text-text-secondary">Foto del producto (Opcional)</Label>
+                  <Label className="text-xs text-text-secondary">Foto del producto (Opcional)</Label>
                   <div className="flex items-center gap-1.5">
                     <div className="size-10 rounded-lg border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
                       {photoPreview || imageUrl ? (
@@ -568,7 +568,7 @@ export function QuickCreateProductDialog({
                     </Button>
                   </div>
                   {photoFile && (
-                    <p className="text-[10px] text-emerald-600">
+                    <p className="text-xs text-emerald-600">
                       Foto lista: {photoFile.name} (se sube al guardar)
                     </p>
                   )}
@@ -584,7 +584,7 @@ export function QuickCreateProductDialog({
                       Costo y Tarifas de Venta
                     </h4>
                     {activeRate && (
-                      <span className="text-[10px] font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/60">
+                      <span className="text-xs font-medium text-text-muted bg-surface-subtle px-1.5 py-0.5 rounded border border-border/60">
                         1 USD = {activeRate.rate.toLocaleString('es-VE', { minimumFractionDigits: 2 })} VES
                       </span>
                     )}
@@ -596,7 +596,7 @@ export function QuickCreateProductDialog({
                       <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                         Costo de compra (USD)
                       </Label>
-                      <span className="text-[9px] text-text-muted leading-none">
+                      <span className="text-xs text-text-muted leading-none">
                         Permite calcular en vivo tu ganancia en cada tarifa
                       </span>
                     </div>
@@ -649,12 +649,12 @@ export function QuickCreateProductDialog({
                                   {list.name}
                                 </span>
                                 {isDefault && (
-                                  <span className="text-[8px] font-semibold text-primary bg-primary/10 px-1 py-0.2 rounded shrink-0">
+                                  <span className="text-xs font-semibold text-primary bg-primary/10 px-1 py-0.2 rounded shrink-0">
                                     Predet.
                                   </span>
                                 )}
                                 {list.code && (
-                                  <span className="text-[9px] font-mono text-text-muted truncate">
+                                  <span className="text-xs font-mono text-text-muted truncate">
                                     ({list.code})
                                   </span>
                                 )}
@@ -676,7 +676,7 @@ export function QuickCreateProductDialog({
                             </div>
 
                             {/* Conversión en Bs y Margen */}
-                            <div className="flex items-center justify-between text-[10px] text-text-muted pt-0.5 border-t border-border/30">
+                            <div className="flex items-center justify-between text-xs text-text-muted pt-0.5 border-t border-border/30">
                               <span>
                                 {vesVal != null ? (
                                   <span className="font-semibold text-text-secondary">
@@ -693,7 +693,7 @@ export function QuickCreateProductDialog({
                               {margin != null && (
                                 <span
                                   className={cn(
-                                    'font-medium text-[9px]',
+                                    'font-medium text-xs',
                                     Number(margin) >= 0
                                       ? 'text-emerald-600 dark:text-emerald-400'
                                       : 'text-rose-600 dark:text-rose-400',
@@ -718,12 +718,12 @@ export function QuickCreateProductDialog({
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-xs font-semibold text-text-primary">Rastrear existencias</Label>
-                      <p className="text-[9px] text-text-muted">Afecta inventario</p>
+                      <p className="text-xs text-text-muted">Afecta inventario</p>
                     </div>
                     <Switch checked={trackStock} onCheckedChange={setTrackStock} />
                   </div>
                   <div className="pt-1 border-t border-border/50">
-                    <Label className="text-[10px] text-text-secondary">Modalidad</Label>
+                    <Label className="text-xs text-text-secondary">Modalidad</Label>
                     <Select
                       value={trackingType}
                       onChange={(e) =>
@@ -739,12 +739,12 @@ export function QuickCreateProductDialog({
 
                 {/* Umbrales de Stock */}
                 <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1.5">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Límites de Stock
                   </h4>
                   <div className="grid grid-cols-3 gap-1.5">
                     <div>
-                      <Label className="text-[9px] text-text-secondary">Mínimo</Label>
+                      <Label className="text-xs text-text-secondary">Mínimo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -756,7 +756,7 @@ export function QuickCreateProductDialog({
                       />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-text-secondary">Máximo</Label>
+                      <Label className="text-xs text-text-secondary">Máximo</Label>
                       <Input
                         type="number"
                         step="any"
@@ -768,7 +768,7 @@ export function QuickCreateProductDialog({
                       />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-text-secondary">Reorden</Label>
+                      <Label className="text-xs text-text-secondary">Reorden</Label>
                       <Input
                         type="number"
                         step="any"
@@ -784,7 +784,7 @@ export function QuickCreateProductDialog({
 
                 {/* Política de Garantía */}
                 <div className="bg-surface border border-border/80 rounded-xl p-2.5 shadow-2xs flex flex-col gap-1">
-                  <Label className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-text-secondary">
                     Garantía
                   </Label>
                   <Select

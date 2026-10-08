@@ -211,7 +211,7 @@ function Row({ order, isExpanded, onToggle }: { order: ServiceOrder; isExpanded:
             {TYPE_LABELS[order.type]}
           </Badge>
           {order.resolution && (
-            <span className="text-text-muted ml-1 text-[10px]">{RESOLUTION_LABELS[order.resolution]}</span>
+            <span className="text-text-muted ml-1 text-xs">{RESOLUTION_LABELS[order.resolution]}</span>
           )}
         </td>
         <td className="px-3 py-2">
@@ -257,7 +257,7 @@ function OrderDetail({ orderId, order }: { orderId: number; order: ServiceOrder 
 function InfoCard({ order }: { order: ServiceOrder }) {
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
-      <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">Información</p>
+      <p className="text-primary text-xs font-semibold tracking-[0.2em] uppercase">Información</p>
       <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
         <div><span className="text-text-muted text-xs">Problema:</span> <p>{order.issue_description ?? '—'}</p></div>
         <div><span className="text-text-muted text-xs">Diagnóstico:</span> <p>{order.diagnosis ?? '—'}</p></div>
@@ -304,7 +304,7 @@ function PartsCard({ order }: { order: ServiceOrder }) {
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
       <div className="flex items-center justify-between">
-        <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">Piezas</p>
+        <p className="text-primary text-xs font-semibold tracking-[0.2em] uppercase">Piezas</p>
         <Badge variant="default">{order.parts?.length ?? 0}</Badge>
       </div>
 
@@ -398,7 +398,7 @@ function DiagnoseCard({ order }: { order: ServiceOrder }) {
 
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
-      <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">Diagnóstico</p>
+      <p className="text-primary text-xs font-semibold tracking-[0.2em] uppercase">Diagnóstico</p>
       <div className="mt-2 space-y-2">
         <Textarea rows={2} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Descripción del diagnóstico" data-testid="ws-diagnose-text" />
         <div className="flex gap-2">
@@ -434,7 +434,7 @@ function TechnicianCard({ order }: { order: ServiceOrder }) {
 
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
-      <p className="text-primary text-[10px] font-semibold tracking-[0.2em] uppercase">Técnico</p>
+      <p className="text-primary text-xs font-semibold tracking-[0.2em] uppercase">Técnico</p>
       <div className="mt-2 space-y-2">
         <Select value={technicianId} onChange={(e) => setTechnicianId(e.target.value)} data-testid="ws-assign-tech">
           <option value="">Técnico...</option>

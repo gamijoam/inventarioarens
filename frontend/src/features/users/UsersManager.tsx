@@ -268,7 +268,7 @@ function useColumns(
                 <Badge
                   key={t.id}
                   variant={t.is_group ? 'default' : 'info'}
-                  className="text-[10px]"
+                  className="text-xs"
                 >
                   {t.slug}
                 </Badge>
@@ -288,7 +288,7 @@ function useColumns(
           return (
             <div className="flex flex-wrap gap-1">
               {roles.map((r) => (
-                <Badge key={r.id} variant="info" className="text-[10px]">
+                <Badge key={r.id} variant="info" className="text-xs">
                   {r.name}
                 </Badge>
               ))}
@@ -374,7 +374,7 @@ function useColumns(
 
 function StatusBadge({ status }: { status: UserStatus }) {
   return (
-    <Badge variant={status === 'active' ? 'success' : 'default'} className="text-[10px]">
+    <Badge variant={status === 'active' ? 'success' : 'default'} className="text-xs">
       {status === 'active' ? 'Activo' : 'Inactivo'}
     </Badge>
   );

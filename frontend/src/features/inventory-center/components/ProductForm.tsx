@@ -486,40 +486,40 @@ export function ProductForm({
             {/* Tarjeta de Resumen Financiero: Costo Compra -> Costo con IVA -> Ganancia -> PVP Final */}
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div>
-                <span className="text-[11px] uppercase font-bold text-text-muted">1. Costo Compra</span>
+                <span className="text-xs uppercase font-bold text-text-muted">1. Costo Compra</span>
                 <p className="text-base font-bold font-mono text-text-primary">
                   ${costBase > 0 ? costBase.toFixed(2) : '0.00'}
                 </p>
-                <span className="text-[10px] text-text-muted block">Precio proveedor</span>
+                <span className="text-xs text-text-muted block">Precio proveedor</span>
               </div>
               <div>
-                <span className="text-[11px] uppercase font-bold text-text-muted">
+                <span className="text-xs uppercase font-bold text-text-muted">
                   2. Costo {applyIva ? `con IVA (${ivaRate}%)` : '(Exento)'}
                 </span>
                 <p className="text-base font-bold font-mono text-text-secondary">
                   ${costWithIva > 0 ? costWithIva.toFixed(2) : '0.00'}
                 </p>
-                <span className="text-[10px] text-text-muted block">
+                <span className="text-xs text-text-muted block">
                   {applyIva && costBase > 0 ? `IVA: +$${(costWithIva - costBase).toFixed(2)}` : 'Sin recargo IVA'}
                 </span>
               </div>
               <div>
-                <span className="text-[11px] uppercase font-bold text-text-muted">3. Ganancia Agregada</span>
+                <span className="text-xs uppercase font-bold text-text-muted">3. Ganancia Agregada</span>
                 <p className="text-base font-bold font-mono text-primary">
                   {actualProfitMarginPercent > 0 ? `+${actualProfitMarginPercent.toFixed(1)}%` : '0%'}
                 </p>
-                <span className="text-[10px] text-text-muted block font-mono">
+                <span className="text-xs text-text-muted block font-mono">
                   {grossProfitUsd > 0 ? `(+$${grossProfitUsd.toFixed(2)} utilidad)` : 'Sin utilidad'}
                 </span>
               </div>
               <div className="border-l border-primary/20 pl-2">
-                <span className="text-[11px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="text-xs uppercase font-bold text-emerald-600 dark:text-emerald-400">
                   4. PVP Venta Final
                 </span>
                 <p className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
                   ${effectivePrice > 0 ? effectivePrice.toFixed(2) : '0.00'}
                 </p>
-                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80 block">
+                <span className="text-xs text-emerald-700/80 dark:text-emerald-300/80 block">
                   {pricingMode === 'automatic' ? 'Calculado automático' : 'Precio venta manual'}
                 </span>
               </div>
@@ -537,7 +537,7 @@ export function ProductForm({
                 <span className="text-sm font-bold text-text-primary">
                   Aplica IVA
                 </span>
-                <Badge variant={applyIva ? 'primary' : 'outline'} className="text-[11px] font-semibold">
+                <Badge variant={applyIva ? 'primary' : 'outline'} className="text-xs font-semibold">
                   {applyIva ? `${ivaRate}% IVA incluido en PVP` : 'Exento (Sin IVA)'}
                 </Badge>
               </label>
@@ -630,7 +630,7 @@ export function ProductForm({
                       <button
                         type="button"
                         onClick={() => form.setValue('base_price', Number(calculatedSalePrice), { shouldValidate: true })}
-                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         ⚡ Aplicar cálculo automático ({applyIva ? `con ${ivaRate}% IVA` : 'sin IVA'}): ${calculatedSalePrice}
                       </button>
@@ -660,7 +660,7 @@ export function ProductForm({
                 >
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-text-muted">Asignar a este producto</span>
+                      <span className="text-xs text-text-muted">Asignar a este producto</span>
                       <InlineExchangeRateTypeCreate
                         onCreated={(id) =>
                           form.setValue('sale_exchange_rate_type_id', id, { shouldValidate: true })
@@ -902,7 +902,7 @@ export function ProductForm({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-text-primary">Vista previa URL externa</p>
-                        <p className="text-[11px] text-text-muted truncate">{form.watch('image_url')}</p>
+                        <p className="text-xs text-text-muted truncate">{form.watch('image_url')}</p>
                       </div>
                     </div>
                   )}
@@ -916,7 +916,7 @@ export function ProductForm({
                   <p className="text-xs font-semibold uppercase text-text-primary">
                     Galería de imágenes
                   </p>
-                  <p className="text-[11px] text-text-muted">
+                  <p className="text-xs text-text-muted">
                     Sube fotos en alta resolución. Formato WebP automático con miniaturas.
                   </p>
                 </div>
@@ -1026,7 +1026,7 @@ export function ProductForm({
       {/* Barra Inferior ERP con Atajos y Acciones                     */}
       {/* ============================================================ */}
       <div className="border-t border-border bg-surface-subtle/50 px-4 py-3 flex items-center justify-between gap-3 shrink-0 flex-wrap">
-        <div className="flex items-center gap-2 text-[11px] text-text-muted font-mono hidden sm:flex">
+        <div className="flex items-center gap-2 text-xs text-text-muted font-mono hidden sm:flex">
           <span className="inline-flex items-center gap-1">
             <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">{productId ? 'F1-F9' : 'F1-F6'}</kbd>
             <span>Pestañas</span>
@@ -1096,7 +1096,7 @@ function TabButton({
       <span>{label}</span>
       <span
         className={cn(
-          'text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg/80 border border-border text-text-muted',
+          'text-xs font-mono px-1.5 py-0.5 rounded bg-bg/80 border border-border text-text-muted',
           active && 'border-primary/40 text-primary font-bold bg-primary/5',
         )}
       >
