@@ -69,36 +69,71 @@ class SaleController extends Controller
         }
 
         if ($search = $request->string('search')->trim()->toString()) {
-            $query->where(function ($q) use ($search): void {
+            $tokens = array_values(array_filter(
+                preg_split('/\s+/', $search) ?: [],
+                fn ($token) => mb_strlen($token) > 0
+            ));
+
+            $query->where(function ($q) use ($search, $tokens): void {
                 $cleanNumeric = ltrim($search, '#');
                 if (is_numeric($cleanNumeric)) {
                     $q->orWhere('id', (int) $cleanNumeric);
                 }
 
+                // Coincidencia exacta/completa de la frase ingresada
                 $like = "%{$search}%";
 
-                $q->orWhereHas('customer', function ($customerQuery) use ($like): void {
-                    $customerQuery
-                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
-                        ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
-                        ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$like])
-                        ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$like]);
+                $q->orWhere(function ($sub) use ($like): void {
+                    $sub->whereHas('customer', function ($customerQuery) use ($like): void {
+                        $customerQuery
+                            ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$like]);
+                    })
+                    ->orWhereHas('posOrder', function ($posQuery) use ($like): void {
+                        $posQuery->whereRaw('LOWER(COALESCE(customer_name, \'\')) LIKE LOWER(?)', [$like]);
+                    })
+                    ->orWhereHas('receivable', function ($rQuery) use ($like): void {
+                        $rQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
+                    })
+                    ->orWhereHas('items.product', function ($productQuery) use ($like): void {
+                        $productQuery
+                            ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE LOWER(?)', [$like])
+                            ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE LOWER(?)', [$like]);
+                    });
                 });
 
-                $q->orWhereHas('posOrder', function ($posQuery) use ($like): void {
-                    $posQuery->whereRaw('LOWER(COALESCE(customer_name, \'\')) LIKE LOWER(?)', [$like]);
-                });
-
-                $q->orWhereHas('receivable', function ($rQuery) use ($like): void {
-                    $rQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
-                });
-
-                $q->orWhereHas('items.product', function ($productQuery) use ($like): void {
-                    $productQuery
-                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
-                        ->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE LOWER(?)', [$like])
-                        ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE LOWER(?)', [$like]);
-                });
+                // Si hay más de una palabra, permitir coincidencia donde todos los tokens estén presentes
+                if (count($tokens) > 1) {
+                    $q->orWhere(function ($multiWordQuery) use ($tokens): void {
+                        foreach ($tokens as $token) {
+                            $tokenLike = "%{$token}%";
+                            $multiWordQuery->where(function ($tokenQ) use ($tokenLike): void {
+                                $tokenQ->whereHas('customer', function ($customerQuery) use ($tokenLike): void {
+                                    $customerQuery
+                                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$tokenLike])
+                                        ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$tokenLike])
+                                        ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$tokenLike])
+                                        ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$tokenLike]);
+                                })
+                                ->orWhereHas('posOrder', function ($posQuery) use ($tokenLike): void {
+                                    $posQuery->whereRaw('LOWER(COALESCE(customer_name, \'\')) LIKE LOWER(?)', [$tokenLike]);
+                                })
+                                ->orWhereHas('receivable', function ($rQuery) use ($tokenLike): void {
+                                    $rQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$tokenLike]);
+                                })
+                                ->orWhereHas('items.product', function ($productQuery) use ($tokenLike): void {
+                                    $productQuery
+                                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$tokenLike])
+                                        ->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE LOWER(?)', [$tokenLike])
+                                        ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE LOWER(?)', [$tokenLike]);
+                                });
+                            });
+                        }
+                    });
+                }
             });
         }
 
