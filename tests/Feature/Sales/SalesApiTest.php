@@ -691,6 +691,95 @@ class SalesApiTest extends TestCase
         $response->assertJsonPath('summary.net_local_total', 130000);
     }
 
+    public function test_sales_search_supports_multi_word_query(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Busqueda', 'slug' => 'empresa-busqueda']);
+        [$warehouse, $product1] = $this->pricedProduct($tenant, 'BCV', 500);
+        $product1->update(['name' => 'Pastilla de Freno Delantera']);
+
+        $customer1 = $this->customer($tenant, 'Carlos Alberto Perez', Customer::DOCUMENT_V, '12345678');
+        $customer2 = $this->customer($tenant, 'Maria Gonzalez', Customer::DOCUMENT_V, '87654321');
+        $user = $this->userInTenant($tenant);
+
+        $this->grantRole($tenant, $user, 'Vendedor', ['sales.view', 'sales.create']);
+
+        // Venta 1: Carlos Perez compró Pastilla de Freno Delantera
+        $resSale1 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer1->id,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $product1->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ])
+            ->assertCreated();
+        $sale1Id = $resSale1->json('data.id');
+
+        // Venta 2: Maria Gonzalez
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer2->id,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $product1->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ])
+            ->assertCreated();
+
+        // Busqueda con 1 palabra: "Carlos" -> encuentra venta 1
+        $res1 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=Carlos')
+            ->assertOk();
+        $res1->assertJsonCount(1, 'data');
+        $res1->assertJsonPath('data.0.id', $sale1Id);
+
+        // Busqueda con 2 palabras desordenadas/tokens: "Carlos Perez" -> encuentra venta 1
+        $res2 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=Carlos+Perez')
+            ->assertOk();
+        $res2->assertJsonCount(1, 'data');
+        $res2->assertJsonPath('data.0.id', $sale1Id);
+
+        // Busqueda con 2 palabras del producto: "Pastilla Delantera" -> encuentra venta 1
+        $res3 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=Pastilla+Delantera')
+            ->assertOk();
+        $res3->assertJsonCount(2, 'data');
+
+        // Busqueda con cliente y producto combinados: "Carlos Freno" -> encuentra venta 1
+        $res4 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=Carlos+Freno')
+            ->assertOk();
+        $res4->assertJsonCount(1, 'data');
+        $res4->assertJsonPath('data.0.id', $sale1Id);
+
+        // Busqueda que no coincide: "Carlos Toyota" -> vacio
+        $res5 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=Carlos+Toyota')
+            ->assertOk();
+        $res5->assertJsonCount(0, 'data');
+    }
+
     public function test_sale_detail_and_items_include_profit_when_user_has_permission(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Profit', 'slug' => 'empresa-profit']);
