@@ -1183,6 +1183,10 @@ export function PosTerminal() {
             if (sellerOnlyMode) {
               return;
             }
+            if (cart.length === 0) {
+              toast.error('Agrega productos al ticket antes de registrar pagos.');
+              return;
+            }
             if (priceListPaymentIssue) {
               toast.error(priceListPaymentIssue);
               return;
@@ -1631,11 +1635,12 @@ export function PosTerminal() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  if (cart.length === 0) return toast.error('Agrega productos al ticket antes de registrar pagos.');
                   if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
                   setPanel('pay');
                 }}
-                disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-                className="rounded-xl border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs h-10 shadow-xs"
+                disabled={cart.length === 0 || allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+                className="rounded-xl border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs h-10 shadow-xs disabled:opacity-50"
               >
                 <CreditCard className="size-4" /> <ShortcutText label="F2" text="Pago" />
               </Button>
@@ -1845,12 +1850,12 @@ export function PosTerminal() {
                   </div>
                 )}
                 {payments.length > 0 && (
-                  <div className="border-slate-200 bg-slate-50/50 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-xl border p-2 pr-1 custom-scrollbar">
+                  <div className="border-slate-200 bg-slate-50/50 min-h-[100px] max-h-[300px] shrink-0 space-y-2 overflow-y-auto overscroll-contain rounded-xl border p-2 pr-1 custom-scrollbar">
                     {payments.map((payment) => (
                       <PaymentChip
                         key={payment.id}
                         payment={payment}
-                        methods={configuredPaymentMethods}
+                        methods={allowedPaymentMethods}
                         rateTypes={exchangeRateTypes}
                         onChange={(patch) => updatePayment(payment.id, patch)}
                         locked={Boolean(exchangeReturnId && payment.method === 'customer_credit')}
@@ -1883,11 +1888,14 @@ export function PosTerminal() {
                 {payments.length === 0 && (
                   <button
                     type="button"
-                    onClick={() => setPanel('pay')}
-                    disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+                    onClick={() => {
+                      if (cart.length === 0) return toast.error('Agrega productos al ticket antes de registrar pagos.');
+                      setPanel('pay');
+                    }}
+                    disabled={cart.length === 0 || allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
                     className="border-2 border-dashed border-slate-200 text-slate-500 hover:border-orange-500 hover:text-orange-600 hover:bg-orange-50/30 w-full rounded-xl px-3 py-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Agregar pago con F2
+                    {cart.length === 0 ? 'Agrega productos para registrar pagos' : 'Agregar pago con F2'}
                   </button>
                 )}
               </div>
@@ -2023,10 +2031,11 @@ export function PosTerminal() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    if (cart.length === 0) return toast.error('Agrega productos al ticket antes de registrar pagos.');
                     if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
                     setPanel('pay');
                   }}
-                  disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
+                  disabled={cart.length === 0 || allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
                 >
                   <CreditCard className="size-4" /> F2 Pago
                 </Button>
@@ -2938,6 +2947,10 @@ export function PosTerminal() {
   }
 
   function addQuickPayment(paymentMethodId: number): void {
+    if (cart.length === 0) {
+      toast.error('Agrega productos al ticket antes de registrar pagos.');
+      return;
+    }
     const configured = allowedPaymentMethods.find((item) => item.id === paymentMethodId);
     if (!configured) return;
     addPaymentLine((configured.method ?? 'other') as PosPaymentMethod, paymentMethodId);
@@ -3761,60 +3774,113 @@ function PaymentChip({
   const rateType = rateTypes.find((rate) => rate.id === payment.exchange_rate_type_id) ?? null;
   const baseAmount = paymentBaseAmount(payment);
 
+  const handleMethodSelect = (newMethodId: number) => {
+    const target = methods.find((m) => m.id === newMethodId);
+    if (!target) return;
+    const curMode = target.currency_mode ?? 'USD';
+    const nextCurrency = curMode === 'VES' ? 'VES' : 'USD';
+    onChange({
+      payment_method_id: target.id,
+      method: (target.method ?? 'other') as PosPaymentMethod,
+      currency: nextCurrency,
+      reference: target.requires_reference ? (payment.reference ?? '') : payment.reference,
+    });
+  };
+
   return (
-    <div className="border-border bg-bg/40 rounded border p-2">
-      <div className="grid grid-cols-[minmax(0,1fr)_112px_auto] items-center gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold">
+    <div className="border-slate-200 bg-white rounded-xl border p-3 shadow-xs space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {locked ? (
+            <span className="font-bold text-sm text-slate-800 truncate">
               {selectedMethod?.name ?? methodLabel(payment.method)}
-            </p>
-            <Badge variant="info">{payment.currency}</Badge>
-          </div>
-          <p className="text-text-muted mt-1 text-xs">
+            </span>
+          ) : (
+            <Select
+              value={payment.payment_method_id ?? ''}
+              onChange={(e) => handleMethodSelect(Number(e.target.value))}
+              className="h-8 py-0 pl-2 pr-7 text-xs font-bold text-slate-800 bg-slate-50 border-slate-200 rounded-lg max-w-[200px]"
+            >
+              {methods.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+              {!methods.some((m) => m.id === payment.payment_method_id) && (
+                <option value={payment.payment_method_id ?? ''}>
+                  {selectedMethod?.name ?? methodLabel(payment.method)}
+                </option>
+              )}
+            </Select>
+          )}
+          <Badge variant={payment.currency === 'VES' ? 'info' : 'default'} className="shrink-0 text-[10px] px-1.5 py-0.5">
+            {payment.currency}
+          </Badge>
+        </div>
+
+        <button
+          type="button"
+          disabled={locked}
+          onClick={onRemove}
+          title="Eliminar método de pago"
+          className="size-8 inline-flex items-center justify-center rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
+        >
+          <X className="size-4 stroke-[2.5]" />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-medium text-slate-500 truncate">
             {payment.currency === 'VES' && rateType
               ? `${rateType.name}${payment.exchange_rate ? ` @ ${formatLocalNumber(payment.exchange_rate)}` : ''}`
               : methodLabel(payment.method)}
           </p>
         </div>
-        <Input
-          className="h-9 text-right text-sm font-semibold"
-          type="number"
-          min="0"
-          value={payment.amount}
-          disabled={locked}
-          onChange={(event) => onChange({ amount: Number(event.target.value) })}
-          placeholder="Monto"
-          data-testid={`pos-payment-amount-${payment.id}`}
-        />
-        <Button size="icon-sm" variant="ghost" disabled={locked} onClick={onRemove}>
-          <X className="size-4" />
-        </Button>
+        <div className="w-36 shrink-0">
+          <Input
+            className="h-9 text-right text-sm font-bold bg-slate-50/50 border-slate-200 rounded-lg focus:bg-white"
+            type="number"
+            min="0"
+            step="any"
+            value={payment.amount}
+            disabled={locked}
+            onChange={(event) => onChange({ amount: Number(event.target.value) })}
+            placeholder="Monto"
+            data-testid={`pos-payment-amount-${payment.id}`}
+          />
+        </div>
       </div>
 
       {(payment.currency === 'VES' && payment.exchange_rate) ||
       payment.method === 'cash' ||
       requiresReference ? (
-        <div className="mt-2 grid gap-2">
+        <div className="pt-1 border-t border-slate-100 grid gap-2">
           {payment.currency === 'VES' && payment.exchange_rate && (
-            <p className="text-text-muted text-xs font-medium">Equivale a {money(baseAmount)}</p>
+            <p className="text-slate-500 text-xs font-semibold">
+              Equivale a <span className="font-bold text-slate-800">{money(baseAmount)}</span>
+            </p>
           )}
           {payment.method === 'cash' && (
-            <Input
-              className="h-9 text-sm font-semibold"
-              type="number"
-              min="0"
-              value={payment.received_amount ?? ''}
-              placeholder="Recibido"
-              onChange={(event) => onChange({ received_amount: Number(event.target.value) })}
-            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium shrink-0">Recibido:</span>
+              <Input
+                className="h-8 text-sm font-semibold rounded-lg bg-slate-50"
+                type="number"
+                min="0"
+                step="any"
+                value={payment.received_amount ?? ''}
+                placeholder="Recibido"
+                onChange={(event) => onChange({ received_amount: Number(event.target.value) })}
+              />
+            </div>
           )}
           {requiresReference && (
             <Input
-              className="h-9 text-sm"
+              className="h-8 text-xs rounded-lg bg-slate-50"
               value={payment.reference ?? ''}
               placeholder={
-                selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'
+                selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia (opcional)'
               }
               onChange={(event) => onChange({ reference: event.target.value })}
               data-testid={`pos-payment-reference-${payment.id}`}
