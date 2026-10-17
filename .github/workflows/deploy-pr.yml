@@ -5,8 +5,9 @@ on:
     types: [opened, synchronize, reopened]
     branches:
       - main
-      - client/repuestosavilacar
       - client/balanzapro
+      - client/repuestosavilacar
+      - client/tiendasarens
 
 concurrency:
   group: deploy-pr-${{ github.event.pull_request.number }}
@@ -32,11 +33,14 @@ jobs:
             client/balanzapro)
               TARGET="balanzapro"
               ;;
+            client/tiendasarens)
+              TARGET="tiendasarens"
+              ;;
             main)
-              TARGET="balanzapro"
+              TARGET="inventarioarens"
               ;;
             *)
-              TARGET="balanzapro"
+              TARGET="inventarioarens"
               ;;
           esac
           
