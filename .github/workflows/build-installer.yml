@@ -1,0 +1,88 @@
+name: Generar Instalador Windows .EXE
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión del instalador (ej: 1.0.0, 1.0.1)'
+        required: true
+        default: '1.0.0'
+        type: string
+      target_instance:
+        description: 'Instancia web donde publicar el .exe para descarga directa'
+        required: true
+        default: 'balanzapro'
+        type: choice
+        options:
+          - balanzapro
+          - tiendasarens
+          - repuestosavilacar
+          - inventarioarens
+      create_github_release:
+        description: 'Crear también un Release en GitHub con el manifiesto'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: build-installer-${{ github.event.inputs.target_instance }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    name: Compilar y Publicar Instalador
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ejecutar compilacion y empaquetado en VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 20m
+          script: |
+            set -euo pipefail
+            
+            TARGET="${{ github.event.inputs.target_instance }}"
+            VERSION="${{ github.event.inputs.version }}"
+            
+            echo "=========================================================="
+            echo "Compilando instalador para $TARGET (v$VERSION)..."
+            echo "=========================================================="
+            
+            bash /opt/${TARGET}-cloud/scripts/build-installer-direct.sh \
+              --version="${VERSION}" \
+              --target="${TARGET}" \
+              --publish
+            
+            PORT="8086"
+            case "$TARGET" in
+              balanzapro) PORT="8086" ;;
+              tiendasarens) PORT="8082" ;;
+              repuestosavilacar) PORT="8084" ;;
+              inventarioarens) PORT="8080" ;;
+            esac
+            
+            echo "=========================================================="
+            echo "Verificando endpoint de descarga web..."
+            curl -fsS "http://127.0.0.1:${PORT}/downloads/BalanzaPro-Setup.manifest.json"
+            echo ""
+            echo "Instalador publicado exitosamente en /downloads/BalanzaPro-Setup.exe"
+            echo "=========================================================="
+
+      - name: Crear GitHub Release si fue solicitado
+        if: ${{ github.event.inputs.create_github_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}-setup
+          name: Instalador BalanzaPro v${{ github.event.inputs.version }}
+          body: |
+            Instalador Windows Todo-en-Uno generado automáticamente.
+            - Versión: ${{ github.event.inputs.version }}
+            - Instancia destino: ${{ github.event.inputs.target_instance }}
+            - Disponible para descarga directa en la sección de Configuración web.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
