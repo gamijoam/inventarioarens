@@ -78,8 +78,8 @@ En el VPS (`212.28.176.157`) conviven 4 instalaciones del mismo stack Laravel/Re
 | Instancia | Dominio público | Puerto Nginx | Socket FPM | Base de Datos | Rama Git activa |
 |---|---|---|---|---|---|
 | `/opt/inventarioarens-cloud` (Master) | `app.miinventariofacil.com` | `8080` | `/run/php/php8.4-fpm.sock` | `inventory_arens` | `main` |
-| `/opt/balanzapro-cloud` | `app.balanzapro.com` | `8086` | `/run/php/php8.4-fpm-balanzapro.sock` | `inventory_balanzapro` | `main` |
-| `/opt/tiendasarens-cloud` | `app.tiendasarens.com` | `8082` | `/run/php/php8.4-fpm-tiendasarens.sock` | `inventory_tiendasarens` | `main` |
+| `/opt/balanzapro-cloud` | `app.balanzapro.com` | `8086` | `/run/php/php8.4-fpm-balanzapro.sock` | `inventory_balanzapro` | `client/balanzapro` |
+| `/opt/tiendasarens-cloud` | `app.tiendasarens.com` | `8082` | `/run/php/php8.4-fpm-tiendasarens.sock` | `inventory_tiendasarens` | `client/tiendasarens` |
 | `/opt/repuestosavilacar-cloud` | `app.repuestosavilacar.com` | `8084` | `/run/php/php8.4-fpm-repuestosavilacar.sock` | `inventory_repuestosavilacar` | `client/repuestosavilacar` |
 
 - Todas las instancias son clones del mismo repositorio (`https://github.com/gamijoam/inventarioarens.git`).
