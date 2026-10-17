@@ -28,6 +28,8 @@ export interface ReportV2Params {
   lowStockOnly?: boolean;
   lowStockThreshold?: number;
   companyId?: number;
+  page?: number;
+  perPage?: number;
   limit?: number;
 }
 
@@ -43,6 +45,8 @@ export function buildReportV2Query(params: ReportV2Params): string {
     query.set('low_stock_threshold', String(params.lowStockThreshold));
   }
   if (params.companyId) query.set('company_id', String(params.companyId));
+  if (params.page) query.set('page', String(params.page));
+  if (params.perPage) query.set('per_page', String(params.perPage));
   if (params.limit) query.set('limit', String(params.limit));
   return query.toString();
 }
@@ -53,7 +57,7 @@ export function useReportV2(code: string, params: ReportV2Params, enabled: boole
   return useQuery<ReportV2>({
     queryKey: ['reports', 'v2', code, query] as const,
     queryFn: async () =>
-      ReportV2Schema.parse(await getOne<unknown>(`/reports/v2/${code}?${query}`)),
+      ReportV2Schema.parse(await getOne<unknown>('/reports/v2/' + code + '?' + query)),
     enabled: enabled && code.length > 0,
     staleTime: 15_000,
   });
@@ -65,13 +69,13 @@ export async function downloadReportV2(
   format: 'csv' | 'xlsx' | 'pdf',
 ): Promise<void> {
   const query = buildReportV2Query(params);
-  const response = await api.get(`/reports/v2/${code}/export?${query}&format=${format}`, {
+  const response = await api.get('/reports/v2/' + code + '/export?' + query + '&format=' + format, {
     responseType: 'blob',
   });
   const url = URL.createObjectURL(response.data as Blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `${code}.${format}`;
+  anchor.download = code + '.' + format;
   anchor.click();
   URL.revokeObjectURL(url);
 }

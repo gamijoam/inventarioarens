@@ -2,10 +2,12 @@
 
 use App\Modules\Reports\Controllers\InventoryReportController;
 use App\Modules\Reports\Controllers\OperationalReportController;
+use App\Modules\Reports\Controllers\LegacyReportExportController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('reports')->group(function (): void {
     Route::get('catalog', [OperationalReportController::class, 'catalog']);
+    Route::get('export/{report}', LegacyReportExportController::class);
     Route::get('daily-operations', [OperationalReportController::class, 'dailyOperations']);
     Route::get('sales-detail', [OperationalReportController::class, 'salesDetail']);
     Route::get('cash-sessions', [OperationalReportController::class, 'cashSessions']);

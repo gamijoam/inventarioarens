@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   Banknote,
   Boxes,
@@ -31,6 +31,8 @@ import { useCan } from '@/permissions/useCan';
 import type { PaginationMeta } from '@/types/api';
 import {
   downloadCsv,
+  downloadLegacyReport,
+  downloadFinanceReport,
   useCashSessions,
   useDailyOperations,
   useFinancePayables,
@@ -53,13 +55,14 @@ import {
   type StockReportResponse,
   type StockReportRow,
 } from './api';
+import { useBranches, useWarehouses } from '@/features/inventory-center/api';
 import { cashMovementLabel } from './movementLabels';
 
 const MODULES = [
-  { key: 'daily', label: 'Dia operativo', icon: CalendarDays },
+  { key: 'daily', label: 'Día operativo', icon: CalendarDays },
   { key: 'sales', label: 'Ventas detalladas', icon: ReceiptText },
   { key: 'cash', label: 'Cajas y POS', icon: Banknote },
-  { key: 'payments', label: 'Metodos de pago', icon: Wallet },
+  { key: 'payments', label: 'Métodos de pago', icon: Wallet },
   { key: 'stock', label: 'Inventario', icon: Boxes },
   { key: 'movements', label: 'Movimientos', icon: ClipboardList },
   { key: 'finance', label: 'Finanzas', icon: Landmark },
@@ -69,14 +72,14 @@ const MOVEMENT_TYPES = [
   { value: 'all', label: 'Todos' },
   { value: 'purchase', label: 'Compra' },
   { value: 'sale', label: 'Venta' },
-  { value: 'sale_return', label: 'Devolucion' },
+  { value: 'sale_return', label: 'Devolución' },
   { value: 'adjustment_in', label: 'Ajuste entrada' },
   { value: 'adjustment_out', label: 'Ajuste salida' },
   { value: 'transfer_in', label: 'Traslado entrada' },
   { value: 'transfer_out', label: 'Traslado salida' },
   { value: 'transfer_request_in', label: 'Entrada interempresa' },
   { value: 'transfer_request_out', label: 'Salida interempresa' },
-  { value: 'damaged', label: 'Danado' },
+  { value: 'damaged', label: 'Dañado' },
 ];
 
 const FINANCE_STATUS = [
@@ -106,14 +109,22 @@ type ModuleKey = (typeof MODULES)[number]['key'];
 
 export type ReportsSearch = Partial<ReportFilters> & {
   module?: ModuleKey;
+  report?: string;
+  dimension?: string;
+  scope?: 'tenant' | 'organization';
+  low_stock_only?: boolean;
+  company_id?: number;
+  chart?: 'table' | 'bar' | 'line';
 };
 
 export function ReportsManager({
   search,
   onSearchChange,
+  showNavigation = true,
 }: {
   search: ReportsSearch;
   onSearchChange: (patch: ReportsSearch) => void;
+  showNavigation?: boolean;
 }) {
   const canLegacyReports = useCan(PERMISSIONS.REPORTS_VIEW);
   const canSalesPermission = useCan(PERMISSIONS.REPORTS_SALES_VIEW);
@@ -127,7 +138,7 @@ export function ReportsManager({
   const canCashReports = canLegacyReports || canCashPermission;
   const canInventoryReports = canLegacyReports || canInventoryPermission;
   const canMovementReports = canLegacyReports || canMovementPermission;
-  const canExport = canLegacyReports || canExportPermission;
+  const canExport = canExportPermission;
 
   const availableModules = MODULES.filter((module) => {
     if (module.key === 'daily') return canSalesReports || canCashReports;
@@ -141,6 +152,13 @@ export function ReportsManager({
   const activeModule = availableModules.some((module) => module.key === search.module)
     ? (search.module as ModuleKey)
     : availableModules[0]?.key;
+
+  const [draftDateFrom, setDraftDateFrom] = useState(search.date_from ?? '');
+  const [draftDateTo, setDraftDateTo] = useState(search.date_to ?? '');
+  useEffect(() => {
+    setDraftDateFrom(search.date_from ?? '');
+    setDraftDateTo(search.date_to ?? '');
+  }, [search.date_from, search.date_to]);
 
   const filters: ReportFilters = {
     ...search,
@@ -156,7 +174,11 @@ export function ReportsManager({
   const cash = useCashSessions(filters, activeModule === 'cash');
   const payments = usePaymentMethodsReport(filters, activeModule === 'payments');
   const stock = useStockReport(filters, activeModule === 'stock');
-  const lowStock = useLowStockReport(filters, canInventoryReports);
+  const lowStock = useLowStockReport(filters, activeModule === 'stock' && canInventoryReports);
+  const usesBranchFilter = ['sales', 'cash', 'payments'].includes(activeModule ?? '');
+  const usesWarehouseFilter = ['sales', 'stock', 'movements'].includes(activeModule ?? '');
+  const { data: branches = [] } = useBranches({ enabled: usesBranchFilter });
+  const { data: warehouses = [] } = useWarehouses({ enabled: usesWarehouseFilter });
   const movements = useMovementReport(filters, activeModule === 'movements');
   const financeSummary = useFinanceSummary(
     filters,
@@ -167,6 +189,21 @@ export function ReportsManager({
     canFinanceReports && activeModule === 'finance',
   );
   const payables = useFinancePayables(filters, canFinanceReports && activeModule === 'finance');
+  const activeError = activeModule === 'daily'
+    ? daily.isError
+    : activeModule === 'sales'
+      ? sales.isError
+      : activeModule === 'cash'
+        ? cash.isError
+        : activeModule === 'payments'
+          ? payments.isError
+          : activeModule === 'stock'
+            ? stock.isError
+            : activeModule === 'movements'
+              ? movements.isError
+              : activeModule === 'finance'
+                ? financeSummary.isError || receivables.isError || payables.isError
+                : false;
 
   if (availableModules.length === 0) {
     return (
@@ -206,8 +243,8 @@ export function ReportsManager({
   }
 
   return (
-    <div className="space-y-4">
-      <section className="grid grid-cols-2 gap-2 lg:grid-cols-7">
+    <div className="space-y-3">
+      {showNavigation && <section className="grid grid-cols-2 gap-2 lg:grid-cols-7">
         {availableModules.map((module) => {
           const Icon = module.icon;
           const active = activeModule === module.key;
@@ -225,58 +262,92 @@ export function ReportsManager({
             </button>
           );
         })}
-      </section>
+      </section>}
 
       <Card>
-        <CardContent className="grid grid-cols-1 gap-3 p-4 md:grid-cols-6">
-          <Field label="Dia">
-            <Input
-              type="date"
-              value={filters.date ?? ''}
-              onChange={(event) => updateFilter('date', event.target.value || undefined)}
-            />
-          </Field>
-          <Field label="Desde">
-            <Input
-              type="date"
-              value={filters.date_from ?? ''}
-              onChange={(event) => updateFilter('date_from', event.target.value || undefined)}
-            />
-          </Field>
-          <Field label="Hasta">
-            <Input
-              type="date"
-              value={filters.date_to ?? ''}
-              onChange={(event) => updateFilter('date_to', event.target.value || undefined)}
-            />
-          </Field>
-          <Field label="Sucursal ID">
-            <Input
-              inputMode="numeric"
-              value={filters.branch_id ?? ''}
-              onChange={(event) =>
-                updateFilter('branch_id', parseOptionalNumber(event.target.value))
-              }
-            />
-          </Field>
-          <Field label="Almacen ID">
-            <Input
-              inputMode="numeric"
-              value={filters.warehouse_id ?? ''}
-              onChange={(event) =>
-                updateFilter('warehouse_id', parseOptionalNumber(event.target.value))
-              }
-            />
-          </Field>
-          <div className="flex items-end">
-            <Button type="button" variant="outline" className="w-full" onClick={refreshActive}>
+        <CardContent className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 lg:grid-cols-6">
+          {activeModule === 'daily' ? (
+            <Field label="Día del reporte">
+              <Input
+                type="date"
+                value={filters.date ?? ''}
+                onChange={(event) => updateFilter('date', event.target.value || undefined)}
+              />
+            </Field>
+          ) : (
+            <>
+              <Field label="Desde">
+                <Input
+                  type="date"
+                  className="min-h-11"
+                  value={draftDateFrom}
+                  onChange={(event) => setDraftDateFrom(event.target.value)}
+                />
+              </Field>
+              <Field label="Hasta">
+                <Input
+                  type="date"
+                  className="min-h-11"
+                  value={draftDateTo}
+                  onChange={(event) => setDraftDateTo(event.target.value)}
+                />
+              </Field>
+            </>
+          )}
+          {usesBranchFilter && (
+            <Field label="Sucursal">
+              <Select
+                className="min-h-11"
+                value={filters.branch_id ? String(filters.branch_id) : ''}
+                onChange={(event) => updateFilter('branch_id', parseOptionalNumber(event.target.value))}
+              >
+                <option value="">Todas las sucursales</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          {usesWarehouseFilter && (
+            <Field label="Almacén">
+              <Select
+                className="min-h-11"
+                value={filters.warehouse_id ? String(filters.warehouse_id) : ''}
+                onChange={(event) => updateFilter('warehouse_id', parseOptionalNumber(event.target.value))}
+              >
+                <option value="">Todos los almacenes</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            {activeModule !== 'daily' && (draftDateFrom !== (search.date_from ?? '') || draftDateTo !== (search.date_to ?? '')) && (
+              <Button
+                type="button"
+                variant="primary"
+                className="min-h-11 flex-1"
+                onClick={() => onSearchChange({
+                  ...search,
+                  date_from: draftDateFrom || undefined,
+                  date_to: draftDateTo || undefined,
+                  page: 1,
+                })}
+              >
+                Aplicar período
+              </Button>
+            )}
+            <Button type="button" variant="outline" className="min-h-11 flex-1" onClick={refreshActive}>
               <RefreshCw className="size-4" /> Actualizar
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {activeModule === 'daily' && (
+      {activeError && <ReportLoadError onRetry={refreshActive} />}
+
+      {!activeError && activeModule === 'daily' && (
         <DailyPanel
           data={daily.data}
           isLoading={daily.isLoading}
@@ -287,7 +358,7 @@ export function ReportsManager({
           }
         />
       )}
-      {activeModule === 'sales' && (
+      {!activeError && activeModule === 'sales' && (
         <SalesDetailPanel
           data={sales.data}
           isLoading={sales.isLoading}
@@ -297,7 +368,7 @@ export function ReportsManager({
           onPageChange={(page) => updateFilter('page', page)}
         />
       )}
-      {activeModule === 'cash' && (
+      {!activeError && activeModule === 'cash' && (
         <CashSessionsPanel
           data={cash.data}
           isLoading={cash.isLoading}
@@ -307,14 +378,15 @@ export function ReportsManager({
           onPageChange={(page) => updateFilter('page', page)}
         />
       )}
-      {activeModule === 'payments' && (
+      {!activeError && activeModule === 'payments' && (
         <PaymentsPanel
           rows={payments.data ?? []}
           isLoading={payments.isLoading}
           canExport={canExport}
+          filters={filters}
         />
       )}
-      {activeModule === 'stock' && (
+      {!activeError && activeModule === 'stock' && (
         <StockPanel
           data={stock.data}
           lowStockCount={stock.data?.summary?.low_stock_count ?? lowStock.data?.length ?? 0}
@@ -325,7 +397,7 @@ export function ReportsManager({
           onPageChange={(page) => updateFilter('page', page)}
         />
       )}
-      {activeModule === 'movements' && (
+      {!activeError && activeModule === 'movements' && (
         <MovementsPanel
           data={movements.data}
           isLoading={movements.isLoading}
@@ -335,7 +407,7 @@ export function ReportsManager({
           onPageChange={(page) => updateFilter('page', page)}
         />
       )}
-      {activeModule === 'finance' && (
+      {!activeError && activeModule === 'finance' && (
         <FinancePanel
           summary={financeSummary.data}
           receivables={receivables.data ?? []}
@@ -414,7 +486,7 @@ function DailyPanel({
           helper={`${data.cash.open_count} abiertas / ${data.cash.closed_count} cerradas`}
         />
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
         <div className="border-border rounded-md border p-3">
           <h3 className="font-semibold">Alertas operativas</h3>
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -473,10 +545,10 @@ function SalesDetailPanel({
       }
       onExport={
         canExport
-          ? () => downloadCsv('reporte-ventas-detalladas.csv', rows.map(compactSale))
+          ? () => void downloadLegacyReport('sales', filters)
           : undefined
       }
-      disabledExport={rows.length === 0}
+      disabledExport={data?.meta?.total === 0}
     >
       {isLoading ? (
         <TableSkeleton />
@@ -525,13 +597,13 @@ function CashSessionsPanel({
           ))}
         </Select>
       }
-      onExport={canExport ? () => downloadCsv('reporte-cajas.csv', rows) : undefined}
-      disabledExport={rows.length === 0}
+      onExport={canExport ? () => void downloadLegacyReport('cash', filters) : undefined}
+      disabledExport={data?.meta?.total === 0}
     >
       {isLoading || !data ? (
         <TableSkeleton />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <MiniTotal label="Abiertas" value={String(data.summary.open_count)} />
             <MiniTotal label="Cerradas" value={String(data.summary.closed_count)} />
@@ -557,16 +629,18 @@ function PaymentsPanel({
   rows,
   isLoading,
   canExport,
+  filters,
 }: {
   rows: PaymentMethodsReport;
   isLoading: boolean;
   canExport: boolean;
+  filters: ReportFilters;
 }) {
   return (
     <ReportPanel
       title="Metodos de pago"
       description="Desglose de cobros capturados por metodo, moneda y referencias faltantes."
-      onExport={canExport ? () => downloadCsv('reporte-metodos-pago.csv', rows) : undefined}
+      onExport={canExport ? () => void downloadLegacyReport('payments', { ...filters, limit: 100 }) : undefined}
       disabledExport={rows.length === 0}
     >
       {isLoading ? <TableSkeleton /> : <PaymentMethodsTable rows={rows} />}
@@ -632,8 +706,8 @@ function StockPanel({
           </div>
         </div>
       }
-      onExport={canExport ? () => downloadCsv('reporte-inventario.csv', rows) : undefined}
-      disabledExport={rows.length === 0}
+      onExport={canExport ? () => void downloadLegacyReport('stock', filters) : undefined}
+      disabledExport={data?.meta?.total === 0}
     >
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
         <MiniTotal
@@ -700,8 +774,8 @@ function MovementsPanel({
           </Select>
         </div>
       }
-      onExport={canExport ? () => downloadCsv('reporte-movimientos.csv', rows) : undefined}
-      disabledExport={rows.length === 0}
+      onExport={canExport ? () => void downloadLegacyReport('movements', filters) : undefined}
+      disabledExport={data?.meta?.total === 0}
     >
       {isLoading ? (
         <TableSkeleton />
@@ -750,7 +824,7 @@ function FinancePanel({
       }
       onExport={
         canExport
-          ? () => downloadCsv('reporte-finanzas.csv', [...receivables, ...payables])
+          ? () => void downloadFinanceReport(filters)
           : undefined
       }
       disabledExport={receivables.length + payables.length === 0}
@@ -758,7 +832,7 @@ function FinancePanel({
       {isLoading ? (
         <TableSkeleton />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <MiniTotal
               label="Cobranza recibida"
@@ -777,6 +851,22 @@ function FinancePanel({
         </div>
       )}
     </ReportPanel>
+  );
+}
+
+function ReportLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-start justify-between gap-3 p-3 sm:flex-row sm:items-center">
+        <div role="alert">
+          <p className="font-semibold text-text-primary">No se pudo cargar este informe</p>
+          <p className="text-text-muted mt-1 text-sm">Tus filtros siguen disponibles. Intenta actualizar el reporte.</p>
+        </div>
+        <Button type="button" variant="outline" className="min-h-11" onClick={onRetry}>
+          <RefreshCw className="size-4" /> Reintentar
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -837,10 +927,10 @@ function ReportPanel({
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 px-3 pt-3 pb-1">
         <div>
-          <CardTitle>{title}</CardTitle>
-          {description && <p className="text-text-muted mt-1 text-sm">{description}</p>}
+          <CardTitle className="text-sm">{title}</CardTitle>
+          {description && <p className="text-text-muted mt-0.5 text-xs">{description}</p>}
         </div>
         <div className="flex items-center gap-2">
           {extra}
@@ -857,7 +947,7 @@ function ReportPanel({
           )}
         </div>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="p-3 pt-1">{children}</CardContent>
     </Card>
   );
 }
@@ -870,18 +960,62 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
   }
 
   return (
-    <div className="border-border overflow-auto rounded-md border">
+    <>
+      <div className="space-y-2 md:hidden">
+        {rows.map((row) => (
+          <article key={row.id} className="border-border bg-surface rounded-md border p-3">
+            <button
+              type="button"
+              className="flex min-h-11 w-full items-start justify-between gap-3 text-left"
+              aria-expanded={expanded === row.id}
+              onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-semibold text-text-primary">Venta #{row.id} · {row.origin}</span>
+                <span className="text-text-muted mt-1 block text-xs">{formatDate(row.confirmed_at ?? row.created_at)}</span>
+              </span>
+              <StatusBadge status={row.status} />
+            </button>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+              <div><span className="block text-xs text-text-muted">Cliente</span><span className="break-words">{row.customer_name}</span></div>
+              <div><span className="block text-xs text-text-muted">Cajero</span><span className="break-words">{row.cashier_name ?? row.created_by_name ?? '-'}</span></div>
+              <div><span className="block text-xs text-text-muted">Total</span><span className="font-semibold tabular-nums">{formatMoney(row.total_base_amount)}</span></div>
+              <div><span className="block text-xs text-text-muted">Cobranza</span><span>{statusLabel(row.collection.status)}</span></div>
+            </div>
+            {expanded === row.id && (
+              <div className="border-border mt-3 space-y-2 border-t pt-3">
+                <DetailList
+                  title="Productos"
+                  rows={row.items.map((item) => `${item.product_name ?? 'Producto'} · ${formatQty(item.quantity)} und. · ${formatMoney(item.base_total_amount)}`)}
+                />
+                <DetailList
+                  title="Pagos"
+                  rows={row.payments.map((payment) => `${payment.payment_method_name ?? methodLabel(payment.method)} · ${payment.currency} ${payment.amount}`)}
+                  empty="Sin pagos registrados"
+                />
+                <DetailList
+                  title="Devoluciones"
+                  rows={row.returns.map((ret) => `#${ret.id} · ${statusLabel(ret.status)} · ${ret.reason ?? 'Sin motivo indicado'}`)}
+                  empty="Sin devoluciones"
+                />
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-auto rounded-md border md:block">
+
       <table className="w-full min-w-[1100px] text-sm">
         <thead className="bg-bg text-text-muted text-left text-xs uppercase">
           <tr>
-            <th className="px-3 py-2">Venta</th>
-            <th className="px-3 py-2">Fecha</th>
-            <th className="px-3 py-2">Cliente</th>
-            <th className="px-3 py-2">Cajero</th>
-            <th className="px-3 py-2">Estado</th>
-            <th className="px-3 py-2">Cobranza</th>
-            <th className="px-3 py-2 text-right">Total</th>
-            <th className="px-3 py-2 text-right">Items</th>
+            <th className="px-2 py-1.5">Venta</th>
+            <th className="px-2 py-1.5">Fecha</th>
+            <th className="px-2 py-1.5">Cliente</th>
+            <th className="px-2 py-1.5">Cajero</th>
+            <th className="px-2 py-1.5">Estado</th>
+            <th className="px-2 py-1.5">Cobranza</th>
+            <th className="px-2 py-1.5 text-right">Total</th>
+            <th className="px-2 py-1.5 text-right">Items</th>
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
@@ -915,7 +1049,7 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
                   className="cursor-pointer"
                   onClick={() => setExpanded(expanded === row.id ? null : row.id)}
                 >
-                  <td className="px-3 py-2 font-semibold">
+                  <td className="px-2 py-1.5 font-semibold">
                     <span className="inline-flex items-center gap-2">
                       {expanded === row.id ? (
                         <ChevronDown className="size-4" />
@@ -925,12 +1059,12 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
                       #{row.id} - {row.origin}
                     </span>
                   </td>
-                  <td className="text-text-muted px-3 py-2">
+                  <td className="text-text-muted px-2 py-1.5">
                     {formatDate(row.confirmed_at ?? row.created_at)}
                   </td>
-                  <td className="px-3 py-2">{row.customer_name}</td>
-                  <td className="px-3 py-2">{row.cashier_name ?? row.created_by_name ?? '-'}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">{row.customer_name}</td>
+                  <td className="px-2 py-1.5">{row.cashier_name ?? row.created_by_name ?? '-'}</td>
+                  <td className="px-2 py-1.5">
                     <StatusBadge status={row.status} />
                     {returnedProducts.length > 0 && (
                       <div className="mt-1 flex flex-col gap-0.5">
@@ -945,7 +1079,7 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1.5">
                     <StatusBadge status={row.collection.status} />
                     {row.collection.balance_base_amount > 0 && (
                       <span className="ml-2 font-semibold">
@@ -953,10 +1087,10 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
                     {formatMoney(row.total_base_amount)}
                   </td>
-                  <td className="px-3 py-2 text-right">{row.items_count ?? row.items.length}</td>
+                  <td className="px-2 py-1.5 text-right">{row.items_count ?? row.items.length}</td>
                 </tr>
                 {expanded === row.id && (
                   <tr>
@@ -1035,6 +1169,7 @@ function SalesDetailTable({ rows }: { rows: SalesDetail['rows'] }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -1043,52 +1178,74 @@ function CashSessionsTable({ rows }: { rows: CashSessions['rows'] }) {
     return <EmptyState title="Sin cajas" description="No hay turnos con los filtros actuales." />;
 
   return (
-    <div className="border-border overflow-auto rounded-md border">
+    <>
+      <div className="space-y-2 md:hidden">
+        {rows.map((row) => (
+          <article key={row.id} className="border-border bg-surface rounded-md border p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="truncate font-semibold text-text-primary">{row.cash_register_name ?? `Caja #${row.id}`}</h3>
+                <p className="text-text-muted mt-1 text-xs">{row.branch_name ?? 'Sin sucursal'} · {row.cashier_name ?? 'Sin cajero'}</p>
+              </div>
+              <StatusBadge status={row.status} />
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <div><dt className="text-xs text-text-muted">Esperado</dt><dd className="font-medium tabular-nums">{formatMoney(row.expected_base_amount)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Contado</dt><dd className="font-medium tabular-nums">{row.counted_base_amount == null ? 'Pendiente de cierre' : formatMoney(row.counted_base_amount)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Diferencia</dt><dd className="font-medium tabular-nums">{row.difference_base_amount == null ? '—' : formatMoney(row.difference_base_amount)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Apertura</dt><dd>{formatDate(row.opened_at)}</dd></div>
+            </dl>
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-auto rounded-md border md:block">
+
       <table className="w-full min-w-[1000px] text-sm">
         <thead className="bg-bg text-text-muted text-left text-xs uppercase">
           <tr>
-            <th className="px-3 py-2">Caja</th>
-            <th className="px-3 py-2">Sucursal</th>
-            <th className="px-3 py-2">Cajero</th>
-            <th className="px-3 py-2">Estado</th>
-            <th className="px-3 py-2 text-right">Fondo</th>
-            <th className="px-3 py-2 text-right">Esperado</th>
-            <th className="px-3 py-2 text-right">Contado</th>
-            <th className="px-3 py-2 text-right">Diferencia</th>
-            <th className="px-3 py-2">Apertura</th>
+            <th className="px-2 py-1.5">Caja</th>
+            <th className="px-2 py-1.5">Sucursal</th>
+            <th className="px-2 py-1.5">Cajero</th>
+            <th className="px-2 py-1.5">Estado</th>
+            <th className="px-2 py-1.5 text-right">Fondo</th>
+            <th className="px-2 py-1.5 text-right">Esperado</th>
+            <th className="px-2 py-1.5 text-right">Contado</th>
+            <th className="px-2 py-1.5 text-right">Diferencia</th>
+            <th className="px-2 py-1.5">Apertura</th>
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
           {rows.map((row) => (
             <tr key={row.id}>
-              <td className="px-3 py-2 font-semibold">
+              <td className="px-2 py-1.5 font-semibold">
                 {row.cash_register_name ?? `Caja #${row.id}`}
               </td>
-              <td className="px-3 py-2">{row.branch_name ?? '-'}</td>
-              <td className="px-3 py-2">{row.cashier_name ?? '-'}</td>
-              <td className="px-3 py-2">
+              <td className="px-2 py-1.5">{row.branch_name ?? '-'}</td>
+              <td className="px-2 py-1.5">{row.cashier_name ?? '-'}</td>
+              <td className="px-2 py-1.5">
                 <StatusBadge status={row.status} />
               </td>
-              <td className="px-3 py-2 text-right">{formatMoney(row.opening_base_amount)}</td>
-              <td className="px-3 py-2 text-right font-semibold">
+              <td className="px-2 py-1.5 text-right">{formatMoney(row.opening_base_amount)}</td>
+              <td className="px-2 py-1.5 text-right font-semibold">
                 {formatMoney(row.expected_base_amount)}
               </td>
-              <td className="px-3 py-2 text-right">
+              <td className="px-2 py-1.5 text-right">
                 {row.counted_base_amount === null || row.counted_base_amount === undefined
                   ? '-'
                   : formatMoney(row.counted_base_amount)}
               </td>
-              <td className="px-3 py-2 text-right">
+              <td className="px-2 py-1.5 text-right">
                 {row.difference_base_amount === null || row.difference_base_amount === undefined
                   ? 'Pendiente de cierre'
                   : formatMoney(row.difference_base_amount)}
               </td>
-              <td className="text-text-muted px-3 py-2">{formatDate(row.opened_at)}</td>
+              <td className="text-text-muted px-2 py-1.5">{formatDate(row.opened_at)}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -1099,34 +1256,49 @@ function StockTable({ rows }: { rows: StockReportRow[] }) {
     );
 
   return (
-    <div className="border-border overflow-auto rounded-md border">
+    <>
+      <div className="space-y-2 md:hidden">
+        {rows.map((row) => (
+          <article key={`${row.warehouse_id}-${row.product_id}`} className="border-border bg-surface rounded-md border p-3">
+            <div className="font-semibold text-text-primary">{row.product_name ?? `Producto #${row.product_id}`}</div>
+            <div className="text-text-muted text-xs">{row.sku ?? 'Sin SKU'} · {row.warehouse_name ?? `Almacén #${row.warehouse_id}`}</div>
+            <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+              <div><dt className="text-xs text-text-muted">Disponible</dt><dd className="font-semibold tabular-nums">{formatQty(row.quantity_available)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Reservado</dt><dd className="tabular-nums">{formatQty(row.quantity_reserved)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Dañado</dt><dd className="tabular-nums">{formatQty(row.quantity_damaged)}</dd></div>
+            </dl>
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-auto rounded-md border md:block">
+
       <table className="w-full min-w-[760px] text-sm">
         <thead className="bg-bg text-text-muted text-left text-xs uppercase">
           <tr>
-            <th className="px-3 py-2">Producto</th>
-            <th className="px-3 py-2">Almacen</th>
-            <th className="px-3 py-2 text-right">Disponible</th>
-            <th className="px-3 py-2 text-right">Reservado</th>
-            <th className="px-3 py-2 text-right">Danado</th>
+            <th className="px-2 py-1.5">Producto</th>
+            <th className="px-2 py-1.5">Almacen</th>
+            <th className="px-2 py-1.5 text-right">Disponible</th>
+            <th className="px-2 py-1.5 text-right">Reservado</th>
+            <th className="px-2 py-1.5 text-right">Danado</th>
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
           {rows.map((row) => (
             <tr key={`${row.warehouse_id}-${row.product_id}`}>
-              <td className="px-3 py-2">
+              <td className="px-2 py-1.5">
                 <div className="font-medium">
                   {row.product_name ?? `Producto #${row.product_id}`}
                 </div>
                 <div className="text-text-muted text-xs">{row.sku ?? '-'}</div>
               </td>
-              <td className="px-3 py-2">{row.warehouse_name ?? `Almacen #${row.warehouse_id}`}</td>
-              <td className="px-3 py-2 text-right font-semibold tabular-nums">
+              <td className="px-2 py-1.5">{row.warehouse_name ?? `Almacen #${row.warehouse_id}`}</td>
+              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
                 {formatQty(row.quantity_available)}
               </td>
-              <td className="px-3 py-2 text-right tabular-nums">
+              <td className="px-2 py-1.5 text-right tabular-nums">
                 {formatQty(row.quantity_reserved)}
               </td>
-              <td className="px-3 py-2 text-right tabular-nums">
+              <td className="px-2 py-1.5 text-right tabular-nums">
                 {formatQty(row.quantity_damaged)}
               </td>
             </tr>
@@ -1134,6 +1306,7 @@ function StockTable({ rows }: { rows: StockReportRow[] }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -1147,41 +1320,60 @@ function MovementsTable({ rows }: { rows: MovementReportRow[] }) {
     );
 
   return (
-    <div className="border-border overflow-auto rounded-md border">
+    <>
+      <div className="space-y-2 md:hidden">
+        {rows.map((row) => (
+          <article key={row.id} className="border-border bg-surface rounded-md border p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="font-semibold text-text-primary">{row.product_name ?? `Producto #${row.product_id}`}</div>
+              <Badge variant="info">{movementLabel(row.type)}</Badge>
+            </div>
+            <p className="text-text-muted mt-1 text-xs">{row.sku ?? 'Sin SKU'} · {row.warehouse_name ?? `Almacén #${row.warehouse_id}`}</p>
+            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium tabular-nums">{formatQty(row.quantity)} und.</span>
+              <span className="text-text-muted text-right">{formatDate(row.created_at)}</span>
+            </div>
+            {row.reason && <p className="mt-2 border-t pt-2 text-sm">{row.reason}</p>}
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-auto rounded-md border md:block">
+
       <table className="w-full min-w-[920px] text-sm">
         <thead className="bg-bg text-text-muted text-left text-xs uppercase">
           <tr>
-            <th className="px-3 py-2">Fecha</th>
-            <th className="px-3 py-2">Tipo</th>
-            <th className="px-3 py-2">Producto</th>
-            <th className="px-3 py-2">Almacen</th>
-            <th className="px-3 py-2 text-right">Cantidad</th>
-            <th className="px-3 py-2">Motivo</th>
+            <th className="px-2 py-1.5">Fecha</th>
+            <th className="px-2 py-1.5">Tipo</th>
+            <th className="px-2 py-1.5">Producto</th>
+            <th className="px-2 py-1.5">Almacen</th>
+            <th className="px-2 py-1.5 text-right">Cantidad</th>
+            <th className="px-2 py-1.5">Motivo</th>
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
           {rows.map((row) => (
             <tr key={row.id}>
-              <td className="text-text-muted px-3 py-2">{formatDate(row.created_at)}</td>
-              <td className="px-3 py-2">
+              <td className="text-text-muted px-2 py-1.5">{formatDate(row.created_at)}</td>
+              <td className="px-2 py-1.5">
                 <Badge variant="info">{movementLabel(row.type)}</Badge>
               </td>
-              <td className="px-3 py-2">
+              <td className="px-2 py-1.5">
                 <div className="font-medium">
                   {row.product_name ?? `Producto #${row.product_id}`}
                 </div>
                 <div className="text-text-muted text-xs">{row.sku ?? '-'}</div>
               </td>
-              <td className="px-3 py-2">{row.warehouse_name ?? `Almacen #${row.warehouse_id}`}</td>
-              <td className="px-3 py-2 text-right font-semibold tabular-nums">
+              <td className="px-2 py-1.5">{row.warehouse_name ?? `Almacen #${row.warehouse_id}`}</td>
+              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
                 {formatQty(row.quantity)}
               </td>
-              <td className="text-text-muted px-3 py-2">{row.reason ?? '-'}</td>
+              <td className="text-text-muted px-2 py-1.5">{row.reason ?? '-'}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -1190,32 +1382,51 @@ function PaymentMethodsTable({ rows }: { rows: PaymentMethodsReport }) {
     return <EmptyState title="Sin pagos" description="No hay pagos capturados en el periodo." />;
 
   return (
-    <div className="border-border overflow-auto rounded-md border">
+    <>
+      <div className="space-y-2 md:hidden">
+        {rows.map((row) => (
+          <article key={`${row.method}-${row.currency}-${row.name}`} className="border-border bg-surface rounded-md border p-3">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-semibold text-text-primary">{row.name}</h3>
+              <span className="text-text-muted text-xs">{row.currency ?? '—'}</span>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <div><dt className="text-xs text-text-muted">Pagos</dt><dd>{row.payments_count}</dd></div>
+              <div><dt className="text-xs text-text-muted">Referencias faltantes</dt><dd>{row.missing_reference_count}</dd></div>
+              <div><dt className="text-xs text-text-muted">Total ($)</dt><dd className="font-medium tabular-nums">{formatMoney(row.amount_base)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Total (Bs)</dt><dd className="tabular-nums">Bs {formatLocal(row.amount_local)}</dd></div>
+            </dl>
+          </article>
+        ))}
+      </div>
+      <div className="hidden overflow-auto rounded-md border md:block">
+
       <table className="w-full min-w-[620px] text-sm">
         <thead className="bg-bg text-text-muted text-left text-xs uppercase">
           <tr>
-            <th className="px-3 py-2">Metodo</th>
-            <th className="px-3 py-2">Moneda</th>
-            <th className="px-3 py-2 text-right">Pagos</th>
-            <th className="px-3 py-2 text-right">Total USD</th>
-            <th className="px-3 py-2 text-right">Total VES</th>
-            <th className="px-3 py-2 text-right">Sin ref.</th>
+            <th className="px-2 py-1.5">Metodo</th>
+            <th className="px-2 py-1.5">Moneda</th>
+            <th className="px-2 py-1.5 text-right">Pagos</th>
+            <th className="px-2 py-1.5 text-right">Total USD</th>
+            <th className="px-2 py-1.5 text-right">Total VES</th>
+            <th className="px-2 py-1.5 text-right">Sin ref.</th>
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
           {rows.map((row) => (
             <tr key={`${row.method}-${row.currency}-${row.name}`}>
-              <td className="px-3 py-2 font-semibold">{row.name}</td>
-              <td className="px-3 py-2">{row.currency ?? '-'}</td>
-              <td className="px-3 py-2 text-right">{row.payments_count}</td>
-              <td className="px-3 py-2 text-right font-semibold">{formatMoney(row.amount_base)}</td>
-              <td className="px-3 py-2 text-right">Bs {formatLocal(row.amount_local)}</td>
-              <td className="px-3 py-2 text-right">{row.missing_reference_count}</td>
+              <td className="px-2 py-1.5 font-semibold">{row.name}</td>
+              <td className="px-2 py-1.5">{row.currency ?? '-'}</td>
+              <td className="px-2 py-1.5 text-right">{row.payments_count}</td>
+              <td className="px-2 py-1.5 text-right font-semibold">{formatMoney(row.amount_base)}</td>
+              <td className="px-2 py-1.5 text-right">Bs {formatLocal(row.amount_local)}</td>
+              <td className="px-2 py-1.5 text-right">{row.missing_reference_count}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -1223,7 +1434,7 @@ function BreakdownTable({ rows }: { rows: CashSessions['movement_breakdown'] }) 
   if (rows.length === 0) return null;
   return (
     <div className="border-border rounded-md border">
-      <div className="border-border border-b px-3 py-2 font-semibold">Movimientos por tipo</div>
+      <div className="border-border border-b px-2 py-1.5 font-semibold">Movimientos por tipo</div>
       <PaymentMethodsTable
         rows={rows.map((row) => ({
           method: row.method,
@@ -1251,7 +1462,7 @@ function FinanceTable({
 }) {
   return (
     <div className="border-border rounded-md border">
-      <div className="border-border border-b px-3 py-2 font-semibold">{title}</div>
+      <div className="border-border border-b px-2 py-1.5 font-semibold">{title}</div>
       {rows.length === 0 ? (
         <div className="p-4">
           <EmptyState
@@ -1263,19 +1474,19 @@ function FinanceTable({
         <table className="w-full text-sm">
           <thead className="bg-bg text-text-muted text-left text-xs uppercase">
             <tr>
-              <th className="px-3 py-2">{partyLabel}</th>
-              <th className="px-3 py-2">Estado</th>
-              <th className="px-3 py-2 text-right">Saldo</th>
+              <th className="px-2 py-1.5">{partyLabel}</th>
+              <th className="px-2 py-1.5">Estado</th>
+              <th className="px-2 py-1.5 text-right">Saldo</th>
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
             {rows.slice(0, 10).map((row) => (
               <tr key={`${title}-${row.id}`}>
-                <td className="px-3 py-2">{financePartyName(row)}</td>
-                <td className="px-3 py-2">
+                <td className="px-2 py-1.5">{financePartyName(row)}</td>
+                <td className="px-2 py-1.5">
                   <StatusBadge status={row.status} />
                 </td>
-                <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
                   {formatMoney(row.balance_base_amount)}
                 </td>
               </tr>
@@ -1329,13 +1540,13 @@ function Metric({
     tone === 'danger' ? 'text-danger' : tone === 'warning' ? 'text-warning' : 'text-primary';
   return (
     <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-4">
+      <CardContent className="flex items-start justify-between gap-2 p-3">
         <div>
           <p className="text-text-muted text-xs font-medium uppercase">{label}</p>
-          <p className={`mt-1 text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
+          <p className={`mt-0.5 text-lg font-semibold tabular-nums ${toneClass}`}>{value}</p>
           <p className="text-text-muted mt-1 text-xs">{helper}</p>
         </div>
-        <Icon className={`size-5 ${toneClass}`} />
+        <Icon className="size-4" />
       </CardContent>
     </Card>
   );
@@ -1353,7 +1564,7 @@ function MiniTotal({
   return (
     <div className="border-border rounded-md border p-3">
       <div className="text-text-muted text-sm">{label}</div>
-      <div className="mt-2 text-xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
       {helper && <div className="text-text-muted mt-1 text-xs">{helper}</div>}
     </div>
   );
@@ -1409,8 +1620,8 @@ function StatusBadge({ status }: { status: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <Label>{label}</Label>
-      <div className="mt-1">{children}</div>
+      <Label className="text-xs">{label}</Label>
+      <div className="mt-0.5">{children}</div>
     </div>
   );
 }
@@ -1506,29 +1717,6 @@ function statusLabel(status: string): string {
 function financePartyName(row: FinanceReceivableRow | FinancePayableRow): string {
   if ('paid_base_amount' in row) return row.supplier_name ?? 'Proveedor sin nombre';
   return row.customer_name ?? 'Cliente sin nombre';
-}
-
-function compactSale(row: SalesDetail['rows'][number]): Record<string, unknown> {
-  const returnedProducts = row.returns
-    .filter((r) => r.status === 'processed')
-    .flatMap((r) => r.items ?? [])
-    .map((i) => `${i.product_name ?? 'Producto'} (${formatQty(i.quantity)} und.)`)
-    .join('; ');
-
-  return {
-    venta: row.id,
-    fecha: row.confirmed_at ?? row.created_at,
-    cliente: row.customer_name,
-    cajero: row.cashier_name ?? row.created_by_name,
-    estado: statusLabel(row.status),
-    devoluciones:
-      returnedProducts ||
-      (row.returns.length > 0 ? `${row.returns.length} devolucion(es)` : 'Sin devoluciones'),
-    cobranza: statusLabel(row.collection.status),
-    saldo: row.collection.balance_base_amount,
-    total: row.total_base_amount,
-    items: row.items_count,
-  };
 }
 
 function flattenDaily(data: DailyOperations): Array<Record<string, unknown>> {

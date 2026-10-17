@@ -198,8 +198,8 @@ describe('ReportsV2Manager', () => {
     await user.click(screen.getByText('Ventas por período'));
     await user.click(screen.getByTitle('Tabla'));
 
-    expect(screen.getByText('2026-08-17')).toBeInTheDocument();
-    expect(screen.getByText('Tasa Bs/USD')).toBeInTheDocument();
+    expect(screen.getAllByText('2026-08-17').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tasa Bs/USD').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Bs 51.800,00 (~$700,00)').length).toBeGreaterThan(0);
     expect(screen.getByText('Tasa promedio (Bs/USD)')).toBeInTheDocument();
     expect(mockUseReport).toHaveBeenCalled();
@@ -210,7 +210,7 @@ describe('ReportsV2Manager', () => {
     const { container } = render(<ReportsV2Manager />, { wrapper: makeWrapper() });
 
     await user.click(screen.getByText('Ventas por período'));
-    await user.click(screen.getByTitle('Barras'));
+    await user.click(screen.getByTitle('Línea'));
 
     expect(container.querySelector('svg')).not.toBeNull();
   });

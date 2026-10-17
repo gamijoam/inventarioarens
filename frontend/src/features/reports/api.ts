@@ -210,6 +210,36 @@ export function useFinancePayables(filters: ReportFilters, enabled: boolean) {
   });
 }
 
+export async function downloadFinanceReport(filters: ReportFilters): Promise<void> {
+  const query = new URLSearchParams();
+  if (filters.date_from) query.set('date_from', filters.date_from);
+  if (filters.date_to) query.set('date_to', filters.date_to);
+  if (filters.status && filters.status !== 'all') query.set('status', filters.status);
+  query.set('format', 'csv');
+  const response = await api.get('/finance-reports/export?' + query.toString(), { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data as Blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'reporte-finanzas.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadLegacyReport(
+  report: 'sales' | 'cash' | 'payments' | 'stock' | 'movements',
+  filters: ReportFilters,
+): Promise<void> {
+  const query = toQueryString(filters).replace(/^\?/, '');
+  const exportQuery = query ? query + '&format=csv' : 'format=csv';
+  const response = await api.get('/reports/export/' + report + '?' + exportQuery, { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data as Blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'reporte-' + report + '.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function downloadCsv(filename: string, rows: Array<Record<string, unknown>>): void {
   const headers = Object.keys(rows[0] ?? {});
   const body = [

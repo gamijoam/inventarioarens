@@ -381,7 +381,9 @@ class ReportV2ApiTest extends TestCase
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
 
         $content = $response->getContent();
-        $this->assertStringContainsString('sales_total', $content);
+        $this->assertStringContainsString('Ventas totales ($)', $content);
+        $this->assertStringContainsString('Tasa Bs/USD', $content);
+        $this->assertStringNotContainsString('Total usd', $content);
         $this->assertStringContainsString('Totales', $content);
         $this->assertStringContainsString('100', $content);
     }
@@ -414,6 +416,113 @@ class ReportV2ApiTest extends TestCase
             ->get('/api/reports/v2/sales_overview/export?format=pdf')
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_grouped_report_paginates_after_calculating_full_totals_and_keeps_chronological_chart(): void
+    {
+        $group = $this->group();
+        $tenant = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->useTenant($tenant);
+        $user = User::factory()->create();
+        $today = now(\App\Support\Time\BusinessDateRange::timezone())->startOfDay();
+
+        for ($day = 0; $day <= 200; $day++) {
+            Sale::create([
+                'status' => Sale::STATUS_CONFIRMED,
+                'total_base_amount' => 100,
+                'total_local_amount' => 7400,
+                'created_by' => $user->id,
+                'confirmed_at' => $today->copy()->subDays($day)->addHours(12),
+            ]);
+        }
+
+        $manager = $this->userInSpinoff($tenant, 'Gerente');
+        $from = $today->copy()->subDays(200)->toDateString();
+        $to = $today->toDateString();
+
+        $response = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/reports/v2/sales_overview?scope=tenant&dimension=day&page=5&per_page=50&date_from={$from}")
+            ->assertOk()
+            ->assertJsonPath('data.meta.current_page', 5)
+            ->assertJsonPath('data.meta.per_page', 50)
+            ->assertJsonPath('data.meta.total_rows', 201)
+            ->assertJsonPath('data.meta.last_page', 5)
+            ->assertJsonPath('data.totals.sales_count', 201)
+            ->assertJsonPath('data.totals.sales_total', 20100);
+
+        $this->assertCount(1, $response->json('data.rows'));
+        $chartLabels = collect($response->json('data.chart_rows'))->pluck('label')->all();
+        $sortedLabels = $chartLabels;
+        sort($sortedLabels);
+        $this->assertCount(201, $chartLabels);
+        $this->assertSame($sortedLabels, $chartLabels);
+
+        $export = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get("/api/reports/v2/sales_overview/export?format=csv&date_from={$from}&date_to={$to}&page=5&per_page=50")
+            ->assertOk();
+
+        $this->assertCount(203, explode("\n", trim($export->getContent())));
+
+        $legacyExport = $this
+            ->actingAs($manager)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get("/api/reports/export/sales?format=csv&date_from={$from}&date_to={$to}")
+            ->assertOk();
+
+        $this->assertCount(202, explode("\n", trim($legacyExport->streamedContent())));
+    }
+
+    public function test_finance_export_streams_both_accounts_in_spanish(): void
+    {
+        $group = $this->group();
+        $tenant = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $this->seedFinance($tenant);
+        $viewer = $this->userWithPermissions(
+            $tenant,
+            'FinanceViewerAndExporter',
+            ['finance_reports.view', 'finance_reports.export'],
+        );
+
+        $response = $this
+            ->actingAs($viewer)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/finance-reports/export?format=csv')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+        $content = $response->streamedContent();
+        $this->assertStringContainsString('Tipo de cuenta', $content);
+        $this->assertStringContainsString('Cliente 1', $content);
+        $this->assertStringContainsString('Proveedor 1', $content);
+        $this->assertStringContainsString('Por cobrar', $content);
+        $this->assertStringContainsString('Por pagar', $content);
+    }
+
+    public function test_exports_require_export_permission_even_when_report_read_is_allowed(): void
+    {
+        $group = $this->group();
+        $tenant = $this->spinoff($group, 'Tucacas', 'tucacas');
+        $salesViewer = $this->userWithPermissions($tenant, 'SalesViewerOnly', ['reports.sales.view']);
+
+        $this->actingAs($salesViewer)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/reports/v2/sales_overview/export?format=csv')
+            ->assertForbidden();
+
+        $this->actingAs($salesViewer)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/reports/export/sales?format=csv')
+            ->assertForbidden();
+
+        $financeViewer = $this->userWithPermissions($tenant, 'FinanceViewerOnly', ['finance_reports.view']);
+        $this->actingAs($financeViewer)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get('/api/finance-reports/export?format=csv')
+            ->assertForbidden();
     }
 
     public function test_export_requires_permission(): void
@@ -669,6 +778,18 @@ class ReportV2ApiTest extends TestCase
         $this->useTenant($tenant);
         $role = Role::findOrCreate($roleName, 'web');
         $role->syncPermissions(BasePermissions::ROLE_PERMISSIONS[$roleName] ?? []);
+        $user->assignRole($role);
+
+        return $user;
+    }
+
+    private function userWithPermissions(Tenant $tenant, string $roleName, array $permissions): User
+    {
+        $user = User::factory()->create();
+        $user->tenants()->attach($tenant, ['status' => 'active']);
+        $this->useTenant($tenant);
+        $role = Role::findOrCreate($roleName, 'web');
+        $role->syncPermissions($permissions);
         $user->assignRole($role);
 
         return $user;

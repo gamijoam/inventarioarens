@@ -18,16 +18,13 @@ abstract class BaseReportRequest extends FormRequest
 
         $definition = app(ReportRegistry::class)->get((string) $this->route('report'));
         if ($definition === null) {
-            // Deja que el controller responda 404 para codigos inexistentes.
             return true;
         }
 
         $scope = $this->input('scope', 'tenant');
-
         if ($scope !== 'organization') {
             return $user->can($definition->permission);
         }
-
         if (! $definition->orgSupported) {
             return false;
         }
@@ -36,7 +33,6 @@ abstract class BaseReportRequest extends FormRequest
         if ($current === null) {
             return false;
         }
-
         $group = $current->isGroup() ? $current : $current->parent()->first();
         if ($group === null || ! $group->isGroup() || ! $user->isStrictOwnerOf($group)) {
             return false;
@@ -46,7 +42,6 @@ abstract class BaseReportRequest extends FormRequest
         if (function_exists('setPermissionsTeamId')) {
             setPermissionsTeamId($group->id);
         }
-
         try {
             return $user->can('reports.organization.view');
         } finally {
@@ -62,12 +57,23 @@ abstract class BaseReportRequest extends FormRequest
             'scope' => ['nullable', Rule::in(['tenant', 'organization'])],
             'dimension' => ['nullable', 'string', 'max:40'],
             'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'date_to' => [
+                'nullable',
+                'date',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $from = $this->input('date_from');
+                    if ($value && $from && strcmp((string) $value, (string) $from) < 0) {
+                        $fail('La fecha final debe ser igual o posterior a la fecha inicial.');
+                    }
+                },
+            ],
             'warehouse_id' => ['nullable', 'integer'],
             'low_stock_only' => ['nullable', 'boolean'],
             'low_stock_threshold' => ['nullable', 'numeric', 'min:0'],
             'company_id' => ['nullable', 'integer'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ];
     }
 
@@ -78,20 +84,21 @@ abstract class BaseReportRequest extends FormRequest
             'dimension' => $this->input('dimension'),
             'date_from' => $this->input('date_from'),
             'date_to' => $this->input('date_to'),
-            'limit' => (int) $this->input('limit', 200),
+            'page' => (int) $this->input('page', 1),
+            'per_page' => (int) $this->input('per_page', $this->input('limit', 200)),
+            'limit' => $this->filled('limit') ? (int) $this->input('limit') : null,
         ];
 
-        if ($this->filled('warehouse_id')) {
-            $filters['warehouse_id'] = (int) $this->input('warehouse_id');
+        foreach (['warehouse_id', 'company_id'] as $key) {
+            if ($this->filled($key)) {
+                $filters[$key] = (int) $this->input($key);
+            }
         }
         if ($this->filled('low_stock_only')) {
             $filters['low_stock_only'] = $this->boolean('low_stock_only');
         }
         if ($this->filled('low_stock_threshold')) {
             $filters['low_stock_threshold'] = (float) $this->input('low_stock_threshold');
-        }
-        if ($this->filled('company_id')) {
-            $filters['company_id'] = (int) $this->input('company_id');
         }
 
         return $filters;

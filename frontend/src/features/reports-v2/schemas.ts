@@ -35,13 +35,22 @@ export const ReportV2Schema = z.object({
   scope: z.string(),
   period: z
     .object({
-      from: z.string(),
-      to: z.string(),
+      from: z.string().nullable().optional(),
+      to: z.string().nullable().optional(),
     })
     .nullable(),
   rows: z.array(ReportV2RowSchema),
+  chart_rows: z.array(ReportV2RowSchema).optional(),
   totals: z.record(z.unknown()),
   rate: z.number().nullable().optional(),
+  meta: z
+    .object({
+      current_page: z.number(),
+      per_page: z.number(),
+      total_rows: z.number(),
+      last_page: z.number(),
+    })
+    .optional(),
 });
 export type ReportV2 = z.infer<typeof ReportV2Schema>;
 
@@ -81,4 +90,8 @@ export const REPORT_MEASURE_LABELS: Record<string, string> = {
   stock_value: 'Valor de inventario',
   balance: 'Saldo',
   count: 'Nº de cuentas',
+  net_sales_total: 'Ventas netas',
+  reversed_total: 'Devoluciones',
+  reversed_local_total: 'Devoluciones (Bs)',
+  reversal_count: 'Cantidad de devoluciones',
 };

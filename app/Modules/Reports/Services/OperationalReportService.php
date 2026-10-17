@@ -686,8 +686,18 @@ class OperationalReportService
 
     private function dateRange(array $filters): array
     {
-        if (($filters['date_from'] ?? null) && ($filters['date_to'] ?? null)) {
-            return BusinessDateRange::range($filters['date_from'], $filters['date_to']);
+        $from = $filters['date_from'] ?? null;
+        $to = $filters['date_to'] ?? null;
+
+        if ($from || $to) {
+            return [
+                $from
+                    ? BusinessDateRange::startOfDay($from)
+                    : BusinessDateRange::startOfDay('1970-01-01'),
+                $to
+                    ? BusinessDateRange::endOfDay($to)
+                    : BusinessDateRange::endOfDay(now(BusinessDateRange::timezone())->toDateString()),
+            ];
         }
 
         $date = $filters['date'] ?? now(BusinessDateRange::timezone())->toDateString();
