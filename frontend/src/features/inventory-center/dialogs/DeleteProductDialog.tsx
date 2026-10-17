@@ -30,23 +30,25 @@ export function DeleteProductDialog({
     onOpenChange(false);
     onSuccess?.();
     // Si no hay onSuccess custom, navega al listado.
-    void navigate({
-      to: '/inventory',
-      search: {
-        search: '',
-        tracking: 'all',
-        stock: 'all',
-        status: 'all',
-        page: 1,
-        brand_id: undefined,
-        category_id: undefined,
-        tag_id: undefined,
-            warehouse_id: undefined,
-        low_stock_threshold: undefined,
-        sort_by: undefined,
-        sort_dir: undefined,
-      },
-    });
+    if (!onSuccess) {
+      void navigate({
+        to: '/inventory',
+        search: {
+          search: '',
+          tracking: 'all',
+          stock: 'all',
+          status: 'active',
+          page: 1,
+          brand_id: undefined,
+          category_id: undefined,
+          tag_id: undefined,
+          warehouse_id: undefined,
+          low_stock_threshold: undefined,
+          sort_by: undefined,
+          sort_dir: undefined,
+        },
+      });
+    }
   };
 
   return (

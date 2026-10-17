@@ -18,7 +18,7 @@ import { useProduct, useUpdateProduct, usePriceLists } from '@/features/inventor
 import { InlinePriceListCreate } from './InlinePriceListCreate';
 import { getMany, putOne } from '@/api/client';
 import { formatMoney } from '@/lib/money';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
   SALE_CURRENCIES,

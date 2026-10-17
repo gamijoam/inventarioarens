@@ -12,7 +12,7 @@ import {
   Sparkles,
   TrendingUp,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { getOne, postOne } from '@/api/client';
 import { Badge } from '@/components/ui/Badge';

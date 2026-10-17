@@ -11,7 +11,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { type StoreProductInput, type StoreProductValues, StoreProductSchema, UpdateProductSchema } from './schemas';
 import { useCreateProduct, useUpdateProduct } from './api';

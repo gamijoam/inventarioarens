@@ -7,7 +7,8 @@
  *  - open / onOpenChange: controlan visibilidad.
  *  - onSuccess?: callback tras guardar.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
+import { Button } from '@/components/ui/Button';
+import { Can } from '@/components/permissions/Can';
+import { PERMISSIONS } from '@/permissions/constants';
+import { DeleteProductDialog } from './DeleteProductDialog';
 import { useProductForm } from '../forms';
 import { ProductForm } from '../components/ProductForm';
 import { useTags } from '../api';
@@ -28,6 +33,7 @@ export interface EditProductDialogProps {
 }
 
 export function EditProductDialog({ product, open, onOpenChange, onSuccess }: EditProductDialogProps) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { data: tags = [] } = useTags();
 
   // Memoizamos los initialValues para evitar recrear el objeto en cada
@@ -63,28 +69,43 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
     <Dialog key={`edit-${product.id}-${open ? 'open' : 'closed'}`} open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[95vh] max-h-[95vh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
         <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
-          <div className="flex flex-col gap-1 pr-8">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
-                ERP
-              </span>
-              <DialogTitle className="text-base font-bold tracking-tight">
-                Editar: {product.name}
-              </DialogTitle>
-              {product.sku && (
-                <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
-                  SKU: {product.sku}
+          <div className="flex items-start justify-between gap-4 pr-14 sm:pr-16">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">
+                  ERP
                 </span>
-              )}
-              {product.barcode && (
-                <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
-                  BAR: {product.barcode}
-                </span>
-              )}
+                <DialogTitle className="text-base font-bold tracking-tight">
+                  Editar: {product.name}
+                </DialogTitle>
+                {product.sku && (
+                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
+                    SKU: {product.sku}
+                  </span>
+                )}
+                {product.barcode && (
+                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-bg border border-border text-text-muted">
+                    BAR: {product.barcode}
+                  </span>
+                )}
+              </div>
+              <DialogDescription className="text-xs text-text-muted">
+                Modifica los datos del producto. Usa [F1 - F9] para alternar entre pestañas y [Enter] para guardar.
+              </DialogDescription>
             </div>
-            <DialogDescription className="text-xs text-text-muted">
-              Modifica los datos del producto. Usa [F1 - F9] para alternar entre pestañas y [Enter] para guardar.
-            </DialogDescription>
+            <Can I={PERMISSIONS.PRODUCTS_DELETE}>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => setDeleteOpen(true)}
+                className="gap-1.5 text-xs h-8 px-3 shrink-0"
+                title="Eliminar producto"
+              >
+                <Trash2 className="size-3.5" />
+                <span>Eliminar producto</span>
+              </Button>
+            </Can>
           </div>
         </DialogHeader>
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -99,6 +120,17 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
           />
         </div>
       </DialogContent>
+
+      <DeleteProductDialog
+        productId={product.id}
+        productName={product.name}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onSuccess={() => {
+          onOpenChange(false);
+          onSuccess?.();
+        }}
+      />
     </Dialog>
   );
 }

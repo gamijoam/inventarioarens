@@ -85,7 +85,7 @@ export const Route = createFileRoute('/_authed/inventory/')({
       : 'all',
     status: ['all', 'active', 'inactive'].includes(search.status as string)
       ? (search.status as StatusFilter)
-      : 'all',
+      : 'active',
     page: typeof search.page === 'number' ? search.page : 1,
     brand_id:
       typeof search.brand_id === 'number'
@@ -221,7 +221,16 @@ function InventoryListPage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('inventory_view_mode', mode);
     }
+    if (mode === 'catalog' && search.status === 'all') {
+      updateSearch({ status: 'active' });
+    }
   };
+
+  useEffect(() => {
+    if (viewMode === 'catalog' && search.status === 'all') {
+      updateSearch({ status: 'active' });
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     if (uiPreferences?.inventory_table_columns) {
@@ -510,8 +519,8 @@ function InventoryListPage() {
               updateSearch({ status: e.target.value as StatusFilter })
             }
           >
-            <option value="all">Todos los estados</option>
             <option value="active">Activos</option>
+            <option value="all">Todos los estados</option>
             <option value="inactive">Inactivos</option>
           </select>
         </CardContent>

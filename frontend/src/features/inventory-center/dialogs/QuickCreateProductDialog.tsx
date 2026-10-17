@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import {
   Dialog,
@@ -699,7 +699,7 @@ export function QuickCreateProductDialog({
                                       : 'text-rose-600 dark:text-rose-400',
                                   )}
                                 >
-                                  Margen: +{margin}% (+${profit})
+                                  Margen: {Number(margin) >= 0 ? `+${margin}% (+$${profit})` : `${margin}% (-$${Math.abs(Number(profit)).toFixed(2)})`}
                                 </span>
                               )}
                             </div>

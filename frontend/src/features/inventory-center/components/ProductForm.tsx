@@ -147,7 +147,7 @@ export function ProductForm({
   const isInitialMount = useRef(true);
 
   const netSubtotal =
-    Number.isFinite(cost) && cost > 0 && Number.isFinite(margin) && margin >= 0
+    Number.isFinite(cost) && cost > 0 && Number.isFinite(margin)
       ? cost * (1 + margin / 100)
       : null;
 
@@ -594,7 +594,7 @@ export function ProductForm({
                 >
                   <Input
                     type="number"
-                    min="0"
+                    min="-999.99"
                     max="999.99"
                     step="0.01"
                     {...form.register('profit_margin', { valueAsNumber: true })}
@@ -889,8 +889,8 @@ export function ProductForm({
                     ) : null}
                   </div>
                   {form.watch('image_url') && (
-                    <div className="flex items-center gap-3 p-2 bg-surface-subtle/50 rounded-lg border border-border/60">
-                      <div className="size-16 rounded-md border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 p-3 bg-surface-subtle/50 rounded-lg border border-border/60">
+                      <div className="size-36 sm:size-44 rounded-lg border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0 p-1 shadow-inner">
                         <img
                           src={form.watch('image_url') || ''}
                           alt="Vista previa URL"
@@ -900,9 +900,9 @@ export function ProductForm({
                           }}
                         />
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 space-y-1 text-center sm:text-left">
                         <p className="text-xs font-semibold text-text-primary">Vista previa URL externa</p>
-                        <p className="text-xs text-text-muted truncate">{form.watch('image_url')}</p>
+                        <p className="text-xs text-text-muted break-all">{form.watch('image_url')}</p>
                       </div>
                     </div>
                   )}

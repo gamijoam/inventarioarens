@@ -632,8 +632,8 @@ export function InventoryErpWorkspace({
                 }
                 title="Filtrar por estado activo/inactivo"
               >
-                <option value="all">Estados</option>
                 <option value="active">Activos</option>
+                <option value="all">Estados (todos)</option>
                 <option value="inactive">Inactivos</option>
               </select>
             </div>

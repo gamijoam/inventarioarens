@@ -81,8 +81,9 @@ import {
 import { putOne } from '@/api/client';
 import { productKeys } from '@/features/inventory-center/queries';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
+import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
 import {
   STANDARD_UNITS_OF_MEASURE,
   type PriceList,
@@ -204,9 +205,11 @@ export function InventoryCatalogWorkspace({
   activeRate,
   onNewProduct,
 }: InventoryCatalogWorkspaceProps) {
+  const qc = useQueryClient();
   const [searchInput, setSearchInput] = useState(search);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
 
   // Categorías y selector inteligente con buscador (Opción 1)
   const { data: categories = [] } = useCategories();
@@ -466,13 +469,13 @@ export function InventoryCatalogWorkspace({
 
               <select
                 className="h-10 rounded-md border border-border bg-surface px-3 text-xs sm:text-sm font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-2xs"
-                value={status}
+                value={status || 'active'}
                 onChange={(e) => onStatusChange(e.target.value as any)}
                 data-testid="catalog-status-filter"
                 title="Filtrar por estado activo/inactivo"
               >
-                <option value="all">🔘 Todos</option>
                 <option value="active">Activos</option>
+                <option value="all">🔘 Todos</option>
                 <option value="inactive">Inactivos</option>
               </select>
 
@@ -613,12 +616,12 @@ export function InventoryCatalogWorkspace({
                 data-testid={`catalog-card-${product.id}`}
               >
                 {/* Contenedor de Imagen panorámica de tarjeta */}
-                <div className="relative w-full h-48 sm:h-52 bg-slate-50 dark:bg-zinc-900/60 overflow-hidden flex items-center justify-center border-b border-border/40">
+                <div className="relative w-full h-64 sm:h-72 bg-slate-50 dark:bg-zinc-900/60 overflow-hidden flex items-center justify-center border-b border-border/40">
                   {imageUrl ? (
                     <img
                       src={imageUrl}
                       alt={product.name}
-                      className="size-full object-contain p-2.5 group-hover:scale-105 transition-transform duration-300"
+                      className="size-full object-contain p-1.5 group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
@@ -638,7 +641,7 @@ export function InventoryCatalogWorkspace({
                       imageUrl ? 'hidden' : 'flex',
                     )}
                   >
-                    <Package className="size-12 stroke-[1.25] text-text-muted/60" />
+                    <Package className="size-16 stroke-[1.25] text-text-muted/60" />
                     <span className="text-xs font-medium tracking-wide uppercase text-text-muted/60">
                       Sin foto
                     </span>
@@ -668,6 +671,22 @@ export function InventoryCatalogWorkspace({
                       {categoryName}
                     </span>
                   )}
+
+                  {/* Botón flotante de Eliminación Rápida */}
+                  <Can I={PERMISSIONS.PRODUCTS_DELETE}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingProduct(product);
+                      }}
+                      title="Eliminar producto"
+                      className="absolute bottom-2.5 right-[6.5rem] p-2 rounded-lg bg-surface/95 text-rose-600 hover:bg-rose-600 hover:text-white border border-border/80 shadow-sm opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-150"
+                      data-testid={`catalog-delete-btn-${product.id}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </Can>
 
                   {/* Botón flotante de Edición Rápida (visible al hover o touch) */}
                   <button
@@ -877,6 +896,22 @@ export function InventoryCatalogWorkspace({
         />
       )}
 
+      {/* Dialog para Eliminar Producto desde tarjeta de catálogo */}
+      {deletingProduct && (
+        <DeleteProductDialog
+          productId={deletingProduct.id}
+          productName={deletingProduct.name}
+          open={Boolean(deletingProduct)}
+          onOpenChange={(open) => {
+            if (!open) setDeletingProduct(null);
+          }}
+          onSuccess={() => {
+            setDeletingProduct(null);
+            void qc.invalidateQueries({ queryKey: productKeys.lists() });
+          }}
+        />
+      )}
+
       {/* 6. Mini carrito: enviar productos al POS */}
       {pendingCount > 0 && (
         <button
@@ -1030,6 +1065,7 @@ function ProductCatalogDetailModal({
   const uploadImage = useUploadProductImage(product.id);
   const deleteImage = useDeleteProductImage(product.id);
   const { data: galleryImages = [] } = useProductImages(product.id);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: brands = [] } = useBrands();
@@ -1296,6 +1332,22 @@ function ProductCatalogDetailModal({
                 Ficha integral: edita datos, precios y consulta existencias en un solo lugar.
               </DialogDescription>
             </div>
+            <div className="flex items-center gap-2 mr-12 sm:mr-16 pr-4 shrink-0">
+              <Can I={PERMISSIONS.PRODUCTS_DELETE}>
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  className="gap-1.5 text-xs h-8 px-3 shrink-0"
+                  title="Eliminar producto"
+                  data-testid="catalog-detail-header-delete-btn"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span>Eliminar producto</span>
+                </Button>
+              </Can>
+            </div>
           </div>
         </DialogHeader>
 
@@ -1350,7 +1402,7 @@ function ProductCatalogDetailModal({
                   </div>
 
                   {/* Foto Principal Ampliada */}
-                  <div className="w-full h-48 sm:h-56 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-border/80 overflow-hidden flex items-center justify-center p-3 relative group shadow-inner">
+                  <div className="w-full h-72 sm:h-80 md:h-96 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-border/80 overflow-hidden flex items-center justify-center p-2 relative group shadow-inner">
                     {currentPreviewImage ? (
                       <img
                         src={currentPreviewImage}
@@ -1359,7 +1411,7 @@ function ProductCatalogDetailModal({
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-2 text-text-muted">
-                        <Package className="size-12 stroke-[1.2] text-text-muted/40" />
+                        <Package className="size-16 stroke-[1.2] text-text-muted/40" />
                         <span className="text-xs font-medium text-text-muted/70">
                           Sin imagen registrada
                         </span>
@@ -1382,7 +1434,7 @@ function ProductCatalogDetailModal({
                               type="button"
                               onClick={() => setActiveImageIndex(idx)}
                               className={cn(
-                                'size-14 rounded-lg border overflow-hidden p-1 bg-surface transition-all shadow-2xs',
+                                'size-16 sm:size-18 rounded-lg border overflow-hidden p-1 bg-surface transition-all shadow-2xs',
                                 isSelected
                                   ? 'border-primary ring-2 ring-primary/30'
                                   : 'border-border hover:border-text-secondary',
@@ -1735,7 +1787,7 @@ function ProductCatalogDetailModal({
                                       : 'text-rose-600 dark:text-rose-400',
                                   )}
                                 >
-                                  Margen: +{margin}% (+${profit})
+                                  Margen: {Number(margin) >= 0 ? `+${margin}% (+$${profit})` : `${margin}% (-$${Math.abs(Number(profit)).toFixed(2)})`}
                                 </span>
                               )}
                             </div>
@@ -2049,6 +2101,17 @@ function ProductCatalogDetailModal({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      <DeleteProductDialog
+        productId={product.id}
+        productName={product.name}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onSuccess={() => {
+          onOpenChange(false);
+          void qc.invalidateQueries({ queryKey: productKeys.lists() });
+        }}
+      />
     </Dialog>
   );
 }

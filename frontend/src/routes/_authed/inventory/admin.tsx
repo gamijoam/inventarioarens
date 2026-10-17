@@ -29,7 +29,7 @@ function AdminPage() {
               search: '',
               tracking: 'all',
               stock: 'all',
-              status: 'all',
+              status: 'active',
               page: 1,
               brand_id: undefined,
               category_id: undefined,

@@ -3,7 +3,7 @@
  * Invalida las queries correspondientes en success.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { postOne } from '@/api/client';
 import { type BulkAction, type BulkActionInput } from '@/features/inventory-center/schemas';

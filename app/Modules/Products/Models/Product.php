@@ -192,7 +192,7 @@ class Product extends Model
         $cost = (float) ($this->last_purchase_cost ?? $this->average_cost ?? 0);
         $price = (float) ($this->base_price ?? 0);
 
-        if ($cost > 0 && $price >= $cost) {
+        if ($cost > 0) {
             return round((($price - $cost) / $cost) * 100, 2);
         }
 

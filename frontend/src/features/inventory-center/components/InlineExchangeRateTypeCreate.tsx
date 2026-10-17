@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';

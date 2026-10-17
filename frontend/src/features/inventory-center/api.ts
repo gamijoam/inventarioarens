@@ -326,23 +326,25 @@ export function usePriceLists(activeOnly = true) {
   });
 }
 
-export function useWarehouses() {
+export function useWarehouses(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: catalogKeys.warehouses(),
     queryFn: async () => {
       const data = await getMany<unknown>('/warehouses');
       return z.array(WarehouseSchema).parse(data);
     },
+    enabled: options.enabled ?? true,
   });
 }
 
-export function useBranches() {
+export function useBranches(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: catalogKeys.branches(),
     queryFn: async () => {
       const data = await getMany<unknown>('/branches');
       return z.array(BranchSchema).parse(data);
     },
+    enabled: options.enabled ?? true,
   });
 }
 

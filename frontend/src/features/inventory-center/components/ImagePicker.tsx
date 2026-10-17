@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';

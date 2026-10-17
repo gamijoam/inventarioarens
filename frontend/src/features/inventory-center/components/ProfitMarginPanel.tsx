@@ -16,7 +16,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Calculator, Loader2, Save, TrendingUp, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -59,7 +59,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
   const isAutomatic = product.pricing_mode !== 'manual';
 
   const inputNum = marginInput.trim() === '' ? NaN : Number(marginInput);
-  const validInput = !Number.isNaN(inputNum) && inputNum >= 0 && inputNum <= 999.99;
+  const validInput = !Number.isNaN(inputNum) && inputNum >= -999.99 && inputNum <= 999.99;
 
   const projectedPrice = useMemo(() => {
     if (!validInput || lastCost == null) return null;
@@ -77,7 +77,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
 
   async function handleSave() {
     if (!validInput) {
-      toast.error('El margen debe estar entre 0 y 999.99.');
+      toast.error('El margen debe estar entre -999.99 y 999.99.');
       return;
     }
     setSaving(true);

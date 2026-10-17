@@ -19,7 +19,7 @@
  */
 import { useState } from 'react';
 import { Download, GripVertical, Star, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Spinner } from '@/components/ui/Spinner';
@@ -146,7 +146,7 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
         {ordered.map((image) => (
           <div
             key={image.id}
@@ -159,7 +159,7 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
             onDragLeave={() => setDragOverId(null)}
             onDrop={() => handleDrop(image.id)}
             className={cn(
-              'group relative aspect-square overflow-hidden rounded border bg-bg',
+              'group relative aspect-square overflow-hidden rounded-lg border bg-bg shadow-xs',
               dragOverId === image.id && dragId !== image.id
                 ? 'border-primary ring-2 ring-primary/30'
                 : 'border-border',
@@ -169,7 +169,7 @@ export function ImageGallery({ productId, images, canEdit = true }: ImageGallery
           >
             <ProductImageView
               image={image}
-              variant="thumb"
+              variant="medium"
               alt={image.alt ?? image.original_name ?? 'Imagen del producto'}
               fit="cover"
               lazy
