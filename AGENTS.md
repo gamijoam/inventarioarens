@@ -78,8 +78,8 @@ En el VPS (`212.28.176.157`) conviven 4 instalaciones del mismo stack Laravel/Re
 | Instancia | Dominio público | Puerto Nginx | Socket FPM | Base de Datos | Rama Git activa |
 |---|---|---|---|---|---|
 | `/opt/inventarioarens-cloud` (Master) | `app.miinventariofacil.com` | `8080` | `/run/php/php8.4-fpm.sock` | `inventory_arens` | `main` |
-| `/opt/balanzapro-cloud` | `app.balanzapro.com` | `8086` | `/run/php/php8.4-fpm-balanzapro.sock` | `inventory_balanzapro` | `main` |
-| `/opt/tiendasarens-cloud` | `app.tiendasarens.com` | `8082` | `/run/php/php8.4-fpm-tiendasarens.sock` | `inventory_tiendasarens` | `main` |
+| `/opt/balanzapro-cloud` | `app.balanzapro.com` | `8086` | `/run/php/php8.4-fpm-balanzapro.sock` | `inventory_balanzapro` | `client/balanzapro` |
+| `/opt/tiendasarens-cloud` | `app.tiendasarens.com` | `8082` | `/run/php/php8.4-fpm-tiendasarens.sock` | `inventory_tiendasarens` | `client/tiendasarens` |
 | `/opt/repuestosavilacar-cloud` | `app.repuestosavilacar.com` | `8084` | `/run/php/php8.4-fpm-repuestosavilacar.sock` | `inventory_repuestosavilacar` | `client/repuestosavilacar` |
 
 - Todas las instancias son clones del mismo repositorio (`https://github.com/gamijoam/inventarioarens.git`).
@@ -331,6 +331,27 @@ Compartida por cualquier cliente (web, móvil, CLI) que consuma el backend:
 
 **Ya NO hay**: portal Blade/JS vanilla, MaterialDesignThemes ni WPF. El frontend actual usa Vite,
 React, pnpm, Playwright y Electron; el backend continúa siendo API REST puro.
+
+### 7.1 Herramientas nativas en Go (2026-09-27)
+
+Suite de servicios y utilidades en Go puro (sin CGO) en `tools/` para acelerar tareas de fondo y reducir el consumo de memoria:
+- `tools/sync-daemon`: Daemon de sincronización local SQLite ↔ Nube (< 10 MB RAM, pure-Go `modernc.org/sqlite`).
+- `tools/printer-agent`: Servidor HTTP en `:17777` para impresión térmica ESC/POS y gaveta (< 5.5 MB RAM).
+- `tools/scale-agent`: Agente para balanzas y básculas en `:19999` con SSE en tiempo real (< 5.1 MB RAM).
+- `tools/catalog-search`: Buscador de catálogo multitenant en memoria en `:18888` (< 0.1 ms de respuesta, 1.4 MB RAM).
+- `tools/ws-hub`: Servidor WebSocket multitenant para eventos en tiempo real en `:16666` (1.6 MB RAM).
+- `tools/image-optimizer`: Optimizador y redimensionador de imágenes JPEG/PNG para catálogo y POS (< 4 MB RAM).
+- `tools/pdf-engine`: Generador vectorial ultrarrápido de tickets y facturas PDF en < 20 ms (< 3 MB RAM).
+- `tools/barcode-engine`: Generador de códigos de barra Code128, QR y EAN-13 para balanzas de pesaje en `:13333` (< 3 MB RAM).
+- `tools/watchdog`: Guardián y supervisor de microservicios con auto-recuperación (< 2.5 MB RAM).
+- Helper de emisión de eventos de Laravel a `ws-hub`: `App\Support\Realtime\WsHub` (`rate.updated`, `cash_register.*`, `pos.order.*`).
+- Clientes frontend TS: `frontend/src/lib/wsHub.ts` y `frontend/src/lib/catalogSearch.ts`.
+- Compilación unificada para Linux y Windows mediante `scripts/build-go-tools.sh`.
+- Integración en instaladores y servicios Windows (`SistemaInventarioPrinter`, `SistemaInventarioSync`, `SistemaInventarioWsHub`) vía WinSW en `scripts/install-local-motor.ps1`.
+- En el VPS corren como servicios permanentes de systemd:
+  - `balanzapro-catalog-search.service` en `127.0.0.1:18888`
+  - `balanzapro-ws-hub.service` en `127.0.0.1:16666`
+  - `vps-watchdog.service` (auto-healing de microservicios)
 
 ---
 
@@ -1063,6 +1084,18 @@ compartan el proceso supervisor. No usar un token de plataforma para sustituir e
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
+## MCP administrativo BalanzaPro (2026-10-07)
+
+- URL remota: `https://app.balanzapro.com/mcp-admin/mcp`.
+- Servicio root-only: `balanzapro-vps-mcp.service`, codigo en `tools/mcp/balanzapro_vps_mcp_server.py`.
+- OAuth 2.1 + PKCE es obligatorio; la configuracion y secretos viven fuera del repo en `/etc/balanzapro-vps-mcp.env` y `/var/lib/balanzapro-vps-mcp/`.
+- Tiene permisos administrativos totales del VPS por solicitud explicita del usuario. No exponer sus credenciales, su base OAuth ni su pantalla de login fuera de clientes de confianza.
+
+## MCP de diagnostico BalanzaPro (2026-10-08)
+
+- URL remota: `https://app.balanzapro.com/mcp`.
+- Es publico por solicitud explicita del usuario: no usa OAuth ni tokens. Solo expone la herramienta read-only `system-health`; no agregar herramientas que revelen datos de clientes, credenciales, configuracion sensible ni operaciones de escritura sin reintroducir autenticacion.
+
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
 Rules:
@@ -1109,8 +1142,17 @@ bundles renderer de los otros clientes.
 ### Auto-update y workers
 
 - El updater descarga en background y pregunta antes de reiniciar. El check corre al arrancar y cada
-  **1 minuto** (`UPDATE_CHECK_INTERVAL_MS` en `frontend/electron/auto-updater.cjs`) — corto para
-  verificar cambios rápido durante desarrollo.
+  **5 minutos** (`UPDATE_CHECK_INTERVAL_MS` en `frontend/electron/auto-updater.cjs`). Antes era 1 min,
+  pero se bajó para no golpear la red/IO constantemente en instalaciones de producción.
+- **Cliente de datos (2026-09-23)**: la SPA usa `createAppQueryClient()`
+  (`frontend/src/lib/queryClient.ts`). Para el Electron local (backend loopback) usa política
+  **local-first**: `networkMode: 'always'` en queries y mutaciones (no pausa el cobro sin internet)
+  y `refetchOnReconnect: false` (evita el burst de refetch al volver internet contra el servidor
+  monohilo). La web de nube conserva el modo `online` estándar. Entregado en el cliente **0.2.64**;
+  ver `docs/MOTOR_LOCAL_OFFLINE_OPCACHE_Y_SERVIDOR_2026-09-23.md`.
+- **SQLite local**: `DB_BUSY_TIMEOUT` es 15000ms (antes 5000) en `backend-runtime.cjs` y en los
+  scripts del Motor (`install-local-motor.ps1`, `install-backend-service.ps1`) para tolerar mejor la
+  contención entre el POS y el daemon de sync.
 - La sincronización de escritorio corre en el servicio Windows **`SistemaInventarioSync`** del Motor
   Local, independiente de las aplicaciones abiertas. Un solo supervisor procesa todas las empresas;
   Electron no crea tareas ni lanza daemons.
