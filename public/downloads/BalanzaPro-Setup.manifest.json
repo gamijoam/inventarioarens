@@ -1,0 +1,23 @@
+{
+  "format": "balanzapro-windows-installer",
+  "format_version": 1,
+  "name": "BalanzaPro-Setup.exe",
+  "version": "1.0.0-prueba-5",
+  "build_version": "1.0.1015.1255",
+  "built_at": "20261015T205525Z",
+  "source_commit": "042c3372f03aa786446763a745ca35a21a6d8f9a",
+  "source_tree_sha256": "c41e6c30a0204593a76f2ee741715db31a37f1fbfa392e7b62d618b405737610",
+  "size_bytes": 333507162,
+  "sha256": "00388a89282ed11fdff8d7d26b52729c0ec2f94293f610d6e858eae0fb789172",
+  "webview2_size_bytes": 214090448,
+  "webview2_sha256": "2a6add76c37bfa872eb8c2b22d45b3216b8e2a1f193e0774006340ff62ac5fa0",
+  "webview2_release": "2026-10-08T18:57:45Z",
+  "source_worktree_dirty": true,
+  "build_tools": {
+    "node": "v20.20.2",
+    "pnpm": "10.2.0",
+    "go": "go version go1.22.2 linux/amd64",
+    "nsis": "v3.09-4"
+  },
+  "architecture": "windows-x64"
+}

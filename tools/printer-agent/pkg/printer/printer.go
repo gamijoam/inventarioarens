@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"inventarioarens/printer-agent/pkg/escpos"
@@ -148,7 +149,7 @@ func (p *ThermalPrinter) printDriver(text string, printerName string) (*PrintRes
 
 	if runtime.GOOS == "windows" {
 		cmd = "powershell"
-		script := fmt.Sprintf("Get-Content -LiteralPath '%s' -Raw | Out-Printer -Name '%s'", tmpPath, printerName)
+		script := fmt.Sprintf("Get-Content -LiteralPath '%s' -Raw | Out-Printer -Name '%s'", escapePowerShellLiteral(tmpPath), escapePowerShellLiteral(printerName))
 		args = []string{"-NoProfile", "-NonInteractive", "-Command", script}
 	} else {
 		cmd = "lpr"
@@ -169,4 +170,9 @@ func (p *ThermalPrinter) printDriver(text string, printerName string) (*PrintRes
 		Message: fmt.Sprintf("Enviado a %s", printerName),
 		Printer: printerName,
 	}, nil
+}
+
+// escapePowerShellLiteral keeps filesystem paths and printer names inside a literal string.
+func escapePowerShellLiteral(value string) string {
+	return strings.ReplaceAll(value, "'", "''")
 }

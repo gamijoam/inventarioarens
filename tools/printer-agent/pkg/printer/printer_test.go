@@ -118,3 +118,9 @@ func TestSystemPrinter_WithMockExecutor(t *testing.T) {
 		t.Error("Executor was not called")
 	}
 }
+
+func TestEscapePowerShellLiteral(t *testing.T) {
+	if got := escapePowerShellLiteral("EPSON's Printer"); got != "EPSON''s Printer" {
+		t.Fatalf("escaped value = %q", got)
+	}
+}

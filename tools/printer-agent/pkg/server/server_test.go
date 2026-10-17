@@ -69,6 +69,8 @@ func TestHealthCheck(t *testing.T) {
 func TestOptionsCorsPreflight(t *testing.T) {
 	s := NewServer(17777, &mockPrinter{})
 	req := httptest.NewRequest("OPTIONS", "/print", nil)
+	req.Header.Set("Origin", "http://192.168.1.25:8787")
+	req.Header.Set("Access-Control-Request-Private-Network", "true")
 	w := httptest.NewRecorder()
 
 	s.ServeHTTP(w, req)
@@ -80,8 +82,22 @@ func TestOptionsCorsPreflight(t *testing.T) {
 		t.Fatalf("Expected 204 No Content, got %d", res.StatusCode)
 	}
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Errorf("Missing CORS origin header")
+	if w.Header().Get("Access-Control-Allow-Origin") != "http://192.168.1.25:8787" {
+		t.Errorf("Unexpected CORS origin header: %q", w.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if w.Header().Get("Access-Control-Allow-Private-Network") != "true" {
+		t.Errorf("Missing private-network preflight header")
+	}
+}
+
+func TestPrintRejectsUntrustedOrigin(t *testing.T) {
+	s := NewServer(17777, &mockPrinter{})
+	req := httptest.NewRequest(http.MethodPost, "/print", strings.NewReader(`{"output":"thermal"}`))
+	req.Header.Set("Origin", "https://attacker.example")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d", w.Code)
 	}
 }
 

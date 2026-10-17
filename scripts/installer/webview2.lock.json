@@ -1,0 +1,11 @@
+{
+  "format": "balanzapro-webview2-offline-runtime",
+  "architecture": "x64",
+  "distribution": "evergreen-standalone",
+  "source_url": "https://developer.microsoft.com/en-us/microsoft-edge/webview2/",
+  "link_id": "2124701",
+  "resolved_url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7c7c0e6f-8cb5-406a-8e51-df0c62011e55/MicrosoftEdgeWebView2RuntimeInstallerX64.exe",
+  "source_last_modified": "2026-10-08T18:57:45Z",
+  "size_bytes": 214090448,
+  "sha256": "2a6add76c37bfa872eb8c2b22d45b3216b8e2a1f193e0774006340ff62ac5fa0"
+}

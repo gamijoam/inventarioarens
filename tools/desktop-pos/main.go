@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -73,10 +72,16 @@ func main() {
 	exePath, _ := os.Executable()
 	exeDir := filepath.Dir(exePath)
 
-	logFile, err := os.OpenFile(filepath.Join(exeDir, "pos-debug.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
-	if err == nil {
-		log.SetOutput(io.MultiWriter(os.Stderr, logFile))
-		defer logFile.Close()
+	logAppData := os.Getenv("LOCALAPPDATA")
+	if logAppData == "" {
+		logAppData = os.TempDir()
+	}
+	logDir := filepath.Join(logAppData, "BalanzaPro", "logs")
+	if err := os.MkdirAll(logDir, 0700); err == nil {
+		if logFile, err := os.OpenFile(filepath.Join(logDir, "pos-debug.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
+			log.SetOutput(logFile)
+			defer logFile.Close()
+		}
 	}
 
 	server := flag.String("server", "http://localhost:8787", "URL del servidor MotorLocal")
@@ -113,12 +118,12 @@ func main() {
 	})
 
 	if w == nil {
-		setupExe := filepath.Join(exeDir, "MicrosoftEdgeWebview2Setup.exe")
+		setupExe := filepath.Join(exeDir, "MicrosoftEdgeWebView2RuntimeInstallerX64.exe")
 		msg := "No se pudo iniciar la interfaz de escritorio de BalanzaPro.\n\nEs necesario instalar Microsoft Edge WebView2 Runtime en esta PC."
 		if _, err := os.Stat(setupExe); err == nil {
-			msg += "\n\nSe iniciará el instalador oficial 'MicrosoftEdgeWebview2Setup.exe' incluido en la carpeta para instalarlo ahora."
+			msg += "\n\nSe iniciará el instalador independiente oficial incluido para completar o reparar WebView2."
 			showMessageBox("BalanzaPro POS - WebView2 Requerido", msg)
-			_ = exec.Command(setupExe).Start()
+			_ = exec.Command(setupExe, "/silent", "/install").Start()
 		} else {
 			msg += "\n\nPuedes descargarlo gratuitamente desde el sitio oficial de Microsoft."
 			showMessageBox("BalanzaPro POS - WebView2 Requerido", msg)

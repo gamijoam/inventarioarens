@@ -4,10 +4,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"inventarioarens/printer-agent/pkg/format"
@@ -41,18 +45,46 @@ func (s *Server) routes() {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// CORS Headers for all responses
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		if !trustedBrowserOrigin(origin) {
+			writeJSON(w, http.StatusForbidden, map[string]any{"ok": false, "message": "Origen no permitido."})
+			return
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Add("Vary", "Origin")
+	}
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.Header().Set("Access-Control-Max-Age", "86400")
-
+	if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+		w.Header().Set("Access-Control-Allow-Private-Network", "true")
+	}
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-
 	s.mux.ServeHTTP(w, r)
+}
+
+func trustedBrowserOrigin(origin string) bool {
+	if origin == "https://app.balanzapro.com" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil || (port != 8787 && port != 8789) {
+		return false
+	}
+	host := strings.Trim(parsed.Hostname(), "[]")
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return parsed.Scheme == "http"
+	}
+	ip := net.ParseIP(host)
+	return parsed.Scheme == "http" && ip != nil && (ip.IsPrivate() || ip.IsLoopback())
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

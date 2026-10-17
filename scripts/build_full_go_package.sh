@@ -1,270 +1,318 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
-PACKAGE_DIR="/tmp/windows-packager/BalanzaPro-Go-Completo"
-REPO_DIR="/opt/balanzapro-cloud"
-OUTPUT_ZIP="/opt/balanzapro-cloud/public/downloads/BalanzaPro-Go-Instalador-Completo.zip"
+REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="${APP_VERSION:-1.0.0}"
+WINDOWS_ARCH="x64"
 
-echo "=== 1. Limpiando y preparando carpeta del nuevo paquete ==="
-rm -rf "$PACKAGE_DIR"
-mkdir -p "$PACKAGE_DIR"
-mkdir -p "$PACKAGE_DIR/php"
-mkdir -p "$PACKAGE_DIR/backend"
-
-echo "=== 2. Copiando PHP Portable para Windows ==="
-cp -r /tmp/windows-packager/php/* "$PACKAGE_DIR/php/"
-
-echo "=== 2b. Copiando FrankenPHP Multi-Worker (Go + Caddy + PHP ZTS) ==="
-mkdir -p "$PACKAGE_DIR/frankenphp"
-cp -r "$REPO_DIR/build/windows-runtime/frankenphp"/* "$PACKAGE_DIR/frankenphp/"
-
-echo "=== 3. Copiando MotorLocal.exe en Go ==="
-cp "$REPO_DIR/tools/motor-local/bin/MotorLocal.exe" "$PACKAGE_DIR/MotorLocal.exe"
-
-echo "=== 4. Copiando Aplicaciones de Escritorio en Go (WebView2) ==="
-cp "$REPO_DIR/tools/desktop-pos/bin/BalanzaPro-POS-Go.exe" "$PACKAGE_DIR/BalanzaPro-POS.exe"
-cp "$REPO_DIR/tools/desktop-admin/bin/BalanzaPro-Admin-Go.exe" "$PACKAGE_DIR/BalanzaPro-Administrativo.exe"
-
-echo "=== 5. Copiando Backend Laravel ==="
-for dir in app bootstrap config database resources routes vendor; do
-    echo "  Copiando backend/$dir ..."
-    cp -r "$REPO_DIR/$dir" "$PACKAGE_DIR/backend/"
+if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$ ]]; then
+  echo "APP_VERSION contiene caracteres no válidos." >&2
+  exit 2
+fi
+for tool in git go pnpm rsync makensis curl python3 sha256sum file; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "Falta la herramienta requerida: $tool" >&2; exit 2; }
 done
-mkdir -p "$PACKAGE_DIR/backend/public"
-cp "$REPO_DIR/public/index.php" "$PACKAGE_DIR/backend/public/"
-cp "$REPO_DIR/public/robots.txt" "$PACKAGE_DIR/backend/public/" 2>/dev/null || true
-cp "$REPO_DIR/public/favicon.ico" "$PACKAGE_DIR/backend/public/" 2>/dev/null || true
-cp "$REPO_DIR/public/.htaccess" "$PACKAGE_DIR/backend/public/" 2>/dev/null || true
-rm -rf "$PACKAGE_DIR/backend/public/storage"
-mkdir -p "$PACKAGE_DIR/backend/public/storage/products"
-mkdir -p "$PACKAGE_DIR/backend/storage/app/public/products"
-mkdir -p "$PACKAGE_DIR/backend/storage/framework/cache"
-mkdir -p "$PACKAGE_DIR/backend/storage/framework/sessions"
-mkdir -p "$PACKAGE_DIR/backend/storage/framework/views"
-mkdir -p "$PACKAGE_DIR/backend/storage/logs"
-cp "$REPO_DIR/artisan" "$PACKAGE_DIR/backend/"
-cp "$REPO_DIR/server.php" "$PACKAGE_DIR/backend/"
-cp "$REPO_DIR/composer.json" "$PACKAGE_DIR/backend/"
 
-echo "=== 6. Configurando .env para SQLite local offline ==="
-cat << 'EOF' > "$PACKAGE_DIR/backend/.env"
-APP_NAME="BalanzaPro"
-APP_ENV=local
-APP_KEY=base64:EhyPsmUf21n4b1bH2f9y8zR1o0p7q4t6w9x1z4c7v0m=
-APP_DEBUG=false
-APP_URL=http://localhost:8787
+UTC_BUILD="$(date -u +%Y%m%dT%H%M%SZ)"
+BUILD_NUMERIC="1.0.$((10#$(date -u +%m) * 100 + 10#$(date -u +%d))).$((10#$(date -u +%H) * 60 + 10#$(date -u +%M)))"
+REVISION="$(git -C "$REPO_DIR" rev-parse HEAD)"
+CANDIDATE_ROOT="$REPO_DIR/build/installer-candidates"
+mkdir -p -- "$CANDIDATE_ROOT"
+CANDIDATE_DIR="$(mktemp -d "$CANDIDATE_ROOT/${VERSION//[^A-Za-z0-9._-]/_}-$UTC_BUILD.XXXXXX")"
+WORK_DIR="$(mktemp -d "/tmp/balanzapro-installer-build.XXXXXX")"
+PACKAGE_DIR="$CANDIDATE_DIR/payload"
+mkdir -p -- "$PACKAGE_DIR"
 
-APP_BUSINESS_TIMEZONE=America/Caracas
-APP_ALLOWED_ORIGINS_FOR_CSRF=http://localhost,http://localhost:8787,http://localhost:8788,http://localhost:8789,http://localhost:8798,http://localhost:8799,http://127.0.0.1,http://127.0.0.1:8787,http://127.0.0.1:8788,http://127.0.0.1:8789,http://127.0.0.1:8798,http://127.0.0.1:8799
+cleanup() {
+  rm -rf -- "$WORK_DIR"
+}
+trap cleanup EXIT
 
-APP_LOCALE=es
-APP_FALLBACK_LOCALE=es
+echo "Candidato: $CANDIDATE_DIR"
+echo "Revisión Git: $REVISION"
+echo "Versión: $VERSION ($BUILD_NUMERIC)"
 
-LOG_CHANNEL=stack
-LOG_STACK=single
-LOG_LEVEL=error
+FRONTEND_STAGE="$WORK_DIR/frontend"
+mkdir -p -- "$FRONTEND_STAGE"
+rsync -a --exclude=node_modules --exclude=dist --exclude=.vite --exclude=coverage \
+  --exclude=release --exclude=build --exclude=e2e --exclude=electron \
+  --exclude=.tanstack --exclude=.vscode --exclude=.husky \
+  "$REPO_DIR/frontend/" "$FRONTEND_STAGE/"
+pnpm --dir "$FRONTEND_STAGE" install --frozen-lockfile --store-dir "$WORK_DIR/pnpm-store"
+pnpm --dir "$FRONTEND_STAGE" run build:balanzapro-pos
+pnpm --dir "$FRONTEND_STAGE" run build:balanzapro-admin
 
-DB_CONNECTION=sqlite
-DB_DATABASE=database/database.sqlite
-DB_FOREIGN_KEYS=true
+WEB_DIR="$WORK_DIR/web"
+mkdir -p -- "$WEB_DIR/assets"
+cp -- "$FRONTEND_STAGE/dist/pos/index.html" "$WEB_DIR/pos.html"
+cp -- "$FRONTEND_STAGE/dist/admin/index.html" "$WEB_DIR/admin.html"
+rsync -a "$FRONTEND_STAGE/dist/pos/assets/" "$WEB_DIR/assets/"
+rsync -a "$FRONTEND_STAGE/dist/admin/assets/" "$WEB_DIR/assets/"
 
-SESSION_DRIVER=file
-CACHE_STORE=file
-QUEUE_CONNECTION=sync
-EOF
+MOTOR_STAGE="$WORK_DIR/motor-local"
+mkdir -p -- "$MOTOR_STAGE"
+rsync -a --exclude=bin --exclude=web "$REPO_DIR/tools/motor-local/" "$MOTOR_STAGE/"
+mkdir -p -- "$MOTOR_STAGE/web"
+rsync -a "$WEB_DIR/" "$MOTOR_STAGE/web/"
+(
+  cd "$MOTOR_STAGE"
+  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -ldflags="-s -w -H=windowsgui" -o "$PACKAGE_DIR/MotorLocal.exe" .
+)
 
-echo "=== 7. Copiando Base de Datos SQLite con Superleopard (1,988 productos) ==="
-cp "$REPO_DIR/storage/app/offline_packages/superleopard/database.sqlite" "$PACKAGE_DIR/backend/database/database.sqlite"
+build_go_tool() {
+  local module_dir="$1"
+  local output="$2"
+  local package="$3"
+  (
+    cd "$REPO_DIR/$module_dir"
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -ldflags="-s -w -H=windowsgui" -o "$PACKAGE_DIR/$output" "$package"
+  )
+}
+build_go_tool "tools/desktop-pos" "BalanzaPro-POS.exe" "."
+build_go_tool "tools/desktop-admin" "BalanzaPro-Administrativo.exe" "."
+build_go_tool "tools/printer-agent" "printer-agent.exe" "./cmd/printer-agent"
+build_go_tool "tools/scale-agent" "scale-agent.exe" "./cmd/scale-agent"
 
-echo "=== 8. Copiando Fotos Locales (1,902 fotos) ==="
-cp -r "$REPO_DIR/storage/app/offline_packages/superleopard/images/"* "$PACKAGE_DIR/backend/public/storage/products/"
-
-echo "=== 8b. Copiando Instalador Microsoft WebView2 Bootstrapper ==="
-if [ -f "/tmp/MicrosoftEdgeWebview2Setup.exe" ]; then
-    cp "/tmp/MicrosoftEdgeWebview2Setup.exe" "$PACKAGE_DIR/MicrosoftEdgeWebview2Setup.exe"
+BACKEND="$PACKAGE_DIR/backend"
+mkdir -p -- "$BACKEND"
+for dir in app bootstrap config resources routes vendor; do
+  test -d "$REPO_DIR/$dir" || { echo "Falta el directorio requerido: $dir" >&2; exit 2; }
+  rsync -a "$REPO_DIR/$dir/" "$BACKEND/$dir/"
+done
+mkdir -p -- "$BACKEND/database/migrations" "$BACKEND/database/seeders" "$BACKEND/public"
+rsync -a "$REPO_DIR/database/migrations/" "$BACKEND/database/migrations/"
+cp -- "$REPO_DIR/database/seeders/RolesAndPermissionsSeeder.php" "$BACKEND/database/seeders/RolesAndPermissionsSeeder.php"
+cp -- "$REPO_DIR/artisan" "$BACKEND/artisan"
+cp -- "$REPO_DIR/server.php" "$BACKEND/server.php"
+cp -- "$REPO_DIR/composer.json" "$BACKEND/composer.json"
+cp -- "$REPO_DIR/composer.lock" "$BACKEND/composer.lock"
+cp -- "$REPO_DIR/public/index.php" "$BACKEND/public/index.php"
+for file in robots.txt favicon.ico .htaccess; do
+  if [[ -f "$REPO_DIR/public/$file" ]]; then cp -- "$REPO_DIR/public/$file" "$BACKEND/public/$file"; fi
+done
+mkdir -p -- "$BACKEND/storage/app/public" "$BACKEND/storage/framework/cache/data" \
+  "$BACKEND/storage/framework/sessions" "$BACKEND/storage/framework/views" "$BACKEND/storage/logs"
+if find "$BACKEND" -type f \( -name '.env' -o -name '.env.*' -o -name '*.sqlite' -o -name '*.sqlite-wal' -o -name '*.sqlite-shm' \) -print -quit | grep -q .; then
+  echo "El backend genérico contiene un archivo de configuración o base privada." >&2
+  exit 2
 fi
 
-echo "=== 9. Creando Scripts de Inicio (.bat) ==="
-cat << 'EOF' > "$PACKAGE_DIR/Iniciar-POS.bat"
-@echo off
-title BalanzaPro POS
-cd /d "%~dp0"
+RUNTIME_SOURCE="$REPO_DIR/build/windows-runtime/frankenphp"
+for required in php.exe php.ini frankenphp.exe php8ts.dll ext/php_pdo_sqlite.dll ext/php_sqlite3.dll ext/php_zip.dll ext/php_mbstring.dll ext/php_fileinfo.dll ext/php_openssl.dll ext/php_curl.dll ext/php_gd.dll ext/php_intl.dll ext/php_sodium.dll; do
+  test -f "$RUNTIME_SOURCE/$required" || { echo "Falta el componente PHP requerido: $required" >&2; exit 2; }
+done
+mkdir -p -- "$PACKAGE_DIR/frankenphp/ext"
+find "$RUNTIME_SOURCE" -maxdepth 1 -type f -name '*.dll' -exec cp -- '{}' "$PACKAGE_DIR/frankenphp/" \;
+for file in php.exe frankenphp.exe php.ini README.md license.txt; do
+  if [[ -f "$RUNTIME_SOURCE/$file" ]]; then cp -- "$RUNTIME_SOURCE/$file" "$PACKAGE_DIR/frankenphp/$file"; fi
+done
+rsync -a "$RUNTIME_SOURCE/ext/" "$PACKAGE_DIR/frankenphp/ext/"
 
-if exist "%ProgramFiles(x86)%\Microsoft\EdgeWebView\Application" goto :pos_wv2_ok
-if exist "%ProgramFiles%\Microsoft\EdgeWebView\Application" goto :pos_wv2_ok
-if exist "%LocalAppData%\Microsoft\EdgeWebView\Application" goto :pos_wv2_ok
-
-reg query "HKLM\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :pos_wv2_ok
-reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :pos_wv2_ok
-reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :pos_wv2_ok
-
-if exist "%~dp0MicrosoftEdgeWebview2Setup.exe" (
-    echo Instalando componente necesario de Windows (WebView2)...
-    start /wait "" "%~dp0MicrosoftEdgeWebview2Setup.exe" /silent /install
+WEBVIEW_LOCK="$REPO_DIR/scripts/installer/webview2.lock.json"
+mapfile -t WEBVIEW_LOCK_VALUES < <(python3 - "$WEBVIEW_LOCK" <<'PYLOCK'
+import json, pathlib, sys
+lock = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))
+for key in ('resolved_url', 'sha256', 'size_bytes', 'source_last_modified'):
+    print(lock[key])
+PYLOCK
 )
-:pos_wv2_ok
+WEBVIEW_URL="${WEBVIEW_LOCK_VALUES[0]}"
+WEBVIEW_SHA="${WEBVIEW_LOCK_VALUES[1]}"
+WEBVIEW_SIZE_EXPECTED="${WEBVIEW_LOCK_VALUES[2]}"
+WEBVIEW_RELEASE="${WEBVIEW_LOCK_VALUES[3]}"
+WEBVIEW="$PACKAGE_DIR/MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+curl --fail --location --retry 3 --connect-timeout 30 --output "$WEBVIEW" "$WEBVIEW_URL"
+WEBVIEW_SIZE="$(stat -c %s "$WEBVIEW")"
+WEBVIEW_ACTUAL_SHA="$(sha256sum "$WEBVIEW" | cut -d ' ' -f1)"
+if [[ "$WEBVIEW_SIZE" != "$WEBVIEW_SIZE_EXPECTED" || "$WEBVIEW_ACTUAL_SHA" != "$WEBVIEW_SHA" ]] || ! file "$WEBVIEW" | grep -q 'PE32'; then
+  echo "El instalador independiente de WebView2 no coincide con el archivo x64 fijado." >&2
+  exit 2
+fi
+cp -- "$WEBVIEW_LOCK" "$PACKAGE_DIR/webview2.lock.json"
 
-tasklist /FI "IMAGENAME eq MotorLocal.exe" 2>NUL | find /I /N "MotorLocal.exe">NUL
-if "%ERRORLEVEL%"=="1" (
-    echo Iniciando Motor Local en segundo plano...
-    start "" "%~dp0MotorLocal.exe" -php="%~dp0php\php.exe" -backend="%~dp0backend" -port=8787 -backend-port=8788 -offline=true
-    timeout /t 1 /nobreak >nul
-)
+cp -- "$REPO_DIR/scripts/installer/install-helper.php" "$PACKAGE_DIR/installer-helper.php"
+cp -- "$REPO_DIR/scripts/installer/installer-preflight.ps1" "$PACKAGE_DIR/installer-preflight.ps1"
+cat > "$PACKAGE_DIR/LEEME.txt" <<'README'
+BALANZAPRO — INSTALACIÓN LOCAL
+================================
 
-echo Abriendo BalanzaPro POS...
-start "" "%~dp0BalanzaPro-POS.exe"
-exit
-EOF
+Esta PC central guarda los datos de la tienda en:
+C:\ProgramData\BalanzaPro
 
-cat << 'EOF' > "$PACKAGE_DIR/Iniciar-Administrativo.bat"
-@echo off
-title BalanzaPro Administrativo
-cd /d "%~dp0"
+INSTALACIÓN NUEVA
+1. Descarga el ZIP privado de datos desde Configuración de empresa.
+2. Deja BalanzaPro-Setup.exe y el archivo BalanzaPro-datos-*.zip en la misma carpeta.
+3. Ejecuta el Setup. Se verifican la empresa, los hashes y la integridad de SQLite.
+4. Al terminar, abre BalanzaPro POS o BalanzaPro Administrativo.
 
-if exist "%ProgramFiles(x86)%\Microsoft\EdgeWebView\Application" goto :admin_wv2_ok
-if exist "%ProgramFiles%\Microsoft\EdgeWebView\Application" goto :admin_wv2_ok
-if exist "%LocalAppData%\Microsoft\EdgeWebView\Application" goto :admin_wv2_ok
+ACTUALIZACIÓN
+Ejecuta el nuevo Setup sobre la instalación actual. El Setup ignora cualquier ZIP
+adyacente, crea una copia coherente de SQLite y conserva los archivos de recuperación.
+No borres C:\ProgramData\BalanzaPro.
 
-reg query "HKLM\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :admin_wv2_ok
-reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :admin_wv2_ok
-reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :admin_wv2_ok
+OTRAS TERMINALES
+Desde otra PC de la tienda, abre en el navegador la dirección LAN que muestra el Motor
+Local de esta PC. Esa terminal usa esta base local y no instala otra copia de SQLite.
 
-if exist "%~dp0MicrosoftEdgeWebview2Setup.exe" (
-    echo Instalando componente necesario de Windows (WebView2)...
-    start /wait "" "%~dp0MicrosoftEdgeWebview2Setup.exe" /silent /install
-)
-:admin_wv2_ok
+IMPRESORA Y BALANZA
+La PC central incluye los conectores locales. Una balanza requiere un perfil que coincida
+con su transporte y protocolo. El Setup deja la lectura desactivada si no hay perfil;
+no inventa un peso. La caja permite seguir con ingreso manual o con etiquetas de peso.
 
-tasklist /FI "IMAGENAME eq MotorLocal.exe" 2>NUL | find /I /N "MotorLocal.exe">NUL
-if "%ERRORLEVEL%"=="1" (
-    echo Iniciando Motor Local en segundo plano...
-    start "" "%~dp0MotorLocal.exe" -php="%~dp0php\php.exe" -backend="%~dp0backend" -port=8787 -backend-port=8788 -offline=true
-    timeout /t 1 /nobreak >nul
-)
+PERFILES DISPONIBLES EN ESTA VERSION
+- Serie/USB que Windows presenta como COM: scale_transport=serial y scale_device=COM3.
+  El número COM y velocidad/paridad deben coincidir con la balanza.
+- Ethernet con salida de texto por TCP: scale_transport=tcp y scale_tcp_address=IP:puerto.
+- USB HID que entrega el peso como texto ASCII: scale_transport=hid y scale_device=ruta HID.
+- scale_protocol admite generic y torrey. El analizador genérico entiende tramas de texto
+  comunes; Torrey admite el formato implementado para ese protocolo.
 
-echo Abriendo BalanzaPro Administrativo...
-start "" "%~dp0BalanzaPro-Administrativo.exe"
-exit
-EOF
+Para cambiar un perfil, cierra las ventanas POS y Administración, edita
+C:\ProgramData\BalanzaPro\config.json y reinicia Windows. Conserva los campos de empresa.
+Ejemplo para COM3; agrega estos campos al objeto JSON existente:
+  "scale_transport": "serial",
+  "scale_device": "COM3",
+  "scale_protocol": "generic",
+  "scale_baud_rate": 9600,
+  "scale_data_bits": 8,
+  "scale_parity": "none",
+  "scale_stop_bits": 1,
+  "scale_decimal_separator": ".",
+  "scale_unit": "kg"
 
-cat << 'EOF' > "$PACKAGE_DIR/Instalar-Accesos-Directos.bat"
-@echo off
-title Instalar Accesos Directos
-cd /d "%~dp0"
+Las balanzas USB que crean un puerto COM usan el perfil serie. Las balanzas HID con
+tramas binarias propietarias y protocolos de red distintos de TCP de texto requieren un
+adaptador específico y deben probarse con el modelo real; no se declaran compatibles por
+el solo hecho de ser USB o de red. Si no hay lectura estable, usa ingreso manual o etiquetas.
+README
 
-echo ==============================================================
-echo  Instalando accesos directos en tu Escritorio de Windows...
-echo ==============================================================
+for required in MotorLocal.exe BalanzaPro-POS.exe BalanzaPro-Administrativo.exe printer-agent.exe scale-agent.exe installer-helper.php installer-preflight.ps1 backend/database/seeders/RolesAndPermissionsSeeder.php LEEME.txt frankenphp/php.exe frankenphp/frankenphp.exe MicrosoftEdgeWebView2RuntimeInstallerX64.exe; do
+  test -f "$PACKAGE_DIR/$required" || { echo "El paquete está incompleto: $required" >&2; exit 2; }
+done
 
-if exist "%ProgramFiles(x86)%\Microsoft\EdgeWebView\Application" goto :shortcuts_wv2_ok
-if exist "%ProgramFiles%\Microsoft\EdgeWebView\Application" goto :shortcuts_wv2_ok
-if exist "%LocalAppData%\Microsoft\EdgeWebView\Application" goto :shortcuts_wv2_ok
+SOURCE_HASH="$(
+  {
+    find "$REPO_DIR/app" "$REPO_DIR/bootstrap" "$REPO_DIR/config" "$REPO_DIR/database/migrations" "$REPO_DIR/database/seeders" \
+      "$REPO_DIR/resources" "$REPO_DIR/routes" "$REPO_DIR/vendor" "$REPO_DIR/frontend" \
+      "$REPO_DIR/tools/motor-local" "$REPO_DIR/tools/desktop-pos" "$REPO_DIR/tools/desktop-admin" \
+      "$REPO_DIR/tools/printer-agent" "$REPO_DIR/tools/scale-agent" "$REPO_DIR/scripts/installer" \
+      -type f ! -path '*/bin/*' ! -path '*/node_modules/*' ! -path '*/dist/*' ! -path '*/.vite/*' \
+      ! -path '*/coverage/*' ! -path "$REPO_DIR/frontend/release/*" ! -path "$REPO_DIR/frontend/build/*" \
+      ! -path "$REPO_DIR/frontend/e2e/*" ! -path "$REPO_DIR/frontend/electron/*" \
+      ! -path "$REPO_DIR/frontend/.tanstack/*" ! -path "$REPO_DIR/frontend/.vscode/*" \
+      ! -path "$REPO_DIR/frontend/.husky/*" ! -name '.env' ! -name '.env.*' -print0
+    for file in artisan server.php composer.json composer.lock public/index.php public/favicon.ico public/robots.txt public/.htaccess scripts/build_full_go_package.sh frontend/.env.pos frontend/.env.admin; do
+      if [[ -f "$REPO_DIR/$file" ]]; then printf '%s\0' "$REPO_DIR/$file"; fi
+    done
+  } | sort -z | xargs -0 sha256sum | sha256sum | cut -d ' ' -f1
+)"
+SOURCE_DIRTY=0
+if git -C "$REPO_DIR" status --porcelain | grep -q .; then SOURCE_DIRTY=1; fi
+NODE_VERSION="$(node --version)"
+PNPM_VERSION="$(pnpm --version)"
+GO_VERSION="$(go version)"
+NSIS_VERSION="$(makensis -VERSION | head -n 1)"
+RUNTIME_HASH="$(
+  find "$PACKAGE_DIR/frankenphp" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d ' ' -f1
+)"
+python3 - "$PACKAGE_DIR" "$VERSION" "$BUILD_NUMERIC" "$UTC_BUILD" "$REVISION" "$SOURCE_HASH" "$RUNTIME_HASH" "$WEBVIEW_RELEASE" "$WEBVIEW_SHA" "$SOURCE_DIRTY" "$NODE_VERSION" "$PNPM_VERSION" "$GO_VERSION" "$NSIS_VERSION" <<'PY'
+import hashlib, json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+records = {}
+for path in sorted(p for p in root.rglob('*') if p.is_file() and p.name != 'payload-manifest.json'):
+    data = path.read_bytes()
+    records[path.relative_to(root).as_posix()] = {'size_bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+manifest = {
+    'format': 'balanzapro-windows-x64-payload',
+    'format_version': 1,
+    'version': sys.argv[2],
+    'build_version': sys.argv[3],
+    'built_at_utc': sys.argv[4],
+    'source_commit': sys.argv[5],
+    'source_tree_sha256': sys.argv[6],
+    'php_runtime_sha256': sys.argv[7],
+    'webview2_release': sys.argv[8],
+    'webview2_sha256': sys.argv[9],
+    'source_worktree_dirty': sys.argv[10] == '1',
+    'build_tools': {
+        'node': sys.argv[11],
+        'pnpm': sys.argv[12],
+        'go': sys.argv[13],
+        'nsis': sys.argv[14],
+    },
+    'files': records,
+}
+(root / 'payload-manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+PY
 
-reg query "HKLM\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :shortcuts_wv2_ok
-reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :shortcuts_wv2_ok
-reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" /v pv >nul 2>&1 && goto :shortcuts_wv2_ok
+OUTFILE="$CANDIDATE_DIR/BalanzaPro-Setup.exe"
+makensis -V3 -D"PACKAGE_DIR=$PACKAGE_DIR" -D"OUTPUT_PATH=$OUTFILE" \
+  -D"APP_VERSION=$VERSION" -D"BUILD_VERSION=$BUILD_NUMERIC" \
+  "$REPO_DIR/scripts/installer/installer.nsi"
 
-if exist "%~dp0MicrosoftEdgeWebview2Setup.exe" (
-    echo.
-    echo  Instalando Microsoft Edge WebView2 Runtime para Windows...
-    start /wait "" "%~dp0MicrosoftEdgeWebview2Setup.exe" /silent /install
-)
-:shortcuts_wv2_ok
+SETUP_SIZE="$(stat -c %s "$OUTFILE")"
+if [[ "$SETUP_SIZE" -lt 100000000 ]] || ! file "$OUTFILE" | grep -q 'PE32'; then
+  echo "El Setup generado no contiene un instalador Windows x64 esperado." >&2
+  exit 2
+fi
+SETUP_SHA="$(sha256sum "$OUTFILE" | cut -d ' ' -f1)"
+python3 - "$CANDIDATE_DIR/BalanzaPro-Setup.manifest.json" "$VERSION" "$BUILD_NUMERIC" "$UTC_BUILD" "$REVISION" "$SOURCE_HASH" "$OUTFILE" "$SETUP_SHA" "$SETUP_SIZE" "$WEBVIEW_SIZE" "$WEBVIEW_SHA" "$WEBVIEW_RELEASE" "$SOURCE_DIRTY" "$NODE_VERSION" "$PNPM_VERSION" "$GO_VERSION" "$NSIS_VERSION" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+manifest = {
+    'format': 'balanzapro-windows-installer',
+    'format_version': 1,
+    'name': 'BalanzaPro-Setup.exe',
+    'version': sys.argv[2],
+    'build_version': sys.argv[3],
+    'built_at': sys.argv[4],
+    'source_commit': sys.argv[5],
+    'source_tree_sha256': sys.argv[6],
+    'size_bytes': int(sys.argv[9]),
+    'sha256': sys.argv[8],
+    'webview2_size_bytes': int(sys.argv[10]),
+    'webview2_sha256': sys.argv[11],
+    'webview2_release': sys.argv[12],
+    'source_worktree_dirty': sys.argv[13] == '1',
+    'build_tools': {
+        'node': sys.argv[14],
+        'pnpm': sys.argv[15],
+        'go': sys.argv[16],
+        'nsis': sys.argv[17],
+    },
+    'architecture': 'windows-x64',
+}
+path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+PY
+sha256sum "$OUTFILE" "$CANDIDATE_DIR/BalanzaPro-Setup.manifest.json" > "$CANDIDATE_DIR/SHA256SUMS"
+test "$(sha256sum "$OUTFILE" | cut -d ' ' -f1)" = "$SETUP_SHA"
+python3 - "$PACKAGE_DIR/payload-manifest.json" "$PACKAGE_DIR" <<'PY'
+import hashlib, json, pathlib, sys
+manifest_path, root = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+for name, record in manifest['files'].items():
+    data = (root / name).read_bytes()
+    if len(data) != record['size_bytes'] or hashlib.sha256(data).hexdigest() != record['sha256']:
+        raise SystemExit('Falló la comprobación del paquete: ' + name)
+print('Payload validado:', len(manifest['files']), 'archivos')
+PY
 
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\BalanzaPro POS.lnk'); $s.TargetPath = '%~dp0BalanzaPro-POS.exe'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0BalanzaPro-POS.exe,0'; $s.Save()"
+echo "Setup candidato: $OUTFILE"
+echo "Manifiesto: $CANDIDATE_DIR/BalanzaPro-Setup.manifest.json"
+echo "Tamaño: $SETUP_SIZE bytes"
+echo "SHA-256: $SETUP_SHA"
+echo "La salida queda como candidato; no se copió a public/downloads."
 
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\BalanzaPro Administrativo.lnk'); $s.TargetPath = '%~dp0BalanzaPro-Administrativo.exe'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0BalanzaPro-Administrativo.exe,0'; $s.Save()"
-
-echo.
-echo ==============================================================
-echo Listo! Se crearon los accesos directos en tu Escritorio:
-echo   - BalanzaPro POS
-echo   - BalanzaPro Administrativo
-echo ==============================================================
-echo.
-pause
-EOF
-
-cat << 'EOF' > "$PACKAGE_DIR/Instalar-Servicio-Inicio.bat"
-@echo off
-title Configurar Inicio Automatico - BalanzaPro
-cd /d "%~dp0"
-
-echo ==============================================================
-echo  Configurando BalanzaPro Motor Local en inicio de Windows
-echo ==============================================================
-
-reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "BalanzaProMotorLocal" /t REG_SZ /d "\"%~dp0MotorLocal.exe\"" /f >nul 2>&1
-schtasks /Create /TN "BalanzaProMotorLocal" /TR "\"%~dp0MotorLocal.exe\"" /SC ONLOGON /RL HIGHEST /F >nul 2>&1
-
-echo.
-echo Iniciando Motor Local en segundo plano ahora...
-start "" "%~dp0MotorLocal.exe"
-
-echo.
-echo ==============================================================
-echo Listo! BalanzaPro ahora iniciara siempre de forma automatica
-echo con Windows. Podras abrir la app de inmediato sin demoras.
-echo ==============================================================
-echo.
-pause
-EOF
-
-cat << 'EOF' > "$PACKAGE_DIR/Desinstalar-Servicio-Inicio.bat"
-@echo off
-title Quitar Inicio Automatico - BalanzaPro
-cd /d "%~dp0"
-
-echo ==============================================================
-echo  Quitando inicio automatico de BalanzaPro Motor Local
-echo ==============================================================
-
-reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "BalanzaProMotorLocal" /f >nul 2>&1
-schtasks /Delete /TN "BalanzaProMotorLocal" /F >nul 2>&1
-taskkill /F /IM MotorLocal.exe /IM php.exe >nul 2>&1
-
-echo Listo. El servicio en segundo plano se detuvo y se quito del inicio.
-pause
-EOF
-
-cat << 'EOF' > "$PACKAGE_DIR/LEEME-INSTRUCCIONES.txt"
-==================================================================
-           BALANZAPRO - PAQUETE COMPLETO CON GO TODO-EN-UNO
-==================================================================
-
-Este paquete contiene TODO lo necesario para instalar y usar el
-sistema en una computadora NUEVA con Windows desde CERO (sin instalar
-PHP ni Node ni nada adicional).
-
-INSTRUCCIONES DE USO:
-1. Copia o extrae esta carpeta completa en tu computadora
-   (Recomendado: C:\BalanzaPro)
-
-2. Haz doble clic en:
-   "Instalar-Accesos-Directos.bat"
-   (Esto creara los iconos en tu Escritorio).
-
-3. Para abrir el sistema:
-   - Haz doble clic en el acceso directo del Escritorio:
-     "BalanzaPro POS"  o  "BalanzaPro Administrativo"
-   - O haz doble clic en "Iniciar-POS.bat" o "Iniciar-Administrativo.bat"
-
-ACCESO DESDE OTRAS COMPUTADORAS (RED LOCAL / LAN):
-Si tienes otras computadoras en la misma tienda o red Wi-Fi:
-1. Abre la consola de MotorLocal.exe para ver tu direccion IP
-   (ejemplo: http://192.168.1.50:8787)
-2. En las otras computadoras abre Google Chrome en esa direccion
-   y podras facturar directamente contra esta maquina.
-
-USUARIOS REGISTRADOS:
-- superleopard@gmail.com
-==================================================================
-EOF
-
-echo "=== 10. Empaquetando en ZIP final: $OUTPUT_ZIP ==="
-mkdir -p "$(dirname "$OUTPUT_ZIP")"
-cd /tmp/windows-packager
-zip -r -q "$OUTPUT_ZIP" "BalanzaPro-Go-Completo"
-
-echo "=== Listo! Paquete completo con Go generado en: $OUTPUT_ZIP ==="
-ls -lh "$OUTPUT_ZIP"
+if [[ "${1:-}" == "--publish" ]]; then
+  for confirmation in WINDOWS_CLEAN_INSTALL_VERIFIED TENANT_IMPORT_VERIFIED LAN_INSTALL_VERIFIED SCALE_HARDWARE_VERIFIED; do
+    if [[ "${!confirmation:-}" != "1" ]]; then
+      echo "Publicación bloqueada: falta confirmar $confirmation=1 con evidencia real." >&2
+      exit 3
+    fi
+  done
+  DOWNLOAD_DIR="$REPO_DIR/public/downloads"
+  mkdir -p -- "$DOWNLOAD_DIR"
+  install -m 0644 -- "$OUTFILE" "$DOWNLOAD_DIR/BalanzaPro-Setup.exe"
+  install -m 0644 -- "$CANDIDATE_DIR/BalanzaPro-Setup.manifest.json" "$DOWNLOAD_DIR/BalanzaPro-Setup.manifest.json"
+  echo "Setup publicado en $DOWNLOAD_DIR tras las verificaciones requeridas."
+fi
