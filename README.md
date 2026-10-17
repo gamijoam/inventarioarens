@@ -1,14 +1,32 @@
 # INVENTARIOARENS
 
-Backend SaaS modular multi-tenant de **gestión de inventario + punto de venta**, escrito en
-**Laravel 13 + PHP 8.3+ + PostgreSQL**. Es una **API REST pura** pensada para ser consumida
-desde un cliente HTTP (web, móvil o CLI).
-
-> **Estado (2026-07-13)**: el frontend anterior (portal web Blade/JS vanilla + escritorio WPF) fue
-> eliminado por completo. El nuevo cliente frontend se construirá como proyecto separado en una
-> fase posterior. Este repo es **backend puro**.
+SaaS modular multi-tenant de **gestión de inventario + punto de venta (POS)**, escrito en
+**Laravel 13 + PHP 8.4 + PostgreSQL** con cliente SPA web moderno en **React 18 + Vite + TypeScript**
+y aplicaciones de escritorio portátiles en **Go + WebView2**.
 
 ---
+
+## 🏢 Instancias en Producción y Ramas Git
+
+El sistema opera bajo una arquitectura multi-instancia en el VPS Contabo (`212.28.176.157`), donde cada vertical de negocio cuenta con su propia base de datos, puerto Nginx y rama dedicada en GitHub:
+
+| Negocio | Dominio Público | Puerto Nginx | Rama Git | Especialización |
+|---|---|---|---|---|
+| **BalanzaPro** | [`app.balanzapro.com`](https://app.balanzapro.com) | `8086` | `client/balanzapro` | Comercio con pesaje electrónico, agente de balanzas HID, precios flexibles y descarga de instalador `.exe`. |
+| **Repuestos Avilacar** | [`app.repuestosavilacar.com`](https://app.repuestosavilacar.com) | `8084` | `client/repuestosavilacar` | Venta de autopartes, buscador multitoken por repuesto y cobro POS protegido. |
+| **Tiendas Arens** | [`app.tiendasarens.com`](https://app.tiendasarens.com) | `8082` | `client/tiendasarens` | Retail y tiendas de ropa multi-sucursal con control de tallas y colores. |
+| **SaaS Master (Core)** | [`app.miinventariofacil.com`](https://app.miinventariofacil.com) | `8080` | `main` | Plataforma base compartida, administración SaaS de grupos y spinoffs. |
+
+> 📖 **Guía completa y detallada**: Consulta [`docs/INSTANCIAS_Y_RAMAS_PRODUCCION.md`](./docs/INSTANCIAS_Y_RAMAS_PRODUCCION.md) para ver la arquitectura de puertos, scripts CLI y flujos de despliegue.
+
+---
+
+## 🚀 Despliegue y CI/CD con GitHub Actions
+
+El repositorio cuenta con 3 flujos automatizados en la pestaña **Actions**:
+1. **Despliegue Manual por Instancia (`deploy-instance.yml`)**: Permite seleccionar rama origen y desplegar en cualquiera de las 4 instancias (o todas) con compilación en GitHub y conexión segura SSH.
+2. **Despliegue Automático por PR (`deploy-pr.yml`)**: Al abrir o actualizar una Pull Request hacia `client/balanzapro`, `client/repuestosavilacar`, `client/tiendasarens` o `main`, se compila y despliega automáticamente a su respectiva instancia.
+3. **Generar Instalador Windows .EXE (`build-installer.yml`)**: Compila bajo demanda el paquete instalador completo (`BalanzaPro-Setup.exe`) y lo publica en `/public/downloads/` para descarga web directa.
 
 ## Qué hace
 
@@ -136,14 +154,18 @@ Hay un set explícito de tests cross-tenant. Ver sección "Tests cross-tenant" e
 ---
 
 ## Infraestructura
+ 
+- **Local**: Windows + Laragon + PHP 8.4.23 + SQLite (`storage/framework/local-dev.sqlite`) o PostgreSQL 16.
+- **VPS nube canónico**: `212.28.176.157` (Contabo Ubuntu 24.04), Traefik (Docker) + Nginx + PHP-FPM 8.4 nativo + PostgreSQL 16 nativo.
+- **Dominios públicos**:
+  - `https://app.balanzapro.com` (BalanzaPro)
+  - `https://app.repuestosavilacar.com` (Repuestos Avilacar)
+  - `https://app.tiendasarens.com` (Tiendas Arens)
+  - `https://app.miinventariofacil.com` (SaaS Master)
+- **SSH al VPS**: `root@212.28.176.157` (clave root o llave SSH dedicada).
 
-- **Local**: Windows + Laragon + PHP 8.4.23 + PostgreSQL 16 (`127.0.0.1:5434`, DB `inventory_arens`).
-- **VPS nube**: `217.216.80.158` (Contabo Ubuntu 24.04), Nginx + PHP-FPM 8.4, PostgreSQL 16 nativo.
-- **Dominio público**: `https://app.miinventariofacil.com/api` (HTTPS Let's Encrypt).
-- **SSH al VPS**: `ssh -i C:\Users\gafit\.ssh\webadmin-vps root@217.216.80.158`.
-
-⚠️ **No confundir con MiInventarioFácil** (otro SaaS en VPS distinto, FastAPI/Python). Ver
-[`AGENTS.md` §2](./AGENTS.md) para la tabla de identificación.
+⚠️ **No confundir con MiInventarioFácil** (FastAPI en Docker dentro del mismo VPS). Ver
+[`AGENTS.md` §2](./AGENTS.md) para la tabla de diferenciación de stacks.
 
 ---
 
