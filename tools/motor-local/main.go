@@ -41,6 +41,27 @@ type Supervisor struct {
 	reverseProxy *httputil.ReverseProxy
 }
 
+func mergeEnvironment(base []string, overrides ...string) []string {
+	values := make(map[string]string, len(base)+len(overrides))
+	order := make([]string, 0, len(base)+len(overrides))
+	for _, entry := range append(append([]string(nil), base...), overrides...) {
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok || key == "" {
+			continue
+		}
+		canonical := strings.ToUpper(key)
+		if _, exists := values[canonical]; !exists {
+			order = append(order, canonical)
+		}
+		values[canonical] = entry
+	}
+	result := make([]string, 0, len(order))
+	for _, key := range order {
+		result = append(result, values[key])
+	}
+	return result
+}
+
 func getLANIPs() []string {
 	var ips []string
 	addrs, err := net.InterfaceAddrs()
@@ -82,12 +103,32 @@ func main() {
 	exePath, _ := os.Executable()
 	baseDir := filepath.Dir(exePath)
 
-	// Logging to file
-	logPath := filepath.Join(baseDir, "motor-local.log")
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	// Write logs to the writable data directory instead of Program Files.
+	logDataRoot := *dataDir
+	if logDataRoot == "" {
+		logDataRoot = os.Getenv("INVENTARIO_DATA_ROOT")
+	}
+	if logDataRoot == "" && runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if programData == "" {
+			programData = `C:\ProgramData`
+		}
+		logDataRoot = filepath.Join(programData, "BalanzaPro")
+	}
+	logDir := filepath.Join(logDataRoot, "storage", "logs")
+	if logDataRoot == "" {
+		logDir = filepath.Join(baseDir, "logs")
+	}
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		logDir = filepath.Join(os.TempDir(), "BalanzaPro", "logs")
+		_ = os.MkdirAll(logDir, 0755)
+	}
+	logFile, err := os.OpenFile(filepath.Join(logDir, "motor-local.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
-		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+		log.SetOutput(logFile)
 		defer logFile.Close()
+	} else {
+		log.SetOutput(io.Discard)
 	}
 
 	log.Printf("[MotorLocal] Iniciando servidor desde: %s", baseDir)
@@ -115,10 +156,14 @@ func main() {
 	// Default data directory
 	actualDataDir := *dataDir
 	if actualDataDir == "" {
-		if os.Getenv("INVENTARIO_DATA_ROOT") != "" {
-			actualDataDir = os.Getenv("INVENTARIO_DATA_ROOT")
-		} else if _, err := os.Stat("C:\\ProgramData\\InventarioArens"); err == nil {
-			actualDataDir = "C:\\ProgramData\\InventarioArens"
+		if configured := os.Getenv("INVENTARIO_DATA_ROOT"); configured != "" {
+			actualDataDir = configured
+		} else if runtime.GOOS == "windows" {
+			programData := os.Getenv("ProgramData")
+			if programData == "" {
+				programData = `C:\ProgramData`
+			}
+			actualDataDir = filepath.Join(programData, "BalanzaPro")
 		} else {
 			actualDataDir = filepath.Join(actualBackendRoot, "storage", "framework")
 		}
@@ -128,7 +173,7 @@ func main() {
 	lanIPs := getLANIPs()
 	mainLANIP := lanIPs[0]
 
-	cfg, err := config.LoadConfig(baseDir, actualDataDir)
+	cfg, err := config.LoadConfig(actualDataDir, baseDir)
 	if err != nil {
 		log.Printf("[MotorLocal] Advertencia leyendo config.json: %v", err)
 	}
@@ -247,14 +292,6 @@ func (s *Supervisor) superviseBackend() {
 func (s *Supervisor) startBackend() {
 	s.mu.Lock()
 
-	// On Windows, terminate any previously running php.exe or frankenphp.exe
-	if runtime.GOOS == "windows" {
-		tkCmd := exec.Command("taskkill", "/F", "/IM", "php.exe", "/IM", "frankenphp.exe")
-		setSilentProcess(tkCmd)
-		_ = tkCmd.Run()
-		time.Sleep(150 * time.Millisecond)
-	}
-
 	exePath, _ := os.Executable()
 	baseDir := filepath.Dir(exePath)
 
@@ -264,7 +301,6 @@ func (s *Supervisor) startBackend() {
 		filepath.Join(baseDir, "frankenphp", "frankenphp.exe"),
 		filepath.Join(baseDir, "frankenphp.exe"),
 		filepath.Join(baseDir, "runtime", "frankenphp", "frankenphp.exe"),
-		"C:\\ProgramData\\InventarioArens\\runtime\\frankenphp\\frankenphp.exe",
 	} {
 		if _, err := os.Stat(p); err == nil {
 			frankenBin = p
@@ -283,9 +319,12 @@ func (s *Supervisor) startBackend() {
 			"--listen", fmt.Sprintf("127.0.0.1:%d", s.cfg.BackendPort),
 		)
 		cmd.Dir = s.cfg.BackendRoot
-		cmd.Env = append(os.Environ(),
+		cmd.Env = mergeEnvironment(os.Environ(),
 			"PHPRC="+frankenDir,
 			"PATH="+frankenDir+";"+filepath.Join(frankenDir, "ext")+";"+os.Getenv("PATH"),
+			"DB_DATABASE="+filepath.Join(s.cfg.DataDir, "database.sqlite"),
+			"LARAVEL_STORAGE_PATH="+filepath.Join(s.cfg.DataDir, "storage"),
+			"INVENTARIO_APP_KEY_FILE="+filepath.Join(s.cfg.DataDir, "app.key"),
 		)
 		cmd.Stdout = log.Writer()
 		cmd.Stderr = log.Writer()
@@ -344,8 +383,11 @@ func (s *Supervisor) startBackend() {
 
 	// Ensure PATH contains php directory
 	phpDirAbs, _ := filepath.Abs(phpDir)
-	cmd.Env = append(os.Environ(),
+	cmd.Env = mergeEnvironment(os.Environ(),
 		"PATH="+phpDirAbs+";"+filepath.Join(phpDirAbs, "ext")+";"+os.Getenv("PATH"),
+		"DB_DATABASE="+filepath.Join(s.cfg.DataDir, "database.sqlite"),
+		"LARAVEL_STORAGE_PATH="+filepath.Join(s.cfg.DataDir, "storage"),
+		"INVENTARIO_APP_KEY_FILE="+filepath.Join(s.cfg.DataDir, "app.key"),
 	)
 
 	cmd.Stdout = log.Writer()
@@ -392,7 +434,21 @@ func (s *Supervisor) startHardwareAgents(baseDir string) {
 	scaleExe := filepath.Join(baseDir, "scale-agent.exe")
 	if _, err := os.Stat(scaleExe); err == nil {
 		log.Printf("[Supervisor] Iniciando Agente de Balanza Digital en http://127.0.0.1:19999")
-		cmd := exec.Command(scaleExe, "-port=19999", "-bind=127.0.0.1")
+		args := []string{
+			"-port=19999",
+			"-bind=127.0.0.1",
+			"-transport=" + s.cfg.ScaleTransport,
+			"-device=" + s.cfg.ScaleDevice,
+			"-protocol=" + s.cfg.ScaleProtocol,
+			fmt.Sprintf("-baud=%d", s.cfg.ScaleBaudRate),
+			fmt.Sprintf("-data-bits=%d", s.cfg.ScaleDataBits),
+			"-parity=" + s.cfg.ScaleParity,
+			fmt.Sprintf("-stop-bits=%g", s.cfg.ScaleStopBits),
+			"-tcp-address=" + s.cfg.ScaleTCPAddress,
+			"-decimal-separator=" + s.cfg.ScaleDecimalSeparator,
+			"-unit=" + s.cfg.ScaleUnit,
+		}
+		cmd := exec.Command(scaleExe, args...)
 		cmd.Dir = baseDir
 		setSilentProcess(cmd)
 		if err := cmd.Start(); err != nil {
@@ -409,35 +465,28 @@ func (s *Supervisor) stopBackend() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if runtime.GOOS == "windows" {
-		_ = exec.Command("taskkill", "/F", "/IM", "php.exe", "/IM", "printer-agent.exe", "/IM", "scale-agent.exe").Run()
-	} else {
-		if s.cmd != nil && s.cmd.Process != nil {
-			_ = s.cmd.Process.Kill()
-		}
-		if s.printerCmd != nil && s.printerCmd.Process != nil {
-			_ = s.printerCmd.Process.Kill()
-		}
-		if s.scaleCmd != nil && s.scaleCmd.Process != nil {
-			_ = s.scaleCmd.Process.Kill()
+	// Termina solo los procesos hijos que este Motor Local inicio.
+	for _, child := range []*exec.Cmd{s.cmd, s.printerCmd, s.scaleCmd} {
+		if child != nil && child.Process != nil {
+			_ = child.Process.Kill()
 		}
 	}
+	s.printerCmd = nil
+	s.scaleCmd = nil
 	s.running = false
 }
 
 func (s *Supervisor) startHTTPServer() {
 	subFS, _ := fs.Sub(webFS, "web")
-	photosDir := filepath.Join(s.cfg.BackendRoot, "public", "storage", "products")
+	photosDir := filepath.Join(s.cfg.DataDir, "storage", "app", "public", "products")
 
 	// Helper to configure a multiplexer for either POS or Admin
 	createMux := func(entryHtml string) *http.ServeMux {
 		mux := http.NewServeMux()
 
-		// 1. Management Endpoints
-		mux.HandleFunc("/api/local/status", s.handleStatus)
-		mux.HandleFunc("/api/local/restore-backup", s.handleRestoreBackup)
-		mux.HandleFunc("/api/local/set-company", s.handleSetCompany)
-		mux.HandleFunc("/api/local/toggle-offline", s.handleToggleOffline)
+		// Estado local de solo lectura. Las operaciones de restauracion/cambio de empresa
+		// quedan deshabilitadas para impedir escrituras y SSRF desde la red LAN.
+		mux.HandleFunc("/api/local/status", s.handleLocalStatus)
 
 		// 2. Photos direct from disk
 		if _, err := os.Stat(photosDir); err == nil {
@@ -449,10 +498,18 @@ func (s *Supervisor) startHTTPServer() {
 		mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 			if origin != "" {
+				if !isTrustedWebOrigin(origin) {
+					http.Error(w, "Origen no permitido.", http.StatusForbidden)
+					return
+				}
+				w.Header().Set("Vary", "Origin")
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Tenant, Accept, Idempotency-Key, X-Requested-By")
+				if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+					w.Header().Set("Access-Control-Allow-Private-Network", "true")
+				}
 			}
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusOK)
@@ -509,15 +566,58 @@ func (s *Supervisor) startHTTPServer() {
 
 	// 2. Start Admin Server on port 8789 (main goroutine)
 	adminMux := createMux("admin.html")
-	adminAddr := "0.0.0.0:8789"
+	adminAddr := "127.0.0.1:8789"
 	log.Printf("[MotorLocal] Servidor Administrativo escuchando en http://%s", adminAddr)
 	if err := http.ListenAndServe(adminAddr, adminMux); err != nil {
 		log.Fatalf("[MotorLocal] Error en servidor Admin: %v", err)
 	}
 }
 
+func (s *Supervisor) handleLocalStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Metodo no permitido.", http.StatusMethodNotAllowed)
+		return
+	}
+	if !isLoopbackRequest(r) {
+		http.Error(w, "Este control solo esta disponible en la PC central.", http.StatusForbidden)
+		return
+	}
+	s.handleStatus(w, r)
+}
+
+func isLoopbackRequest(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	return ip != nil && ip.IsLoopback()
+}
+
+func isTrustedWebOrigin(raw string) bool {
+	origin, err := url.Parse(raw)
+	if err != nil || origin.Hostname() == "" || origin.User != nil {
+		return false
+	}
+	host := strings.ToLower(origin.Hostname())
+	if origin.Scheme == "https" {
+		return host == "app.balanzapro.com" && (origin.Port() == "" || origin.Port() == "443")
+	}
+	if origin.Scheme != "http" {
+		return false
+	}
+	if origin.Port() != "8787" && origin.Port() != "8789" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate())
+}
+
 func (s *Supervisor) handleStatus(w http.ResponseWriter, r *http.Request) {
-	dbPath := filepath.Join(s.cfg.BackendRoot, "database", "database.sqlite")
+	dbPath := filepath.Join(s.cfg.DataDir, "database.sqlite")
 	dbSize := int64(0)
 	dbModTime := ""
 	dbExists := false
@@ -529,19 +629,19 @@ func (s *Supervisor) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":          "running",
-		"proxy_port":      s.cfg.ProxyPort,
-		"backend_port":    s.cfg.BackendPort,
-		"lan_ip":          s.cfg.LANIP,
-		"all_lan_ips":     getLANIPs(),
-		"offline_mode":    s.cfg.OfflineMode,
-		"tenant_slug":     s.cfg.TenantSlug,
-		"cloud_url":       s.cfg.CloudURL,
-		"data_dir":        s.cfg.DataDir,
-		"db_path":         dbPath,
-		"db_exists":       dbExists,
-		"db_size_bytes":   dbSize,
-		"db_modified_at":  dbModTime,
+		"status":         "running",
+		"proxy_port":     s.cfg.ProxyPort,
+		"backend_port":   s.cfg.BackendPort,
+		"lan_ip":         s.cfg.LANIP,
+		"all_lan_ips":    getLANIPs(),
+		"offline_mode":   s.cfg.OfflineMode,
+		"tenant_slug":    s.cfg.TenantSlug,
+		"cloud_url":      s.cfg.CloudURL,
+		"data_dir":       s.cfg.DataDir,
+		"db_path":        dbPath,
+		"db_exists":      dbExists,
+		"db_size_bytes":  dbSize,
+		"db_modified_at": dbModTime,
 	})
 }
 
@@ -712,4 +812,3 @@ func (s *Supervisor) handleSetCompany(w http.ResponseWriter, r *http.Request) {
 		"message":      fmt.Sprintf("Empresa configurada exitosamente a '%s'", s.cfg.TenantSlug),
 	})
 }
-

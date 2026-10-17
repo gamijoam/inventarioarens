@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Auth\Controllers\McpLoginController;
 use App\Modules\Products\Controllers\LocalImageProxyController;
 use App\Modules\TelegramBot\Controllers\TelegramWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,9 @@ $spaHeaders = [
     'Pragma' => 'no-cache',
     'Expires' => '0',
 ];
+
+Route::get('mcp/login', [McpLoginController::class, 'create'])->name('login');
+Route::post('mcp/login', [McpLoginController::class, 'store'])->middleware('throttle:auth')->name('mcp.login.store');
 
 Route::get('/', function () use ($spaIndex, $spaHeaders) {
     if (! is_file($spaIndex)) {

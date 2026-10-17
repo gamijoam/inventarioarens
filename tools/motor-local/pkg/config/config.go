@@ -9,29 +9,47 @@ import (
 
 // Config holds runtime configuration for MotorLocal across any company/tenant.
 type Config struct {
-	ProxyPort   int    `json:"proxy_port"`
-	BackendPort int    `json:"backend_port"`
-	DataDir     string `json:"data_dir"`
-	PHPBinary   string `json:"php_binary"`
-	BackendRoot string `json:"backend_root"`
-	CloudURL    string `json:"cloud_url"`
-	TenantSlug  string `json:"tenant_slug"`
-	CompanyName string `json:"company_name"`
-	OfflineMode bool   `json:"offline_mode"`
-	LANIP       string `json:"lan_ip"`
+	ProxyPort             int     `json:"proxy_port"`
+	BackendPort           int     `json:"backend_port"`
+	DataDir               string  `json:"data_dir"`
+	PHPBinary             string  `json:"php_binary"`
+	BackendRoot           string  `json:"backend_root"`
+	CloudURL              string  `json:"cloud_url"`
+	TenantSlug            string  `json:"tenant_slug"`
+	CompanyName           string  `json:"company_name"`
+	OfflineMode           bool    `json:"offline_mode"`
+	LANIP                 string  `json:"lan_ip"`
+	ScaleTransport        string  `json:"scale_transport"`
+	ScaleDevice           string  `json:"scale_device"`
+	ScaleProtocol         string  `json:"scale_protocol"`
+	ScaleBaudRate         int     `json:"scale_baud_rate"`
+	ScaleDataBits         int     `json:"scale_data_bits"`
+	ScaleParity           string  `json:"scale_parity"`
+	ScaleStopBits         float64 `json:"scale_stop_bits"`
+	ScaleTCPAddress       string  `json:"scale_tcp_address"`
+	ScaleDecimalSeparator string  `json:"scale_decimal_separator"`
+	ScaleUnit             string  `json:"scale_unit"`
 }
 
 // DefaultConfig returns clean, non-hardcoded defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		ProxyPort:   8787,
-		BackendPort: 8788,
-		CloudURL:    "https://app.balanzapro.com",
-		TenantSlug:  "", // No company hardcoded by default
-		CompanyName: "",
-		OfflineMode: true,
-		PHPBinary:   "php",
-		BackendRoot: ".",
+		ProxyPort:             8787,
+		BackendPort:           8788,
+		CloudURL:              "https://app.balanzapro.com",
+		TenantSlug:            "", // No company hardcoded by default
+		CompanyName:           "",
+		OfflineMode:           true,
+		PHPBinary:             "php",
+		BackendRoot:           ".",
+		ScaleTransport:        "disabled",
+		ScaleProtocol:         "generic",
+		ScaleBaudRate:         9600,
+		ScaleDataBits:         8,
+		ScaleParity:           "none",
+		ScaleStopBits:         1,
+		ScaleDecimalSeparator: ".",
+		ScaleUnit:             "kg",
 	}
 }
 
