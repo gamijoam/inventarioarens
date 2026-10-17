@@ -1,0 +1,146 @@
+name: Despliegue Manual por Instancia
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'Rama o Ref base a desplegar (ej: main, client/repuestosavilacar, client/balanzapro)'
+        required: true
+        default: 'main'
+        type: string
+      target_instance:
+        description: 'Instancia destino en el VPS'
+        required: true
+        default: 'balanzapro'
+        type: choice
+        options:
+          - balanzapro
+          - repuestosavilacar
+          - tiendasarens
+          - inventarioarens
+          - all
+      build_frontend:
+        description: 'Compilar Frontend React en GitHub Runner y sincronizar dist/'
+        required: true
+        default: true
+        type: boolean
+      run_migrations:
+        description: 'Ejecutar migraciones de base de datos (php artisan migrate)'
+        required: true
+        default: true
+        type: boolean
+      clean_checkout:
+        description: 'Forzar checkout limpio (descarta cambios no commiteados en el VPS)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-${{ github.event.inputs.target_instance }}
+  cancel-in-progress: false
+
+jobs:
+  build-frontend:
+    name: Compilar Frontend en GitHub
+    if: ${{ github.event.inputs.build_frontend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout de código
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_branch }}
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Cache de dependencias pnpm
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Instalar dependencias del frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Compilar Frontend (Vite)
+        working-directory: frontend
+        run: pnpm run build
+
+      - name: Subir artefacto dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  deploy:
+    name: Desplegar en VPS (${{ github.event.inputs.target_instance }})
+    needs: [build-frontend]
+    if: always() && (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar artefacto frontend-dist si fue compilado
+        if: ${{ github.event.inputs.build_frontend == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist-artifact/
+
+      - name: Transferir frontend dist al VPS
+        if: ${{ github.event.inputs.build_frontend == 'true' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "dist-artifact/*"
+          target: "/tmp/gh-dist-${{ github.run_id }}"
+          strip_components: 1
+
+      - name: Ejecutar script de despliegue en VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 10m
+          script: |
+            set -euo pipefail
+            
+            TARGET="${{ github.event.inputs.target_instance }}"
+            REF="${{ github.event.inputs.source_branch }}"
+            BUILD_FRONTEND="${{ github.event.inputs.build_frontend }}"
+            RUN_MIGRATIONS="${{ github.event.inputs.run_migrations }}"
+            CLEAN_CHECKOUT="${{ github.event.inputs.clean_checkout }}"
+            
+            EXTRA_ARGS=""
+            
+            if [ "$BUILD_FRONTEND" = "true" ] && [ -d "/tmp/gh-dist-${{ github.run_id }}" ]; then
+              EXTRA_ARGS="$EXTRA_ARGS --dist-dir=/tmp/gh-dist-${{ github.run_id }}"
+            fi
+            
+            if [ "$RUN_MIGRATIONS" != "true" ]; then
+              EXTRA_ARGS="$EXTRA_ARGS --skip-migrations"
+            fi
+            
+            if [ "$CLEAN_CHECKOUT" = "true" ]; then
+              EXTRA_ARGS="$EXTRA_ARGS --clean-checkout"
+            fi
+            
+            # Ejecutar el script central de despliegue
+            bash /opt/inventarioarens-cloud/scripts/deploy-target-instance.sh "$TARGET" "$REF" $EXTRA_ARGS
+            
+            # Limpiar temporal de dist
+            rm -rf "/tmp/gh-dist-${{ github.run_id }}" || true

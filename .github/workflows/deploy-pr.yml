@@ -1,0 +1,134 @@
+name: Despliegue Automatico por PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - client/repuestosavilacar
+      - client/balanzapro
+
+concurrency:
+  group: deploy-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  resolve-target:
+    name: Determinar Instancia Destino
+    runs-on: ubuntu-latest
+    outputs:
+      target_instance: ${{ steps.set_target.outputs.target_instance }}
+    steps:
+      - name: Mapear rama base a instancia
+        id: set_target
+        run: |
+          BASE_BRANCH="${{ github.base_ref }}"
+          echo "Rama base de la PR: $BASE_BRANCH"
+          
+          case "$BASE_BRANCH" in
+            client/repuestosavilacar)
+              TARGET="repuestosavilacar"
+              ;;
+            client/balanzapro)
+              TARGET="balanzapro"
+              ;;
+            main)
+              TARGET="balanzapro"
+              ;;
+            *)
+              TARGET="balanzapro"
+              ;;
+          esac
+          
+          echo "Instancia destino calculada: $TARGET"
+          echo "target_instance=$TARGET" >> "$GITHUB_OUTPUT"
+
+  build-frontend:
+    name: Compilar Frontend de la PR
+    needs: [resolve-target]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout de código de la PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Cache de dependencias pnpm
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Instalar dependencias del frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Compilar Frontend (Vite)
+        working-directory: frontend
+        run: pnpm run build
+
+      - name: Subir artefacto dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist-pr-${{ github.event.pull_request.number }}
+          path: frontend/dist/
+          retention-days: 1
+
+  deploy-pr:
+    name: Desplegar en VPS
+    needs: [resolve-target, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar artefacto frontend-dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist-pr-${{ github.event.pull_request.number }}
+          path: dist-artifact/
+
+      - name: Transferir frontend dist al VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "dist-artifact/*"
+          target: "/tmp/gh-dist-pr-${{ github.event.pull_request.number }}"
+          strip_components: 1
+
+      - name: Ejecutar despliegue en VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 10m
+          script: |
+            set -euo pipefail
+            
+            TARGET="${{ needs.resolve-target.outputs.target_instance }}"
+            REF="${{ github.event.pull_request.head.sha }}"
+            DIST_PATH="/tmp/gh-dist-pr-${{ github.event.pull_request.number }}"
+            
+            echo "Desplegando PR #${{ github.event.pull_request.number }} ($REF) en instancia $TARGET..."
+            
+            bash /opt/inventarioarens-cloud/scripts/deploy-target-instance.sh \
+              "$TARGET" \
+              "$REF" \
+              --dist-dir="$DIST_PATH" \
+              --clean-checkout
+            
+            rm -rf "$DIST_PATH" || true
