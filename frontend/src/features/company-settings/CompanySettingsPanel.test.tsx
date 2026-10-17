@@ -30,6 +30,10 @@ vi.mock('./api', () => ({
   useDeleteCompanyLogo: () => ({ mutateAsync: deleteMutation }),
 }));
 
+vi.mock('./OfflineSetupDownloads', () => ({
+  OfflineSetupDownloads: () => <section data-testid="company-offline-downloads">Instalación local</section>,
+}));
+
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -118,13 +122,11 @@ describe('CompanySettingsPanel', () => {
     });
   });
 
-  it('muestra la sección de instalador offline y botones de descarga', () => {
+  it('incluye la sección nueva de instalación local sin enlaces separados de base y configuración', () => {
     render(<CompanySettingsPanel />);
 
     expect(screen.getByTestId('company-offline-downloads')).toBeInTheDocument();
-    expect(screen.getByTestId('download-setup-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('download-sqlite-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('download-config-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('download-zip-btn')).toBeInTheDocument();
+    expect(screen.queryByTestId('download-sqlite-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('download-config-btn')).not.toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { FileText, Loader2, Minus, Plus, Search, Tag, Trash2, UserRound, Warehouse } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { useAuth } from '@/auth/useAuth';
 import { PosShell } from '@/components/layout/PosShell';

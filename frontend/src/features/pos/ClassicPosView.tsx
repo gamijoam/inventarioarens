@@ -27,7 +27,8 @@ import type { Product, PriceList } from '@/features/inventory-center/schemas';
 import { fetchPosProductsDirect } from './api';
 import { ProductImage } from '@/features/inventory-center/components/ProductImage';
 import { cn } from '@/lib/cn';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
+import type { ScaleReading } from './scaleDevice';
 
 export interface ClassicPosViewProps {
   cart: PosCartLine[];
@@ -45,6 +46,8 @@ export interface ClassicPosViewProps {
   orderNumber?: string;
   pendingCount?: number;
   allowRateEdit?: boolean;
+  scaleConnected?: boolean;
+  scaleReading?: ScaleReading | null;
   onSelectCustomer: () => void;
   onOpenPayment: () => void;
   onClearPayments?: () => void;
@@ -103,6 +106,8 @@ export function ClassicPosView({
   orderNumber,
   pendingCount = 0,
   allowRateEdit = false,
+  scaleConnected = false,
+  scaleReading = null,
   onSelectCustomer,
   onOpenPayment,
   onClearPayments,
@@ -1264,6 +1269,22 @@ export function ClassicPosView({
                 <span className="font-sans text-xs">Catálogo</span>
               </button>
             )}
+            <span
+              role="status"
+              aria-live="polite"
+              className={cn(
+                'flex items-center rounded-lg border px-2.5 py-1.5 font-sans text-xs font-semibold',
+                scaleConnected
+                  ? 'border-emerald-700 bg-emerald-950/70 text-emerald-200'
+                  : 'border-slate-700 bg-slate-800 text-slate-400',
+              )}
+            >
+              {scaleReading?.status === 'ready' && scaleReading.weight
+                ? `Balanza ${scaleReading.weight} ${scaleReading.unit ?? ''}`
+                : scaleConnected
+                  ? 'Balanza conectada'
+                  : 'Balanza desconectada'}
+            </span>
           </div>
 
           {/* GRUPO 2: ATAJOS DE VENTA CLÁSICOS (F1 a F10) */}

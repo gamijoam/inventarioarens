@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Banknote, CreditCard, Loader2, Plus, Save, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Can } from '@/components/permissions/Can';
 import { PageLayout } from '@/components/layout/PageLayout';

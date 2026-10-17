@@ -9,6 +9,7 @@ import {
 import { loadShowVesOnCards, saveShowVesOnCards } from './posDisplayPrefs';
 import { usePendingPosCart, readHandoffItems, clearHandoffItems } from './pendingPosCart';
 import { parseScaleBarcode } from '@/lib/scaleBarcode';
+import { convertWeightQuantity, isWeightUnit, quantityForScaleReading, type ScaleReading } from './scaleDevice';
 import { useRealtimeSync } from '@/lib/useRealtimeSync';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -46,7 +47,7 @@ import {
   Settings2,
   Monitor,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 
 import { Badge } from '@/components/ui/Badge';
@@ -765,6 +766,14 @@ export function PosTerminal() {
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
   const deferredSerialSearch = useDeferredValue(serialSearch);
+  const [scaleReading, setScaleReading] = useState<ScaleReading | null>(null);
+  const [scaleConnected, setScaleConnected] = useState(false);
+  const [pendingScaleProduct, setPendingScaleProduct] = useState<{
+    product: Product;
+    measuredQuantity: number | null;
+    unit: string;
+  } | null>(null);
+  const [scaleQuantityInput, setScaleQuantityInput] = useState('1');
 
   async function exitPos(): Promise<void> {
     setExitingPos(true);
@@ -793,6 +802,42 @@ export function PosTerminal() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let controller: AbortController | null = null;
+    const pollScale = async () => {
+      controller?.abort();
+      controller = new AbortController();
+      const timeout = window.setTimeout(() => controller?.abort(), 1200);
+      try {
+        const response = await fetch('http://127.0.0.1:19999/weight', {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Agente de balanza no disponible');
+        const reading = (await response.json()) as ScaleReading;
+        if (!active) return;
+        setScaleConnected(Boolean(reading.ok));
+        setScaleReading(reading);
+      } catch {
+        if (active) {
+          setScaleConnected(false);
+          setScaleReading(null);
+        }
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
+    void pollScale();
+    const interval = window.setInterval(() => void pollScale(), 1500);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      controller?.abort();
     };
   }, []);
 
@@ -1874,7 +1919,7 @@ export function PosTerminal() {
                           : 0;
                       const selectedProduct = quickSearchResults[targetIndex];
                       if (selectedProduct) {
-                        void addProduct(selectedProduct).then((added) => {
+                        void requestAddProduct(selectedProduct).then((added) => {
                           if (added) {
                             setQuery('');
                             setQuickSearchIndex(0);
@@ -1947,7 +1992,7 @@ export function PosTerminal() {
                             <TapButton
                               key={product.id}
                               onPress={() => {
-                                void addProduct(product).then((added) => {
+                                void requestAddProduct(product).then((added) => {
                                   if (added) {
                                     setQuery('');
                                     setQuickSearchIndex(0);
@@ -2390,6 +2435,22 @@ export function PosTerminal() {
                 saveShowVesOnCards(value);
               }}
             />
+              <div
+                role="status"
+                aria-live="polite"
+                className={cn(
+                  'hidden lg:flex items-center rounded-md border px-2 py-1 text-[11px] font-semibold whitespace-nowrap',
+                  scaleConnected
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-border bg-surface-subtle text-text-muted',
+                )}
+              >
+                {scaleReading?.status === 'ready' && scaleReading.weight
+                  ? `Balanza: ${scaleReading.weight} ${scaleReading.unit ?? ''}`
+                  : scaleConnected
+                    ? 'Balanza conectada'
+                    : 'Balanza desconectada'}
+              </div>
           </div>
         </header>
       )}
@@ -2412,6 +2473,8 @@ export function PosTerminal() {
               selectedCustomer={selectedCustomer}
               customerName={customerName}
               sellerName={currentUser?.name ?? undefined}
+              scaleConnected={scaleConnected}
+              scaleReading={scaleReading}
               canDiscount={canDiscount}
               allowNegativeStock={allowNegativeStock}
               warehouseId={effectiveWarehouseId}
@@ -2444,7 +2507,7 @@ export function PosTerminal() {
               onClearCart={clearPos}
               onUpdateLine={(id, patch) => updateLine(id, patch)}
               onRemoveLine={(id) => removeLine(id)}
-              onAddProduct={(prod) => addProduct(prod, undefined, 1)}
+              onAddProduct={(prod) => requestAddProduct(prod)}
               onOpenProductSearch={() => {
                 setProductSearch(query || '');
                 setPanel('product-search');
@@ -3354,10 +3417,71 @@ export function PosTerminal() {
           activeRate={activeRate}
           initialSearch={productSearch}
           onSelect={async (product) => {
-            const added = await addProduct(product);
+            const added = await requestAddProduct(product);
             if (added) setPanel(null);
           }}
         />
+
+        <Dialog open={pendingScaleProduct !== null} onOpenChange={(open) => !open && setPendingScaleProduct(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirmar peso</DialogTitle>
+              <DialogDescription>
+                {pendingScaleProduct?.product.name}. Verifica la lectura de la balanza o ingresa la cantidad manualmente.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className={cn(
+                'rounded-lg border px-3 py-2 text-sm',
+                pendingScaleProduct?.measuredQuantity
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                  : scaleConnected
+                    ? 'border-amber-300 bg-amber-50 text-amber-900'
+                    : 'border-border bg-surface-subtle text-text-secondary',
+              )}>
+                {pendingScaleProduct?.measuredQuantity
+                  ? `Lectura estable: ${pendingScaleProduct.measuredQuantity} ${pendingScaleProduct.unit}`
+                  : scaleConnected
+                    ? 'Balanza conectada, esperando una lectura estable.'
+                    : 'Balanza desconectada. Puedes continuar con ingreso manual.'}
+              </div>
+              <label className="block space-y-1 text-sm font-medium">
+                <span>Cantidad ({pendingScaleProduct?.unit ?? 'kg'})</span>
+                <Input
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={scaleQuantityInput}
+                  onChange={(event) => setScaleQuantityInput(event.target.value)}
+                  autoFocus
+                />
+              </label>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPendingScaleProduct(null)}>Cancelar</Button>
+              <Button
+                onClick={() => {
+                  const product = pendingScaleProduct?.product;
+                  const quantity = Number(scaleQuantityInput);
+                  if (!product || !Number.isFinite(quantity) || quantity <= 0) {
+                    toast.error('Ingresa una cantidad válida.');
+                    return;
+                  }
+                  void addProduct(product, undefined, quantity).then((added) => {
+                    if (added) {
+                      setPendingScaleProduct(null);
+                      setQuery('');
+                      setQuickSearchIndex(0);
+                      setPanel(null);
+                    }
+                  });
+                }}
+              >
+                Agregar al ticket
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Modal de Detalle de Producto con Stock Multi-Sucursal */}
         {detailProduct && (
@@ -3368,7 +3492,7 @@ export function PosTerminal() {
             onClose={() => setDetailProduct(null)}
             onAdd={(prod) => {
               setDetailProduct(null);
-              void addProduct(prod);
+              void requestAddProduct(prod);
             }}
           />
         )}
@@ -3512,6 +3636,15 @@ export function PosTerminal() {
     );
   }
 
+  function requestAddProduct(product: Product): Promise<boolean> {
+    const unit = product.unit_of_measure ?? 'unit';
+    if (!isWeightUnit(unit)) return addProduct(product);
+    const measuredQuantity = quantityForScaleReading(scaleReading, unit);
+    setPendingScaleProduct({ product, measuredQuantity, unit });
+    setScaleQuantityInput(measuredQuantity ? String(measuredQuantity) : '1');
+    return Promise.resolve(false);
+  }
+
   async function addProduct(
     product: Product,
     scannedSerial?: ProductSerial,
@@ -3533,7 +3666,7 @@ export function PosTerminal() {
         const variants = await getProductVariants(product.id, warehouse.id);
         if (requiresPosVariantSelection(variants)) {
           setVariantPickerProduct(product);
-          setVariantPickerQuantity(Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
+          setVariantPickerQuantity(isWeightUnit(product.unit_of_measure) ? Math.max(0.001, Number(requestedQuantity) || 0.001) : Math.max(1, Math.floor(Number(requestedQuantity) || 1)));
           // Conserva el contexto de promocion si esta linea viene de una
           // promocion cargada, para que al elegir color se mantenga el precio.
           if (promotionPriceOverride !== undefined) {
@@ -3562,7 +3695,16 @@ export function PosTerminal() {
     if (!forced && selectedPriceList && !quote) return false;
 
     const shouldSelectSerials = product.tracking_type === 'serialized';
-    const quantity = Math.max(1, Math.floor(Number(requestedQuantity) || 1));
+    const quantity = isWeightUnit(product.unit_of_measure) ? Math.max(0.001, Number(requestedQuantity) || 0.001) : Math.max(1, Math.floor(Number(requestedQuantity) || 1));
+    if (
+      isWeightUnit(product.unit_of_measure) &&
+      !allowNegativeStock &&
+      product.track_stock !== false &&
+      quantity > available
+    ) {
+      toast.error(`La cantidad de ${product.unit_of_measure} supera la existencia disponible de ${product.name}.`);
+      return false;
+    }
     const variantMatch = {
       product_id: product.id,
       warehouse_id: warehouse.id,
@@ -3836,9 +3978,16 @@ export function PosTerminal() {
         if (line.id !== id) return line;
         const next = { ...line, ...patch };
         const canExceedStock = allowNegativeStock || next.track_stock === false;
-        next.quantity = canExceedStock
-          ? Math.max(1, Number(next.quantity) || 1)
-          : clampQuantity(Number(next.quantity), next.available_stock);
+        if (isWeightUnit(next.unit_of_measure)) {
+          const requested = Math.max(0.001, Number(next.quantity) || 0.001);
+          next.quantity = canExceedStock
+            ? requested
+            : Math.min(requested, Math.max(0.001, Number(next.available_stock) || 0.001));
+        } else {
+          next.quantity = canExceedStock
+            ? Math.max(1, Number(next.quantity) || 1)
+            : clampQuantity(Number(next.quantity), next.available_stock);
+        }
         if (
           next.tracking_type === 'serialized' &&
           next.selected_serials &&
@@ -3903,7 +4052,14 @@ export function PosTerminal() {
     // Detección automática de códigos de balanza (charcutería/carnicería/pesables EAN-13 con prefijo 20)
     const scaleInfo = parseScaleBarcode(term);
     const effectiveSearchTerm = scaleInfo ? scaleInfo.itemCode : term;
-    const requestedQty = scaleInfo ? scaleInfo.weightKg : 1;
+    const requestedQtyFor = (product: Product): number | null => {
+      if (!scaleInfo) return 1;
+      if (!isWeightUnit(product.unit_of_measure)) {
+        toast.error('Este código de balanza requiere que el producto use una unidad de peso.');
+        return null;
+      }
+      return convertWeightQuantity(scaleInfo.weightKg, 'kg', product.unit_of_measure);
+    };
 
     const normalized = effectiveSearchTerm.toLowerCase();
     const normalizedNoLeadingZeros = normalized.replace(/^0+/, '');
@@ -3930,7 +4086,9 @@ export function PosTerminal() {
         );
 
       if (inMemoryExact) {
-        const added = await addProduct(inMemoryExact, undefined, requestedQty);
+        const labelQuantity = requestedQtyFor(inMemoryExact);
+        if (labelQuantity === null) return;
+        const added = await addProduct(inMemoryExact, undefined, labelQuantity);
         if (added) {
           if (scaleInfo) {
             toast.success(`Balanza: ${scaleInfo.weightKg} kg de ${inMemoryExact.name}`);
@@ -3949,7 +4107,9 @@ export function PosTerminal() {
         );
 
         if (directExact) {
-          const added = await addProduct(directExact, undefined, requestedQty);
+          const labelQuantity = requestedQtyFor(directExact);
+        if (labelQuantity === null) return;
+        const added = await addProduct(directExact, undefined, labelQuantity);
           if (added) {
             if (scaleInfo) {
               toast.success(`Balanza: ${scaleInfo.weightKg} kg de ${directExact.name}`);
@@ -3962,7 +4122,9 @@ export function PosTerminal() {
 
         // Si la consulta directa devolvió productos, agregar el primero directamente sin abrir modal
         if (directResults.length >= 1 && directResults[0]) {
-          const added = await addProduct(directResults[0], undefined, requestedQty);
+          const labelQuantity = requestedQtyFor(directResults[0]);
+        if (labelQuantity === null) return;
+        const added = await addProduct(directResults[0], undefined, labelQuantity);
           if (added) {
             if (scaleInfo) {
               toast.success(`Balanza: ${scaleInfo.weightKg} kg de ${directResults[0].name}`);
@@ -4805,14 +4967,15 @@ function CartLineRow({
               size="icon-sm"
               variant="outline"
               className="size-8 text-text-primary font-bold"
-              onClick={() => onChange({ quantity: line.quantity - 1 })}
+              onClick={() => onChange({ quantity: line.quantity - (isWeightUnit(line.unit_of_measure) ? 0.001 : 1) })}
             >
               <Minus className="size-3.5" />
             </Button>
             <Input
               className="h-8 w-16 text-center text-sm font-bold text-text-primary bg-surface border-border"
               type="number"
-              min="1"
+              min={isWeightUnit(line.unit_of_measure) ? '0.001' : '1'}
+              step={isWeightUnit(line.unit_of_measure) ? '0.001' : '1'}
               value={line.quantity}
               onChange={(event) => onChange({ quantity: Number(event.target.value) })}
             />
@@ -4820,7 +4983,7 @@ function CartLineRow({
               size="icon-sm"
               variant="outline"
               className="size-8 text-text-primary font-bold"
-              onClick={() => onChange({ quantity: line.quantity + 1 })}
+              onClick={() => onChange({ quantity: line.quantity + (isWeightUnit(line.unit_of_measure) ? 0.001 : 1) })}
             >
               <Plus className="size-3.5" />
             </Button>

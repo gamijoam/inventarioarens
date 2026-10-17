@@ -1,107 +1,101 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockUseCashSessions = vi.fn();
+const mockUseCashSessionsPage = vi.fn();
 const mockUseCashSessionDetail = vi.fn();
-
-vi.mock('@/features/reports/api', () => ({
-  useCashSessions: (...args: unknown[]) => {
-    mockUseCashSessions(...args);
-    return mockUseCashSessions();
-  },
-}));
+const mockUseReviewCashSession = vi.fn();
+const mockCan = vi.fn();
 
 vi.mock('@/permissions/useCan', () => ({
-  useCan: () => true,
+  useCan: (...args: unknown[]) => mockCan(...args) as unknown,
 }));
 
 vi.mock('../api', () => ({
-  useCashSessionDetail: () => mockUseCashSessionDetail(),
-  useReviewCashSession: () => ({ mutate: vi.fn(), isPending: false }),
+  useCashSessionsPage: (...args: unknown[]) => mockUseCashSessionsPage(...args) as unknown,
+  useCashSessionDetail: (...args: unknown[]) => mockUseCashSessionDetail(...args) as unknown,
+  useReviewCashSession: () => mockUseReviewCashSession() as unknown,
+}));
+
+vi.mock('@/features/cash-register/ReportZDialog', () => ({
+  ReportZDialog: ({ open, sessionId, onOpenChange }: { open: boolean; sessionId: number; onOpenChange: (open: boolean) => void }) =>
+    open ? (
+      <div role="dialog" aria-label="Reporte Z">
+        Reporte Z del turno {sessionId}
+        <button type="button" onClick={() => onOpenChange(false)}>Cerrar reporte</button>
+      </div>
+    ) : null,
 }));
 
 import { CashRegisterCommandCenter } from '../CashRegisterCommandCenter';
 
-beforeEach(() => {
-  mockUseCashSessions.mockReset();
-  mockUseCashSessionDetail.mockReset();
-  mockUseCashSessions.mockReturnValue({
-    data: {
-      period: { from: '2026-07-27', to: '2026-07-27', from_datetime: '', to_datetime: '' },
-      summary: {
-        open_count: 1,
-        closed_count: 1,
-        expected_base_amount: 125,
-        expected_local_amount: 4000,
-        difference_base_amount: -2,
+function makeSession(id: number, status: 'open' | 'closed' = 'closed') {
+  return {
+    id,
+    status,
+    branch_id: 1,
+    cash_register_id: 1,
+    cashier_id: 7,
+    opening_base_amount: 50,
+    opening_local_amount: 1000,
+    expected_base_amount: 125,
+    expected_local_amount: 4000,
+    expected_cash_usd: 125,
+    expected_cash_ves: 4000,
+    counted_base_amount: status === 'closed' ? 123 : null,
+    counted_local_amount: status === 'closed' ? 4000 : null,
+    counted_cash_usd: status === 'closed' ? 123 : null,
+    counted_cash_ves: status === 'closed' ? 4000 : null,
+    difference_base_amount: status === 'closed' ? -2 : null,
+    difference_local_amount: status === 'closed' ? 0 : null,
+    difference_cash_usd: status === 'closed' ? -2 : null,
+    difference_cash_ves: status === 'closed' ? 0 : null,
+    review_status: 'pending' as const,
+    opened_at: '2026-07-27T08:00:00Z',
+    closed_at: status === 'closed' ? '2026-07-27T16:00:00Z' : null,
+    cash_register: { id: 1, name: id === 7 ? 'Caja Principal' : 'Caja Secundaria', code: 'C1', branch_id: 1 },
+    branch: { id: 1, name: 'Centro', code: 'CTR' },
+    cashier: { id: 7, name: id === 7 ? 'Ana' : 'Luis', email: 'cajero@example.test' },
+    movements: [
+      {
+        id: id * 10,
+        type: 'outflow',
+        method: 'cash',
+        currency: 'USD',
+        amount: 5,
+        amount_base: 5,
+        amount_local: 0,
+        notes: 'Compra de insumos',
+        created_at: '2026-07-27T12:00:00Z',
       },
-      rows: [
-        {
-          id: 7,
-          status: 'closed',
-          branch_name: 'Centro',
-          cash_register_name: 'Caja Principal',
-          cashier_name: 'Ana',
-          opening_base_amount: 50,
-          opening_local_amount: 1000,
-          expected_base_amount: 125,
-          expected_local_amount: 4000,
-          counted_base_amount: 123,
-          counted_local_amount: 4000,
-          difference_base_amount: -2,
-          difference_local_amount: 0,
-          opened_at: '2026-07-27T08:00:00Z',
-          closed_at: '2026-07-27T16:00:00Z',
-          movements: [
-            {
-              id: 1,
-              type: 'pos_payment',
-              method: 'cash',
-              currency: 'USD',
-              amount_base: 75,
-              amount_local: 0,
-              reference: null,
-              created_at: '2026-07-27T12:00:00Z',
-            },
-          ],
-        },
-      ],
-      movement_breakdown: [],
+    ],
+  };
+}
+
+function pageResult(rows: ReturnType<typeof makeSession>[], total = rows.length) {
+  return {
+    data: {
+      data: rows,
+      meta: { current_page: 1, last_page: 1, per_page: 50, total },
     },
     isLoading: false,
     isFetching: false,
     isError: false,
     refetch: vi.fn(),
-  });
-  mockUseCashSessionDetail.mockReturnValue({
-    isLoading: false,
-    data: {
-      summary: {
-        movement_count: 1,
-        pos_order_count: 1,
-        pos_paid_order_count: 1,
-        pos_paid_base_amount: 40,
-        pos_paid_local_amount: 0,
-        receivable_collections_base_amount: 0,
-        payable_payments_base_amount: 0,
-        manual_movement_count: 0,
-      },
-      payment_breakdown: [
-        {
-          name: 'Efectivo USD',
-          method: 'cash',
-          currency: 'USD',
-          payments_count: 1,
-          amount_base: 40,
-          amount_local: 0,
-        },
-      ],
-    },
-  });
-});
+  };
+}
 
 describe('<CashRegisterCommandCenter>', () => {
-  it('muestra indicadores gerenciales y permite expandir un turno', () => {
+  beforeEach(() => {
+    mockUseCashSessionsPage.mockReset();
+    mockUseCashSessionsPage.mockImplementation((filters: { status?: string }) =>
+      pageResult(filters.status === 'open' ? [makeSession(8, 'open')] : [makeSession(7), makeSession(8)]),
+    );
+    mockUseCashSessionDetail.mockReturnValue({ isLoading: false, data: undefined });
+    mockUseReviewCashSession.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    mockCan.mockReturnValue(true);
+  });
+
+  it('muestra turnos en tarjetas compactas, detalle y el mismo visor de Reporte Z', () => {
     render(
       <CashRegisterCommandCenter
         branches={[{ id: 1, name: 'Centro', code: 'CTR' }]}
@@ -109,68 +103,67 @@ describe('<CashRegisterCommandCenter>', () => {
       />,
     );
 
-    expect(screen.getByText('Centro de control')).toBeInTheDocument();
-    expect(screen.getByText('1 requieren atención')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Turnos' })).toBeInTheDocument();
     expect(screen.getByText('Caja Principal')).toBeInTheDocument();
-    expect(screen.getAllByText('$-2,00')).toHaveLength(2);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Caja Principal/ }));
-
+    fireEvent.click(screen.getByRole('button', { name: /Turno #7/ }));
     expect(screen.getByText('Resumen del turno #7')).toBeInTheDocument();
-    expect(screen.getByText('Efectivo USD · 1')).toBeInTheDocument();
-    expect(screen.getByText('Pago POS · Efectivo')).toBeInTheDocument();
+    expect(screen.getByText(/Salida · Compra de insumos/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Nota de revisión')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reporte Z' }));
+    expect(screen.getByRole('dialog', { name: 'Reporte Z' })).toHaveTextContent('turno 7');
   });
 
-  it('prioriza la diferencia fisica de caja sobre la base con pagos electronicos', () => {
-    mockUseCashSessions.mockReturnValue({
-      data: {
-        period: { from: '2026-07-27', to: '2026-07-27', from_datetime: '', to_datetime: '' },
-        summary: {
-          open_count: 0,
-          closed_count: 1,
-          expected_base_amount: 200,
-          expected_local_amount: 0,
-          expected_cash_usd: 0,
-          expected_cash_ves: 0,
-          difference_base_amount: -200,
-          difference_cash_usd: 0,
-          difference_cash_ves: 0,
-        },
-        rows: [
-          {
-            id: 9,
-            status: 'closed',
-            branch_name: 'Centro',
-            cash_register_name: 'Caja Electronica',
-            cashier_name: 'Ana',
-            expected_base_amount: 200,
-            expected_cash_usd: 0,
-            counted_base_amount: 0,
-            difference_base_amount: -200,
-            difference_cash_usd: 0,
-            difference_cash_ves: 0,
-            opened_at: '2026-07-27T08:00:00Z',
-            closed_at: '2026-07-27T16:00:00Z',
-            movements: [],
-          },
-        ],
-        movement_breakdown: [],
-      },
+  it('filtra en una lista única por estado y conserva el contexto de lectura', () => {
+    render(<CashRegisterCommandCenter branches={[]} registers={[]} />);
+
+    fireEvent.change(screen.getByLabelText('Estado de los turnos'), { target: { value: 'open' } });
+
+    expect(mockUseCashSessionsPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'open' }),
+      expect.any(Object),
+    );
+    expect(screen.getByRole('button', { name: /Turno #8/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Turno #7/ })).not.toBeInTheDocument();
+  });
+
+  it('limpia la nota de revisión al cambiar de turno expandido', () => {
+    render(<CashRegisterCommandCenter branches={[]} registers={[]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Turno #7/ }));
+    fireEvent.change(screen.getByLabelText('Nota de revisión'), { target: { value: 'Revisar factura' } });
+    fireEvent.click(screen.getByRole('button', { name: /Turno #8/ }));
+
+    expect(screen.getByLabelText('Nota de revisión')).toHaveValue('');
+  });
+
+  it('distingue un error de carga de una lista vacía y permite reintentar', () => {
+    const refetch = vi.fn();
+    mockUseCashSessionsPage.mockReturnValue({
+      data: undefined,
       isLoading: false,
       isFetching: false,
-      isError: false,
-      refetch: vi.fn(),
+      isError: true,
+      refetch,
     });
 
-    render(
-      <CashRegisterCommandCenter
-        branches={[{ id: 1, name: 'Centro', code: 'CTR' }]}
-        registers={[{ id: 1, name: 'Caja Electronica', code: 'C1', branch_id: 1 }]}
-      />,
-    );
+    render(<CashRegisterCommandCenter branches={[]} registers={[]} />);
 
-    // El turno solo electronico no debe aparecer como faltante de efectivo.
-    expect(screen.queryByText('$-200,00')).not.toBeInTheDocument();
-    expect(screen.getByText('Sin alertas visibles')).toBeInTheDocument();
+    expect(screen.getByText('No se pudieron cargar los turnos. Intenta nuevamente.')).toBeInTheDocument();
+    expect(screen.queryByText('No hay turnos registrados.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it('muestra estado vacío y oculta la revisión para usuarios de solo lectura', () => {
+    mockUseCashSessionsPage.mockReturnValue(pageResult([]));
+    mockCan.mockImplementation((permission: string) => permission === 'cash_register.view');
+
+    render(<CashRegisterCommandCenter branches={[]} registers={[]} />);
+
+    expect(screen.getByText('No hay turnos registrados.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Nota de revisión')).not.toBeInTheDocument();
   });
 });

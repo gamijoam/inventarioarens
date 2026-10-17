@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';

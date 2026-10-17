@@ -960,6 +960,7 @@ export function useBootstrapRefsForPos() {
 
 export function useCashSessionsList(
   filters: { status?: 'open' | 'closed' | 'cancelled'; cashier?: 'me'; perPage?: number } = {},
+  options: { enabled?: boolean } = {},
 ) {
   const params = new URLSearchParams({ per_page: String(filters.perPage ?? 25) });
   if (filters.status) params.set('status', filters.status);
@@ -971,6 +972,38 @@ export function useCashSessionsList(
       const response = await getPaginated<unknown>(`/cash-register/sessions?${params.toString()}`);
       return z.array(CashRegisterSessionSchema).parse(response.data);
     },
+    enabled: options.enabled ?? true,
+  });
+}
+
+export function useCashSessionsPage(
+  filters: {
+    page?: number;
+    perPage?: number;
+    status?: 'open' | 'closed' | 'cancelled';
+    branchId?: number;
+    registerId?: number;
+  } = {},
+  options: { enabled?: boolean } = {},
+) {
+  const params = new URLSearchParams({
+    page: String(filters.page ?? 1),
+    per_page: String(filters.perPage ?? 25),
+  });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.branchId) params.set('branch_id', String(filters.branchId));
+  if (filters.registerId) params.set('cash_register_id', String(filters.registerId));
+
+  return useQuery({
+    queryKey: posKeys.cashSessions(params.toString()),
+    queryFn: async () => {
+      const response = await getPaginated<unknown>(`/cash-register/sessions?${params.toString()}`);
+      return {
+        data: z.array(CashRegisterSessionSchema).parse(response.data),
+        meta: response.meta,
+      };
+    },
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -1004,28 +1037,31 @@ export function useReviewCashSession() {
       ),
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: ['reports', 'cash-sessions'] });
+      void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashSessionDetail(variables.sessionId) });
     },
   });
 }
 
-export function useCashRegisters() {
+export function useCashRegisters(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: posKeys.cashRegisters(),
     queryFn: async () => {
       const data = await getMany<unknown>('/cash-register/registers');
       return z.array(CashRegisterSchema).parse(data);
     },
+    enabled: options.enabled ?? true,
   });
 }
 
-export function useBranchesForPos() {
+export function useBranchesForPos(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: [...posKeys.all, 'branches'],
     queryFn: async () => {
       const response = await getPaginated<unknown>('/branches?per_page=100');
       return z.array(BranchSchema).parse(response.data);
     },
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -1223,7 +1259,7 @@ export async function quoteProductForPos(
   );
 }
 
-export function useExchangeRateTypesForPos() {
+export function useExchangeRateTypesForPos(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: posKeys.exchangeRateTypes(),
     queryFn: async () =>
@@ -1232,6 +1268,7 @@ export function useExchangeRateTypesForPos() {
     // seguir usandola por cache viejo.
     staleTime: 0,
     refetchOnMount: 'always',
+    enabled: options.enabled ?? true,
   });
 }
 

@@ -1,529 +1,532 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, FileText, RefreshCw, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { formatDateTime } from '@/lib/format';
-import { formatMoney } from '@/lib/money';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
 import { ReportZDialog } from '@/features/cash-register/ReportZDialog';
-
 import {
-  useCashSessions as useCashSessionsReport,
-  type CashSessions,
-  type ReportFilters,
-} from '@/features/reports/api';
-import { todayDateString } from '@/lib/format';
-import { useCashSessionDetail, useReviewCashSession, type CashRegisterSessionDetail } from './api';
-import { cashMovementMethodLabel, cashMovementTypeLabel } from '@/features/reports/movementLabels';
+  type CashRegisterSession,
+  type CashRegisterSessionDetail,
+  useCashSessionDetail,
+  useCashSessionsPage,
+  useReviewCashSession,
+} from './api';
 
-type CommandCenterProps = {
-  branches: Array<{ id: number; name: string; code: string }>;
-  registers: Array<{ id: number; name: string; code?: string | null; branch_id?: number | null }>;
-};
+type SessionStatusFilter = 'all' | 'open' | 'closed' | 'cancelled';
 
-const today = todayDateString();
+const emptySessions: CashRegisterSession[] = [];
 
-
-export function CashRegisterCommandCenter({ branches, registers }: CommandCenterProps) {
-  const canViewReports = useCan(PERMISSIONS.REPORTS_VIEW);
-  const canViewCashReports = useCan(PERMISSIONS.REPORTS_CASH_VIEW);
-  const canView = canViewReports || canViewCashReports;
-  const [filters, setFilters] = useState<ReportFilters>({ date: today, status: 'all', limit: 100 });
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const report = useCashSessionsReport(filters, canView);
-
-  if (!canView) return null;
-
-  function updateFilter<K extends keyof ReportFilters>(
-    key: K,
-    value: ReportFilters[K] | undefined,
-  ) {
-    setFilters((current) => ({ ...current, [key]: value }));
-  }
-
-  function clearFilters() {
-    setFilters({ date: today, status: 'all', limit: 100 });
-  }
-
-  const data = report.data;
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="text-primary size-4" /> Centro de control
-            </CardTitle>
-            <p className="text-text-muted mt-1 text-sm">
-              Supervisa turnos, diferencias y actividad de todas las cajas.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void report.refetch()}
-            disabled={report.isFetching}
-          >
-            <RefreshCw className={report.isFetching ? 'size-4 animate-spin' : 'size-4'} />{' '}
-            Actualizar
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <Field label="Fecha">
-              <Input
-                type="date"
-                value={filters.date ?? ''}
-                onChange={(event) => updateFilter('date', event.target.value || undefined)}
-              />
-            </Field>
-            <Field label="Estado">
-              <Select
-                value={filters.status ?? 'all'}
-                onChange={(event) => updateFilter('status', event.target.value)}
-              >
-                <option value="all">Todos los turnos</option>
-                <option value="open">Abiertos</option>
-                <option value="closed">Cerrados</option>
-              </Select>
-            </Field>
-            <Field label="Revisión">
-              <Select
-                value={filters.review_status ?? ''}
-                onChange={(event) => updateFilter('review_status', event.target.value || undefined)}
-              >
-                <option value="">Todos</option>
-                <option value="pending">Pendientes</option>
-                <option value="approved">Aprobados</option>
-                <option value="rejected">Rechazados</option>
-              </Select>
-            </Field>
-            <Field label="Sucursal">
-              <Select
-                value={String(filters.branch_id ?? '')}
-                onChange={(event) =>
-                  updateFilter(
-                    'branch_id',
-                    event.target.value ? Number(event.target.value) : undefined,
-                  )
-                }
-              >
-                <option value="">Todas las sucursales</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.code} - {branch.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Caja física">
-              <Select
-                value={String(filters.cash_register_id ?? '')}
-                onChange={(event) =>
-                  updateFilter(
-                    'cash_register_id',
-                    event.target.value ? Number(event.target.value) : undefined,
-                  )
-                }
-              >
-                <option value="">Todas las cajas</option>
-                {registers.map((register) => (
-                  <option key={register.id} value={register.id}>
-                    {register.code ?? register.id} - {register.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <div className="flex items-end">
-              <Button variant="ghost" className="w-full" onClick={clearFilters}>
-                Limpiar filtros
-              </Button>
-            </div>
-          </div>
-
-          {report.isLoading ? (
-            <CommandCenterLoading />
-          ) : report.isError ? (
-            <CommandCenterError />
-          ) : data ? (
-            <CommandCenterContent data={data} expandedId={expandedId} onExpand={setExpandedId} />
-          ) : null}
-        </CardContent>
-      </Card>
-    </div>
-  );
+interface CashRegisterCommandCenterProps {
+  branches: { id: number; name: string; code?: string | null }[];
+  registers: { id: number; name: string; code?: string | null; branch_id?: number | null }[];
+  loadingOptions?: boolean;
 }
 
-function CommandCenterContent({
-  data,
-  expandedId,
-  onExpand,
-}: {
-  data: CashSessions;
-  expandedId: number | null;
-  onExpand: (id: number | null) => void;
-}) {
+export function CashRegisterCommandCenter({
+  branches,
+  registers,
+  loadingOptions = false,
+}: CashRegisterCommandCenterProps) {
+  const canView = useCan(PERMISSIONS.CASH_REGISTER_VIEW);
+  const canReview = useCan(PERMISSIONS.CASH_REGISTER_REVIEW);
+  const [status, setStatus] = useState<SessionStatusFilter>('all');
+  const [branchId, setBranchId] = useState('');
+  const [registerId, setRegisterId] = useState('');
+  const [reviewStatus, setReviewStatus] = useState('all');
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reportSessionId, setReportSessionId] = useState<number | null>(null);
+  const perPage = 50;
+  const sessionsQuery = useCashSessionsPage(
+    {
+      page,
+      perPage,
+      status: status === 'all' ? undefined : status,
+      branchId: branchId ? Number(branchId) : undefined,
+      registerId: registerId ? Number(registerId) : undefined,
+    },
+    { enabled: canView },
+  );
+  const sessions = sessionsQuery.data?.data ?? emptySessions;
+  const meta = sessionsQuery.data?.meta;
   const detail = useCashSessionDetail(expandedId);
   const review = useReviewCashSession();
-  const canReview = useCan(PERMISSIONS.CASH_REGISTER_REVIEW);
-  const [reviewNotes, setReviewNotes] = useState('');
-  const difference = data.summary.difference_cash_usd ?? data.summary.difference_base_amount;
-  const attentionCount = data.rows.filter(
-    (row) =>
-      row.status === 'open' ||
-      Math.abs(row.difference_cash_usd ?? row.difference_base_amount ?? 0) > 0.009 ||
-      Math.abs(row.difference_cash_ves ?? 0) > 0.009,
-  ).length;
+
+  const filteredSessions = useMemo(() => {
+    const query = normalize(search);
+    return sessions.filter((session) => {
+      const searchMatch =
+        !query ||
+        normalize(String(session.id)).includes(query) ||
+        normalize(session.cash_register?.name ?? '').includes(query) ||
+        normalize(session.branch?.name ?? '').includes(query) ||
+        normalize(session.cashier?.name ?? '').includes(query);
+      const reviewMatch =
+        reviewStatus === 'all' ||
+        (session.status === 'closed' &&
+          (session.review_status ?? 'pending') === reviewStatus);
+      const openedDate = session.opened_at?.slice(0, 10) ?? '';
+      const closedDate = session.closed_at?.slice(0, 10) ?? openedDate;
+      const dateMatch =
+        (!dateFrom || closedDate >= dateFrom) &&
+        (!dateTo || closedDate <= dateTo);
+      return searchMatch && reviewMatch && dateMatch;
+    });
+  }, [dateFrom, dateTo, reviewStatus, search, sessions]);
+
+  function changeFilter<T>(setter: (value: T) => void, value: T): void {
+    setter(value);
+    setPage(1);
+    setExpandedId(null);
+    setReviewNotes('');
+  }
+
+  function toggleSession(sessionId: number): void {
+    setExpandedId((current) => (current === sessionId ? null : sessionId));
+    setReviewNotes('');
+  }
+
+  function clearFilters(): void {
+    setStatus('all');
+    setBranchId('');
+    setRegisterId('');
+    setReviewStatus('all');
+    setSearch('');
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+    setExpandedId(null);
+    setReviewNotes('');
+  }
+
+  function submitReview(session: CashRegisterSession, nextStatus: 'approved' | 'rejected'): void {
+    review.mutate(
+      {
+        sessionId: session.id,
+        status: nextStatus,
+        review_notes: reviewNotes.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success(nextStatus === 'approved' ? 'Cierre aprobado.' : 'Cierre rechazado.');
+          setReviewNotes('');
+          void sessionsQuery.refetch();
+        },
+        onError: () => toast.error('No se pudo actualizar la revisión.'),
+      },
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-warning" role="status">
+        No tienes permiso para consultar los turnos de caja.
+      </div>
+    );
+  }
+
+  const total = meta?.total ?? sessions.length;
+  const firstResult = total === 0 ? 0 : (page - 1) * perPage + 1;
+  const lastResult = Math.min(page * perPage, total);
+  const lastPage = meta?.last_page ?? 1;
 
   return (
-    <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric
-          label="Turnos abiertos"
-          value={String(data.summary.open_count)}
-          tone={data.summary.open_count ? 'warning' : 'default'}
-        />
-        <Metric label="Turnos cerrados" value={String(data.summary.closed_count)} />
-        <Metric
-          label="Esperado USD"
-          value={formatMoney(data.summary.expected_cash_usd ?? data.summary.expected_base_amount)}
-        />
-        <Metric
-          label="Esperado VES"
-          value={formatMoney({
-            amount: String(data.summary.expected_cash_ves ?? data.summary.expected_local_amount),
-            currency: 'VES',
-          })}
-        />
-        <Metric
-          label="Diferencia USD"
-          value={formatMoney(difference)}
-          tone={Math.abs(difference) > 0.009 ? 'danger' : 'success'}
-        />
-      </div>
-
-      <div className="border-border bg-bg/40 flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2 text-sm">
-        <span className="text-text-muted">
-          {data.rows.length} turnos encontrados · período {data.period.from} al {data.period.to}
-        </span>
-        <Badge variant={attentionCount ? 'warning' : 'success'}>
-          {attentionCount ? `${attentionCount} requieren atención` : 'Sin alertas visibles'}
-        </Badge>
-      </div>
-
-      <div className="border-border overflow-x-auto rounded border">
-        <table className="w-full min-w-[920px] text-left text-sm">
-          <thead className="bg-bg/70 text-text-muted text-xs tracking-wide uppercase">
-            <tr>
-              <th className="w-8 px-3 py-3" />
-              <th className="px-3 py-3">Caja / sucursal</th>
-              <th className="px-3 py-3">Cajero</th>
-              <th className="px-3 py-3">Turno</th>
-              <th className="px-3 py-3 text-right">Esperado USD</th>
-              <th className="px-3 py-3 text-right">Contado USD</th>
-              <th className="px-3 py-3 text-right">Diferencia</th>
-              <th className="px-3 py-3">Actividad</th>
-            </tr>
-          </thead>
-          <tbody className="divide-border divide-y">
-            {data.rows.map((row) => {
-              const expanded = expandedId === row.id;
-              const rowDifference = row.difference_cash_usd ?? row.difference_base_amount ?? 0;
-              return (
-                <tr key={row.id} className="hover:bg-bg/40 align-top">
-                  <td colSpan={8} className="p-0">
-                    <button
-                      type="button"
-                      className="grid w-full grid-cols-[32px_1.4fr_1fr_1fr_1fr_1fr_1fr_1fr] items-center text-left"
-                      onClick={() => onExpand(expanded ? null : row.id)}
-                    >
-                      <span className="text-text-muted px-3 py-3">
-                        {expanded ? (
-                          <ChevronDown className="size-4" />
-                        ) : (
-                          <ChevronRight className="size-4" />
-                        )}
-                      </span>
-                      <span className="px-3 py-3">
-                        <strong className="text-text-primary block">
-                          {row.cash_register_name ?? 'Caja sin nombre'}
-                        </strong>
-                        <span className="text-text-muted text-xs">
-                          {row.branch_name ?? 'Sin sucursal'}
-                        </span>
-                      </span>
-                      <span className="px-3 py-3">{row.cashier_name ?? 'Sin cajero'}</span>
-                      <span className="px-3 py-3">
-                        <Badge variant={row.status === 'open' ? 'warning' : 'success'}>
-                          {row.status === 'open' ? 'Abierto' : 'Cerrado'}
-                        </Badge>
-                      </span>
-                      <span className="px-3 py-3 text-right font-medium">
-                        {formatMoney(row.expected_cash_usd ?? row.expected_base_amount)}
-                      </span>
-                      <span className="px-3 py-3 text-right">
-                        {formatMoney(row.counted_cash_usd ?? row.counted_base_amount)}
-                      </span>
-                      <span
-                        className={`px-3 py-3 text-right font-semibold ${Math.abs(rowDifference) > 0.009 ? 'text-danger' : 'text-success'}`}
-                      >
-                        {formatMoney(row.difference_cash_usd ?? row.difference_base_amount)}
-                      </span>
-                      <span className="text-text-muted px-3 py-3 text-xs">
-                        {row.closed_at
-                          ? formatDateTime(row.closed_at)
-                          : `Abierto ${formatDateTime(row.opened_at)}`}
-                      </span>
-                    </button>
-                    {expanded && (
-                      <SessionBreakdown
-                        row={row}
-                        detail={detail.data}
-                        loading={detail.isLoading}
-                        reviewNotes={reviewNotes}
-                        reviewPending={review.isPending}
-                        onReviewNotes={setReviewNotes}
-                        canReview={canReview}
-                        onReview={(status) =>
-                          review.mutate(
-                            {
-                              sessionId: row.id,
-                              status,
-                              review_notes: reviewNotes.trim() || undefined,
-                            },
-                            {
-                              onSuccess: () => {
-                                toast.success(
-                                  status === 'approved' ? 'Cierre aprobado.' : 'Cierre rechazado.',
-                                );
-                                setReviewNotes('');
-                              },
-                              onError: () => toast.error('No se pudo actualizar la revisión.'),
-                            },
-                          )
-                        }
-                      />
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {!data.rows.length && (
-              <tr>
-                <td colSpan={8} className="text-text-muted px-4 py-10 text-center">
-                  No hay turnos para los filtros seleccionados.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-function SessionBreakdown({
-  row,
-  detail,
-  loading,
-  reviewNotes,
-  reviewPending,
-  canReview,
-  onReviewNotes,
-  onReview,
-}: {
-  row: CashSessions['rows'][number];
-  detail: CashRegisterSessionDetail | undefined;
-  loading: boolean;
-  reviewNotes: string;
-  reviewPending: boolean;
-  canReview: boolean;
-  onReviewNotes: (value: string) => void;
-  onReview: (status: 'approved' | 'rejected') => void;
-}) {
-  const [showZ, setShowZ] = useState(false);
-
-  return (
-    <div className="border-border bg-bg/30 grid gap-4 border-t px-10 py-4 lg:grid-cols-[1fr_1fr]">
-      <div>
-        <p className="text-text-muted mb-2 text-xs font-semibold tracking-wide uppercase">
-          Resumen del turno #{row.id}
-        </p>
-        <div className="grid gap-2 text-sm sm:grid-cols-2">
-          <Detail label="Apertura USD" value={formatMoney(row.opening_base_amount)} />
-          <Detail label="Esperado físico USD" value={formatMoney(row.expected_cash_usd ?? row.expected_base_amount)} />
-          <Detail label="Contado físico USD" value={formatMoney(row.counted_cash_usd ?? row.counted_base_amount)} />
-          <Detail label="Diferencia física USD" value={formatMoney(row.difference_cash_usd ?? row.difference_base_amount)} />
-          <Detail
-            label="Apertura VES"
-            value={formatMoney({ amount: String(row.opening_local_amount), currency: 'VES' })}
-          />
-          <Detail
-            label="Contado físico VES"
-            value={formatMoney(
-                row.counted_cash_ves === null || row.counted_cash_ves === undefined
-                  ? null
-                : { amount: String(row.counted_cash_ves), currency: 'VES' },
-            )}
-          />
-          <Detail label="Esperado físico VES" value={formatMoney({ amount: String(row.expected_cash_ves ?? row.expected_local_amount), currency: 'VES' })} />
-          <Detail label="Diferencia física VES" value={formatMoney({ amount: String(row.difference_cash_ves ?? row.difference_local_amount), currency: 'VES' })} />
-          <Detail
-            label="Movimientos"
-            value={
-              loading
-                ? 'Cargando...'
-                : String(detail?.summary.movement_count ?? row.movements.length)
-            }
-          />
-          <Detail
-            label="Ventas POS"
-            value={loading ? 'Cargando...' : `${detail?.summary.pos_paid_order_count ?? 0} pagadas`}
-          />
-          <Detail
-            label="Cobros CxC"
-            value={formatMoney(detail?.summary.receivable_collections_base_amount)}
-          />
-          <Detail
-            label="Pagos CxP"
-            value={formatMoney(detail?.summary.payable_payments_base_amount)}
-          />
-          <Detail
-            label="Movimientos manuales"
-            value={String(detail?.summary.manual_movement_count ?? 0)}
-          />
+    <Card>
+      <CardHeader className="gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle>Turnos</CardTitle>
+          <CardDescription>
+            Revisa turnos abiertos y cierres desde una sola lista.
+          </CardDescription>
         </div>
-      </div>
-      <div>
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-text-muted text-xs font-semibold tracking-wide uppercase">
-            Métodos de pago
-          </p>
-          <Badge
-            variant={
-              row.review_status === 'approved'
-                ? 'success'
-                : row.review_status === 'rejected'
-                  ? 'danger'
-                  : 'warning'
-            }
-          >
-            {row.review_status === 'approved'
-              ? 'Aprobado'
-              : row.review_status === 'rejected'
-                ? 'Rechazado'
-                : 'Pendiente de revisión'}
-          </Badge>
-        </div>
-        {detail?.payment_breakdown.length ? (
-          <div className="space-y-1 text-sm">
-            {detail.payment_breakdown.map((payment) => (
-              <div
-                key={`${payment.method}-${payment.currency}`}
-                className="flex justify-between gap-3"
-              >
-                <span className="text-text-muted">
-                  {payment.name} · {payment.payments_count}
-                </span>
-                <strong>{formatMoney(payment.amount_base)}</strong>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-text-muted text-sm">No hay pagos POS capturados.</p>
-        )}
-        <p className="text-text-muted mt-4 mb-2 text-xs font-semibold tracking-wide uppercase">
-          Actividad reciente
-        </p>
-        {row.movements.length ? (
-          <div className="space-y-1 text-sm">
-            {row.movements
-              .slice(-5)
-              .reverse()
-              .map((movement) => (
-                <div key={movement.id} className="flex justify-between gap-3">
-                  <span className="text-text-muted">
-                    {cashMovementTypeLabel(movement.type)} · {movement.notes ?? cashMovementMethodLabel(movement.method)}
-                  </span>
-                  <strong>{formatMoney(movement.amount_base)}</strong>
-                </div>
-              ))}
-          </div>
-        ) : (
-          <p className="text-text-muted text-sm">No hay movimientos registrados.</p>
-        )}
-        {Math.abs(row.difference_base_amount ?? 0) > 0.009 && (
-          <p className="border-warning/40 bg-warning/10 text-warning mt-3 flex items-center gap-2 rounded border p-2 text-xs">
-            <AlertTriangle className="size-4 shrink-0" /> Requiere revisión del responsable.
-          </p>
-        )}
-        {canReview && row.status === 'closed' && row.review_status !== 'approved' && (
-          <div className="border-border mt-4 space-y-2 border-t pt-3">
+        <Button
+          variant="outline"
+          className="min-h-11 w-full sm:w-auto"
+          onClick={() => void sessionsQuery.refetch()}
+          disabled={sessionsQuery.isFetching}
+        >
+          <RefreshCw className={sessionsQuery.isFetching ? 'size-4 animate-spin' : 'size-4'} />
+          Actualizar
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="relative sm:col-span-2">
+            <span className="sr-only">Buscar turnos de esta página</span>
+            <Search className="pointer-events-none absolute top-3 left-3 size-4 text-text-muted" aria-hidden="true" />
             <Input
-              value={reviewNotes}
-              onChange={(event) => onReviewNotes(event.target.value)}
-              placeholder="Nota de revisión (obligatoria al rechazar)"
+              aria-label="Buscar turnos de esta página"
+              className="min-h-11 pl-9"
+              value={search}
+              onChange={(event) => changeFilter(setSearch, event.target.value)}
+              placeholder="Buscar caja, sucursal, cajero o número"
             />
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={reviewPending} onClick={() => onReview('approved')}>
-                Aprobar cierre
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                disabled={reviewPending || !reviewNotes.trim()}
-                onClick={() => onReview('rejected')}
-              >
-                Rechazar cierre
-              </Button>
-            </div>
-          </div>
-        )}
-        {row.status === 'closed' && (
-          <div className="border-border mt-4 border-t pt-3">
-            <Button size="sm" variant="outline" onClick={() => setShowZ(true)}>
-              <FileText className="size-4" /> Reporte Z
+          </label>
+          <Field label="Estado">
+            <Select
+              aria-label="Estado de los turnos"
+              className="min-h-11"
+              value={status}
+              onChange={(event) => changeFilter(setStatus, event.target.value as SessionStatusFilter)}
+            >
+              <option value="all">Todos los turnos</option>
+              <option value="open">Abiertos</option>
+              <option value="closed">Cerrados</option>
+              <option value="cancelled">Cancelados</option>
+            </Select>
+          </Field>
+          <Field label="Revisión">
+            <Select
+              aria-label="Estado de revisión"
+              className="min-h-11"
+              value={reviewStatus}
+              onChange={(event) => changeFilter(setReviewStatus, event.target.value)}
+            >
+              <option value="all">Todas</option>
+              <option value="pending">Pendientes</option>
+              <option value="approved">Aprobadas</option>
+              <option value="rejected">Rechazadas</option>
+            </Select>
+          </Field>
+          <Field label="Sucursal">
+            <Select
+              aria-label="Sucursal"
+              className="min-h-11"
+              value={branchId}
+              onChange={(event) => changeFilter(setBranchId, event.target.value)}
+              disabled={loadingOptions}
+            >
+              <option value="">Todas las sucursales</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.code ? branch.code + ' · ' : ''}{branch.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Caja física">
+            <Select
+              aria-label="Caja física"
+              className="min-h-11"
+              value={registerId}
+              onChange={(event) => changeFilter(setRegisterId, event.target.value)}
+              disabled={loadingOptions}
+            >
+              <option value="">Todas las cajas</option>
+              {registers.map((register) => (
+                <option key={register.id} value={register.id}>
+                  {register.code ? register.code + ' · ' : ''}{register.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Desde">
+            <Input
+              aria-label="Desde"
+              className="min-h-11"
+              type="date"
+              value={dateFrom}
+              onChange={(event) => changeFilter(setDateFrom, event.target.value)}
+            />
+          </Field>
+          <Field label="Hasta">
+            <Input
+              aria-label="Hasta"
+              className="min-h-11"
+              type="date"
+              value={dateTo}
+              onChange={(event) => changeFilter(setDateTo, event.target.value)}
+            />
+          </Field>
+        </div>
+
+        <p className="text-xs text-text-muted">
+          Estado, sucursal y caja consultan el historial; búsqueda, revisión y fechas filtran la página actual.
+        </p>
+
+        <div className="flex flex-col gap-2 rounded border border-border bg-bg/40 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-text-muted">
+            {filteredSessions.length} de {sessions.length} turnos en esta página · {firstResult}-{lastResult} de {total} en el historial
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              className="min-h-11 flex-1 sm:flex-none"
+              onClick={clearFilters}
+              disabled={page === 1 && status === 'all' && !branchId && !registerId && reviewStatus === 'all' && !search && !dateFrom && !dateTo}
+            >
+              Limpiar filtros
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-11"
+              onClick={() => { setPage((current) => Math.max(1, current - 1)); setExpandedId(null); setReviewNotes(''); }}
+              disabled={page <= 1 || sessionsQuery.isFetching}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-11"
+              onClick={() => { setPage((current) => Math.min(lastPage, current + 1)); setExpandedId(null); setReviewNotes(''); }}
+              disabled={page >= lastPage || sessionsQuery.isFetching}
+            >
+              Siguiente
             </Button>
           </div>
+        </div>
+
+        {sessionsQuery.isLoading ? (
+          <div className="rounded border border-border p-5 text-sm text-text-muted" role="status">
+            Cargando turnos...
+          </div>
+        ) : sessionsQuery.isError ? (
+          <div className="flex flex-col gap-3 rounded border border-danger/40 bg-danger/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between" role="alert">
+            <span>No se pudieron cargar los turnos. Intenta nuevamente.</span>
+            <Button variant="outline" className="min-h-11" onClick={() => void sessionsQuery.refetch()}>
+              Reintentar
+            </Button>
+          </div>
+        ) : filteredSessions.length === 0 ? (
+          <div className="rounded border border-dashed border-border p-6 text-center text-sm text-text-muted">
+            {sessions.length === 0 ? 'No hay turnos registrados.' : 'No hay turnos que coincidan con los filtros de esta página.'}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredSessions.map((session) => (
+              <SessionCard
+                key={session.id}
+                session={session}
+                expanded={expandedId === session.id}
+                canReview={canReview}
+                detail={expandedId === session.id ? detail.data : undefined}
+                detailLoading={expandedId === session.id && detail.isLoading}
+                detailError={expandedId === session.id && detail.isError}
+                reviewNotes={reviewNotes}
+                reviewPending={review.isPending}
+                onToggle={() => toggleSession(session.id)}
+                onReviewNotes={setReviewNotes}
+                onReview={(nextStatus) => submitReview(session, nextStatus)}
+                onReport={() => setReportSessionId(session.id)}
+              />
+            ))}
+          </div>
         )}
-        {showZ && <ReportZDialog sessionId={row.id} open onOpenChange={setShowZ} />}
-      </div>
-    </div>
+      </CardContent>
+
+      {reportSessionId !== null && (
+        <ReportZDialog
+          sessionId={reportSessionId}
+          open
+          onOpenChange={(open) => { if (!open) setReportSessionId(null); }}
+        />
+      )}
+    </Card>
   );
 }
 
-function Metric({
-  label,
-  value,
-  tone = 'default',
+function SessionCard({
+  session,
+  expanded,
+  canReview,
+  detail,
+  detailLoading,
+  detailError,
+  reviewNotes,
+  reviewPending,
+  onToggle,
+  onReviewNotes,
+  onReview,
+  onReport,
 }: {
-  label: string;
-  value: string;
-  tone?: 'default' | 'warning' | 'danger' | 'success';
+  session: CashRegisterSession;
+  expanded: boolean;
+  canReview: boolean;
+  detail: CashRegisterSessionDetail | undefined;
+  detailLoading: boolean;
+  detailError: boolean;
+  reviewNotes: string;
+  reviewPending: boolean;
+  onToggle: () => void;
+  onReviewNotes: (value: string) => void;
+  onReview: (status: 'approved' | 'rejected') => void;
+  onReport: () => void;
 }) {
+  const differenceUsd = session.difference_cash_usd ?? session.difference_base_amount;
+  const differenceVes = session.difference_cash_ves ?? session.difference_local_amount;
+  const expectedUsd = session.expected_cash_usd ?? session.expected_base_amount;
+  const open = session.status === 'open';
+  const canceled = session.status === 'cancelled';
+
   return (
-    <div className="border-border bg-surface/70 rounded border p-3">
-      <p className="text-text-muted text-xs tracking-wide uppercase">{label}</p>
-      <p
-        className={`mt-1 text-lg font-semibold ${tone === 'danger' ? 'text-danger' : tone === 'success' ? 'text-success' : tone === 'warning' ? 'text-warning' : 'text-text-primary'}`}
+    <article className="overflow-hidden rounded-lg border border-border bg-surface">
+      <button
+        type="button"
+        className="grid min-h-11 w-full min-w-0 gap-3 p-3 text-left transition-colors hover:bg-bg/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:grid-cols-[minmax(0,1fr)_auto]"
+        aria-label={'Turno #' + session.id + ', ' + (session.cash_register?.name ?? 'Caja física')}
+        aria-expanded={expanded}
+        onClick={onToggle}
       >
-        {value}
-      </p>
-    </div>
+        <span className="flex min-w-0 items-start gap-3">
+          <span className="mt-1 shrink-0 text-text-muted" aria-hidden="true">
+            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <strong className="break-words text-text-primary">
+                {session.cash_register?.name ?? 'Caja física'}
+              </strong>
+              <Badge variant={open ? 'warning' : canceled ? 'default' : 'success'}>
+                {open ? 'Abierto' : canceled ? 'Cancelado' : 'Cerrado'}
+              </Badge>
+              {!open && (
+                <Badge variant={reviewVariant(session.review_status)}>
+                  {reviewLabel(session.review_status)}
+                </Badge>
+              )}
+            </span>
+            <span className="mt-1 block break-words text-xs text-text-muted">
+              {session.branch?.name ?? 'Sin sucursal'} · {session.cashier?.name ?? 'Sin cajero'} · Turno #{session.id}
+            </span>
+          </span>
+        </span>
+        <span className="grid grid-cols-2 gap-x-4 gap-y-1 text-left text-xs sm:min-w-56 sm:text-right">
+          <span className="text-text-muted">{open ? 'Esperado USD' : 'Diferencia USD'}</span>
+          <strong className={differenceUsd != null && Math.abs(Number(differenceUsd)) >= 0.01 ? 'text-danger' : 'text-text-primary'}>
+            {open ? moneyUsd(expectedUsd) : optionalUsd(differenceUsd)}
+          </strong>
+          {!open && (
+            <>
+              <span className="text-text-muted">Diferencia Bs</span>
+              <strong className={differenceVes != null && Math.abs(Number(differenceVes)) >= 0.01 ? 'text-danger' : 'text-text-primary'}>
+                {optionalVes(differenceVes)}
+              </strong>
+            </>
+          )}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border bg-bg/30 p-3 sm:p-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">
+                Resumen del turno #{session.id}
+              </p>
+              {detailLoading ? (
+                <p className="text-sm text-text-muted" role="status">Cargando el detalle...</p>
+              ) : detailError ? (
+                <p className="text-sm text-danger" role="alert">No se pudo cargar el detalle del turno.</p>
+              ) : (
+                <>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+                    <Detail label="Fondo USD" value={moneyUsd(session.opening_base_amount)} />
+                    <Detail label="Fondo Bs" value={moneyVes(session.opening_local_amount)} />
+                    <Detail label="Esperado USD" value={optionalUsd(expectedUsd)} />
+                    <Detail label="Esperado Bs" value={optionalVes(session.expected_cash_ves ?? session.expected_local_amount)} />
+                    <Detail label="Contado USD" value={optionalUsd(session.counted_cash_usd ?? session.counted_base_amount)} />
+                    <Detail label="Contado Bs" value={optionalVes(session.counted_cash_ves ?? session.counted_local_amount)} />
+                    <Detail label="Diferencia USD" value={optionalUsd(differenceUsd)} />
+                    <Detail label="Diferencia Bs" value={optionalVes(differenceVes)} />
+                    <Detail label="Apertura" value={formatDate(session.opened_at)} />
+                    <Detail label="Cierre" value={formatDate(session.closed_at)} />
+                    <Detail label="Movimientos" value={String(detail?.summary.movement_count ?? session.movements?.length ?? 0)} />
+                    <Detail label="Ventas POS" value={detail ? String(detail.summary.pos_paid_order_count) : '—'} />
+                  </dl>
+                  {detail?.summary && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
+                      <Detail label="Cobros CxC" value={moneyUsd(detail.summary.receivable_collections_base_amount)} />
+                      <Detail label="Pagos CxP" value={moneyUsd(detail.summary.payable_payments_base_amount)} />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="space-y-3">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Actividad reciente</p>
+                {session.movements?.length ? (
+                  <ul className="space-y-1 text-sm">
+                    {session.movements.slice(-5).reverse().map((movement) => (
+                      <li key={movement.id} className="flex min-w-0 justify-between gap-3">
+                        <span className="min-w-0 break-words text-text-muted">
+                          {movementTypeLabel(movement.type)} · {movement.notes ?? movementMethodLabel(movement.method)}
+                        </span>
+                        <strong className="shrink-0">{moneyUsd(movement.amount_base ?? movement.amount)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-text-muted">No hay movimientos registrados.</p>
+                )}
+              </div>
+              {session.closing_notes && (
+                <p className="rounded border border-border p-2 text-sm text-text-muted">
+                  Nota de cierre: {session.closing_notes}
+                </p>
+              )}
+              {session.review_notes && (
+                <p className="rounded border border-border p-2 text-sm text-text-muted">
+                  Nota de revisión: {session.review_notes}
+                </p>
+              )}
+              {Math.abs(Number(differenceUsd ?? 0)) >= 0.01 && (
+                <p className="flex items-center gap-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+                  <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+                  El cierre presenta una diferencia que requiere revisión.
+                </p>
+              )}
+              {canReview && session.status === 'closed' && session.review_status !== 'approved' && (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <label className="block space-y-1">
+                    <span className="text-xs font-medium text-text-muted">Nota de revisión</span>
+                    <Input
+                      aria-label="Nota de revisión"
+                      className="min-h-11"
+                      value={reviewNotes}
+                      onChange={(event) => onReviewNotes(event.target.value)}
+                      placeholder="Obligatoria al rechazar"
+                    />
+                  </label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button className="min-h-11 flex-1" disabled={reviewPending} onClick={() => onReview('approved')}>
+                      Aprobar cierre
+                    </Button>
+                    <Button className="min-h-11 flex-1" variant="danger" disabled={reviewPending || !reviewNotes.trim()} onClick={() => onReview('rejected')}>
+                      Rechazar cierre
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {session.status === 'closed' && (
+                <div className="border-t border-border pt-3">
+                  <Button variant="outline" className="min-h-11 w-full sm:w-auto" onClick={onReport}>
+                    <FileText className="size-4" /> Reporte Z
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </article>
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="space-y-1">
-      <span className="text-text-muted block text-xs font-medium">{label}</span>
+    <label className="block space-y-1">
+      <span className="text-xs font-medium text-text-muted">{label}</span>
       {children}
     </label>
   );
@@ -531,25 +534,63 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-text-muted text-xs">{label}</p>
-      <p className="text-text-primary font-medium">{value}</p>
+    <div className="min-w-0">
+      <dt className="text-xs text-text-muted">{label}</dt>
+      <dd className="break-words font-medium text-text-primary">{value}</dd>
     </div>
   );
 }
 
-function CommandCenterLoading() {
-  return (
-    <div className="border-border text-text-muted rounded border p-6 text-sm">
-      Cargando supervisión de cajas...
-    </div>
-  );
+function normalize(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-function CommandCenterError() {
-  return (
-    <div className="border-danger/40 bg-danger/5 text-danger rounded border p-6 text-sm">
-      No se pudo cargar la supervisión de cajas. Actualiza para intentar nuevamente.
-    </div>
-  );
+function reviewLabel(status?: string): string {
+  if (status === 'approved') return 'Aprobado';
+  if (status === 'rejected') return 'Rechazado';
+  return 'Pendiente de revisión';
+}
+
+function reviewVariant(status?: string): 'success' | 'danger' | 'warning' {
+  if (status === 'approved') return 'success';
+  if (status === 'rejected') return 'danger';
+  return 'warning';
+}
+
+function movementTypeLabel(type: string): string {
+  if (type === 'inflow') return 'Entrada';
+  if (type === 'outflow') return 'Salida';
+  if (type === 'adjustment') return 'Ajuste';
+  if (type === 'pos_payment') return 'Pago POS';
+  return type;
+}
+
+function movementMethodLabel(method?: string | null): string {
+  if (method === 'cash') return 'Efectivo';
+  if (method === 'card') return 'Tarjeta';
+  if (method === 'mobile_payment') return 'Pago móvil';
+  if (method === 'transfer') return 'Transferencia';
+  return method ?? 'Movimiento';
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('es-VE');
+}
+
+function moneyUsd(value: number | string | null | undefined): string {
+  return '$' + Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function moneyVes(value: number | string | null | undefined): string {
+  return 'Bs ' + Number(value ?? 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function optionalUsd(value: number | string | null | undefined): string {
+  return value == null ? '—' : moneyUsd(value);
+}
+
+function optionalVes(value: number | string | null | undefined): string {
+  return value == null ? '—' : moneyVes(value);
 }
