@@ -1091,6 +1091,11 @@ This project has a knowledge graph at graphify-out/ with god nodes, community st
 - OAuth 2.1 + PKCE es obligatorio; la configuracion y secretos viven fuera del repo en `/etc/balanzapro-vps-mcp.env` y `/var/lib/balanzapro-vps-mcp/`.
 - Tiene permisos administrativos totales del VPS por solicitud explicita del usuario. No exponer sus credenciales, su base OAuth ni su pantalla de login fuera de clientes de confianza.
 
+## MCP de diagnostico BalanzaPro (2026-10-08)
+
+- URL remota: `https://app.balanzapro.com/mcp`.
+- Es publico por solicitud explicita del usuario: no usa OAuth ni tokens. Solo expone la herramienta read-only `system-health`; no agregar herramientas que revelen datos de clientes, credenciales, configuracion sensible ni operaciones de escritura sin reintroducir autenticacion.
+
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
 Rules:

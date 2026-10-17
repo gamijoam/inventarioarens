@@ -19,7 +19,8 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
+import { localizeApiErrorMessage } from '@/lib/toast';
 
 import {
   ForbiddenError,
@@ -86,6 +87,7 @@ api.interceptors.response.use(
 
     const status = error.response?.status ?? 0;
     const body = error.response?.data;
+    let localizedMessage: string | undefined;
 
     switch (status) {
       case 401: {
@@ -95,37 +97,39 @@ api.interceptors.response.use(
         // navegacion a /login (SPA, no full reload).
         useSessionStore.getState().clearSession();
         onUnauthorized?.();
-        toast.error('Tu sesión expiró. Vuelve a iniciar sesión.');
+        localizedMessage = localizeApiErrorMessage(body?.message, status);
+        toast.error(localizedMessage);
         break;
       }
       case 403: {
-        const message = body?.message?.trim() || 'No tienes permiso para esta acción.';
+        const message = localizeApiErrorMessage(body?.message, status);
         toast.error(message);
         throw new ForbiddenError(message);
       }
       case 404: {
-        toast.error(body?.message?.trim() || 'Recurso no encontrado.');
+        localizedMessage = localizeApiErrorMessage(body?.message, status);
+        toast.error(localizedMessage);
         break;
       }
       case 422: {
         const fieldErrors = body?.errors ?? {};
-        throw new ValidationError(body?.message?.trim() || 'Datos inválidos.', fieldErrors);
-      }
-      case 500:
-      case 502:
-      case 503: {
-        toast.error(body?.message?.trim() || 'Error del servidor. Por favor intenta de nuevo.');
-        break;
+        throw new ValidationError(localizeApiErrorMessage(body?.message, status), fieldErrors);
       }
       default: {
         if (!status) {
-          toast.error('Error de red. Verifica tu conexión.');
+          localizedMessage = localizeApiErrorMessage(error.message, 0);
+          toast.error(localizedMessage);
+        } else if (status >= 500) {
+          localizedMessage = localizeApiErrorMessage(body?.message, status);
+          toast.error(localizedMessage);
+        } else if (status >= 400) {
+          localizedMessage = localizeApiErrorMessage(body?.message ?? error.message, status);
         }
       }
     }
 
     if (status >= 400) {
-      const errorMessage = body?.message?.trim() || error.message || 'Error en la solicitud.';
+      const errorMessage = localizedMessage ?? localizeApiErrorMessage(body?.message ?? error.message, status);
       throw new HttpError(status, errorMessage, body);
     }
     throw error;

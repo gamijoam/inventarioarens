@@ -22,7 +22,7 @@ import {
 } from '@/features/transfers/schemas';
 import { useTransferApiBaseUrl } from '@/lib/apiBaseUrl';
 import { api } from '@/api/client';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 const GUIDE_AVAILABLE_STATUSES = new Set([
   'prepared',

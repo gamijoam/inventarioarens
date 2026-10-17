@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { CheckCheck, Download, HandCoins, PlusCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';

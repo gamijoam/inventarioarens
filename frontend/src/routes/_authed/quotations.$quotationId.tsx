@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Download, RefreshCw, Trash2 } from 'lucide-react';
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Button } from '@/components/ui/Button';

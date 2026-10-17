@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, FileText, RotateCcw } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useNavigate } from '@tanstack/react-router';
 
 import { PermissionDenied } from '@/components/permissions/PermissionDenied';

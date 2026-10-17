@@ -7,7 +7,7 @@
  * cada serial_number a un ProductUnit reservado en el almacen origen.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';

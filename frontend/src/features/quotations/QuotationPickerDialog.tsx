@@ -4,7 +4,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Download, RefreshCw, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';

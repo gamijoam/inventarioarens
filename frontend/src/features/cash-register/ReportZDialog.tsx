@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Download, Layers, Printer, Search, Users } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';

@@ -22,7 +22,7 @@ import { useEffect } from 'react';
 import { getWsHubClient } from '@/lib/wsHub';
 import { transferRequestKeys } from '@/features/inventory-transfer-requests/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useNavigate } from '@tanstack/react-router';
 
 type TransferRequestEvent = {

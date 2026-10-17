@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
+import { showIntercompanyTransferToast } from '@/lib/intercompanyTransferToasts';
 import { getWsHubClient } from './wsHub';
 
 const recentToasts = new Set<string>();
@@ -21,6 +23,7 @@ export function handleRealtimeEvent(
   queryClient: QueryClient,
   event: string,
   _data: unknown,
+  context: { tenantId?: number | null; onOpenRequest?: (requestId: string) => void } = {},
 ): void {
   switch (event) {
     case 'rate.updated':
@@ -58,20 +61,6 @@ export function handleRealtimeEvent(
       void queryClient.invalidateQueries({ queryKey: ['inventory-transfer-notifications'], refetchType: 'active' });
       void queryClient.invalidateQueries({ queryKey: ['inventory-transfer-requests'], refetchType: 'active' });
 
-      if (_data && typeof _data === 'object') {
-        const payload = _data as Record<string, unknown>;
-        const title = payload.title ? String(payload.title) : '';
-        const message = payload.message ? String(payload.message) : '';
-        const id = payload.id ? String(payload.id) : `${title}-${message}`;
-        if (title) {
-          showToastOnce(`notif-${id}`, () => {
-            toast.info(title, {
-              description: message || undefined,
-              duration: 8000,
-            });
-          });
-        }
-      }
       break;
     }
 
@@ -88,19 +77,14 @@ export function handleRealtimeEvent(
       void queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'active' });
 
       if (_data && typeof _data === 'object') {
-        const payload = _data as Record<string, unknown>;
-        const title = payload.title ? String(payload.title) : '';
-        const message = payload.message ? String(payload.message) : '';
-        const id = payload.id ? String(payload.id) : (payload.inventory_transfer_request_id ? `${payload.inventory_transfer_request_id}-${payload.event_type}` : `${title}-${message}`);
-        if (title) {
-          showToastOnce(`itr-${id}`, () => {
-            toast.info(title, {
-              description: message || undefined,
-              duration: 8000,
-            });
-          });
-        }
+        showIntercompanyTransferToast(
+          _data as Record<string, unknown>,
+          event,
+          context.tenantId,
+          context.onOpenRequest,
+        );
       }
+
       break;
     }
 
@@ -170,6 +154,7 @@ export function handleRealtimeEvent(
  */
 export function useRealtimeSync(tenantId?: number | null, groupId?: number | null): void {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!tenantId) return;
@@ -208,7 +193,16 @@ export function useRealtimeSync(tenantId?: number | null, groupId?: number | nul
     ];
 
     const unsubs = events.map((ev) =>
-      ws.on(ev, (data) => handleRealtimeEvent(queryClient, ev, data))
+      ws.on(ev, (data) =>
+        handleRealtimeEvent(queryClient, ev, data, {
+          tenantId,
+          onOpenRequest: (requestId) =>
+            void navigate({
+              to: '/inventory-transfer-requests/$requestId',
+              params: { requestId },
+            }),
+        }),
+      ),
     );
 
     return () => {
@@ -218,5 +212,5 @@ export function useRealtimeSync(tenantId?: number | null, groupId?: number | nul
         ws.unsubscribe(groupChannel);
       }
     };
-  }, [tenantId, groupId, queryClient]);
+  }, [tenantId, groupId, queryClient, navigate]);
 }

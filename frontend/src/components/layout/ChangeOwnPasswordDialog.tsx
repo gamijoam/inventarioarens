@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, Lock } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useMutation } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/Button';

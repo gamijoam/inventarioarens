@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, ShieldQuestion, Wrench } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';

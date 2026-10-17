@@ -9,7 +9,7 @@
  * del request define que empresa se configura).
  */
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { Save, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';

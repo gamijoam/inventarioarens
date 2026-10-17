@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Copy, Download, Eye, FolderDown, Loader2, Plus, Printer, Save, Star } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Can } from '@/components/permissions/Can';
 import { PageLayout } from '@/components/layout/PageLayout';

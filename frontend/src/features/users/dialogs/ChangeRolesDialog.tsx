@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import {

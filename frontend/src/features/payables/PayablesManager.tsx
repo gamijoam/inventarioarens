@@ -10,7 +10,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { Link } from '@tanstack/react-router';
 
 import { Badge } from '@/components/ui/Badge';

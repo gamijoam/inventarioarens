@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
+import { Toaster, type ToasterProps } from 'sonner';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react';
 
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { APP_MODE, APP_SHORT_NAME } from '@/config/branding';
@@ -26,6 +27,37 @@ if (APP_MODE === 'pos') {
 }
 
 const queryClient = createAppQueryClient();
+
+// Sonner no tipa esta opción en v1.7.4, pero sí la usa para el nombre
+// accesible del botón de cierre.
+const toasterOptions = {
+  position: 'top-right',
+  richColors: true,
+  closeButton: true,
+  closeButtonAriaLabel: 'Cerrar aviso',
+  containerAriaLabel: 'Notificaciones',
+  visibleToasts: 4,
+  gap: 10,
+  mobileOffset: { top: 12, right: 12, left: 12 },
+  className: 'sdi-toaster',
+  toastOptions: {
+    classNames: {
+      toast: 'sdi-toast',
+      title: 'sdi-toast__title',
+      description: 'sdi-toast__description',
+      closeButton: 'sdi-toast__close',
+      actionButton: 'sdi-toast__action',
+    },
+  },
+  icons: {
+    success: <CheckCircle2 aria-hidden="true" />,
+    info: <Info aria-hidden="true" />,
+    warning: <AlertTriangle aria-hidden="true" />,
+    error: <AlertCircle aria-hidden="true" />,
+    loading: <LoaderCircle aria-hidden="true" className="sdi-toast__spinner" />,
+    close: <X aria-hidden="true" />,
+  },
+} as ToasterProps;
 
 const router = createRouter({
   routeTree,
@@ -95,7 +127,7 @@ createRoot(rootEl).render(
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
-        <Toaster richColors position="top-right" closeButton />
+        <Toaster {...toasterOptions} />
       </QueryClientProvider>
     </ThemeProvider>
   </StrictMode>,

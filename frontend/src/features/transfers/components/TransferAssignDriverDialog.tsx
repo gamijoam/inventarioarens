@@ -3,7 +3,7 @@
  * transportista (driver) de un traslado.
  */
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';

@@ -6,7 +6,7 @@
  * El backend rechaza con 422 si se intenta cancelar en otros estados.
  */
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';

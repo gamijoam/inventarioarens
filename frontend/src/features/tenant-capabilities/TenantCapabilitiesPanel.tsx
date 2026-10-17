@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LockKeyhole, PackageCheck, Save, SlidersHorizontal } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';

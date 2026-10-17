@@ -16,7 +16,7 @@ import {
   Store,
   Calendar,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { cn } from '@/lib/cn';
 import { Badge } from '@/components/ui/Badge';

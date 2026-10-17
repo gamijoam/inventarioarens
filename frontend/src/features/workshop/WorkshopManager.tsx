@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Plus, Search, Wrench } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';

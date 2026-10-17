@@ -61,6 +61,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Passport;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -111,6 +112,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureRateLimiters();
         $this->configureHttpClientTls();
+        Passport::authorizationView('mcp.authorize');
 
         TenantReferenceCacheInvalidator::register();
     }
@@ -220,6 +222,10 @@ class AppServiceProvider extends ServiceProvider
                     ], 429);
                 }),
             ];
+        });
+
+        RateLimiter::for('mcp', function (Request $request): array {
+            return [Limit::perMinute(30)->by('mcp:'.($request->user()?->id ?? $request->ip()))];
         });
     }
 }

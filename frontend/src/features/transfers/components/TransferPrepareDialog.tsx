@@ -11,7 +11,7 @@
  * serial_number a un ProductUnit AVAILABLE existente en el almacen de origen.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { X } from 'lucide-react';
 import { ImeiScanner } from './ImeiScanner';
 

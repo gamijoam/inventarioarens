@@ -10,7 +10,7 @@
  *     genera adjustment_out en toWarehouse).
  */
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';

@@ -13,7 +13,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { useAuth, useAvailableTenants } from '@/auth/useAuth';
 import { Button } from '@/components/ui/Button';

@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from '@ta
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
 import { Building2, LogOut, Plus, RefreshCcw, ShieldCheck, Users } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { useAuth } from '@/auth/useAuth';
 import { Button } from '@/components/ui/Button';

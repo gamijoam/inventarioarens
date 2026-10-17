@@ -4,6 +4,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\IdempotencyKey;
 use App\Http\Middleware\SecurityHeaders;
 use App\Modules\Auth\Middleware\AuthenticateApiToken;
+use App\Modules\Auth\Middleware\EnsureMcpPlatformAdmin;
 use App\Modules\Auth\Services\CookieIssuer;
 use App\Modules\CRM\Middleware\AuthenticateCrmApiToken;
 use App\Modules\CRM\Middleware\RequireCrmScope;
@@ -18,6 +19,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Laravel\Passport\Http\Middleware\CheckToken;
 
 $secretFiles = [
     'APP_KEY' => getenv('INVENTARIO_APP_KEY_FILE') ?: null,
@@ -105,12 +107,14 @@ $app = Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'api.auth' => AuthenticateApiToken::class,
+            'mcp.platform-admin' => EnsureMcpPlatformAdmin::class,
             'crm.auth' => AuthenticateCrmApiToken::class,
             'crm.scope' => RequireCrmScope::class,
             'tenant' => ResolveTenant::class,
             'capability' => EnsureTenantCapability::class,
             'idempotency' => IdempotencyKey::class,
             'print.connector' => AuthenticatePrintConnector::class,
+            'scopes' => CheckToken::class,
         ]);
 
         // Excluir la cookie de auth del cifrado automatico de Laravel.
@@ -132,7 +136,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
+            fn (Request $request) => $request->is('api/*') || $request->is('mcp'),
         );
 
         // Errores de inventario -> 422 amigable, no 500.

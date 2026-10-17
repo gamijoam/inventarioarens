@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { CreditCard, Package, Pencil, Printer, XCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';

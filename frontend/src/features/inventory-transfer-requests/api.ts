@@ -13,6 +13,9 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
+import { rememberLocalTransferAction } from '@/lib/intercompanyTransferToasts';
+import { useSessionStore } from '@/stores/session';
+
 import { deleteOne, getMany, getOne, postOne } from '@/api/client';
 import { productKeys } from '@/features/inventory-center/queries';
 import { ProductSchema, type Product } from '@/features/inventory-center/schemas';
@@ -174,7 +177,8 @@ export function useCreateTransferRequest() {
   return useMutation<TransferRequest, Error, StoreTransferRequestValues>({
     mutationFn: async (values) =>
       postOne<StoreTransferRequestValues, TransferRequest>('/inventory-transfer-requests', values),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      rememberLocalTransferAction(data.id, 'created', useSessionStore.getState().tenant?.id);
       await qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       await qc.refetchQueries({ queryKey: transferRequestKeys.lists() });
       // El destinatario debe ver el badge incrementado al instante:
@@ -197,6 +201,7 @@ export function useAcceptTransferRequest() {
         values,
       ),
     onSuccess: (_data, { id }) => {
+      rememberLocalTransferAction(id, 'accepted', useSessionStore.getState().tenant?.id);
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
       // El status pasa de `requested` a `accepted`/`dispatched`, asi que
@@ -228,6 +233,8 @@ function useGuideMutation(action: 'prepare' | 'dispatch' | 'deliver' | 'receive'
     mutationFn: async ({ id, ...payload }) =>
       postOne(`/inventory-transfer-requests/${id}/guide/${action}`, payload),
     onSuccess: (_data, { id }) => {
+      const eventType = { prepare: 'prepared', dispatch: 'dispatched', deliver: 'delivered', receive: 'received' }[action];
+      rememberLocalTransferAction(id, eventType, useSessionStore.getState().tenant?.id);
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: productKeys.all });
@@ -260,6 +267,7 @@ export function useRejectTransferRequest() {
         values,
       ),
     onSuccess: (_data, { id }) => {
+      rememberLocalTransferAction(id, 'rejected', useSessionStore.getState().tenant?.id);
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
       // Mismo motivo que accept: el contador del destinatario baja.
@@ -277,6 +285,7 @@ export function useCancelTransferRequest() {
         {},
       ),
     onSuccess: (_data, id) => {
+      rememberLocalTransferAction(id, 'cancelled', useSessionStore.getState().tenant?.id);
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
       // Si el origin cancela, el destinatario tambien debe enterarse.

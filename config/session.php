@@ -228,6 +228,7 @@ return [
     |
     */
 
-    'serialization' => 'json',
+    // Passport stores a serialized OAuth authorization request in the session.
+    'serialization' => 'php',
 
 ];
