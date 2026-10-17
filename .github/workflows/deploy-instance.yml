@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       source_branch:
-        description: 'Rama o Ref base a desplegar (ej: main, client/repuestosavilacar, client/balanzapro)'
+        description: 'Rama base (client/balanzapro, client/repuestosavilacar, client/tiendasarens, main)'
         required: true
-        default: 'main'
+        default: 'client/balanzapro'
         type: string
       target_instance:
         description: 'Instancia destino en el VPS'
