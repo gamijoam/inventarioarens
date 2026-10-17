@@ -131,3 +131,14 @@ func TestTorreyParser(t *testing.T) {
 		})
 	}
 }
+
+func TestGenericParserUsesConfiguredDecimalAndUnit(t *testing.T) {
+	parser := &GenericParser{DecimalSeparator: ",", DefaultUnit: "g"}
+	reading, err := parser.Parse("ST,GS,+ 0,840")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reading.Weight != 0.840 || reading.Unit != "g" {
+		t.Fatalf("reading = %#v", reading)
+	}
+}

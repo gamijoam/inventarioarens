@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,84 +13,90 @@ import (
 )
 
 func TestHealthHandler(t *testing.T) {
-	mock := reader.NewMockReader(0, "kg", 0)
-	srv := NewServer(19999, mock)
-
-	req := httptest.NewRequest("GET", "/health", nil)
+	srv := NewServer(19999, reader.NewDisconnectedReader())
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
-
 	srv.ServeHTTP(w, req)
-
-	res := w.Result()
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("Expected 200 OK, got %d", res.StatusCode)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
 	}
-
-	var data map[string]interface{}
-	json.NewDecoder(res.Body).Decode(&data)
-
-	if data["ok"] != true {
-		t.Errorf("Expected ok=true, got %v", data["ok"])
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatal(err)
 	}
-	if data["service"] != "balanzapro-scale-agent" {
-		t.Errorf("Unexpected service name: %v", data["service"])
+	if data["status"] != "disconnected" {
+		t.Fatalf("expected disconnected, got %v", data["status"])
 	}
 }
 
-func TestWeightHandler_WithReading(t *testing.T) {
-	mock := reader.NewMockReader(3.750, "kg", 10*time.Millisecond)
-	// Trigger at least one reading
-	reading := &protocol.ScaleReading{
-		Weight:    3.750,
-		Unit:      "kg",
-		IsStable:  true,
-		Raw:       "TEST",
-		Timestamp: time.Now(),
-	}
-	// Pre-set latest
-	_ = reading
-
-	srv := NewServer(19999, mock)
-
-	req := httptest.NewRequest("GET", "/weight", nil)
+func TestWeightWithoutHardwareDoesNotInventZero(t *testing.T) {
+	srv := NewServer(19999, reader.NewDisconnectedReader())
+	req := httptest.NewRequest(http.MethodGet, "/weight", nil)
 	w := httptest.NewRecorder()
-
 	srv.ServeHTTP(w, req)
-
-	res := w.Result()
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("Expected 200 OK, got %d", res.StatusCode)
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatal(err)
 	}
-
-	var data map[string]interface{}
-	json.NewDecoder(res.Body).Decode(&data)
-
-	if data["ok"] != true {
-		t.Errorf("Expected ok=true, got %v", data["ok"])
+	if _, exists := data["weight"]; exists {
+		t.Fatalf("weight must be omitted while disconnected: %v", data)
+	}
+	if data["status"] != "waiting_for_reading" {
+		t.Fatalf("status = %v", data["status"])
 	}
 }
 
-func TestOptionsCorsPreflight(t *testing.T) {
-	mock := reader.NewMockReader(0, "kg", 0)
-	srv := NewServer(19999, mock)
+type fixedReader struct{ reading *protocol.ScaleReading }
 
-	req := httptest.NewRequest("OPTIONS", "/weight", nil)
+func (r fixedReader) Start(_ context.Context)           {}
+func (r fixedReader) GetLatest() *protocol.ScaleReading { return r.reading }
+func (r fixedReader) Subscribe() <-chan *protocol.ScaleReading {
+	ch := make(chan *protocol.ScaleReading)
+	close(ch)
+	return ch
+}
+func (r fixedReader) Unsubscribe(<-chan *protocol.ScaleReading) {}
+
+func TestWeightHandlerReturnsCurrentReading(t *testing.T) {
+	reading := &protocol.ScaleReading{Weight: 3.75, Unit: "kg", IsStable: true, Raw: "3.750 kg", Timestamp: time.Now()}
+	srv := NewServer(19999, fixedReader{reading: reading})
+	req := httptest.NewRequest(http.MethodGet, "/weight", nil)
 	w := httptest.NewRecorder()
-
 	srv.ServeHTTP(w, req)
-
-	res := w.Result()
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusNoContent {
-		t.Fatalf("Expected 204 No Content, got %d", res.StatusCode)
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatal(err)
 	}
+	if data["weight"] != 3.75 || data["status"] != "ready" {
+		t.Fatalf("unexpected response: %v", data)
+	}
+}
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Errorf("Missing CORS header")
+func TestTrustedPrivateNetworkOriginPreflight(t *testing.T) {
+	srv := NewServer(19999, reader.NewDisconnectedReader())
+	req := httptest.NewRequest(http.MethodOptions, "/weight", nil)
+	req.Header.Set("Origin", "http://192.168.1.25:8787")
+	req.Header.Set("Access-Control-Request-Private-Network", "true")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", w.Code)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://192.168.1.25:8787" {
+		t.Fatalf("allow-origin = %q", got)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Private-Network"); got != "true" {
+		t.Fatalf("allow-private-network = %q", got)
+	}
+}
+
+func TestUntrustedOriginRejected(t *testing.T) {
+	srv := NewServer(19999, reader.NewDisconnectedReader())
+	req := httptest.NewRequest(http.MethodPost, "/weight", nil)
+	req.Header.Set("Origin", "https://attacker.example")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d", w.Code)
 	}
 }

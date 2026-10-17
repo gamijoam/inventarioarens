@@ -20,75 +20,77 @@ type Parser interface {
 	Parse(raw string) (*ScaleReading, error)
 }
 
-// GenericParser handles standard continuous broadcast strings like:
-// "ST,GS,+  1.250kg", "US,GS,+  0.840kg", "  2.500 kg", etc.
-type GenericParser struct{}
+// GenericParser handles common serial/TCP text output. The configured decimal
+// separator resolves ambiguous values such as "1,250" for the device profile.
+type GenericParser struct {
+	DecimalSeparator string
+	DefaultUnit      string
+}
 
-var (
-	// Matches weight float and optional unit from string
-	genericRegex = regexp.MustCompile(`([+-]?\s*\d+\.?\d*)\s*(kg|lb|g)?`)
-)
+var genericRegex = regexp.MustCompile(`(?i)(?:^|[^\d])([+-]?\s*\d+(?:[.,]\d+)?)\s*(kg|kgs|kilograms?|lb|lbs|g|gr|grams?)?(?:$|[^a-z])`)
 
 func (p *GenericParser) Parse(raw string) (*ScaleReading, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return nil, fmt.Errorf("empty raw reading")
-	}
-
-	upper := strings.ToUpper(trimmed)
-	isStable := true
-	if strings.Contains(upper, "US") || strings.Contains(upper, "UNSTABLE") {
-		isStable = false
+		return nil, fmt.Errorf("lectura vacía")
 	}
 
 	matches := genericRegex.FindStringSubmatch(trimmed)
 	if len(matches) < 2 {
-		return nil, fmt.Errorf("could not parse weight from %q", raw)
+		return nil, fmt.Errorf("no se pudo identificar el peso")
 	}
-
-	weightStr := strings.ReplaceAll(matches[1], " ", "")
-	weight, err := strconv.ParseFloat(weightStr, 64)
+	value := strings.ReplaceAll(strings.TrimSpace(matches[1]), " ", "")
+	separator := p.DecimalSeparator
+	if separator == "" {
+		separator = "."
+	}
+	if separator == "," {
+		value = strings.ReplaceAll(value, ".", "")
+		value = strings.ReplaceAll(value, ",", ".")
+	} else {
+		value = strings.ReplaceAll(value, ",", "")
+	}
+	weight, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid weight numeric value %q: %w", weightStr, err)
+		return nil, fmt.Errorf("valor de peso inválido")
 	}
 
-	unit := "kg"
-	if len(matches) >= 3 && matches[2] != "" {
-		unit = strings.ToLower(matches[2])
+	unit := strings.ToLower(strings.TrimSpace(matches[2]))
+	switch unit {
+	case "kgs", "kilogram", "kilograms":
+		unit = "kg"
+	case "lbs":
+		unit = "lb"
+	case "gr", "gram", "grams":
+		unit = "g"
+	}
+	if unit == "" {
+		unit = strings.ToLower(strings.TrimSpace(p.DefaultUnit))
+	}
+	if unit == "" {
+		unit = "kg"
 	}
 
-	return &ScaleReading{
-		Weight:    weight,
-		Unit:      unit,
-		IsStable:  isStable,
-		Raw:       trimmed,
-		Timestamp: time.Now(),
-	}, nil
+	upper := strings.ToUpper(trimmed)
+	stable := !strings.Contains(upper, "US") && !strings.Contains(upper, "UNSTABLE")
+	return &ScaleReading{Weight: weight, Unit: unit, IsStable: stable, Raw: trimmed, Timestamp: time.Now()}, nil
 }
 
-// TorreyParser handles Torrey scale strings like:
-// "01.345\r" or "P03.450\r"
+// TorreyParser handles Torrey scale strings like "01.345" or "P03.450".
 type TorreyParser struct{}
 
-var torreyRegex = regexp.MustCompile(`^P?(\d+\.\d{2,3})`)
+var torreyRegex = regexp.MustCompile(`(?i)^P?(\d+[.,]\d{2,3})`)
 
 func (p *TorreyParser) Parse(raw string) (*ScaleReading, error) {
 	trimmed := strings.TrimSpace(raw)
 	matches := torreyRegex.FindStringSubmatch(trimmed)
 	if len(matches) < 2 {
-		return nil, fmt.Errorf("could not parse Torrey weight from %q", raw)
+		return nil, fmt.Errorf("no se pudo interpretar la lectura Torrey")
 	}
-
-	weight, err := strconv.ParseFloat(matches[1], 64)
+	value := strings.ReplaceAll(matches[1], ",", ".")
+	weight, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid Torrey weight value %q: %w", matches[1], err)
+		return nil, fmt.Errorf("valor de peso Torrey inválido")
 	}
-
-	return &ScaleReading{
-		Weight:    weight,
-		Unit:      "kg",
-		IsStable:  true,
-		Raw:       trimmed,
-		Timestamp: time.Now(),
-	}, nil
+	return &ScaleReading{Weight: weight, Unit: "kg", IsStable: true, Raw: trimmed, Timestamp: time.Now()}, nil
 }
