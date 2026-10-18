@@ -15,10 +15,18 @@ class ResolveTenant
 
     public function handle(Request $request, Closure $next): Response
     {
+        $hasExplicitTenant = (bool) (
+            $request->header('X-Tenant')
+            ?? $request->route('tenant')
+            ?? $request->query('tenant')
+        );
+
         $tenant = $this->resolveTenant($request);
         $token = $request->attributes->get('auth_token');
 
-        if (! $tenant && $token instanceof AuthToken) {
+        if (! $hasExplicitTenant && $token instanceof AuthToken && $token->tenant_id !== null) {
+            $tenant = Tenant::query()->find($token->tenant_id);
+        } elseif (! $tenant && $token instanceof AuthToken) {
             if ($token->tenant_id === null) {
                 return $next($request);
             }
