@@ -60,7 +60,7 @@ class OfflineSnapshotStore
     public function create(string $id, int $tenantId, int $userId): array
     {
         $this->purgeExpired();
-        File::ensureDirectoryExists($this->root(), 0700, true);
+        File::ensureDirectoryExists($this->root(), 0770, true);
 
         $metadata = [
             'id' => $id,
@@ -91,7 +91,7 @@ class OfflineSnapshotStore
     public function save(string $id, array $metadata): void
     {
         $path = $this->metadataPath($id);
-        File::ensureDirectoryExists(dirname($path), 0700, true);
+        File::ensureDirectoryExists(dirname($path), 0770, true);
 
         $tmp = $path.'.'.Str::random(8).'.tmp';
         $written = file_put_contents($tmp, json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -99,7 +99,7 @@ class OfflineSnapshotStore
             @unlink($tmp);
             throw new RuntimeException('No se pudo guardar el estado de la exportacion.');
         }
-        @chmod($path, 0600);
+        @chmod($path, 0660);
     }
 
     public function assertOwner(array $metadata, int $tenantId, int $userId): void
