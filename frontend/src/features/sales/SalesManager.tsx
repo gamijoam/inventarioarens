@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, RotateCcw, Search, ShieldCheck, X, XCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, FileText, RotateCcw, Search, ShieldCheck, X, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/Badge';
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/Sheet';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PERMISSIONS } from '@/permissions/constants';
 import { useCan } from '@/permissions/useCan';
@@ -243,7 +244,7 @@ export function SalesManager() {
     [filters, debouncedSearch]
   );
 
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedSaleId, setSelectedSaleId] = useState<number | null>(null);
   const { data, isLoading, isFetching, isError, refetch } = useSales(queryFilters);
   const { data: rates = [] } = useCurrentExchangeRatesForPos();
   const { data: cashSessions = [] } = useCashSessions();
@@ -256,6 +257,10 @@ export function SalesManager() {
   const canViewCosts = useCan(PERMISSIONS.FINANCE_COSTS_VIEW);
   const cancelSale = useCancelSale();
   const sales = data?.data ?? [];
+  const selectedSale = useMemo(
+    () => sales.find((s) => s.id === selectedSaleId) ?? null,
+    [sales, selectedSaleId],
+  );
   const meta = data?.meta;
   const summary = data?.summary;
   const fallbackTotals = useMemo(() => {
@@ -500,7 +505,6 @@ export function SalesManager() {
             <table className="w-full table-dense">
               <thead className="border-b border-border bg-bg/60 text-left">
                 <tr>
-                  <th className="w-8 px-2 py-2" />
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Venta</th>
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Fecha</th>
                   <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Cliente</th>
@@ -513,6 +517,7 @@ export function SalesManager() {
                     <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Ganancia</th>
                   )}
                   <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Items</th>
+                  <th className="w-16 px-3 py-2 text-center font-semibold uppercase text-text-secondary">Detalle</th>
                 </tr>
               </thead>
               <tbody>
@@ -521,16 +526,9 @@ export function SalesManager() {
                     key={sale.id}
                     sale={sale}
                     activeRate={activeRate}
-                    expanded={expandedId === sale.id}
-                    canCancel={canCancel}
-                    canReverse={canReverse}
-                    activeSession={activeSession}
-                    canCreateReturn={canCreateReturn}
-                    canCreateWarranty={canCreateWarranty}
+                    isSelected={selectedSaleId === sale.id}
                     canViewCosts={canViewCosts}
-                    cancelling={cancelSale.isPending}
-                    onToggle={() => setExpandedId((current) => (current === sale.id ? null : sale.id))}
-                    onCancel={() => void handleCancel(sale.id)}
+                    onSelect={() => setSelectedSaleId((current) => (current === sale.id ? null : sale.id))}
                   />
                 ))}
               </tbody>
@@ -565,6 +563,59 @@ export function SalesManager() {
           )}
         </Card>
       )}
+
+      <Sheet open={selectedSaleId !== null} onOpenChange={(open) => !open && setSelectedSaleId(null)}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl p-0 flex flex-col h-full bg-surface shadow-2xl border-l border-border"
+        >
+          {selectedSale && (
+            <div className="flex flex-col h-full overflow-hidden">
+              <div className="p-5 border-b border-border bg-bg/40 pr-12">
+                <SheetHeader>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <SheetTitle className="text-xl font-bold font-mono tracking-tight text-text-primary">
+                      Venta #{selectedSale.id}
+                    </SheetTitle>
+                    <Badge variant={statusVariant(selectedSale.status)}>
+                      {SALE_STATUS_LABELS[selectedSale.status]}
+                    </Badge>
+                    {returnStatusLabel(selectedSale) && (
+                      <Badge variant={returnStatusLabel(selectedSale) === 'Devuelta total' ? 'success' : 'warning'}>
+                        {returnStatusLabel(selectedSale)}
+                      </Badge>
+                    )}
+                  </div>
+                  <SheetDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                    <span>{formatDate(selectedSale.confirmed_at ?? selectedSale.created_at)}</span>
+                    <span>·</span>
+                    <span className="font-medium text-text-secondary">{customerLabel(selectedSale)}</span>
+                    <span>·</span>
+                    <span className="font-mono font-bold text-text-primary">
+                      {formatMoney(selectedSale.total_base_amount)} ({formatMoney(selectedSale.total_local_amount, 'Bs ')})
+                    </span>
+                  </SheetDescription>
+                </SheetHeader>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5">
+                <SaleDetail
+                  saleId={selectedSale.id}
+                  sale={selectedSale}
+                  canCancel={canCancel}
+                  canReverse={canReverse}
+                  activeSession={activeSession}
+                  canCreateReturn={canCreateReturn}
+                  canCreateWarranty={canCreateWarranty}
+                  canViewCosts={canViewCosts}
+                  cancelling={cancelSale.isPending}
+                  onCancel={() => void handleCancel(selectedSale.id)}
+                />
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -572,126 +623,111 @@ export function SalesManager() {
 function SaleRow({
   sale,
   activeRate,
-  expanded,
-  canCancel,
-  canReverse,
-  activeSession,
-  canCreateReturn,
-  canCreateWarranty,
+  isSelected,
   canViewCosts = false,
-  cancelling,
-  onToggle,
-  onCancel,
+  onSelect,
 }: {
   sale: Sale;
   activeRate: CurrentExchangeRate | null;
-  expanded: boolean;
-  canCancel: boolean;
-  canReverse: boolean;
-  activeSession: CashRegisterSession | null;
-  canCreateReturn: boolean;
-  canCreateWarranty: boolean;
+  isSelected: boolean;
   canViewCosts?: boolean;
-  cancelling: boolean;
-  onToggle: () => void;
-  onCancel: () => void;
+  onSelect: () => void;
 }) {
   const date = sale.confirmed_at ?? sale.created_at;
   const localBalance = sale.receivable ? currentLocalBalance(sale.receivable, activeRate) : null;
   const returnLabel = returnStatusLabel(sale);
   const returnedProducts = getReturnedProducts(sale);
   return (
-    <>
-      <tr className="cursor-pointer border-b border-border hover:bg-bg/50" onClick={onToggle}>
-        <td className="px-2 py-2 text-text-muted">
-          <ChevronDown className={`size-4 transition-transform ${expanded ? '' : '-rotate-90'}`} />
-        </td>
-        <td className="px-3 py-2 font-medium">#{sale.id}</td>
-        <td className="px-3 py-2 text-text-muted">{formatDate(date)}</td>
-        <td className="px-3 py-2">{customerLabel(sale)}</td>
-        <td className="px-3 py-2">
-          <div className="flex flex-col gap-1 items-start">
-            <Badge variant={statusVariant(sale.status)}>{SALE_STATUS_LABELS[sale.status]}</Badge>
-            {returnLabel && (
-            <Badge variant={returnLabel === 'Devuelta total' ? 'success' : returnLabel === 'Devolución rechazada' ? 'danger' : 'warning'}>{returnLabel}</Badge>
-            )}
-            {returnedProducts.length > 0 && (
-              <div className="mt-1 flex flex-col gap-1 max-w-[240px]">
-                <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
-                  <RotateCcw className="size-3 shrink-0" />
-                  <span>Devuelto:</span>
+    <tr
+      className={`cursor-pointer border-b border-border transition-colors hover:bg-primary/5 ${
+        isSelected ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : ''
+      }`}
+      onClick={onSelect}
+    >
+      <td className="px-3 py-2.5 font-bold font-mono text-primary">#{sale.id}</td>
+      <td className="px-3 py-2.5 text-text-muted">{formatDate(date)}</td>
+      <td className="px-3 py-2.5 font-medium">{customerLabel(sale)}</td>
+      <td className="px-3 py-2.5">
+        <div className="flex flex-col gap-1 items-start">
+          <Badge variant={statusVariant(sale.status)}>{SALE_STATUS_LABELS[sale.status]}</Badge>
+          {returnLabel && (
+            <Badge variant={returnLabel === 'Devuelta total' ? 'success' : returnLabel === 'Devolución rechazada' ? 'danger' : 'warning'}>
+              {returnLabel}
+            </Badge>
+          )}
+          {returnedProducts.length > 0 && (
+            <div className="mt-1 flex flex-col gap-1 max-w-[240px]">
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                <RotateCcw className="size-3 shrink-0" />
+                <span>Devuelto:</span>
+              </div>
+              {returnedProducts.map((p) => (
+                <div
+                  key={p.saleItemId || p.productId}
+                  className="truncate rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 border border-amber-500/20"
+                  title={`${p.productName}${p.productSku ? ` (${p.productSku})` : ''} - ${p.returnedQuantity} de ${p.soldQuantity} und devueltas${p.reasons.length > 0 ? ` · Motivo: ${p.reasons.join(', ')}` : ''}`}
+                >
+                  <span className="font-semibold">{p.productName}</span>: <strong className="font-mono text-amber-800 dark:text-amber-300">{p.returnedQuantity}</strong>{p.soldQuantity > p.returnedQuantity ? <span className="opacity-75">/{p.soldQuantity}</span> : ''} und
                 </div>
-                {returnedProducts.map((p) => (
-                  <div
-                    key={p.saleItemId || p.productId}
-                    className="truncate rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 border border-amber-500/20"
-                    title={`${p.productName}${p.productSku ? ` (${p.productSku})` : ''} - ${p.returnedQuantity} de ${p.soldQuantity} und devueltas${p.reasons.length > 0 ? ` · Motivo: ${p.reasons.join(', ')}` : ''}`}
-                  >
-                    <span className="font-semibold">{p.productName}</span>: <strong className="font-mono text-amber-800 dark:text-amber-300">{p.returnedQuantity}</strong>{p.soldQuantity > p.returnedQuantity ? <span className="opacity-75">/{p.soldQuantity}</span> : ''} und
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </td>
-        <td className="px-3 py-2">
-          <div className="flex flex-col gap-1">
-            <Badge variant={receivableVariant(sale.receivable?.status)}>{receivableStatusLabel(sale)}</Badge>
-            {sale.receivable && sale.receivable.balance_base_amount > 0 && (
-              <span className="text-xs font-medium text-warning">
-                Saldo {formatMoney(sale.receivable.balance_base_amount)}
-                {localBalance === null ? ' · sin tasa activa USD/VES' : ` · ${formatMoney(localBalance, 'Bs ')} hoy`}
+              ))}
+            </div>
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="flex flex-col gap-1">
+          <Badge variant={receivableVariant(sale.receivable?.status)}>{receivableStatusLabel(sale)}</Badge>
+          {sale.receivable && sale.receivable.balance_base_amount > 0 && (
+            <span className="text-xs font-medium text-warning">
+              Saldo {formatMoney(sale.receivable.balance_base_amount)}
+              {localBalance === null ? ' · sin tasa activa USD/VES' : ` · ${formatMoney(localBalance, 'Bs ')} hoy`}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2.5 text-text-muted">
+        <div className="flex flex-col gap-1">
+          <span>{sale.pos_order ? 'POS' : 'Manual'}</span>
+          {promotionApplicationsLabel(sale).map((label) => (
+            <Badge key={label} variant="info">{label}</Badge>
+          ))}
+        </div>
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold">{formatMoney(sale.total_base_amount)}</td>
+      <td className="px-3 py-2.5 text-right font-mono tabular-nums text-text-muted">{formatMoney(sale.total_local_amount, 'Bs ')}</td>
+      {canViewCosts && (
+        <td className="px-3 py-2.5 text-right tabular-nums">
+          {sale.profit_base_amount !== null && sale.profit_base_amount !== undefined ? (
+            <div className="flex flex-col items-end font-mono">
+              <span className={`font-semibold ${Number(sale.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                {Number(sale.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(sale.profit_base_amount)}
               </span>
-            )}
-          </div>
+              <span className="text-[11px] text-text-muted">
+                {Number(sale.profit_margin_percent ?? 0).toFixed(1)}%
+              </span>
+            </div>
+          ) : (
+            <span className="text-text-muted">-</span>
+          )}
         </td>
-        <td className="px-3 py-2 text-text-muted">
-          <div className="flex flex-col gap-1">
-            <span>{sale.pos_order ? 'POS' : 'Manual'}</span>
-            {promotionApplicationsLabel(sale).map((label) => (
-              <Badge key={label} variant="info">{label}</Badge>
-            ))}
-          </div>
-        </td>
-        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_base_amount)}</td>
-        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(sale.total_local_amount, 'Bs ')}</td>
-        {canViewCosts && (
-          <td className="px-3 py-2 text-right tabular-nums">
-            {sale.profit_base_amount !== null && sale.profit_base_amount !== undefined ? (
-              <div className="flex flex-col items-end">
-                <span className={`font-semibold ${Number(sale.profit_base_amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                  {Number(sale.profit_base_amount) >= 0 ? '+' : ''}{formatMoney(sale.profit_base_amount)}
-                </span>
-                <span className="text-[11px] text-text-muted">
-                  {Number(sale.profit_margin_percent ?? 0).toFixed(1)}%
-                </span>
-              </div>
-            ) : (
-              <span className="text-text-muted">-</span>
-            )}
-          </td>
-        )}
-        <td className="px-3 py-2 text-right tabular-nums">{sale.items_count ?? sale.items?.length ?? '-'}</td>
-      </tr>
-      {expanded && (
-        <tr className="border-b border-border bg-bg/20">
-          <td colSpan={canViewCosts ? 11 : 10} className="px-4 py-4">
-            <SaleDetail
-              saleId={sale.id}
-              sale={sale}
-              canCancel={canCancel}
-              canReverse={canReverse}
-              activeSession={activeSession}
-              canCreateReturn={canCreateReturn}
-              canCreateWarranty={canCreateWarranty}
-              canViewCosts={canViewCosts}
-              cancelling={cancelling}
-              onCancel={onCancel}
-            />
-          </td>
-        </tr>
       )}
-    </>
+      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{sale.items_count ?? sale.items?.length ?? '-'}</td>
+      <td className="px-3 py-2.5 text-center">
+        <Button
+          type="button"
+          variant={isSelected ? 'primary' : 'ghost'}
+          size="sm"
+          className="gap-1 text-xs h-7 px-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+        >
+          <Eye className="size-3.5" />
+          <span>Ver</span>
+        </Button>
+      </td>
+    </tr>
   );
 }
 
