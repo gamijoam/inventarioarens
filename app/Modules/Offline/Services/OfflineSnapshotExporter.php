@@ -174,7 +174,6 @@ class OfflineSnapshotExporter
             $exitCode = Artisan::call('migrate', [
                 '--database' => $connection,
                 '--force' => true,
-                '--no-interaction' => true,
             ]);
             if ($exitCode !== 0) {
                 throw new RuntimeException('No se pudo preparar el esquema SQLite local: '.trim(Artisan::output()));
@@ -203,7 +202,7 @@ class OfflineSnapshotExporter
                     continue;
                 }
                 if (! $targetSchema->hasTable($table)) {
-                    throw new RuntimeException('El esquema SQLite no contiene la tabla '.$table.'.');
+                    continue;
                 }
 
                 $this->copyRows(
