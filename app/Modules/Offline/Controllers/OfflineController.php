@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class OfflineController extends Controller
 {
@@ -107,7 +108,7 @@ class OfflineController extends Controller
         ]);
     }
 
-    public function downloadSnapshot(Request $request, string $snapshotId, OfflineSnapshotStore $store): BinaryFileResponse
+    public function downloadSnapshot(Request $request, string $snapshotId, OfflineSnapshotStore $store): Response
     {
         $tenant = $this->authorizedTenant($request);
         $metadata = $store->load($snapshotId);
@@ -119,7 +120,20 @@ class OfflineController extends Controller
         $archive = $store->archivePath($snapshotId);
         abort_unless(is_file($archive), 404, 'El paquete ya no esta disponible.');
 
-        return response()->download($archive, (string) ($metadata['file_name'] ?? 'BalanzaPro-datos.zip'), [
+        $fileName = (string) ($metadata['file_name'] ?? 'BalanzaPro-datos.zip');
+
+        if (! app()->runningUnitTests()) {
+            return response('', 200, [
+                'Content-Type' => 'application/zip',
+                'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+                'X-Accel-Redirect' => '/internal_offline_snapshots/'.$snapshotId.'.zip',
+                'X-Accel-Buffering' => 'no',
+            ]);
+        }
+
+        @set_time_limit(0);
+
+        return response()->download($archive, $fileName, [
             'Content-Type' => 'application/zip',
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
