@@ -118,7 +118,8 @@ export function OfflineSetupDownloads() {
   function downloadSnapshot(): void {
     if (!snapshot?.id || snapshot.status !== 'ready') return;
     setDownloading(true);
-    const downloadUrl = `/api/offline/snapshots/${snapshot.id}/download`;
+    const tenantParam = tenant?.slug ? `?tenant=${encodeURIComponent(tenant.slug)}` : '';
+    const downloadUrl = `/api/offline/snapshots/${snapshot.id}/download${tenantParam}`;
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.setAttribute('download', snapshot.file_name ?? `BalanzaPro-datos-${tenant?.slug ?? 'empresa'}.zip`);
