@@ -59,6 +59,14 @@ export function OfflineSetupDownloads() {
         if (active) setInstallerLoading(false);
       });
 
+    api.get<SnapshotInfo>('/offline/snapshots/latest')
+      .then((response) => {
+        if (active && response.data && typeof response.data === 'object' && 'id' in response.data) {
+          setSnapshot(response.data);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       active = false;
     };
@@ -107,26 +115,17 @@ export function OfflineSetupDownloads() {
     }
   }
 
-  async function downloadSnapshot(): Promise<void> {
+  function downloadSnapshot(): void {
     if (!snapshot?.id || snapshot.status !== 'ready') return;
     setDownloading(true);
-    try {
-      const response = await api.get<Blob>(`/offline/snapshots/${snapshot.id}/download`, {
-        responseType: 'blob',
-      });
-      const url = URL.createObjectURL(response.data);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = snapshot.file_name ?? `BalanzaPro-datos-${tenant?.slug ?? 'empresa'}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-    } catch {
-      // El interceptor central muestra el error HTTP o de red en español.
-    } finally {
-      setDownloading(false);
-    }
+    const downloadUrl = `/api/offline/snapshots/${snapshot.id}/download`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.setAttribute('download', snapshot.file_name ?? `BalanzaPro-datos-${tenant?.slug ?? 'empresa'}.zip`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => setDownloading(false), 2000);
   }
 
   const isPreparing = snapshot?.status === 'queued' || snapshot?.status === 'building';

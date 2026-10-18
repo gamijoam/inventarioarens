@@ -88,6 +88,25 @@ class OfflineController extends Controller
         ]);
     }
 
+    public function latestSnapshot(Request $request, OfflineSnapshotStore $store): JsonResponse
+    {
+        $tenant = $this->authorizedTenant($request);
+        $metadata = $store->findLatestForUser((int) $tenant->id, (int) $request->user()->id);
+        if (! $metadata) {
+            return response()->json(null, 204);
+        }
+
+        return response()->json([
+            'id' => $metadata['id'],
+            'status' => $metadata['status'] ?? 'failed',
+            'message' => $metadata['message'] ?? 'No se pudo leer el estado.',
+            'file_name' => $metadata['file_name'] ?? null,
+            'size_bytes' => $metadata['size_bytes'] ?? null,
+            'sha256' => $metadata['sha256'] ?? null,
+            'expires_at' => $metadata['expires_at'] ?? null,
+        ]);
+    }
+
     public function downloadSnapshot(Request $request, string $snapshotId, OfflineSnapshotStore $store): BinaryFileResponse
     {
         $tenant = $this->authorizedTenant($request);

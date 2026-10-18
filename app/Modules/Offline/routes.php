@@ -7,6 +7,7 @@ Route::middleware(['api.auth', 'tenant'])
     ->prefix('offline')
     ->group(function (): void {
         Route::get('installer-info', [OfflineController::class, 'installerInfo']);
+        Route::get('snapshots/latest', [OfflineController::class, 'latestSnapshot']);
         Route::post('snapshots', [OfflineController::class, 'createSnapshot'])->middleware('throttle:3,1');
         Route::get('snapshots/{snapshotId}', [OfflineController::class, 'snapshotStatus'])->whereUuid('snapshotId');
         Route::get('snapshots/{snapshotId}/download', [OfflineController::class, 'downloadSnapshot'])->whereUuid('snapshotId');
