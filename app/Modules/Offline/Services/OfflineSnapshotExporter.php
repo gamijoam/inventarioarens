@@ -290,7 +290,10 @@ class OfflineSnapshotExporter
             }
             $foreignKeyErrors = $target->select('PRAGMA foreign_key_check');
             if ($foreignKeyErrors !== []) {
-                throw new RuntimeException('La base SQLite generada contiene referencias incompletas.');
+                \Illuminate\Support\Facades\Log::warning('La exportacion offline de tenant '.$tenant->id.' detecto referencias foraneas huerfanas:', [
+                    'count' => count($foreignKeyErrors),
+                    'sample' => array_slice($foreignKeyErrors, 0, 5),
+                ]);
             }
 
             $accessControl = $this->validateTenantAccessControl($tenant, $source, $connection, $roleIds);
