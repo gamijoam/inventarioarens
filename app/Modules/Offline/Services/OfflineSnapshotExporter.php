@@ -48,16 +48,16 @@ class OfflineSnapshotExporter
 
         $store = app(OfflineSnapshotStore::class);
         $root = $store->root();
-        File::ensureDirectoryExists($root, 0700, true);
+        File::ensureDirectoryExists($root, 0770, true);
 
         $work = $root.DIRECTORY_SEPARATOR.'.work-'.$snapshotId;
         File::deleteDirectory($work);
-        File::ensureDirectoryExists($work, 0700, true);
+        File::ensureDirectoryExists($work, 0770, true);
 
         $databasePath = $work.DIRECTORY_SEPARATOR.'database.sqlite';
         $configPath = $work.DIRECTORY_SEPARATOR.'config.json';
         $imagesPath = $work.DIRECTORY_SEPARATOR.'images';
-        File::ensureDirectoryExists($imagesPath, 0700, true);
+        File::ensureDirectoryExists($imagesPath, 0770, true);
 
         try {
             $databaseSnapshot = $this->createTenantDatabase($tenant, $databasePath);
@@ -130,7 +130,7 @@ class OfflineSnapshotExporter
                 throw new RuntimeException('No se pudo activar el paquete generado.');
             }
 
-            @chmod($archive, 0600);
+            @chmod($archive, 0660);
 
             return [
                 'file_name' => 'BalanzaPro-datos-'.$tenant->slug.'.zip',
