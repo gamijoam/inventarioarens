@@ -112,6 +112,36 @@ class OfflineSnapshotStore
         );
     }
 
+    public function findLatestForUser(int $tenantId, int $userId): ?array
+    {
+        $root = $this->root();
+        $latest = null;
+        $latestTime = 0;
+
+        foreach (glob($root.DIRECTORY_SEPARATOR.'*.json') ?: [] as $path) {
+            $metadata = json_decode((string) @file_get_contents($path), true);
+            if (! is_array($metadata)) {
+                continue;
+            }
+            if (
+                (int) ($metadata['tenant_id'] ?? 0) === $tenantId
+                && (int) ($metadata['user_id'] ?? 0) === $userId
+                && ($metadata['status'] ?? null) === 'ready'
+            ) {
+                $created = strtotime((string) ($metadata['created_at'] ?? ''));
+                if ($created > $latestTime) {
+                    $archive = $this->archivePath((string) $metadata['id']);
+                    if (is_file($archive)) {
+                        $latestTime = $created;
+                        $latest = $metadata;
+                    }
+                }
+            }
+        }
+
+        return $latest;
+    }
+
     private function assertUuid(string $id): void
     {
         if (! Str::isUuid($id)) {
