@@ -778,6 +778,72 @@ class SalesApiTest extends TestCase
             ->getJson('/api/sales?search=Carlos+Toyota')
             ->assertOk();
         $res5->assertJsonCount(0, 'data');
+
+        // Venta 3: Venta con dos productos distintos: uno con "base" y otro con "baby"
+        $this->useTenant($tenant);
+        $prodBase = Product::create([
+            'name' => 'Base Motor Trasera Hyundai Elantra',
+            'sku' => 'SKU-BASE-ELANTRA',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_VES,
+            'sale_exchange_rate_type_id' => $product1->sale_exchange_rate_type_id,
+        ]);
+        $prodBaby = Product::create([
+            'name' => 'Mozo Cubo Delantero Corolla Baby Camry',
+            'sku' => 'SKU-MOZO-BABY',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_VES,
+            'sale_exchange_rate_type_id' => $product1->sale_exchange_rate_type_id,
+        ]);
+
+        $resSale3 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer2->id,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $prodBase->id,
+                        'quantity' => 1,
+                    ],
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $prodBaby->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ])
+            ->assertCreated();
+        $sale3Id = $resSale3->json('data.id');
+
+        // "base baby" NO debe encontrar la venta 3 porque ningun producto contiene ambas palabras juntas
+        $resMultiDiff = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=base+baby')
+            ->assertOk();
+        $resMultiDiff->assertJsonCount(0, 'data');
+
+        // "base elantra" SI debe encontrar la venta 3
+        $resBaseElantra = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=base+elantra')
+            ->assertOk();
+        $resBaseElantra->assertJsonCount(1, 'data');
+        $resBaseElantra->assertJsonPath('data.0.id', $sale3Id);
+
+        // "mozo baby" SI debe encontrar la venta 3
+        $resMozoBaby = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=mozo+baby')
+            ->assertOk();
+        $resMozoBaby->assertJsonCount(1, 'data');
+        $resMozoBaby->assertJsonPath('data.0.id', $sale3Id);
     }
 
     public function test_sale_detail_and_items_include_profit_when_user_has_permission(): void

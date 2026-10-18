@@ -68,64 +68,112 @@ class SaleController extends Controller
                 fn ($token) => mb_strlen($token) > 0
             ));
 
-            $query->where(function ($q) use ($search, $tokens): void {
+            $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+            $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+
+            $query->where(function ($q) use ($search, $tokens, $isPgsql, $termExpr): void {
                 $cleanNumeric = ltrim($search, '#');
                 if (is_numeric($cleanNumeric)) {
-                    $q->orWhere('id', (int) $cleanNumeric);
+                    $q->orWhere('sales.id', (int) $cleanNumeric);
                 }
 
                 // Coincidencia exacta/completa de la frase ingresada
                 $like = "%{$search}%";
 
-                $q->orWhere(function ($sub) use ($like): void {
-                    $sub->whereHas('customer', function ($customerQuery) use ($like): void {
+                $nameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
+                $skuExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(sku, \'\')))' : 'LOWER(COALESCE(sku, \'\'))';
+                $barcodeExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(barcode, \'\')))' : 'LOWER(COALESCE(barcode, \'\'))';
+
+                $custNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
+                $custDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                $custEmailExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(email, \'\')))' : 'LOWER(COALESCE(email, \'\'))';
+                $custPhoneExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(phone, \'\')))' : 'LOWER(COALESCE(phone, \'\'))';
+
+                $posNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(customer_name, \'\')))' : 'LOWER(COALESCE(customer_name, \'\'))';
+                $recDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+
+                $q->orWhere(function ($sub) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $custNameExpr, $custDocExpr, $custEmailExpr, $custPhoneExpr, $posNameExpr, $recDocExpr): void {
+                    $sub->whereHas('customer', function ($customerQuery) use ($like, $termExpr, $custNameExpr, $custDocExpr, $custEmailExpr, $custPhoneExpr): void {
                         $customerQuery
-                            ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$like]);
+                            ->whereRaw("{$custNameExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$custDocExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$custEmailExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$custPhoneExpr} LIKE {$termExpr}", [$like]);
                     })
-                    ->orWhereHas('posOrder', function ($posQuery) use ($like): void {
-                        $posQuery->whereRaw('LOWER(COALESCE(customer_name, \'\')) LIKE LOWER(?)', [$like]);
+                    ->orWhereHas('posOrder', function ($posQuery) use ($like, $termExpr, $posNameExpr): void {
+                        $posQuery->whereRaw("{$posNameExpr} LIKE {$termExpr}", [$like]);
                     })
-                    ->orWhereHas('receivable', function ($rQuery) use ($like): void {
-                        $rQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
+                    ->orWhereHas('receivable', function ($rQuery) use ($like, $termExpr, $recDocExpr): void {
+                        $rQuery->whereRaw("{$recDocExpr} LIKE {$termExpr}", [$like]);
                     })
-                    ->orWhereHas('items.product', function ($productQuery) use ($like): void {
+                    ->orWhereHas('items.product', function ($productQuery) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
                         $productQuery
-                            ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE LOWER(?)', [$like]);
+                            ->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$like]);
                     });
                 });
 
-                // Si hay más de una palabra, permitir coincidencia donde todos los tokens estén presentes
+                // Si hay más de una palabra, buscar que todos los tokens coincidan dentro del mismo elemento
+                // (evita que un token haga match en el Producto A y otro token en el Producto B de la misma venta)
                 if (count($tokens) > 1) {
-                    $q->orWhere(function ($multiWordQuery) use ($tokens): void {
-                        foreach ($tokens as $token) {
-                            $tokenLike = "%{$token}%";
-                            $multiWordQuery->where(function ($tokenQ) use ($tokenLike): void {
-                                $tokenQ->whereHas('customer', function ($customerQuery) use ($tokenLike): void {
-                                    $customerQuery
-                                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$tokenLike])
-                                        ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$tokenLike])
-                                        ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$tokenLike])
-                                        ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$tokenLike]);
-                                })
-                                ->orWhereHas('posOrder', function ($posQuery) use ($tokenLike): void {
-                                    $posQuery->whereRaw('LOWER(COALESCE(customer_name, \'\')) LIKE LOWER(?)', [$tokenLike]);
-                                })
-                                ->orWhereHas('receivable', function ($rQuery) use ($tokenLike): void {
-                                    $rQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$tokenLike]);
-                                })
-                                ->orWhereHas('items.product', function ($productQuery) use ($tokenLike): void {
-                                    $productQuery
-                                        ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$tokenLike])
-                                        ->orWhereRaw('LOWER(COALESCE(sku, \'\')) LIKE LOWER(?)', [$tokenLike])
-                                        ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE LOWER(?)', [$tokenLike]);
+                    $q->orWhere(function ($multiWordQuery) use ($tokens, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $custNameExpr, $custDocExpr, $custEmailExpr, $custPhoneExpr, $posNameExpr, $recDocExpr, $isPgsql): void {
+                        // 1. Todos los tokens coinciden en el MISMO producto vendido
+                        $multiWordQuery->whereHas('items.product', function ($productQuery) use ($tokens, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
+                            foreach ($tokens as $token) {
+                                $tokenLike = "%{$token}%";
+                                $productQuery->where(function ($pq) use ($tokenLike, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
+                                    $pq->whereRaw("{$nameExpr} LIKE {$termExpr}", [$tokenLike])
+                                        ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$tokenLike])
+                                        ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$tokenLike]);
                                 });
+                            }
+                        })
+                        // 2. O todos los tokens coinciden en el cliente
+                        ->orWhereHas('customer', function ($customerQuery) use ($tokens, $termExpr, $custNameExpr, $custDocExpr, $custEmailExpr, $custPhoneExpr): void {
+                            foreach ($tokens as $token) {
+                                $tokenLike = "%{$token}%";
+                                $customerQuery->where(function ($cq) use ($tokenLike, $termExpr, $custNameExpr, $custDocExpr, $custEmailExpr, $custPhoneExpr): void {
+                                    $cq->whereRaw("{$custNameExpr} LIKE {$termExpr}", [$tokenLike])
+                                        ->orWhereRaw("{$custDocExpr} LIKE {$termExpr}", [$tokenLike])
+                                        ->orWhereRaw("{$custEmailExpr} LIKE {$termExpr}", [$tokenLike])
+                                        ->orWhereRaw("{$custPhoneExpr} LIKE {$termExpr}", [$tokenLike]);
+                                });
+                            }
+                        })
+                        // 3. O todos los tokens coinciden en el nombre del cliente POS
+                        ->orWhereHas('posOrder', function ($posQuery) use ($tokens, $termExpr, $posNameExpr): void {
+                            foreach ($tokens as $token) {
+                                $tokenLike = "%{$token}%";
+                                $posQuery->whereRaw("{$posNameExpr} LIKE {$termExpr}", [$tokenLike]);
+                            }
+                        })
+                        // 4. O todos los tokens coinciden en la cuenta por cobrar
+                        ->orWhereHas('receivable', function ($rQuery) use ($tokens, $termExpr, $recDocExpr): void {
+                            foreach ($tokens as $token) {
+                                $tokenLike = "%{$token}%";
+                                $rQuery->whereRaw("{$recDocExpr} LIKE {$termExpr}", [$tokenLike]);
+                            }
+                        })
+                        // 5. O coincidencia combinada Cliente + Producto en el MISMO producto (ej. "Carlos Freno")
+                        ->orWhere(function ($crossQuery) use ($tokens, $termExpr, $isPgsql): void {
+                            $crossQuery->whereHas('items.product', function ($itemProductQuery) use ($tokens, $termExpr, $isPgsql): void {
+                                $pName = $isPgsql ? 'unaccent(LOWER(COALESCE(products.name, \'\')))' : 'LOWER(COALESCE(products.name, \'\'))';
+                                $pSku = $isPgsql ? 'unaccent(LOWER(COALESCE(products.sku, \'\')))' : 'LOWER(COALESCE(products.sku, \'\'))';
+                                $cName = $isPgsql ? 'unaccent(LOWER(COALESCE(c_sub.name, \'\')))' : 'LOWER(COALESCE(c_sub.name, \'\'))';
+                                $poName = $isPgsql ? 'unaccent(LOWER(COALESCE(po_sub.customer_name, \'\')))' : 'LOWER(COALESCE(po_sub.customer_name, \'\'))';
+
+                                foreach ($tokens as $token) {
+                                    $tokenLike = "%{$token}%";
+                                    $itemProductQuery->where(function ($tokenQ) use ($tokenLike, $termExpr, $pName, $pSku, $cName, $poName): void {
+                                        $tokenQ->whereRaw("{$pName} LIKE {$termExpr}", [$tokenLike])
+                                            ->orWhereRaw("{$pSku} LIKE {$termExpr}", [$tokenLike])
+                                            ->orWhereRaw("EXISTS (SELECT 1 FROM customers c_sub WHERE c_sub.id = sales.customer_id AND {$cName} LIKE {$termExpr})", [$tokenLike])
+                                            ->orWhereRaw("EXISTS (SELECT 1 FROM pos_orders po_sub WHERE po_sub.sale_id = sales.id AND {$poName} LIKE {$termExpr})", [$tokenLike]);
+                                    });
+                                }
                             });
-                        }
+                        });
                     });
                 }
             });
