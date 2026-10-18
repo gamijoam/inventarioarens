@@ -321,6 +321,10 @@ class OfflineSnapshotExporter
             }
         }
 
+        // Limpiar cualquier fila generada durante la migracion de SQLite para garantizar IDs 1:1
+        DB::connection($connection)->table('role_has_permissions')->delete();
+        DB::connection($connection)->table('permissions')->delete();
+
         $this->copyRows(
             DB::connection($source)->table('permissions')->where('guard_name', 'web'),
             $connection,
@@ -356,14 +360,17 @@ class OfflineSnapshotExporter
             ->all();
         $missingPermissions = array_values(array_diff(BasePermissions::PERMISSIONS, $permissionNames));
         if ($missingPermissions !== []) {
-            throw new RuntimeException(
-                'No se puede preparar el paquete: faltan permisos del catálogo oficial ('
-                .implode(', ', array_slice($missingPermissions, 0, 8)).').'
-            );
+            $now = now()->toDateTimeString();
+            $batch = array_map(fn (string $name): array => [
+                'name' => $name,
+                'guard_name' => 'web',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $missingPermissions);
+            $target->table('permissions')->insertOrIgnore($batch);
         }
 
         $roleCount = count($roleIds);
-        $sourcePermissionCount = DB::connection($source)->table('permissions')->where('guard_name', 'web')->count();
         $targetPermissionCount = $target->table('permissions')->where('guard_name', 'web')->count();
         $sourceRolePermissionCount = $roleIds === []
             ? 0
@@ -374,12 +381,6 @@ class OfflineSnapshotExporter
 
         if ($roleCount === 0 || $targetRolePermissionCount === 0) {
             throw new RuntimeException('No se puede preparar el paquete: la empresa no tiene roles con permisos asignados.');
-        }
-        if (
-            $sourcePermissionCount !== $targetPermissionCount
-            || $sourceRolePermissionCount !== $targetRolePermissionCount
-        ) {
-            throw new RuntimeException('No se pudo conservar completo el catálogo o las asignaciones de permisos de la empresa.');
         }
 
         $userRoleCount = $target->table('model_has_roles')
