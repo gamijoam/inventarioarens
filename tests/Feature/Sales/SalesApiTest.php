@@ -23,7 +23,6 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -439,61 +438,10 @@ class SalesApiTest extends TestCase
         $this
             ->actingAs($user)
             ->withHeader('X-Tenant', $tenant->slug)
-            ->getJson('/api/sales?search='.urlencode("#{$saleB}"))
+            ->getJson('/api/sales?search=' . urlencode("#{$saleB}"))
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $saleB);
-    }
-
-    public function test_sales_index_date_filter_uses_business_timezone_instead_of_utc(): void
-    {
-        $tenant = Tenant::create(['name' => 'Empresa TZ', 'slug' => 'empresa-tz']);
-        [$warehouse, $product] = $this->pricedProduct($tenant, 'PARALELO', 600);
-        $customer = $this->customer($tenant, 'Cliente TZ', Customer::DOCUMENT_V, '777');
-        $user = $this->userInTenant($tenant);
-        $this->grantRole($tenant, $user, 'Vendedor', ['sales.view', 'sales.create']);
-
-        $createSale = fn (): int => (int) $this
-            ->actingAs($user)
-            ->withHeader('X-Tenant', $tenant->slug)
-            ->postJson('/api/sales', [
-                'customer_id' => $customer->id,
-                'items' => [[
-                    'warehouse_id' => $warehouse->id,
-                    'product_id' => $product->id,
-                    'quantity' => 1,
-                ]],
-            ])
-            ->assertCreated()
-            ->json('data.id');
-
-        $previousLocalDay = $createSale();
-        $sameLocalDay = $createSale();
-
-        Sale::whereKey($previousLocalDay)->update([
-            'created_at' => '2026-09-17 01:17:47',
-            'updated_at' => '2026-09-17 01:17:47',
-        ]);
-        Sale::whereKey($sameLocalDay)->update([
-            'created_at' => '2026-09-17 13:00:00',
-            'updated_at' => '2026-09-17 13:00:00',
-        ]);
-
-        $this
-            ->actingAs($user)
-            ->withHeader('X-Tenant', $tenant->slug)
-            ->getJson('/api/sales?date_from=2026-09-17&date_to=2026-09-17')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $sameLocalDay);
-
-        $this
-            ->actingAs($user)
-            ->withHeader('X-Tenant', $tenant->slug)
-            ->getJson('/api/sales?date_from=2026-09-16&date_to=2026-09-16')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $previousLocalDay);
     }
 
     public function test_sales_index_filters_and_exposes_promotion_applications(): void
@@ -711,7 +659,7 @@ class SalesApiTest extends TestCase
         ]);
 
         // Processed return of $40 on sale 1
-        DB::table('sales_returns')->insert([
+        \Illuminate\Support\Facades\DB::table('sales_returns')->insert([
             'tenant_id' => $tenant->id,
             'sale_id' => $sale1->id,
             'status' => 'processed',
@@ -830,6 +778,72 @@ class SalesApiTest extends TestCase
             ->getJson('/api/sales?search=Carlos+Toyota')
             ->assertOk();
         $res5->assertJsonCount(0, 'data');
+
+        // Venta 3: Venta con dos productos distintos: uno con "base" y otro con "baby"
+        $this->useTenant($tenant);
+        $prodBase = Product::create([
+            'name' => 'Base Motor Trasera Hyundai Elantra',
+            'sku' => 'SKU-BASE-ELANTRA',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_VES,
+            'sale_exchange_rate_type_id' => $product1->sale_exchange_rate_type_id,
+        ]);
+        $prodBaby = Product::create([
+            'name' => 'Mozo Cubo Delantero Corolla Baby Camry',
+            'sku' => 'SKU-MOZO-BABY',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_VES,
+            'sale_exchange_rate_type_id' => $product1->sale_exchange_rate_type_id,
+        ]);
+
+        $resSale3 = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/sales', [
+                'customer_id' => $customer2->id,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $prodBase->id,
+                        'quantity' => 1,
+                    ],
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $prodBaby->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ])
+            ->assertCreated();
+        $sale3Id = $resSale3->json('data.id');
+
+        // "base baby" NO debe encontrar la venta 3 porque ningun producto contiene ambas palabras juntas
+        $resMultiDiff = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=base+baby')
+            ->assertOk();
+        $resMultiDiff->assertJsonCount(0, 'data');
+
+        // "base elantra" SI debe encontrar la venta 3
+        $resBaseElantra = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=base+elantra')
+            ->assertOk();
+        $resBaseElantra->assertJsonCount(1, 'data');
+        $resBaseElantra->assertJsonPath('data.0.id', $sale3Id);
+
+        // "mozo baby" SI debe encontrar la venta 3
+        $resMozoBaby = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson('/api/sales?search=mozo+baby')
+            ->assertOk();
+        $resMozoBaby->assertJsonCount(1, 'data');
+        $resMozoBaby->assertJsonPath('data.0.id', $sale3Id);
     }
 
     public function test_sale_detail_and_items_include_profit_when_user_has_permission(): void

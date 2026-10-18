@@ -6,5 +6,7 @@ return [
     'csp_safe' => true,
 
     // Bump the URL so browsers don't reuse the non-CSP bundle cached for a year.
-    'asset_url' => \Livewire\Mechanisms\HandleRequests\EndpointResolver::prefix().'/livewire.min.js?build=csp-safe-1',
+    'asset_url' => class_exists(\Livewire\Mechanisms\HandleRequests\EndpointResolver::class)
+        ? \Livewire\Mechanisms\HandleRequests\EndpointResolver::prefix().'/livewire.min.js?build=csp-safe-1'
+        : null,
 ];
