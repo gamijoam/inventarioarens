@@ -180,6 +180,7 @@ export function KardexTab({ productId, dateFrom, dateTo }: KardexTabProps) {
           </CardDescription>
         </div>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={handleExportCsv}

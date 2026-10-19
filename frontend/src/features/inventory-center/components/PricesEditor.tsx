@@ -314,6 +314,7 @@ export function PricesEditor({ productId, currentBasePrice }: PricesEditorProps)
 
         <div className="flex items-center justify-end gap-2 p-3">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => pricesQuery.refetch()}
@@ -322,7 +323,7 @@ export function PricesEditor({ productId, currentBasePrice }: PricesEditorProps)
             <X className="size-4" aria-hidden="true" />
             Cancelar
           </Button>
-          <Button size="sm" onClick={saveAll} disabled={!dirty} loading={updateProduct.isPending}>
+          <Button type="button" size="sm" onClick={saveAll} disabled={!dirty} loading={updateProduct.isPending}>
             <Save className="size-4" aria-hidden="true" />
             Guardar cambios
           </Button>

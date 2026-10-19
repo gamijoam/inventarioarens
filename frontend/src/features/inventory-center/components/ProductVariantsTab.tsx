@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 
 import { Badge } from '@/components/ui/Badge';
@@ -12,7 +13,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
 import { Select } from '@/components/ui/Select';
 import { useWarehouses } from '@/features/inventory-center/api';
-import { useProductVariants } from '@/features/inventory-center/variantApi';
+import { productVariantKeys, useProductVariants } from '@/features/inventory-center/variantApi';
 import type { ProductVariant } from '@/features/inventory-center/variantSchemas';
 import { cn } from '@/lib/cn';
 import { deleteOne, patchOne, postOne } from '@/api/client';
@@ -36,6 +37,7 @@ const EMPTY_FORM: VariantFormState = {
 };
 
 export function ProductVariantsTab({ productId }: { productId: number }) {
+  const qc = useQueryClient();
   const { data: warehouses = [] } = useWarehouses();
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const selectedWarehouseId = warehouseId ?? warehouses[0]?.id ?? null;
@@ -69,8 +71,11 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
     setForm(EMPTY_FORM);
   }
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  async function submit(event?: React.FormEvent | React.SyntheticEvent) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     if (!form.color.trim()) {
       toast.error('Indica al menos el color.');
       return;
@@ -94,6 +99,7 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
         toast.success('Variante creada.');
       }
       cancelEdit();
+      await qc.invalidateQueries({ queryKey: productVariantKeys.all });
       await refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar la variante.');
@@ -136,7 +142,16 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                submit(event);
+              }
+            }}
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+          >
             <div className="space-y-1">
               <Label htmlFor="variant-color">Color *</Label>
               <Input
@@ -212,12 +227,12 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
                   Cancelar
                 </Button>
               )}
-              <Button type="submit" loading={submitting}>
+              <Button type="button" onClick={() => submit()} loading={submitting}>
                 <Plus className="size-4" />
                 {editingId ? 'Guardar cambios' : 'Crear variante'}
               </Button>
             </div>
-          </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -294,6 +309,7 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
                     aria-label="Variante activa"
                   />
                   <Button
+                    type="button"
                     size="icon-sm"
                     variant="ghost"
                     onClick={() => startEdit(variant)}
@@ -302,6 +318,7 @@ export function ProductVariantsTab({ productId }: { productId: number }) {
                     <PencilIcon />
                   </Button>
                   <Button
+                    type="button"
                     size="icon-sm"
                     variant="ghost"
                     onClick={() => removeVariant(variant)}
