@@ -114,7 +114,6 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess, initialName
   return (
     <>
       <Dialog
-        key={open ? `create-${initialName ?? ''}` : 'create-closed'}
         open={open}
         onOpenChange={onOpenChange}
       >

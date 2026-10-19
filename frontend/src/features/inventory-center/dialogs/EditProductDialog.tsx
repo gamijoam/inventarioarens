@@ -61,12 +61,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const tagOptions = tags.map((t) => ({ value: t.id, label: t.name, color: t.color ?? undefined }));
 
   return (
-    // La key combina el id del producto con el estado 'open', forzando el
-    // desmontaje y remontaje del Dialog (y del form interno) cada vez que
-    // se abre. Esto garantiza que los initialValues (incluyendo base_price,
-    // precios, etc.) siempre se carguen desde el producto actual, sin
-    // importar si el usuario lo abrió antes para el mismo producto.
-    <Dialog key={`edit-${product.id}-${open ? 'open' : 'closed'}`} open={open} onOpenChange={onOpenChange}>
+    <Dialog key={`edit-${product.id}`} open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[95vh] max-h-[95vh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
         <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
           <div className="flex items-start justify-between gap-4 pr-14 sm:pr-16">

@@ -105,7 +105,18 @@ export function ProductForm({
   showAdvancedToggle = false,
 }: ProductFormProps) {
   const [activeTab, setActiveTab] = useState<ProductFormTab>('general');
+  const [visitedTabs, setVisitedTabs] = useState<Set<ProductFormTab>>(() => new Set(['general']));
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const handleTabChange = (tab: ProductFormTab) => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  };
 
   const activeVisibility = useMemo<ProductFormVisibility>(() => {
     const base = { ...FULL_PRODUCT_FORM_VISIBILITY, ...visibility } as ProductFormVisibility;
@@ -124,7 +135,9 @@ export function ProductForm({
   const { data: categoryTree = [] } = useCategoriesTree();
   const { data: warrantyPolicies = [] } = useWarrantyPolicies();
   const { data: rateTypes = [] } = useExchangeRateTypes();
-  const { data: galleryImages = [] } = useProductImages(productId ?? null);
+  const { data: galleryImages = [] } = useProductImages(
+    productId && visitedTabs.has('images') ? productId : null,
+  );
 
   const pricingMode = form.watch('pricing_mode') ?? 'manual';
   const cost = Number(form.watch('last_purchase_cost'));
@@ -176,31 +189,31 @@ export function ProductForm({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F1') {
         e.preventDefault();
-        setActiveTab('general');
+        handleTabChange('general');
       } else if (e.key === 'F2') {
         e.preventDefault();
-        setActiveTab('pricing');
+        handleTabChange('pricing');
       } else if (e.key === 'F3') {
         e.preventDefault();
-        setActiveTab('stock');
+        handleTabChange('stock');
       } else if (e.key === 'F4') {
         e.preventDefault();
-        setActiveTab('catalogs');
+        handleTabChange('catalogs');
       } else if (e.key === 'F5') {
         e.preventDefault();
-        setActiveTab('images');
+        handleTabChange('images');
       } else if (e.key === 'F6') {
         e.preventDefault();
-        setActiveTab('details');
+        handleTabChange('details');
       } else if (e.key === 'F7' && productId) {
         e.preventDefault();
-        setActiveTab('variants');
+        handleTabChange('variants');
       } else if (e.key === 'F8' && productId) {
         e.preventDefault();
-        setActiveTab('kardex');
+        handleTabChange('kardex');
       } else if (e.key === 'F9' && productId) {
         e.preventDefault();
-        setActiveTab('audits');
+        handleTabChange('audits');
       }
     };
 
@@ -281,7 +294,7 @@ export function ProductForm({
       <div className="border-b border-border bg-surface-subtle/30 px-4 pt-2 flex items-center gap-1.5 overflow-x-auto shrink-0 select-none">
         <TabButton
           active={activeTab === 'general'}
-          onClick={() => setActiveTab('general')}
+          onClick={() => handleTabChange('general')}
           shortcut="F1"
           label="Datos Generales"
           icon={<ClipboardList className="size-3.5" />}
@@ -289,7 +302,7 @@ export function ProductForm({
         />
         <TabButton
           active={activeTab === 'pricing'}
-          onClick={() => setActiveTab('pricing')}
+          onClick={() => handleTabChange('pricing')}
           shortcut="F2"
           label="Tarifas y PVP"
           icon={<DollarSign className="size-3.5" />}
@@ -297,7 +310,7 @@ export function ProductForm({
         />
         <TabButton
           active={activeTab === 'stock'}
-          onClick={() => setActiveTab('stock')}
+          onClick={() => handleTabChange('stock')}
           shortcut="F3"
           label="Existencias y Medidas"
           icon={<Boxes className="size-3.5" />}
@@ -305,7 +318,7 @@ export function ProductForm({
         />
         <TabButton
           active={activeTab === 'catalogs'}
-          onClick={() => setActiveTab('catalogs')}
+          onClick={() => handleTabChange('catalogs')}
           shortcut="F4"
           label="Clasificación"
           icon={<TagsIcon className="size-3.5" />}
@@ -313,7 +326,7 @@ export function ProductForm({
         />
         <TabButton
           active={activeTab === 'images'}
-          onClick={() => setActiveTab('images')}
+          onClick={() => handleTabChange('images')}
           shortcut="F5"
           label="Galería de Fotos"
           icon={<ImageIcon className="size-3.5" />}
@@ -321,7 +334,7 @@ export function ProductForm({
         {showDetailsSection && (
           <TabButton
             active={activeTab === 'details'}
-            onClick={() => setActiveTab('details')}
+            onClick={() => handleTabChange('details')}
             shortcut="F6"
             label="Garantías y Ficha"
             icon={<ShieldCheck className="size-3.5" />}
@@ -332,21 +345,21 @@ export function ProductForm({
           <>
             <TabButton
               active={activeTab === 'variants'}
-              onClick={() => setActiveTab('variants')}
+              onClick={() => handleTabChange('variants')}
               shortcut="F7"
               label="Variantes"
               icon={<Layers className="size-3.5" />}
             />
             <TabButton
               active={activeTab === 'kardex'}
-              onClick={() => setActiveTab('kardex')}
+              onClick={() => handleTabChange('kardex')}
               shortcut="F8"
               label="Kardex"
               icon={<History className="size-3.5" />}
             />
             <TabButton
               active={activeTab === 'audits'}
-              onClick={() => setActiveTab('audits')}
+              onClick={() => handleTabChange('audits')}
               shortcut="F9"
               label="Auditoría"
               icon={<FileClock className="size-3.5" />}
@@ -688,7 +701,7 @@ export function ProductForm({
             </div>
           </fieldset>
 
-          {productId && (
+          {productId && visitedTabs.has('pricing') && (
             <div className="pt-4 border-t border-border">
               <PricesEditor productId={productId} currentBasePrice={currentBasePrice} />
             </div>
@@ -992,15 +1005,15 @@ export function ProductForm({
         {productId && (
           <>
             <div className={cn('space-y-4', activeTab !== 'variants' && 'hidden')}>
-              <ProductVariantsTab productId={productId} />
+              {visitedTabs.has('variants') && <ProductVariantsTab productId={productId} />}
             </div>
 
             <div className={cn('space-y-4', activeTab !== 'kardex' && 'hidden')}>
-              <KardexTab productId={productId} />
+              {visitedTabs.has('kardex') && <KardexTab productId={productId} />}
             </div>
 
             <div className={cn('space-y-4', activeTab !== 'audits' && 'hidden')}>
-              <AuditsTab productId={productId} />
+              {visitedTabs.has('audits') && <AuditsTab productId={productId} />}
             </div>
           </>
         )}
@@ -1084,7 +1097,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'group flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold rounded-t-lg transition-all border-b-2 relative -mb-px whitespace-nowrap',
+        'group flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold rounded-t-lg transition-colors border-b-2 relative -mb-px whitespace-nowrap',
         active
           ? 'bg-surface border-primary text-primary shadow-xs'
           : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-surface/50',
