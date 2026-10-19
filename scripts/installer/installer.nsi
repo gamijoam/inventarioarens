@@ -80,24 +80,64 @@ Function GenerateRecoveryNames
   StrCpy $FailedDir "$INSTDIR.failed-$2$1$0-$4$5$6"
 FunctionEnd
 
-Function CheckWebView2
-  StrCpy $0 ""
+Function DetectWebView2Present
+  ; Comprobar 64-bit
   SetRegView 64
   ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
-  StrCmp $0 "" 0 WebView2Ready
+  StrCmp $0 "" 0 WebViewFound
   ReadRegStr $0 HKCU "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
-  StrCmp $0 "" 0 WebView2Ready
-  DetailPrint "Instalando Microsoft Edge WebView2 para uso sin conexión..."
+  StrCmp $0 "" 0 WebViewFound
+  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\ClientState\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
+  StrCmp $0 "" 0 WebViewFound
+  ReadRegStr $0 HKCU "SOFTWARE\Microsoft\EdgeUpdate\ClientState\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
+  StrCmp $0 "" 0 WebViewFound
+
+  ; Comprobar 32-bit (WOW6432Node en x64)
+  SetRegView 32
+  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
+  StrCmp $0 "" 0 WebViewFound
+  ReadRegStr $0 HKCU "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
+  StrCmp $0 "" 0 WebViewFound
+  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\ClientState\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
+  StrCmp $0 "" 0 WebViewFound
+  ReadRegStr $0 HKCU "SOFTWARE\Microsoft\EdgeUpdate\ClientState\{F3017226-9E47-4475-A062-8A96F24817F4}" "pv"
+  StrCmp $0 "" 0 WebViewFound
+
+  ; Comprobar carpetas fisicas del runtime
+  IfFileExists "$PROGRAMFILES\Microsoft\EdgeWebView\Application\*.*" WebViewFound 0
+  IfFileExists "$PROGRAMFILES64\Microsoft\EdgeWebView\Application\*.*" WebViewFound 0
+  IfFileExists "$LOCALAPPDATA\Microsoft\EdgeWebView\Application\*.*" WebViewFound 0
+
+  StrCpy $0 "0"
+  Goto WebViewDone
+
+WebViewFound:
+  StrCpy $0 "1"
+
+WebViewDone:
+  SetRegView 64
+FunctionEnd
+
+Function CheckWebView2
+  Call DetectWebView2Present
+  StrCmp $0 "1" WebView2Ready
+
+  DetailPrint "Instalando Microsoft Edge WebView2 para uso sin conexion..."
   IfFileExists "$PLUGINSDIR\package\MicrosoftEdgeWebView2RuntimeInstallerX64.exe" 0 WebView2Missing
   ExecWait '"$PLUGINSDIR\package\MicrosoftEdgeWebView2RuntimeInstallerX64.exe" /silent /install' $1
   IntCmp $1 0 WebView2Ready
   IntCmp $1 3010 WebView2Ready
-  MessageBox MB_ICONSTOP "No se pudo instalar WebView2. Reinicia Windows o instala el Runtime y vuelve a ejecutar BalanzaPro-Setup.exe."
-  Abort
+
+  ; Si retorno otro codigo, verificar si quedo presente o si ya existia una version igual/superior
+  Call DetectWebView2Present
+  StrCmp $0 "1" WebView2Ready
+
+  DetailPrint "Aviso: Instalador de WebView2 finalizo con codigo $1. Continuando con la instalacion..."
+  Goto WebView2Ready
 
 WebView2Missing:
-  MessageBox MB_ICONSTOP "El paquete no incluye el instalador completo de WebView2. No se continuará para evitar una instalación incompleta."
-  Abort
+  DetailPrint "Aviso: No se encontro el instalador de WebView2 en el paquete. Continuando..."
+  Goto WebView2Ready
 
 WebView2Ready:
   SetRegView 64

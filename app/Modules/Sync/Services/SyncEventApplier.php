@@ -2017,7 +2017,7 @@ class SyncEventApplier
             ->withTrashed()
             ->firstOrNew(['uuid' => $uuid, 'tenant_id' => $tenant->id]);
 
-        $image->fill([
+        $fillData = [
             'product_id' => $productId,
             'mime' => $payload['mime'] ?? $image->mime ?? 'image/webp',
             'size' => $payload['size'] ?? $image->size ?? 0,
@@ -2027,8 +2027,14 @@ class SyncEventApplier
             'alt' => $payload['alt'] ?? $image->alt,
             'sort' => $payload['sort'] ?? $image->sort ?? 0,
             'is_primary' => (bool) ($payload['is_primary'] ?? $image->is_primary ?? false),
-            'deleted_at' => null,
-        ]);
+        ];
+
+        // No revivir imagenes que ya estan borradas localmente
+        if (! $image->exists || ! $image->trashed()) {
+            $fillData['deleted_at'] = null;
+        }
+
+        $image->fill($fillData);
 
         // Si el path apunta al cloud, guardamos la URL en storage_path como
         // marcador temporal hasta que SyncDownloadService baje el archivo.

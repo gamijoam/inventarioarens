@@ -280,7 +280,10 @@ export function useUpdatePrintJobStatus() {
   });
 }
 
-export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
+export async function sendJobToLocalAgent(
+  job: PrintJob,
+  fallbackStation?: PrinterStation | null,
+): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
   let pdfBase64: string | undefined;
 
   if (job.output !== 'thermal') {
@@ -295,22 +298,33 @@ export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: stri
     }
   }
 
+  const stationToUse = job.station?.printer_name ? job.station : (fallbackStation ?? job.station);
+
   const response = await fetch('http://127.0.0.1:17777/print', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      job_id: job.id,
+      job_id: String(job.id),
       output: job.output,
       ticket_pdf_url: job.ticket_pdf_url,
       ticket_html_url: job.ticket_html_url,
-      station: job.station,
+      station: stationToUse,
       payload: job.payload_snapshot,
       pdf_base64: pdfBase64,
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Agente local respondio ${response.status}`);
+    let errorDetail = `Agente local respondio ${response.status}`;
+    try {
+      const errorJson = (await response.json()) as { message?: string };
+      if (errorJson?.message) {
+        errorDetail = errorJson.message;
+      }
+    } catch {
+      // Ignorar si no es JSON
+    }
+    throw new Error(errorDetail);
   }
 
   return response.json() as Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }>;

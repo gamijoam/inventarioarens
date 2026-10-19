@@ -96,9 +96,11 @@ func TestBuildPlainTicket(t *testing.T) {
 		"Cajero: Juan Perez",
 		"Cliente: Maria Gomez",
 		"Aceite Motor 20W50",
-		"Total USD: $11.00",
-		"Total VES: Bs 440,00",
-		"Efectivo USD: $11.00",
+		"TOTAL USD:",
+		"$11.00",
+		"TOTAL VES:",
+		"Bs 440,00",
+		"Efectivo USD:",
 		"DOCUMENTO NO FISCAL",
 	}
 
@@ -144,10 +146,13 @@ func TestBuildPlainReportZ(t *testing.T) {
 		"REPORTE Z",
 		"Z #42",
 		"Caja: Caja 1",
-		"Tickets: 15",
-		"Total USD: $150.50",
-		"Total VES: Bs 6.020,00",
-		"Efectivo: $150.50",
+		"Tickets:",
+		"15",
+		"Total USD:",
+		"$150.50",
+		"Total VES:",
+		"Bs 6.020,00",
+		"Efectivo:",
 	}
 
 	for _, str := range mustContain {

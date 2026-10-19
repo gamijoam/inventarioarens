@@ -70,9 +70,11 @@ if [ "$PUBLISH" = true ]; then
   mkdir -p "$TARGET_DOWNLOADS"
   
   if [ -f "$REPO_DIR/public/downloads/BalanzaPro-Setup.exe" ]; then
-    echo ">> Sincronizando instalador y manifiesto en $TARGET_DOWNLOADS..."
-    cp -f "$REPO_DIR/public/downloads/BalanzaPro-Setup.exe" "$TARGET_DOWNLOADS/"
-    cp -f "$REPO_DIR/public/downloads/BalanzaPro-Setup.manifest.json" "$TARGET_DOWNLOADS/"
+    if [ "$(realpath "$REPO_DIR/public/downloads")" != "$(realpath "$TARGET_DOWNLOADS")" ]; then
+      echo ">> Sincronizando instalador y manifiesto en $TARGET_DOWNLOADS..."
+      cp -f "$REPO_DIR/public/downloads/BalanzaPro-Setup.exe" "$TARGET_DOWNLOADS/"
+      cp -f "$REPO_DIR/public/downloads/BalanzaPro-Setup.manifest.json" "$TARGET_DOWNLOADS/"
+    fi
     chown -R www-data:www-data "$TARGET_DOWNLOADS"
     
     echo ">> Verificando archivos publicados:"

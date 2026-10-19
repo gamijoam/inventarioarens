@@ -62,7 +62,7 @@ func (p *ThermalPrinter) Print(text string, printerName string, options PrintOpt
 		return p.printNetwork(text, options)
 	}
 
-	return p.printDriver(text, printerName)
+	return p.printDriver(text, printerName, options)
 }
 
 func (p *ThermalPrinter) printNetwork(text string, options PrintOptions) (*PrintResult, error) {
@@ -113,7 +113,7 @@ func (p *ThermalPrinter) printNetwork(text string, options PrintOptions) (*Print
 	}, nil
 }
 
-func (p *ThermalPrinter) printDriver(text string, printerName string) (*PrintResult, error) {
+func (p *ThermalPrinter) printDriver(text string, printerName string, options PrintOptions) (*PrintResult, error) {
 	if printerName == "" {
 		return &PrintResult{
 			Ok:      false,
@@ -122,7 +122,23 @@ func (p *ThermalPrinter) printDriver(text string, printerName string) (*PrintRes
 	}
 
 	clean := format.Sanitize(text)
-	tmpFile, err := os.CreateTemp("", "invtkt_*.txt")
+	data := escpos.BuildEscPos(clean, options.CutPaper, options.OpenCashDrawer)
+
+	// If using default executor, try direct RAW spooler printing first
+	if _, isDefault := p.executor.(*defaultExecutor); isDefault {
+		if err := printRawToSpooler(printerName, data); err == nil {
+			return &PrintResult{
+				Ok:      true,
+				Status:  "printed",
+				Message: fmt.Sprintf("Enviado a %s", printerName),
+				Printer: printerName,
+				Bytes:   len(data),
+			}, nil
+		}
+	}
+
+	// Fallback using executor (e.g. for mock test or when direct spooler call fails)
+	tmpFile, err := os.CreateTemp("", "invtkt_*.bin")
 	if err != nil {
 		return &PrintResult{
 			Ok:      false,
@@ -132,7 +148,7 @@ func (p *ThermalPrinter) printDriver(text string, printerName string) (*PrintRes
 	tmpPath := tmpFile.Name()
 	defer os.Remove(tmpPath)
 
-	if _, err := tmpFile.WriteString(clean); err != nil {
+	if _, err := tmpFile.Write(data); err != nil {
 		tmpFile.Close()
 		return &PrintResult{
 			Ok:      false,
@@ -149,11 +165,60 @@ func (p *ThermalPrinter) printDriver(text string, printerName string) (*PrintRes
 
 	if runtime.GOOS == "windows" {
 		cmd = "powershell"
-		script := fmt.Sprintf("Get-Content -LiteralPath '%s' -Raw | Out-Printer -Name '%s'", escapePowerShellLiteral(tmpPath), escapePowerShellLiteral(printerName))
-		args = []string{"-NoProfile", "-NonInteractive", "-Command", script}
+		psScript := fmt.Sprintf(`$code = @'
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+public class RawPrint {
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+  public struct DOCINFOW {
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+  }
+  [DllImport("winspool.Drv", EntryPoint="OpenPrinterW", SetLastError=true, CharSet=CharSet.Unicode)]
+  public static extern bool OpenPrinter(string src, out IntPtr hPrinter, IntPtr pd);
+  [DllImport("winspool.Drv", EntryPoint="ClosePrinter", SetLastError=true)]
+  public static extern bool ClosePrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="StartDocPrinterW", SetLastError=true, CharSet=CharSet.Unicode)]
+  public static extern bool StartDocPrinter(IntPtr hPrinter, int level, ref DOCINFOW di);
+  [DllImport("winspool.Drv", EntryPoint="EndDocPrinter", SetLastError=true)]
+  public static extern bool EndDocPrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="StartPagePrinter", SetLastError=true)]
+  public static extern bool StartPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="EndPagePrinter", SetLastError=true)]
+  public static extern bool EndPagePrinter(IntPtr hPrinter);
+  [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true)]
+  public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
+  public static bool Send(string printer, string path) {
+    byte[] b = File.ReadAllBytes(path);
+    IntPtr h;
+    DOCINFOW di = new DOCINFOW();
+    di.pDocName = "Ticket POS";
+    di.pDataType = "RAW";
+    if (!OpenPrinter(printer, out h, IntPtr.Zero)) return false;
+    bool ok = StartDocPrinter(h, 1, ref di);
+    if (ok) ok = StartPagePrinter(h);
+    IntPtr p = Marshal.AllocCoTaskMem(b.Length);
+    Marshal.Copy(b, 0, p, b.Length);
+    int written;
+    if (ok) ok = WritePrinter(h, p, b.Length, out written);
+    Marshal.FreeCoTaskMem(p);
+    if (ok) { EndPagePrinter(h); EndDocPrinter(h); }
+    ClosePrinter(h);
+    return ok;
+  }
+}
+'@
+Add-Type -TypeDefinition $code -Language CSharp | Out-Null
+if (-not [RawPrint]::Send('%s', '%s')) {
+  Get-Content -LiteralPath '%s' -Raw | Out-Printer -Name '%s'
+}
+`, escapePowerShellLiteral(printerName), escapePowerShellLiteral(tmpPath), escapePowerShellLiteral(tmpPath), escapePowerShellLiteral(printerName))
+		args = []string{"-NoProfile", "-NonInteractive", "-Command", psScript}
 	} else {
-		cmd = "lpr"
-		args = []string{"-P", printerName, tmpPath}
+		cmd = "lp"
+		args = []string{"-d", printerName, "-o", "raw", tmpPath}
 	}
 
 	out, err := p.executor.Execute(ctx, cmd, args...)
@@ -169,6 +234,7 @@ func (p *ThermalPrinter) printDriver(text string, printerName string) (*PrintRes
 		Status:  "printed",
 		Message: fmt.Sprintf("Enviado a %s", printerName),
 		Printer: printerName,
+		Bytes:   len(data),
 	}, nil
 }
 

@@ -119,6 +119,25 @@ func getSlice(m map[string]interface{}, key string) []interface{} {
 	return nil
 }
 
+// justify returns left and right aligned to width characters
+func justify(left, right string, width int) string {
+	leftRunes := []rune(left)
+	rightRunes := []rune(right)
+	total := len(leftRunes) + len(rightRunes)
+	if total >= width {
+		space := width - len(rightRunes) - 1
+		if space > 6 {
+			return string(leftRunes[:space]) + " " + right
+		}
+		spaces := width - len(rightRunes)
+		if spaces < 0 {
+			spaces = 0
+		}
+		return left + "\n" + strings.Repeat(" ", spaces) + right
+	}
+	return left + strings.Repeat(" ", width-total) + right
+}
+
 // BuildPlainTicket converts a ticket JSON map into formatted plain text
 func BuildPlainTicket(ticket map[string]interface{}) string {
 	profile := getMap(ticket, "profile")
@@ -133,6 +152,9 @@ func BuildPlainTicket(ticket map[string]interface{}) string {
 	max := 48
 	if width == 58 {
 		max = 32
+	}
+	if chars := int(getFloat(profile, "characters_per_line")); chars > 0 {
+		max = chars
 	}
 
 	var lines []string
@@ -272,12 +294,18 @@ func BuildPlainTicket(ticket map[string]interface{}) string {
 			qty := getFloat(item, "quantity")
 			unit := getFloat(item, "unit_price")
 			total := getFloat(item, "total")
-			lines = append(lines, fmt.Sprintf("  %.2g x %s = %s", qty, formatUSD(unit), formatUSD(total)))
+			qtyStr := fmt.Sprintf("%.2f", qty)
+			if qty == math.Trunc(qty) {
+				qtyStr = fmt.Sprintf("%.0f", qty)
+			}
+			detailLeft := fmt.Sprintf("  %s x %s", qtyStr, formatUSD(unit))
+			detailRight := formatUSD(total)
+			lines = append(lines, justify(detailLeft, detailRight, max))
 
 			if getBool(profile, "show_item_discount", true) {
 				disc := getFloat(item, "discount")
 				if disc > 0 {
-					lines = append(lines, fmt.Sprintf("  Desc: %s", formatUSD(disc)))
+					lines = append(lines, justify("  Desc:", formatUSD(disc), max))
 				}
 			}
 
@@ -312,20 +340,21 @@ func BuildPlainTicket(ticket map[string]interface{}) string {
 
 	// Totals
 	lines = append(lines, strings.Repeat("-", max))
-	lines = append(lines, fmt.Sprintf("Total USD: %s", formatUSD(getFloat(totals, "total_base_amount"))))
+	lines = append(lines, justify("TOTAL USD:", formatUSD(getFloat(totals, "total_base_amount")), max))
 	if getBool(profile, "show_total_local", true) {
-		lines = append(lines, fmt.Sprintf("Total VES: %s", formatVES(getFloat(totals, "total_local_amount"))))
+		lines = append(lines, justify("TOTAL VES:", formatVES(getFloat(totals, "total_local_amount")), max))
 	}
-	lines = append(lines, fmt.Sprintf("Pagado USD: %s", formatUSD(getFloat(totals, "paid_base_amount"))))
+	lines = append(lines, justify("PAGADO USD:", formatUSD(getFloat(totals, "paid_base_amount")), max))
 	if getBool(profile, "show_receivable_balance", true) {
 		bal := getFloat(totals, "balance_base_amount")
 		if bal > 0 {
-			lines = append(lines, fmt.Sprintf("Saldo CxC: %s", formatUSD(bal)))
+			lines = append(lines, justify("SALDO CxC:", formatUSD(bal), max))
 		}
 	}
 
 	// Payments
 	lines = append(lines, strings.Repeat("-", max))
+	lines = append(lines, "PAGOS")
 	payments := getSlice(ticket, "payments")
 	for _, pRaw := range payments {
 		if p, ok := pRaw.(map[string]interface{}); ok {
@@ -341,7 +370,7 @@ func BuildPlainTicket(ticket map[string]interface{}) string {
 			} else {
 				amtFormatted = formatUSD(amount)
 			}
-			lines = append(lines, fmt.Sprintf("%s %s: %s", method, currency, amtFormatted))
+			lines = append(lines, justify(fmt.Sprintf("  %s %s:", method, currency), amtFormatted, max))
 
 			if getBool(profile, "show_payment_rate", true) {
 				rate := getFloat(p, "exchange_rate")
@@ -460,9 +489,9 @@ func BuildPlainReportZ(ticket map[string]interface{}) string {
 	lines = append(lines, fmt.Sprintf("Cierre: %s", closeAt))
 
 	lines = append(lines, strings.Repeat("-", max))
-	lines = append(lines, fmt.Sprintf("Tickets: %d", int(getFloat(totals, "orders_count"))))
-	lines = append(lines, fmt.Sprintf("Total USD: %s", formatUSD(getFloat(totals, "paid_base_amount"))))
-	lines = append(lines, fmt.Sprintf("Total VES: %s", formatVES(getFloat(totals, "paid_local_amount"))))
+	lines = append(lines, justify("Tickets:", fmt.Sprintf("%d", int(getFloat(totals, "orders_count"))), max))
+	lines = append(lines, justify("Total USD:", formatUSD(getFloat(totals, "paid_base_amount")), max))
+	lines = append(lines, justify("Total VES:", formatVES(getFloat(totals, "paid_local_amount")), max))
 
 	lines = append(lines, strings.Repeat("-", max))
 	payments := getSlice(ticket, "payments")
@@ -488,7 +517,7 @@ func BuildPlainReportZ(ticket map[string]interface{}) string {
 				} else {
 					amtStr = formatUSD(getFloat(p, "amount_base"))
 				}
-				lines = append(lines, fmt.Sprintf("%s: %s", pName, amtStr))
+				lines = append(lines, justify(pName+":", amtStr, max))
 				if rate := getFloat(p, "exchange_rate"); rate > 0 {
 					lines = append(lines, fmt.Sprintf("  tasa @ %.2f", rate))
 				}

@@ -222,6 +222,27 @@ func TestPrint_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestPrint_NumericJobID(t *testing.T) {
+	mock := &mockPrinter{}
+	s := NewServer(17777, mock)
+
+	// JSON con job_id numerico (como viene de Laravel PrintJob id entero)
+	rawJSON := `{"output":"thermal","job_id":456,"station":{"printer_name":"POS-80"},"payload":{"tenant":{"name":"Test Store"},"pos_order":{"id":456}}}`
+	req := httptest.NewRequest("POST", "/print", strings.NewReader(rawJSON))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.ServeHTTP(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("Expected 200 OK for numeric job_id, got %d: %s", res.StatusCode, string(b))
+	}
+}
+
 func TestRouteNotFound(t *testing.T) {
 	s := NewServer(17777, &mockPrinter{})
 	req := httptest.NewRequest("GET", "/unknown", nil)

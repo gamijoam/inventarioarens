@@ -52,7 +52,7 @@ class PrinterStationController extends Controller
         abort_unless($request->user()?->can('printing.manage'), Response::HTTP_FORBIDDEN);
         $this->ensureTenantResource($printerStation);
 
-        $printerStation->update(['is_active' => false]);
+        $printerStation->delete();
 
         return response()->noContent();
     }
