@@ -980,6 +980,8 @@ export function useDeleteProductImage(productId: number) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: productImageKeys.list(productId) });
       void qc.invalidateQueries({ queryKey: productImageKeys.all() });
+      void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
+      void qc.invalidateQueries({ queryKey: productKeys.lists() });
     },
   });
 }

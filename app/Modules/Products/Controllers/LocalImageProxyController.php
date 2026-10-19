@@ -169,8 +169,21 @@ class LocalImageProxyController extends Controller
             return $path;
         }
 
-        // Path relativo: construir URL absoluta con APP_URL.
-        return rtrim((string) config('app.url'), '/').'/'.ltrim($path, '/');
+        // En nodos locales o cloud, resolver la base publica correcta.
+        // En nodos locales debe apuntar al VPS / Nube, nunca a localhost:8787 donde no existe el storage.
+        $cloudBase = config('services.sync.public_base')
+            ?: config('services.sync.cloud_url')
+            ?: config('services.local_support.cloud_url')
+            ?: config('app.url');
+
+        $cloudBase = preg_replace('#/api/?$#', '', rtrim((string) $cloudBase, '/'));
+
+        $cleanPath = ltrim($path, '/');
+        if (! str_starts_with($cleanPath, 'storage/')) {
+            $cleanPath = 'storage/'.$cleanPath;
+        }
+
+        return $cloudBase.'/'.$cleanPath;
     }
 
     /**

@@ -104,7 +104,7 @@ type PrintRequestPayload struct {
 	Output    string                 `json:"output"`
 	Station   map[string]interface{} `json:"station"`
 	Payload   map[string]interface{} `json:"payload"`
-	JobID     string                 `json:"job_id"`
+	JobID     interface{}            `json:"job_id"`
 	Copy      bool                   `json:"copy"`
 	PdfBase64 string                 `json:"pdf_base64"`
 }
@@ -180,8 +180,11 @@ func (s *Server) saveDigital(req PrintRequestPayload) (map[string]interface{}, e
 		}
 	}
 
-	orderID := req.JobID
-	if orderID == "" {
+	orderID := ""
+	if req.JobID != nil {
+		orderID = strings.TrimSpace(fmt.Sprintf("%v", req.JobID))
+	}
+	if orderID == "" || orderID == "<nil>" {
 		orderID = fmt.Sprintf("job_%d", time.Now().UnixNano())
 	}
 	if p, ok := ticket["pos_order"].(map[string]interface{}); ok {

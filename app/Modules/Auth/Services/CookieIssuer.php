@@ -99,7 +99,14 @@ class CookieIssuer
 
     private function shouldUseSecure(): bool
     {
-        // En produccion siempre forzamos Secure.
+        // Si el request actual no es HTTPS (por ejemplo conexiones en red local HTTP://192.168.x.x),
+        // los navegadores descartan de inmediato cookies con flag Secure sobre HTTP plano.
+        // Solo debe ser Secure cuando el request realmente entra por HTTPS o proxy seguro.
+        if (request() && ! request()->isSecure()) {
+            return false;
+        }
+
+        // En produccion siempre forzamos Secure si la conexion es HTTPS.
         if (app()->environment('production')) {
             return true;
         }

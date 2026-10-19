@@ -112,7 +112,19 @@ class SyncDownloadService
             return $path;
         }
 
-        return rtrim((string) config('app.url'), '/').'/'.ltrim($path, '/');
+        $cloudBase = config('services.sync.public_base')
+            ?: config('services.sync.cloud_url')
+            ?: config('services.local_support.cloud_url')
+            ?: config('app.url');
+
+        $cloudBase = preg_replace('#/api/?$#', '', rtrim((string) $cloudBase, '/'));
+
+        $cleanPath = ltrim($path, '/');
+        if (! str_starts_with($cleanPath, 'storage/')) {
+            $cleanPath = 'storage/'.$cleanPath;
+        }
+
+        return $cloudBase.'/'.$cleanPath;
     }
 
     /**
@@ -186,6 +198,18 @@ class SyncDownloadService
             return $path;
         }
 
-        return rtrim((string) config('app.url'), '/').'/'.ltrim($path, '/');
+        $cloudBase = config('services.sync.public_base')
+            ?: config('services.sync.cloud_url')
+            ?: config('services.local_support.cloud_url')
+            ?: config('app.url');
+
+        $cloudBase = preg_replace('#/api/?$#', '', rtrim((string) $cloudBase, '/'));
+
+        $cleanPath = ltrim($path, '/');
+        if (! str_starts_with($cleanPath, 'storage/')) {
+            $cleanPath = 'storage/'.$cleanPath;
+        }
+
+        return $cloudBase.'/'.$cleanPath;
     }
 }

@@ -151,20 +151,57 @@ class PosTicketPrintService
     private function resolveStation(PosOrder $order, ?int $stationId): ?PrinterStation
     {
         if ($stationId) {
-            return PrinterStation::query()
+            $station = PrinterStation::query()
                 ->with('profile')
                 ->where('is_active', true)
-                ->findOrFail($stationId);
+                ->find($stationId);
+            if ($station) {
+                return $station;
+            }
         }
 
         $session = $order->cashRegisterSession;
 
+        // 1. Estación asignada explícitamente a esta caja registradora
+        if ($session?->cash_register_id) {
+            $station = PrinterStation::query()
+                ->with('profile')
+                ->where('is_active', true)
+                ->where('cash_register_id', $session->cash_register_id)
+                ->first();
+            if ($station) {
+                return $station;
+            }
+        }
+
+        // 2. Estación asignada a esta sucursal (sin caja específica)
+        if ($session?->branch_id) {
+            $station = PrinterStation::query()
+                ->with('profile')
+                ->where('is_active', true)
+                ->where('branch_id', $session->branch_id)
+                ->whereNull('cash_register_id')
+                ->first();
+            if ($station) {
+                return $station;
+            }
+        }
+
+        // 3. Estación general de la empresa (sin caja ni sucursal fija)
+        $generalStation = PrinterStation::query()
+            ->with('profile')
+            ->where('is_active', true)
+            ->whereNull('cash_register_id')
+            ->whereNull('branch_id')
+            ->first();
+        if ($generalStation) {
+            return $generalStation;
+        }
+
+        // 4. Último recurso: cualquier estación activa configurada para la empresa
         return PrinterStation::query()
             ->with('profile')
             ->where('is_active', true)
-            ->when($session?->cash_register_id, fn ($query) => $query->where('cash_register_id', $session->cash_register_id))
-            ->when(! $session?->cash_register_id && $session?->branch_id, fn ($query) => $query->where('branch_id', $session->branch_id))
-            ->orderByDesc('cash_register_id')
             ->orderBy('name')
             ->first();
     }

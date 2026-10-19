@@ -4,6 +4,9 @@ import "bytes"
 
 // Command constants for ESC/POS protocol.
 var (
+	// InitPrinterCmd: ESC @ (initialize printer).
+	InitPrinterCmd = []byte{0x1B, 0x40}
+
 	// OpenDrawerCmd: ESC p 0 25 250 (pin 2, standard EPSON kick).
 	OpenDrawerCmd = []byte{0x1B, 0x70, 0x00, 0x19, 0xFA}
 
@@ -15,6 +18,8 @@ var (
 func BuildEscPos(text string, cutPaper bool, openDrawer bool) []byte {
 	var buf bytes.Buffer
 
+	buf.Write(InitPrinterCmd)
+
 	if openDrawer {
 		buf.Write(OpenDrawerCmd)
 	}
@@ -22,7 +27,10 @@ func BuildEscPos(text string, cutPaper bool, openDrawer bool) []byte {
 	buf.WriteString(text)
 
 	if cutPaper {
+		buf.WriteString("\n\n\n\n")
 		buf.Write(CutPaperCmd)
+	} else {
+		buf.WriteString("\n\n")
 	}
 
 	return buf.Bytes()

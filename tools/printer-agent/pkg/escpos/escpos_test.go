@@ -20,8 +20,8 @@ func TestBuildEscPos(t *testing.T) {
 			text:       "Ticket #123\nTotal: $10.00\n",
 			cutPaper:   false,
 			openDrawer: false,
-			wantPrefix: []byte("Ticket #123"),
-			wantSuffix: []byte("$10.00\n"),
+			wantPrefix: []byte{0x1B, 0x40, 'T', 'i', 'c', 'k', 'e', 't'},
+			wantSuffix: []byte("\n\n"),
 			contains:   "Ticket #123",
 		},
 		{
@@ -29,7 +29,7 @@ func TestBuildEscPos(t *testing.T) {
 			text:       "Ticket #124\n",
 			cutPaper:   false,
 			openDrawer: true,
-			wantPrefix: []byte{0x1B, 0x70, 0x00, 0x19, 0xFA}, // ESC p 0 25 250
+			wantPrefix: []byte{0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA}, // ESC @ + ESC p 0 25 250
 			contains:   "Ticket #124",
 		},
 		{
@@ -45,7 +45,7 @@ func TestBuildEscPos(t *testing.T) {
 			text:       "Ticket #126\n",
 			cutPaper:   true,
 			openDrawer: true,
-			wantPrefix: []byte{0x1B, 0x70, 0x00, 0x19, 0xFA},
+			wantPrefix: []byte{0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA},
 			wantSuffix: []byte{0x1D, 0x56, 0x00},
 			contains:   "Ticket #126",
 		},

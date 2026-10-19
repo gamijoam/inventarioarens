@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Download, Eye, FolderDown, Loader2, Plus, Printer, Save, Star } from 'lucide-react';
+import { Copy, Download, Eye, FolderDown, Loader2, Plus, Printer, Save, Star, Trash2 } from 'lucide-react';
 import { toast } from '@/lib/toast';
 
 import { Can } from '@/components/permissions/Can';
@@ -25,6 +25,7 @@ import {
   type PrintProfilePayload,
   useCreatePrinterStation,
   useCreatePrintProfile,
+  useDeletePrinterStation,
   type PrintConnector,
   usePrinterStations,
   usePrintProfiles,
@@ -100,6 +101,7 @@ export function PrintingManager() {
   const updateProfile = useUpdatePrintProfile();
   const createStation = useCreatePrinterStation();
   const updateStation = useUpdatePrinterStation();
+  const deleteStation = useDeletePrinterStation();
   const createPairingCode = useCreatePrintConnectorPairingCode();
   const revokeConnector = useRevokePrintConnector();
   const [selectedProfileId, setSelectedProfileId] = useState<number | 'new'>('new');
@@ -271,6 +273,19 @@ export function PrintingManager() {
       toast.success('Conector revocado.');
     } catch (error) {
       toast.error(extractPrintingError(error, 'No se pudo revocar el conector.'));
+    }
+  }
+
+  async function handleDeleteStation(id: number, name: string): Promise<void> {
+    if (!window.confirm(`¿Estás seguro de eliminar permanentemente la estación "${name}"?`)) return;
+    try {
+      await deleteStation.mutateAsync(id);
+      toast.success('Estación eliminada correctamente.');
+      if (editingStationId === id) {
+        resetStationForm();
+      }
+    } catch (error) {
+      toast.error(extractPrintingError(error, 'No se pudo eliminar la estación.'));
     }
   }
 
@@ -465,6 +480,16 @@ export function PrintingManager() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Can I={PERMISSIONS.PRINTING_MANAGE}>
                       <Button size="sm" variant="outline" onClick={() => editStation(item)}>Editar</Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-danger hover:text-danger hover:bg-danger/10 border-danger/30 gap-1.5"
+                        onClick={() => void handleDeleteStation(item.id, item.name)}
+                        title="Eliminar esta estación permanentemente"
+                      >
+                        <Trash2 className="size-3.5" />
+                        Eliminar
+                      </Button>
                     </Can>
                     {item.print_connector_id ? (
                       <Badge variant="default">Conector Cloud</Badge>

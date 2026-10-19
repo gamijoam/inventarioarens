@@ -1124,9 +1124,7 @@ function ProductCatalogDetailModal({
   );
   const [unitOfMeasure, setUnitOfMeasure] = useState(product.unit_of_measure ?? 'unit');
   const [isActive, setIsActive] = useState(product.is_active ?? true);
-  const [imageUrl, setImageUrl] = useState(
-    product.image_url || product.primary_image_url || product.images?.[0]?.url || '',
-  );
+  const [imageUrl, setImageUrl] = useState(product.image_url || '');
 
   // Costo y Precios
   const initialCost =
@@ -1179,14 +1177,14 @@ function ProductCatalogDetailModal({
   // Galería de imágenes
   const allImages = useMemo(() => {
     const list: string[] = [];
-    if (imageUrl && !list.includes(imageUrl)) list.push(imageUrl);
     for (const img of galleryImages) {
       if (img.url && !list.includes(img.url)) list.push(img.url);
     }
-    if (product.primary_image_url && !list.includes(product.primary_image_url))
-      list.push(product.primary_image_url);
+    if (imageUrl && !list.includes(imageUrl)) {
+      list.push(imageUrl);
+    }
     return list;
-  }, [imageUrl, galleryImages, product.primary_image_url]);
+  }, [imageUrl, galleryImages]);
 
   const imageIdByUrl = useMemo(() => {
     const map = new Map<string, number>();
@@ -1451,7 +1449,10 @@ function ProductCatalogDetailModal({
                                   deleteImage.mutate(imageId, {
                                     onSuccess: () => {
                                       toast.success('Foto eliminada.');
-                                      if (imageUrl === img) setImageUrl('');
+                                      if (imageUrl === img || product.image_url === img) {
+                                        setImageUrl('');
+                                        updateProduct.mutate({ id: product.id, image_url: null });
+                                      }
                                       setActiveImageIndex(0);
                                     },
                                     onError: (err) =>
@@ -1460,15 +1461,22 @@ function ProductCatalogDetailModal({
                                       ),
                                   });
                                 } else {
-                                  // Foto por URL externa o imagen principal
-                                  if (imageUrl === img) {
-                                    setImageUrl('');
-                                  }
+                                  // Foto por URL externa o campo image_url
+                                  setImageUrl('');
                                   setActiveImageIndex(0);
-                                  toast.success('Foto removida del formulario.');
+                                  updateProduct.mutate(
+                                    { id: product.id, image_url: null },
+                                    {
+                                      onSuccess: () => toast.success('Foto eliminada del producto.'),
+                                      onError: (err) =>
+                                        toast.error(
+                                          err instanceof Error ? err.message : 'No se pudo eliminar la foto.',
+                                        ),
+                                    },
+                                  );
                                 }
                               }}
-                              disabled={deleteImage.isPending}
+                              disabled={deleteImage.isPending || updateProduct.isPending}
                               className="bg-rose-600 hover:bg-rose-700 active:scale-95 absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full text-white shadow-md hover:shadow-lg transition-transform border border-white disabled:opacity-50 z-10"
                               title="Eliminar foto"
                               aria-label="Eliminar foto"
@@ -1498,7 +1506,16 @@ function ProductCatalogDetailModal({
                           onClick={() => {
                             setImageUrl('');
                             setActiveImageIndex(0);
-                            toast.success('URL de imagen limpiada.');
+                            updateProduct.mutate(
+                              { id: product.id, image_url: null },
+                              {
+                                onSuccess: () => toast.success('URL de imagen eliminada.'),
+                                onError: (err) =>
+                                  toast.error(
+                                    err instanceof Error ? err.message : 'No se pudo limpiar la URL.',
+                                  ),
+                              },
+                            );
                           }}
                           className="absolute right-1.5 text-text-muted hover:text-rose-600 p-0.5 rounded transition-colors"
                           title="Limpiar URL de imagen"

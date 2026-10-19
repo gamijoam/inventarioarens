@@ -46,6 +46,7 @@ import {
   X,
   Settings2,
   Monitor,
+  Check,
 } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
@@ -2127,57 +2128,6 @@ export function PosTerminal() {
 
           {/* Contexto, Cliente y Acciones */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Selector persistente de modo de vista: Catálogo vs Ticket */}
-            {allowCatalogView && (
-              <div className="flex items-center rounded-xl bg-surface-subtle p-0.5 border border-border shrink-0 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => handleSetPosViewMode('catalog')}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
-                    posViewMode === 'catalog'
-                      ? 'bg-primary text-white shadow-xs'
-                      : 'text-text-muted hover:text-text-primary',
-                  )}
-                  title="Modo Catálogo Visual con fotos, marcas y precios [Persistente]"
-                  data-testid="pos-view-mode-catalog"
-                >
-                  <LayoutGrid className="size-3.5" />
-                  <span>Catálogo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSetPosViewMode('ticket')}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
-                    posViewMode === 'ticket'
-                      ? 'bg-primary text-white shadow-xs'
-                      : 'text-text-muted hover:text-text-primary',
-                  )}
-                  title="Modo Ticket / Código de barras [Persistente]"
-                  data-testid="pos-view-mode-ticket"
-                >
-                  <Receipt className="size-3.5" />
-                  <span>Ticket</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSetPosViewMode('classic')}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer',
-                    (posViewMode as string) === 'classic'
-                      ? 'bg-primary text-white shadow-xs'
-                      : 'text-text-muted hover:text-text-primary',
-                  )}
-                  title="Modo Clásico / Facturación Rápida estilo 1Sistema [Persistente]"
-                  data-testid="pos-view-mode-classic"
-                >
-                  <Monitor className="size-3.5" />
-                  <span>Clásico</span>
-                </button>
-              </div>
-            )}
-
             {activeRate &&
               (allowRateEdit ? (
                 <button
@@ -2391,6 +2341,57 @@ export function PosTerminal() {
                         <p className="font-medium text-xs">Ofertas especiales</p>
                         <p className="text-xs text-text-muted">Precios de oportunidad</p>
                       </div>
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {allowCatalogView && (
+                  <>
+                    <DropdownMenuSeparator className="my-1" />
+                    <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-text-muted px-2 py-1">
+                      Modo de Vista
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={() => handleSetPosViewMode('catalog')}
+                      className={cn(
+                        'gap-2.5 py-2 cursor-pointer',
+                        posViewMode === 'catalog' && 'bg-primary/10 text-primary font-semibold',
+                      )}
+                    >
+                      <LayoutGrid className="size-4 text-sky-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs">Catálogo visual</p>
+                        <p className="text-xs text-text-muted">Tarjetas y fotos</p>
+                      </div>
+                      {posViewMode === 'catalog' && <Check className="size-4 text-primary ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleSetPosViewMode('ticket')}
+                      className={cn(
+                        'gap-2.5 py-2 cursor-pointer',
+                        posViewMode === 'ticket' && 'bg-primary/10 text-primary font-semibold',
+                      )}
+                    >
+                      <Receipt className="size-4 text-emerald-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs">Ticket de venta</p>
+                        <p className="text-xs text-text-muted">Lista y lector de barras</p>
+                      </div>
+                      {posViewMode === 'ticket' && <Check className="size-4 text-primary ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleSetPosViewMode('classic')}
+                      className={cn(
+                        'gap-2.5 py-2 cursor-pointer',
+                        (posViewMode as string) === 'classic' && 'bg-primary/10 text-primary font-semibold',
+                      )}
+                    >
+                      <Monitor className="size-4 text-indigo-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs">Clásico rápido</p>
+                        <p className="text-xs text-text-muted">Estilo 1Sistema</p>
+                      </div>
+                      {(posViewMode as string) === 'classic' && <Check className="size-4 text-primary ml-auto" />}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -4766,7 +4767,7 @@ export function PosTerminal() {
             }
 
             await updatePrintJobStatus.mutateAsync({ jobId: job.id, status: 'sent' });
-            const result = await sendJobToLocalAgent(job);
+            const result = await sendJobToLocalAgent(job, activePrinterStation);
             await updatePrintJobStatus.mutateAsync({
               jobId: job.id,
               status: 'printed',
@@ -4776,12 +4777,13 @@ export function PosTerminal() {
             });
             if (job.output === 'thermal') toast.success('Ticket enviado a impresora.');
           } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'No se pudo imprimir.';
             await updatePrintJobStatus.mutateAsync({
               jobId: job.id,
               status: 'failed',
-              message: error instanceof Error ? error.message : 'No se pudo imprimir.',
+              message: errorMsg,
             });
-            toast.error('Agente local no disponible. Puedes reintentar desde F9.');
+            toast.error(errorMsg);
           }
         }),
       );

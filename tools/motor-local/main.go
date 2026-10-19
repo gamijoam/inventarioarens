@@ -566,7 +566,7 @@ func (s *Supervisor) startHTTPServer() {
 
 	// 2. Start Admin Server on port 8789 (main goroutine)
 	adminMux := createMux("admin.html")
-	adminAddr := "127.0.0.1:8789"
+	adminAddr := "0.0.0.0:8789"
 	log.Printf("[MotorLocal] Servidor Administrativo escuchando en http://%s", adminAddr)
 	if err := http.ListenAndServe(adminAddr, adminMux); err != nil {
 		log.Fatalf("[MotorLocal] Error en servidor Admin: %v", err)
