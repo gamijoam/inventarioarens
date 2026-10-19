@@ -325,15 +325,21 @@ class InventoryCenterProductDetailService
     {
         return StockBalance::query()
             ->where('product_id', $product->id)
-            ->with(['warehouse.branch'])
+            ->with(['warehouse.branch', 'productVariant'])
             ->orderBy('warehouse_id')
+            ->orderBy('product_variant_id')
             ->get()
             ->map(fn (StockBalance $balance): array => [
+                'id' => $balance->id,
                 'warehouse_id' => $balance->warehouse_id,
                 'warehouse_name' => $balance->warehouse?->name,
                 'warehouse_code' => $balance->warehouse?->code,
                 'branch_id' => $balance->warehouse?->branch_id,
                 'branch_name' => $balance->warehouse?->branch?->name,
+                'product_variant_id' => $balance->product_variant_id,
+                'variant_color' => $balance->productVariant?->color,
+                'variant_sku' => $balance->productVariant?->sku_variant,
+                'variant_color_hex' => $balance->productVariant?->color_hex,
                 'available' => $this->roundStock((float) $balance->quantity_available),
                 'reserved' => $this->roundStock((float) $balance->quantity_reserved),
                 'damaged' => $this->roundStock((float) $balance->quantity_damaged),

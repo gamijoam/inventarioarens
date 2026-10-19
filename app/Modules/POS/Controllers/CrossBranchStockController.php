@@ -89,6 +89,7 @@ class CrossBranchStockController extends Controller
             $stockBalances = StockBalance::withoutGlobalScopes()
                 ->where('tenant_id', $sibling->id)
                 ->where('product_id', $matchedProduct->id)
+                ->with('productVariant')
                 ->get();
 
             $warehouseIds = $stockBalances->pluck('warehouse_id')->filter()->unique();
@@ -111,6 +112,9 @@ class CrossBranchStockController extends Controller
                     'warehouse_id' => $sb->warehouse_id,
                     'warehouse_name' => $wh?->name ?? 'Almacén',
                     'warehouse_code' => $wh?->code ?? '',
+                    'product_variant_id' => $sb->product_variant_id,
+                    'variant_color' => $sb->productVariant?->color,
+                    'variant_sku' => $sb->productVariant?->sku_variant,
                     'quantity_available' => $avail,
                     'quantity_reserved' => $resv,
                 ];

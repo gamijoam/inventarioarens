@@ -1574,6 +1574,9 @@ export interface CrossBranchWarehouseStock {
   warehouse_id: number;
   warehouse_name: string;
   warehouse_code: string;
+  product_variant_id?: number | null;
+  variant_color?: string | null;
+  variant_sku?: string | null;
   quantity_available: number;
   quantity_reserved: number;
 }
