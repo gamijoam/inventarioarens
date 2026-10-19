@@ -518,6 +518,41 @@ func (s *Supervisor) startHTTPServer() {
 			s.reverseProxy.ServeHTTP(w, r)
 		})
 
+		// 3.5 Printer Proxy to printer-agent (allows LAN terminals to print to USB printer on Central PC)
+		printerTarget, _ := url.Parse("http://127.0.0.1:17777")
+		printerProxy := httputil.NewSingleHostReverseProxy(printerTarget)
+		printerProxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
+			log.Printf("[MotorLocal PrinterProxy Error] %s %s: %v", req.Method, req.URL.Path, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"message": "El agente de impresión local no responde en el puerto 17777.",
+			})
+		}
+
+		mux.HandleFunc("/print", func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				if !isTrustedWebOrigin(origin) {
+					http.Error(w, "Origen no permitido.", http.StatusForbidden)
+					return
+				}
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Tenant, Accept")
+				if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+					w.Header().Set("Access-Control-Allow-Private-Network", "true")
+				}
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			printerProxy.ServeHTTP(w, r)
+		})
+
 		// 4. SPA Web Interface
 		if subFS != nil {
 			fileServer := http.FileServer(http.FS(subFS))

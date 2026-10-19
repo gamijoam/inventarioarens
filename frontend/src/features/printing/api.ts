@@ -280,6 +280,25 @@ export function useUpdatePrintJobStatus() {
   });
 }
 
+export function getPrinterAgentUrl(): string {
+  if (typeof window !== 'undefined') {
+    // Si estamos navegando desde los puertos 8787 u 8789 del Motor Local (LAN o local)
+    if (window.location.port === '8787' || window.location.port === '8789') {
+      return `${window.location.origin}/print`;
+    }
+    // Si estamos accediendo a traves de una IP de red LAN
+    if (
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1' &&
+      !window.location.hostname.endsWith('balanzapro.com') &&
+      !window.location.hostname.endsWith('miinventariofacil.com')
+    ) {
+      return `${window.location.origin}/print`;
+    }
+  }
+  return 'http://127.0.0.1:17777/print';
+}
+
 export async function sendJobToLocalAgent(
   job: PrintJob,
   fallbackStation?: PrinterStation | null,
@@ -300,7 +319,7 @@ export async function sendJobToLocalAgent(
 
   const stationToUse = job.station?.printer_name ? job.station : (fallbackStation ?? job.station);
 
-  const response = await fetch('http://127.0.0.1:17777/print', {
+  const response = await fetch(getPrinterAgentUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -455,7 +474,7 @@ export async function sendTestTicketToLocalAgent(
   station: PrinterStation,
   profile: PrintProfilePayload | PrintProfile,
 ): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
-  const response = await fetch('http://127.0.0.1:17777/print', {
+  const response = await fetch(getPrinterAgentUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
