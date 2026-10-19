@@ -189,6 +189,7 @@ export function PrintingManager() {
       code: station.code.trim() || station.name.trim(),
       printer_name: station.printer_name?.trim() || null,
       network_host: station.network_host?.trim() || null,
+      network_port: station.printer_type === 'network' ? (station.network_port ? Number(station.network_port) : 9100) : null,
       digital_directory: station.digital_directory?.trim() || 'Desktop\\Tickets',
     };
 
@@ -431,7 +432,19 @@ export function PrintingManager() {
                 {station.printer_type === 'network' ? (
                   <>
                     <Input value={station.network_host ?? ''} onChange={(event) => setStation((current) => ({ ...current, network_host: event.target.value }))} placeholder="IP de la impresora, ej. 192.168.1.50" />
-                    <Input value={String(station.network_port ?? 9100)} onChange={(event) => setStation((current) => ({ ...current, network_port: Number(event.target.value) || 9100 }))} placeholder="Puerto TCP (default 9100)" />
+                    <Input
+                      value={station.network_port === null || station.network_port === undefined ? '' : String(station.network_port)}
+                      onChange={(event) => {
+                        const raw = event.target.value.trim();
+                        if (raw === '') {
+                          setStation((current) => ({ ...current, network_port: null }));
+                        } else {
+                          const num = Number(raw);
+                          setStation((current) => ({ ...current, network_port: isNaN(num) ? current.network_port : num }));
+                        }
+                      }}
+                      placeholder="Puerto TCP (default 9100)"
+                    />
                   </>
                 ) : (
                   <Input value={station.printer_name ?? ''} onChange={(event) => setStation((current) => ({ ...current, printer_name: event.target.value }))} placeholder="Nombre exacto de impresora Windows" />
