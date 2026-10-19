@@ -1157,86 +1157,131 @@ export function InventoryErpWorkspace({
                         description="Este producto no tiene balances registrados en los almacenes."
                       />
                     ) : (
-                      <div className="border border-border rounded-lg overflow-hidden">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-xs">
-                            <tr>
-                              <th className="p-2.5">Almacén</th>
-                              <th className="p-2.5 text-right">Disponible</th>
-                              <th className="p-2.5 text-right">Reservado</th>
-                              <th className="p-2.5 text-right">Dañado</th>
-                              <th className="p-2.5 text-right font-bold text-text-primary">Físico Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/60 font-mono">
-                            {stockByWarehouse.map((stockItem) => {
-                              const avail = Number(stockItem.available || 0);
-                              const res = Number(stockItem.reserved || 0);
-                              const dam = Number(stockItem.damaged || 0);
-                              const phys = avail + res + dam;
+                      (() => {
+                        const hasVariants = stockByWarehouse.some(
+                          (s) => Boolean(s.variant_color || s.product_variant_id || s.variant_sku),
+                        );
 
-                              return (
-                                <tr key={stockItem.warehouse_id} className="hover:bg-muted/30">
-                                  <td className="p-2.5 font-sans font-medium text-text-primary">
-                                    <div className="flex items-center gap-2">
-                                      <Warehouse className="size-3.5 text-text-muted shrink-0" />
-                                      <span>{stockItem.warehouse_name || `Almacén #${stockItem.warehouse_id}`}</span>
-                                      {stockItem.warehouse_code && (
-                                        <span className="font-mono text-xs px-1 py-0.2 rounded bg-bg text-text-muted border border-border">
-                                          {stockItem.warehouse_code}
+                        return (
+                          <div className="border border-border rounded-lg overflow-hidden">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead className="bg-muted/50 border-b border-border text-text-secondary uppercase tracking-wider font-semibold text-xs">
+                                <tr>
+                                  <th className="p-2.5">Almacén / Sucursal</th>
+                                  {hasVariants && <th className="p-2.5">Variante / Color</th>}
+                                  <th className="p-2.5 text-right">Disponible</th>
+                                  <th className="p-2.5 text-right">Reservado</th>
+                                  <th className="p-2.5 text-right">Dañado</th>
+                                  <th className="p-2.5 text-right font-bold text-text-primary">Físico Total</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/60 font-mono">
+                                {stockByWarehouse.map((stockItem, sIdx) => {
+                                  const avail = Number(stockItem.available || 0);
+                                  const res = Number(stockItem.reserved || 0);
+                                  const dam = Number(stockItem.damaged || 0);
+                                  const phys = avail + res + dam;
+                                  const rowKey =
+                                    stockItem.id ??
+                                    `${stockItem.warehouse_id}-${stockItem.product_variant_id ?? 'base'}-${sIdx}`;
+
+                                  return (
+                                    <tr key={rowKey} className="hover:bg-muted/30">
+                                      <td className="p-2.5 font-sans font-medium text-text-primary">
+                                        <div className="flex items-center gap-2">
+                                          <Warehouse className="size-3.5 text-text-muted shrink-0" />
+                                          <span>
+                                            {stockItem.warehouse_name || `Almacén #${stockItem.warehouse_id}`}
+                                          </span>
+                                          {stockItem.branch_name && (
+                                            <span className="text-[11px] text-text-muted">
+                                              ({stockItem.branch_name})
+                                            </span>
+                                          )}
+                                          {stockItem.warehouse_code && (
+                                            <span className="font-mono text-xs px-1 py-0.2 rounded bg-bg text-text-muted border border-border">
+                                              {stockItem.warehouse_code}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      {hasVariants && (
+                                        <td className="p-2.5">
+                                          {stockItem.variant_color || stockItem.variant_sku ? (
+                                            <div className="flex items-center gap-1.5 font-sans">
+                                              {stockItem.variant_color_hex && (
+                                                <span
+                                                  className="size-3 rounded-full border border-border shrink-0 shadow-sm"
+                                                  style={{ backgroundColor: stockItem.variant_color_hex }}
+                                                />
+                                              )}
+                                              <span className="font-medium text-text-primary">
+                                                {stockItem.variant_color || 'Estándar'}
+                                              </span>
+                                              {stockItem.variant_sku && (
+                                                <span className="font-mono text-[10px] px-1 py-0.2 rounded bg-bg text-text-muted border border-border">
+                                                  {stockItem.variant_sku}
+                                                </span>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="text-text-muted italic font-sans">Estándar / Base</span>
+                                          )}
+                                        </td>
+                                      )}
+                                      <td className="p-2.5 text-right">
+                                        <span
+                                          className={cn(
+                                            'px-2 py-0.5 rounded font-bold',
+                                            avail > 0
+                                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                              : 'text-text-muted',
+                                          )}
+                                        >
+                                          {avail}
                                         </span>
-                                      )}
-                                    </div>
+                                      </td>
+                                      <td className="p-2.5 text-right text-amber-600 dark:text-amber-400">
+                                        {res > 0 ? res : '—'}
+                                      </td>
+                                      <td className="p-2.5 text-right text-rose-600 dark:text-rose-400">
+                                        {dam > 0 ? dam : '—'}
+                                      </td>
+                                      <td className="p-2.5 text-right font-bold text-text-primary">{phys}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              <tfoot className="bg-surface-subtle/50 border-t border-border font-mono font-bold text-xs">
+                                <tr>
+                                  <td colSpan={hasVariants ? 2 : 1} className="p-2.5 font-sans">
+                                    Totales consolidados:
                                   </td>
-                                  <td className="p-2.5 text-right">
-                                    <span
-                                      className={cn(
-                                        'px-2 py-0.5 rounded font-bold',
-                                        avail > 0
-                                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                          : 'text-text-muted',
-                                      )}
-                                    >
-                                      {avail}
-                                    </span>
+                                  <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400">
+                                    {stockByWarehouse.reduce((acc, s) => acc + (Number(s.available) || 0), 0)}
                                   </td>
                                   <td className="p-2.5 text-right text-amber-600 dark:text-amber-400">
-                                    {res > 0 ? res : '—'}
+                                    {stockByWarehouse.reduce((acc, s) => acc + (Number(s.reserved) || 0), 0)}
                                   </td>
                                   <td className="p-2.5 text-right text-rose-600 dark:text-rose-400">
-                                    {dam > 0 ? dam : '—'}
+                                    {stockByWarehouse.reduce((acc, s) => acc + (Number(s.damaged) || 0), 0)}
                                   </td>
-                                  <td className="p-2.5 text-right font-bold text-text-primary">{phys}</td>
+                                  <td className="p-2.5 text-right text-text-primary">
+                                    {stockByWarehouse.reduce(
+                                      (acc, s) =>
+                                        acc +
+                                        (Number(s.available) || 0) +
+                                        (Number(s.reserved) || 0) +
+                                        (Number(s.damaged) || 0),
+                                      0,
+                                    )}
+                                  </td>
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot className="bg-surface-subtle/50 border-t border-border font-mono font-bold text-xs">
-                            <tr>
-                              <td className="p-2.5 font-sans">Totales consolidados:</td>
-                              <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400">
-                                {stockByWarehouse.reduce((acc, s) => acc + (Number(s.available) || 0), 0)}
-                              </td>
-                              <td className="p-2.5 text-right text-amber-600 dark:text-amber-400">
-                                {stockByWarehouse.reduce((acc, s) => acc + (Number(s.reserved) || 0), 0)}
-                              </td>
-                              <td className="p-2.5 text-right text-rose-600 dark:text-rose-400">
-                                {stockByWarehouse.reduce((acc, s) => acc + (Number(s.damaged) || 0), 0)}
-                              </td>
-                              <td className="p-2.5 text-right text-text-primary">
-                                {stockByWarehouse.reduce(
-                                  (acc, s) =>
-                                    acc +
-                                    (Number(s.available) || 0) +
-                                    (Number(s.reserved) || 0) +
-                                    (Number(s.damaged) || 0),
-                                  0,
-                                )}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
+                              </tfoot>
+                            </table>
+                          </div>
+                        );
+                      })()
                     )}
 
                     {/* Stock en otras sucursales / empresas hermanas */}
@@ -1267,12 +1312,31 @@ export function InventoryErpWorkspace({
                                   <div className="font-semibold text-text-primary truncate">
                                     {b.tenant_name}
                                   </div>
-                                  <div className="text-xs text-text-muted mt-0.5">
-                                    {b.warehouses.length > 0
-                                      ? b.warehouses
-                                          .map((w) => `${w.warehouse_name}: ${w.quantity_available} disp.`)
-                                          .join(' • ')
-                                      : 'Sin almacenes con existencias'}
+                                  <div className="text-xs text-text-muted mt-1 space-y-1">
+                                    {b.warehouses.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2">
+                                        {b.warehouses.map((w, wIdx) => (
+                                          <span
+                                            key={`${w.warehouse_id}-${w.product_variant_id ?? wIdx}`}
+                                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface border border-border text-[11px]"
+                                          >
+                                            <span className="font-medium text-text-primary">
+                                              {w.warehouse_name}
+                                            </span>
+                                            {w.variant_color && (
+                                              <span className="font-semibold text-primary">
+                                                [{w.variant_color}]
+                                              </span>
+                                            )}
+                                            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                              {w.quantity_available} disp.
+                                            </span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      'Sin almacenes con existencias'
+                                    )}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
