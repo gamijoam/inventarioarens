@@ -662,6 +662,7 @@ export const ProductPriceSchema = z
     // compatibilidad legacy. Normalizamos a `amount: string`.
     price: z.union([z.number(), z.string()]).optional(),
     amount: z.union([z.number(), z.string()]).optional(),
+    margin_percentage: z.union([z.number(), z.string()]).nullable().optional(),
     currency: z.enum(SALE_CURRENCIES),
     exchange_rate: z.union([z.number(), z.string()]).nullable().optional(),
     exchange_rate_type_id: z.number().int().nullable().optional(),
@@ -676,6 +677,7 @@ export const ProductPriceSchema = z
     price_list_code: p.price_list?.code ?? p.price_list_code ?? '',
     price_list_name: p.price_list?.name ?? p.price_list_name ?? '',
     amount: String(p.price ?? p.amount ?? ''),
+    margin_percentage: p.margin_percentage != null ? String(p.margin_percentage) : null,
     currency: p.currency,
     exchange_rate: p.exchange_rate ?? null,
     is_active: p.is_active,
@@ -742,6 +744,7 @@ export const PriceListSchema = z.object({
     .nullable()
     .optional(),
   payment_exchange_rate_type_id: z.number().int().positive().nullable().optional(),
+  payment_exchange_rate_markup_percentage: z.number().nullable().optional(),
   payment_exchange_rate_type: z
     .object({
       id: z.number().int().positive(),
@@ -942,6 +945,7 @@ export const StorePriceListSchema = z
     markup_percentage: z.number().min(0).max(999.99).nullable().optional(),
     base_price_list_id: z.coerce.number().int().positive().nullable().optional(),
     payment_exchange_rate_type_id: z.coerce.number().int().positive().nullable().optional(),
+    payment_exchange_rate_markup_percentage: z.coerce.number().min(-99.99).max(999.99).nullable().optional(),
     is_default: z.boolean().optional(),
     is_active: z.boolean().default(true),
     sort_order: z.coerce.number().int().min(0).default(0),
@@ -954,6 +958,7 @@ export const StorePriceListSchema = z
     sort_order: data.sort_order ?? 0,
     payment_method_ids: data.payment_method_ids ?? [],
     payment_exchange_rate_type_id: data.payment_exchange_rate_type_id ?? null,
+    payment_exchange_rate_markup_percentage: data.payment_exchange_rate_markup_percentage ?? null,
   }));
 export type StorePriceListValues = z.output<typeof StorePriceListSchema>;
 

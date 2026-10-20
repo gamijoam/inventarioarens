@@ -83,4 +83,32 @@ describe('TicketPreviewDialog', () => {
     expect(screen.queryByTestId('ticket-preview-dialog')).not.toBeInTheDocument();
     expect(mockFetchTicketPreview).not.toHaveBeenCalled();
   });
+
+  it('muestra el botón de Certificado de Garantía cuando la orden contiene items con garantía', async () => {
+    const warrantyOrder = {
+      id: 99,
+      status: 'paid',
+      sale: {
+        id: 99,
+        items: [
+          {
+            id: 1,
+            product_name: 'iPhone 15',
+            warranty_duration_days: 90,
+            serial_units: [{ id: 1, serial_number: '123456789012345', status: 'sold' }],
+          },
+        ],
+      },
+    } as unknown as PosOrder;
+
+    renderDialog({ order: warrantyOrder });
+
+    await screen.findByTestId('ticket-preview-frame');
+    const warrantyBtn = screen.getByTestId('ticket-preview-warranty-cert');
+    expect(warrantyBtn).toBeInTheDocument();
+    expect(warrantyBtn).toHaveTextContent('Certificado de Garantía');
+
+    fireEvent.click(warrantyBtn);
+    expect(await screen.findByTestId('warranty-certificate-dialog')).toBeInTheDocument();
+  });
 });

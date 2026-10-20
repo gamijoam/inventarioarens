@@ -22,6 +22,7 @@ class ProductPriceListResource extends JsonResource
                 'is_active' => (bool) $this->priceList?->is_active,
             ]),
             'price' => (float) $this->price,
+            'margin_percentage' => $this->margin_percentage !== null ? (float) $this->margin_percentage : null,
             'currency' => $this->currency,
             'exchange_rate_type_id' => $this->exchange_rate_type_id,
             'exchange_rate_type' => $this->whenLoaded('exchangeRateType', fn () => [

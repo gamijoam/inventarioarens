@@ -19,24 +19,19 @@ const SheetOverlay = forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'fixed inset-0 z-50 bg-text-primary/40 backdrop-blur-sm',
-      'data-[state=open]:animate-in data-[state=closed]:animate-out',
-      'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-      className,
-    )}
+    className={cn('fixed inset-0 z-50 bg-transparent', className)}
     {...props}
   />
 ));
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  'fixed z-50 gap-4 bg-surface p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-200 data-[state=open]:duration-300',
+  'fixed z-50 gap-4 bg-surface p-6 shadow-lg',
   {
     variants: {
       side: {
-        right: 'inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-lg data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
-        left: 'inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-lg data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
+        right: 'inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-lg',
+        left: 'inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-lg',
       },
     },
     defaultVariants: { side: 'right' },
@@ -45,14 +40,16 @@ const sheetVariants = cva(
 
 export interface SheetContentProps
   extends ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  hideOverlay?: boolean;
+}
 
 export const SheetContent = forwardRef<
   ElementRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = 'right', className, children, ...props }, ref) => (
+>(({ side = 'right', className, hideOverlay, children, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    {!hideOverlay && <SheetOverlay />}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}

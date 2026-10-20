@@ -31,6 +31,7 @@ vi.mock('@/features/inventory-center/variantApi', () => ({
 vi.mock('./api', () => ({
   useCreateManualMovement: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRejectManualMovement: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAvailableSerials: () => ({ data: [], isLoading: false }),
 }));
 
 import { CreateManualMovementDialog } from './ManualMovementDialogs';
@@ -46,7 +47,7 @@ describe('CreateManualMovementDialog', () => {
       />,
     );
 
-    const input = screen.getByPlaceholderText('Buscar producto por nombre, SKU o código…');
+    const input = screen.getByPlaceholderText('Buscar por nombre, SKU o código…');
     fireEvent.focus(input);
 
     expect(await screen.findByText(/Stock: 12/)).toBeInTheDocument();

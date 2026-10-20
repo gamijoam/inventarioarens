@@ -28,7 +28,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 
-import { ConfirmDestructiveDialog } from '@/components/ConfirmDestructiveDialog';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/lib/toast';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
 
@@ -181,35 +182,34 @@ export function RolesManager({
         </div>
       )}
 
-      <ConfirmDestructiveDialog
+      <ConfirmDialog
         open={confirmDelete !== null}
         onOpenChange={(open) => !open && setConfirmDelete(null)}
         title="Eliminar rol"
         description={
           confirmDelete && (
             <>
-              <p>
-                Vas a eliminar el rol <strong>{confirmDelete.name}</strong>.
-                Los usuarios que solo tengan este rol quedaran sin permisos.
-              </p>
-              <p className="mt-2">Esta accion no se puede deshacer.</p>
+              ¿Estás seguro de que deseas eliminar el rol <strong>{confirmDelete.name}</strong>?
+              <br />
+              Los usuarios que solo tengan este rol asignado quedarán sin esos permisos. Esta acción no se puede deshacer.
             </>
           )
         }
-        confirmText={confirmDelete?.name ?? ''}
         confirmLabel="Eliminar rol"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={deleteRole.isPending}
         onConfirm={async () => {
           if (!confirmDelete) return;
           try {
             await deleteRole.mutateAsync(confirmDelete.id);
-            void navigate({ to: '/access/roles', search: { search: searchInput, page: 1 } as never });
+            setConfirmDelete(null);
+            toast.success(`Rol "${confirmDelete.name}" eliminado correctamente.`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Error al eliminar el rol.';
-            alert(msg); // fallback porque toast ya se mostro en el componente
+            toast.error(msg);
           }
         }}
-        loading={deleteRole.isPending}
-        dangerLevel="high"
       />
     </div>
   );
@@ -262,7 +262,10 @@ function useColumns(opts: {
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    onClick={() => opts.onEdit?.(r)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      opts.onEdit?.(r);
+                    }}
                     title="Editar nombre"
                     aria-label="Editar nombre"
                     data-testid={`role-edit-${r.id}`}
@@ -276,7 +279,10 @@ function useColumns(opts: {
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    onClick={() => opts.onEditPermissions?.(r)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      opts.onEditPermissions?.(r);
+                    }}
                     title="Ver / editar permisos"
                     aria-label="Ver / editar permisos"
                     data-testid={`role-permissions-${r.id}`}
@@ -290,7 +296,10 @@ function useColumns(opts: {
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    onClick={() => opts.onDuplicate?.(r)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      opts.onDuplicate?.(r);
+                    }}
                     title="Duplicar rol"
                     aria-label="Duplicar rol"
                     data-testid={`role-duplicate-${r.id}`}
@@ -304,7 +313,10 @@ function useColumns(opts: {
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    onClick={() => opts.setConfirmDelete(r)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      opts.setConfirmDelete(r);
+                    }}
                     title="Eliminar rol"
                     aria-label="Eliminar rol"
                     data-testid={`role-delete-${r.id}`}

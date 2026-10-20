@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'markup_percentage',
     'base_price_list_id',
     'payment_exchange_rate_type_id',
+    'payment_exchange_rate_markup_percentage',
     'is_default',
     'is_active',
     'sort_order',
@@ -36,6 +37,7 @@ class PriceList extends Model
             'is_active' => 'boolean',
             'sort_order' => 'integer',
             'markup_percentage' => 'decimal:2',
+            'payment_exchange_rate_markup_percentage' => 'decimal:4',
         ];
     }
 

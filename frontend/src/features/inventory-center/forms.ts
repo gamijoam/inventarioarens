@@ -99,25 +99,35 @@ export function useProductForm({
     if (mode === 'edit' && initialValues && formId !== null) {
       handleReset(initialValues);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formId]);
+  }, [formId, initialValues, handleReset]);
 
   const create = useCreateProduct();
   const update = useUpdateProduct();
   const mutation = mode === 'create' ? create : update;
+
+  const onInvalid = (errors: Record<string, unknown>) => {
+    const firstKey = Object.keys(errors)[0];
+    if (firstKey) {
+      const first = errors[firstKey] as { message?: string } | undefined;
+      const msg = first?.message || `El campo "${firstKey}" contiene errores o es obligatorio.`;
+      toast.error(msg);
+    }
+  };
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       // StoreProductSchema ya hace el .transform que limpia vacios.
       const payload = { ...values } as typeof values & { base_price?: number };
       if (
-        payload.pricing_mode === 'automatic' &&
-        (payload.base_price === undefined || payload.base_price === null) &&
+        (payload.base_price === undefined || payload.base_price === null || payload.base_price === 0) &&
         payload.last_purchase_cost !== undefined &&
-        payload.last_purchase_cost !== null
+        payload.last_purchase_cost !== null &&
+        Number(payload.last_purchase_cost) > 0 &&
+        payload.profit_margin !== undefined &&
+        payload.profit_margin !== null
       ) {
         const c = Number(payload.last_purchase_cost);
-        const m = Number(payload.profit_margin ?? 25);
+        const m = Number(payload.profit_margin);
         if (Number.isFinite(c) && Number.isFinite(m)) {
           payload.base_price = Number((c * (1 + m / 100)).toFixed(2));
         }
@@ -153,7 +163,7 @@ export function useProductForm({
         toast.error(err instanceof Error ? err.message : 'Error al guardar el producto.');
       }
     }
-  });
+  }, onInvalid);
 
   const resetForm = useCallback(
     (values?: Partial<StoreProductValues>) => {

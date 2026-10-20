@@ -7,14 +7,16 @@
  * modo que "lo que se ve es lo que se imprime". El PDF y la impresion quedan
  * como acciones manuales.
  */
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Download, Loader2, Printer, X } from 'lucide-react';
+import { Download, Loader2, Printer, ShieldCheck, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent } from '@/components/ui/Dialog';
 import { fetchTicketPreview } from '@/features/printing/api';
 
 import type { PosOrder } from './api';
+import { WarrantyCertificateDialog } from './WarrantyCertificateDialog';
 
 interface TicketPreviewDialogProps {
   order: PosOrder | null;
@@ -45,12 +47,29 @@ export function TicketPreviewDialog({
   onPrintThermal,
   onDownloadPdf,
 }: TicketPreviewDialogProps) {
+  const [warrantyModalOpen, setWarrantyModalOpen] = useState(false);
   const open = order !== null;
   const { data, isLoading, isError } = useQuery({
     queryKey: ['pos-ticket-preview', order?.id ?? null],
     queryFn: () => fetchTicketPreview(order!.id),
     enabled: open,
   });
+
+  const isMiInventarioFacil =
+    typeof window !== 'undefined' &&
+    (window.location.hostname.includes('miinventariofacil.com') ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1');
+
+  const hasWarrantyItems = Boolean(
+    order?.sale?.items?.some(
+      (item) =>
+        Boolean(item.warranty_policy_name) ||
+        Number(item.warranty_duration_days ?? 0) > 0 ||
+        Boolean(item.serial_units?.length) ||
+        Boolean(item.product_unit_ids?.length),
+    ),
+  );
 
   const paperWidthMm = data?.paperWidthMm ?? 80;
   const paperWidthPx = Math.round(paperWidthMm * MM_TO_PX);
@@ -101,6 +120,18 @@ export function TicketPreviewDialog({
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-3">
+          {isMiInventarioFacil && hasWarrantyItems && (
+            <Button
+              variant="outline"
+              onClick={() => setWarrantyModalOpen(true)}
+              disabled={busy}
+              className="border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 font-semibold"
+              data-testid="ticket-preview-warranty-cert"
+            >
+              <ShieldCheck className="size-4 text-sky-600 dark:text-sky-400" />
+              Certificado de Garantía
+            </Button>
+          )}
           {canThermalPrint && (
             <Button onClick={onPrintThermal} disabled={busy} data-testid="ticket-preview-print">
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
@@ -122,6 +153,13 @@ export function TicketPreviewDialog({
           </Button>
         </div>
       </DialogContent>
+
+      {/* Modal dedicado para Certificado de Garantía Carta/A4 */}
+      <WarrantyCertificateDialog
+        orderId={order?.id ?? null}
+        open={warrantyModalOpen}
+        onClose={() => setWarrantyModalOpen(false)}
+      />
     </Dialog>
   );
 }

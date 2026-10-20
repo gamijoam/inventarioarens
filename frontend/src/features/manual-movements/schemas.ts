@@ -32,7 +32,15 @@ export const MANUAL_MOVEMENT_TYPE_LABELS = {
 const RelatedEntitySchema = z.object({
   id: z.number().int().positive().nullable(),
   name: z.string().nullable(),
+  tracking_type: z.string().nullable().optional(),
 });
+
+export const ManualMovementSerialUnitSchema = z.object({
+  id: z.number().int().positive().optional(),
+  serial_type: z.enum(['serial', 'imei']).default('imei'),
+  serial_number: z.string().trim().min(1, 'El número de serial/IMEI es obligatorio.'),
+});
+export type ManualMovementSerialUnit = z.infer<typeof ManualMovementSerialUnitSchema>;
 
 export const ManualMovementSchema = z.object({
   id: z.number().int().positive(),
@@ -50,6 +58,7 @@ export const ManualMovementSchema = z.object({
     })
     .nullable()
     .optional(),
+  serial_units: z.array(ManualMovementSerialUnitSchema).optional().default([]),
   quantity: z.coerce.number().positive(),
   warehouse: RelatedEntitySchema,
   creator: RelatedEntitySchema,
@@ -73,6 +82,7 @@ export const CreateManualMovementSchema = z.object({
   type: z.enum(MANUAL_MOVEMENT_TYPES),
   reason: z.string().trim().min(1, 'El motivo es obligatorio.').max(255),
   notes: z.string().trim().nullable().optional(),
+  serial_units: z.array(ManualMovementSerialUnitSchema).optional(),
 });
 export type CreateManualMovement = z.infer<typeof CreateManualMovementSchema>;
 export interface ManualMovementFilters {

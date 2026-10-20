@@ -419,6 +419,74 @@ export async function fetchTicketPreview(
   return { html: data.html, paperWidthMm: data.paper_width_mm };
 }
 
+export interface WarrantyCertificateResponse {
+  has_warranty: boolean;
+  is_enabled: boolean;
+  html: string;
+  certificate: {
+    tenant: {
+      name: string;
+      rif?: string;
+      phone?: string;
+      address?: string;
+      subtitle?: string;
+    };
+    warranty: {
+      title: string;
+      number: string;
+      order_id: number;
+      issued_at: string;
+      is_enabled: boolean;
+    };
+    sale: {
+      invoice_number: string;
+      date: string;
+      total: string;
+    };
+    customer: {
+      name: string;
+      document: string;
+      phone: string;
+      email: string;
+    };
+    equipments: Array<{
+      product_name: string;
+      quantity: number;
+      imei_serial: string;
+      policy_name: string;
+      duration_text: string;
+      conditions: string;
+      expires_at: string;
+    }>;
+    has_equipments: boolean;
+    terms: {
+      covers: string[];
+      not_covers: string[];
+      claim_steps: string[];
+      important_notes: string[];
+    };
+  };
+}
+
+export async function fetchWarrantyCertificate(orderId: number): Promise<WarrantyCertificateResponse> {
+  return await getOne<WarrantyCertificateResponse>(`/pos/orders/${orderId}/warranty-certificate`);
+}
+
+export async function downloadWarrantyCertificatePdf(orderId: number): Promise<void> {
+  const response = await api.get<Blob>(`/pos/orders/${orderId}/warranty-certificate.pdf`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `certificado-garantia-${orderId}.pdf`;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export async function downloadVirtualTicket(profile: PrintProfilePayload | PrintProfile): Promise<void> {
   const response = await api.post<Blob>('/printing/profiles/preview.pdf', profile, {
     responseType: 'blob',

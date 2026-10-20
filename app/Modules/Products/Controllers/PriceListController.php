@@ -102,19 +102,73 @@ class PriceListController extends Controller
         return PriceListResource::make($priceList->refresh()->load(['paymentMethods', 'paymentExchangeRateType']));
     }
 
-    public function destroy(Request $request, PriceList $priceList, SyncCatalogOutboxService $syncCatalog): Response
-    {
+    public function destroy(
+        Request $request,
+        PriceList $priceList,
+        SyncCatalogOutboxService $syncCatalog,
+        SharedCatalogPropagationService $catalogPropagation,
+    ): Response {
         abort_unless($request->user()?->can('products.update'), Response::HTTP_FORBIDDEN);
 
         if (! $this->canWriteSharedCatalog($request->user())) {
             abort(Response::HTTP_FORBIDDEN, 'El catalogo compartido solo lo edita el Owner del grupo.');
         }
 
-        $priceList->update([
-            'is_active' => false,
-            'is_default' => false,
-        ]);
-        $syncCatalog->priceListDeactivated($priceList->refresh()->load('paymentMethods'));
+        $priceList->is_active = false;
+        try {
+            $syncCatalog->priceListDeactivated($priceList);
+        } catch (\Throwable) {
+            // sync outbox failure should not block deletion
+        }
+
+        DB::transaction(function () use ($priceList, $catalogPropagation): void {
+            // 1. Desvincular como lista base de cualquier otra lista
+            PriceList::withoutGlobalScopes()
+                ->where('base_price_list_id', $priceList->id)
+                ->update(['base_price_list_id' => null]);
+
+            // 2. Si el tenant actual es un grupo (o tiene spinoffs), propagar la eliminación a todas las hijas
+            $spinoffs = $catalogPropagation->spinoffsFor((int) $priceList->tenant_id);
+            foreach ($spinoffs as $spinoff) {
+                $spinoffCopies = PriceList::withoutGlobalScopes()
+                    ->where('tenant_id', $spinoff->id)
+                    ->where('code', $priceList->code)
+                    ->get();
+
+                foreach ($spinoffCopies as $copy) {
+                    PriceList::withoutGlobalScopes()
+                        ->where('tenant_id', $spinoff->id)
+                        ->where('base_price_list_id', $copy->id)
+                        ->update(['base_price_list_id' => null]);
+
+                    DB::table('price_list_payment_method')
+                        ->where('tenant_id', $spinoff->id)
+                        ->where('price_list_id', $copy->id)
+                        ->delete();
+
+                    DB::table('product_prices')
+                        ->where('tenant_id', $spinoff->id)
+                        ->where('price_list_id', $copy->id)
+                        ->delete();
+
+                    $copy->delete();
+                }
+            }
+
+            // 3. Eliminar métodos de pago y precios de la lista en el tenant actual
+            DB::table('price_list_payment_method')
+                ->where('tenant_id', $priceList->tenant_id)
+                ->where('price_list_id', $priceList->id)
+                ->delete();
+
+            DB::table('product_prices')
+                ->where('tenant_id', $priceList->tenant_id)
+                ->where('price_list_id', $priceList->id)
+                ->delete();
+
+            // 4. Eliminar la lista en el tenant actual
+            $priceList->delete();
+        });
 
         return response()->noContent();
     }

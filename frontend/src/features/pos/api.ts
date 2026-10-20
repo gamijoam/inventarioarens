@@ -325,6 +325,9 @@ const PosSaleItemSchema = z
     price_list_name: z.string().nullable().optional(),
     product_unit_ids: z.array(z.number().int()).nullable().optional(),
     serial_units: z.array(ProductSerialSchema).optional(),
+    warranty_policy_name: z.string().nullable().optional(),
+    warranty_duration_days: z.number().int().nullable().optional(),
+    warranty_expires_at: z.string().nullable().optional(),
     combo_instance_uuid: z.string().nullable().optional(),
   })
   .passthrough();
@@ -1095,6 +1098,7 @@ interface PosPriceListLike {
   is_default?: boolean | null;
   is_active?: boolean;
   payment_exchange_rate_type_id?: number | null;
+  payment_exchange_rate_markup_percentage?: number | null;
   payment_exchange_rate_type?: PriceList['payment_exchange_rate_type'];
   payment_method_ids?: number[];
   payment_methods?: PriceList['payment_methods'];
@@ -1118,6 +1122,8 @@ export function mergePosPriceLists<T extends PosPriceListLike>(
         payment_methods: list.payment_methods ?? fallbackList?.payment_methods,
         payment_exchange_rate_type_id:
           list.payment_exchange_rate_type_id ?? fallbackList?.payment_exchange_rate_type_id ?? null,
+        payment_exchange_rate_markup_percentage:
+          list.payment_exchange_rate_markup_percentage ?? fallbackList?.payment_exchange_rate_markup_percentage ?? null,
         payment_exchange_rate_type:
           list.payment_exchange_rate_type ?? fallbackList?.payment_exchange_rate_type,
       };
@@ -1146,6 +1152,7 @@ export function resolvePosPaymentRate(
   rates: PosRateLike[],
   rateTypes: PosRateTypeLike[],
   paymentExchangeRateTypeId?: number | null,
+  paymentExchangeRateMarkupPercentage?: number | null,
 ): { exchange_rate_type_id: number; code: string; name: string; rate: number } | null {
   const validRates = rates.filter(
     (rate) =>
@@ -1153,6 +1160,14 @@ export function resolvePosPaymentRate(
       (!rate.base_currency || rate.base_currency === 'USD') &&
       (!rate.quote_currency || rate.quote_currency === 'VES'),
   );
+
+  const markup = Number(paymentExchangeRateMarkupPercentage ?? 0);
+  const applyMarkup = (baseRate: number, baseName: string) => {
+    if (!markup || isNaN(markup)) return { rate: baseRate, name: baseName };
+    const effective = Math.round(baseRate * (1 + markup / 100) * 10000) / 10000;
+    const nameWithMarkup = `${baseName} (${markup > 0 ? `+${markup}%` : `${markup}%`})`;
+    return { rate: effective, name: nameWithMarkup };
+  };
 
   if (paymentExchangeRateTypeId) {
     const configuredType = rateTypes.find(
@@ -1163,11 +1178,14 @@ export function resolvePosPaymentRate(
     );
     if (!configuredType || !configuredRate) return null;
 
+    const baseName = configuredType.name ?? configuredType.code;
+    const { rate, name } = applyMarkup(Number(configuredRate.rate), baseName);
+
     return {
       exchange_rate_type_id: configuredType.id,
       code: configuredType.code,
-      name: configuredType.name ?? configuredType.code,
-      rate: Number(configuredRate.rate),
+      name,
+      rate,
     };
   }
 
@@ -1186,12 +1204,14 @@ export function resolvePosPaymentRate(
   if (!selectedRate) return null;
 
   const selectedType = rateTypes.find((type) => type.id === selectedRate.exchange_rate_type_id);
+  const baseName = selectedType?.name ?? selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa';
+  const { rate, name } = applyMarkup(Number(selectedRate.rate), baseName);
+
   return {
     exchange_rate_type_id: selectedRate.exchange_rate_type_id,
     code: selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa',
-    name:
-      selectedType?.name ?? selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa',
-    rate: Number(selectedRate.rate),
+    name,
+    rate,
   };
 }
 
@@ -1299,12 +1319,14 @@ export function useAvailableProductSerialsForPos(
         `/inventory-center/products/${productId}/serials?${params.toString()}`,
       );
       const items =
-        typeof response === 'object' &&
-        response &&
-        'data' in response &&
-        Array.isArray((response as { data?: unknown }).data)
-          ? (response as { data: unknown[] }).data
-          : [];
+        Array.isArray(response)
+          ? response
+          : typeof response === 'object' &&
+            response &&
+            'data' in response &&
+            Array.isArray((response as { data?: unknown }).data)
+            ? (response as { data: unknown[] }).data
+            : [];
       return z.array(ProductSerialSchema).parse(items);
     },
     enabled: Number.isFinite(productId) && Number(productId) > 0,

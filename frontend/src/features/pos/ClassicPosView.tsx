@@ -56,6 +56,7 @@ export interface ClassicPosViewProps {
   onRemoveLine: (lineId: string) => void;
   onAddProduct: (product: Product) => Promise<boolean | void>;
   onOpenProductSearch: () => void;
+  onOpenSerials?: (lineId: string) => void;
   onHoldSale?: () => void;
   onOpenHoldOrders?: () => void;
   onExitPos?: () => void;
@@ -116,6 +117,7 @@ export function ClassicPosView({
   onRemoveLine,
   onAddProduct,
   onOpenProductSearch,
+  onOpenSerials,
   onHoldSale,
   onOpenHoldOrders,
   onExitPos,
@@ -733,7 +735,7 @@ export function ClassicPosView({
                       maxHeight: `${dropdownPosition.maxHeight}px`,
                       zIndex: 99999,
                     }}
-                    className="bg-white border-2 border-blue-500 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-slate-900 animate-in fade-in-50 zoom-in-95 duration-150"
+                    className="bg-white border-2 border-blue-500 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-slate-900"
                   >
                     <div className="bg-slate-900 text-white border-b border-slate-800 px-3.5 py-2 text-xs font-bold flex items-center justify-between shrink-0">
                       <span className="flex items-center gap-2">
@@ -1025,10 +1027,31 @@ export function ClassicPosView({
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                         >
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2.5 flex-wrap">
                             <span className="font-black text-base sm:text-lg lg:text-xl leading-snug tracking-tight truncate max-w-xl">
                               {line.name}
                             </span>
+                            {line.tracking_type === 'serialized' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenSerials?.(line.id);
+                                }}
+                                className={cn(
+                                  'text-xs px-2 py-0.5 rounded font-mono font-bold transition-colors cursor-pointer border',
+                                  (line.selected_serials?.length ?? 0) === Number(line.quantity)
+                                    ? isSelected
+                                      ? 'bg-emerald-500 text-white border-emerald-400'
+                                      : 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                    : isSelected
+                                      ? 'bg-amber-400 text-slate-900 border-amber-300'
+                                      : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200',
+                                )}
+                              >
+                                IMEI {(line.selected_serials?.length ?? 0)}/{line.quantity}
+                              </button>
+                            )}
                             {stockIssue && (
                               <span
                                 className={cn(
@@ -1041,6 +1064,23 @@ export function ClassicPosView({
                               </span>
                             )}
                           </div>
+                          {line.tracking_type === 'serialized' && (line.selected_serials?.length ?? 0) > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {line.selected_serials?.map((s) => (
+                                <span
+                                  key={s.id}
+                                  className={cn(
+                                    'text-[11px] font-mono font-bold px-1.5 py-0.5 rounded border',
+                                    isSelected
+                                      ? 'bg-blue-700 text-white border-blue-400'
+                                      : 'bg-slate-100 text-slate-700 border-slate-300',
+                                  )}
+                                >
+                                  {s.serial_number}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
 
                         {/* 4. I.V.A (16% o E) */}
@@ -1221,7 +1261,7 @@ export function ClassicPosView({
                   cart.length === 0
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-50'
                     : isFullyPaid
-                      ? 'bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white ring-2 ring-emerald-300 shadow-lg animate-pulse'
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white ring-2 ring-emerald-300 shadow-lg'
                       : 'bg-emerald-600 hover:bg-emerald-700 text-white',
                 )}
               >
@@ -1474,8 +1514,8 @@ export function ClassicPosView({
       {/* 5. MODAL RÁPIDO PARA EDITAR CANTIDAD DIRECTAMENTE                         */}
       {/* ========================================================================= */}
       {editingQtyLine && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-blue-600 max-w-sm w-full p-5 text-slate-900 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-blue-600 max-w-sm w-full p-5 text-slate-900">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <Edit3 className="size-5 text-blue-600" />

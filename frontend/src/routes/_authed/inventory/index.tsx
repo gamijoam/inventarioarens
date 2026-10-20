@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Sparkles, Store, TrendingUp, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, LayoutGrid, Package, Plus, Search, SlidersHorizontal, Store, TrendingUp, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -27,6 +27,7 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { useSessionStore } from '@/stores/session';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/cn';
+import { toast } from '@/lib/toast';
 
 import { usePriceLists, useProducts } from '@/features/inventory-center/api';
 import { useWarehouses } from '@/features/inventory-center/api';
@@ -34,7 +35,6 @@ import { useAlertsSummary } from '@/features/inventory-center/api';
 import { useCurrentExchangeRatesForPos } from '@/features/pos/api';
 import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
-import { QuickCreateProductDialog } from '@/features/inventory-center/dialogs/QuickCreateProductDialog';
 import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
 import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/ExportInventoryDialog';
 import { BulkPriceAdjustmentModal } from '@/features/inventory-center/dialogs/BulkPriceAdjustmentModal';
@@ -368,12 +368,12 @@ function InventoryListPage() {
           </Button>
           <Can I={PERMISSIONS.PRODUCTS_CREATE}>
             <Button
-              onClick={() => setQuickCreateOpen(true)}
+              onClick={() => setCreateOpen(true)}
               data-testid="new-product"
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+              className="gap-1.5 bg-primary hover:bg-primary-hover text-white font-semibold shadow-sm"
             >
-              <Sparkles className="size-4" />
-              Crear producto rápido
+              <Plus className="size-4" />
+              Nuevo producto
             </Button>
           </Can>
         </div>
@@ -401,7 +401,7 @@ function InventoryListPage() {
           warehouses={warehouses}
           priceLists={priceLists}
           activeRate={activeRate}
-          onNewProduct={() => setQuickCreateOpen(true)}
+          onNewProduct={() => setCreateOpen(true)}
           onBulkPriceAdjustment={() => setBulkPriceModalOpen(true)}
         />
       ) : viewMode === 'catalog' ? (
@@ -427,7 +427,7 @@ function InventoryListPage() {
           warehouses={warehouses}
           priceLists={priceLists}
           activeRate={activeRate}
-          onNewProduct={() => setQuickCreateOpen(true)}
+          onNewProduct={() => setCreateOpen(true)}
         />
       ) : (
         <>
@@ -614,14 +614,18 @@ function InventoryListPage() {
       </>
       )}
 
-      <QuickCreateProductDialog
-        open={quickCreateOpen}
-        onOpenChange={setQuickCreateOpen}
-        priceLists={priceLists}
-        activeRate={activeRate}
-        onOpenFullForm={() => setCreateOpen(true)}
+      <CreateProductDialog
+        open={createOpen || quickCreateOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          setQuickCreateOpen(open);
+        }}
+        onSuccess={(created) => {
+          if (created?.name) {
+            toast.success(`Producto "${created.name}" creado con éxito.`);
+          }
+        }}
       />
-      <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />
       <BulkPriceAdjustmentModal
         open={bulkPriceModalOpen}
         onClose={() => setBulkPriceModalOpen(false)}
@@ -997,16 +1001,34 @@ function PriceListCell({
     list: PriceList,
     seen = new Set<number>(),
   ): number | null => {
-    if (seen.has(list.id)) return product.base_price != null ? Number(product.base_price) : null;
+    if (seen.has(list.id)) {
+      return product.base_price != null && Number(product.base_price) > 0
+        ? Number(product.base_price)
+        : null;
+    }
     seen.add(list.id);
 
     const manual = manualById.get(list.id);
     if (manual) return Number(manual.price);
 
-    let base: number | null = product.base_price != null ? Number(product.base_price) : null;
+    let base: number | null =
+      product.base_price != null && Number(product.base_price) > 0
+        ? Number(product.base_price)
+        : null;
+
+    const rawCost = product.average_cost ?? product.last_purchase_cost;
+    const costVal = rawCost != null && Number(rawCost) > 0 ? Number(rawCost) : null;
+    if (base == null && costVal != null) {
+      const margin = Number(product.profit_margin ?? 0);
+      base = Number((costVal * (1 + margin / 100)).toFixed(2));
+    }
+
     if (list.base_price_list_id) {
       const baseList = priceLists.find((l) => l.id === list.base_price_list_id);
-      if (baseList) base = effectivePrice(baseList, seen);
+      if (baseList) {
+        const parentPrice = effectivePrice(baseList, seen);
+        if (parentPrice != null) base = parentPrice;
+      }
     }
 
     if (base == null) return null;
@@ -1079,11 +1101,14 @@ function PriceListCell({
 
   if (!defaultPrice) return <span className="text-text-muted">Sin lista</span>;
 
-  const displayLocal = (price: number, currency: string) => {
+  const displayLocal = (price: number, currency: string, listId?: number) => {
     if (currency === 'VES')
       return `Bs ${price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (!activeRate) return null;
-    return `Bs ${(price * activeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const list = priceLists.find((l) => l.id === listId);
+    const rateMarkup = Number(list?.payment_exchange_rate_markup_percentage ?? 0);
+    const effRate = activeRate * (1 + rateMarkup / 100);
+    return `Bs ${(price * effRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   function togglePopover(): void {
@@ -1150,9 +1175,9 @@ function PriceListCell({
                   {price.currency === 'VES'
                     ? `Bs ${price.price.toFixed(2)}`
                     : `$${price.price.toFixed(2)}`}
-                  {displayLocal(price.price, price.currency) && price.currency !== 'VES' && (
+                  {displayLocal(price.price, price.currency, price.price_list_id) && price.currency !== 'VES' && (
                     <small className="text-text-muted ml-1 block font-normal">
-                      {displayLocal(price.price, price.currency)}
+                      {displayLocal(price.price, price.currency, price.price_list_id)}
                     </small>
                   )}
                 </span>
@@ -1160,7 +1185,7 @@ function PriceListCell({
             ))}
             {activeRate && (
               <p className="text-text-muted mt-1 px-1 text-xs">
-                VES calculado con tasa activa {activeRate}.
+                VES calculado con tasa base {typeof activeRate === 'number' ? activeRate.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : ''}.
               </p>
             )}
           </div>,

@@ -216,34 +216,78 @@ class SharedCatalogPropagationService
             return;
         }
 
+        $master->loadMissing(['brand', 'warrantyPolicy', 'saleExchangeRateType']);
+
         $masterFields = array_unique(array_merge(Product::MASTER_FIELDS, [
             'unit_of_measure',
             'track_stock',
         ]));
 
-        $payload = collect($masterFields)
+        $directFields = array_values(array_diff($masterFields, [
+            'brand_id',
+            'warranty_policy_id',
+            'sale_exchange_rate_type_id',
+        ]));
+
+        $basePayload = collect($directFields)
             ->mapWithKeys(fn (string $field): array => [$field => $master->{$field}])
             ->all();
 
-        DB::transaction(function () use ($master, $payload): void {
-            $master->localCopies()->each(function (Product $copy) use ($payload, $master): void {
-                $copy->fill($payload);
-                $copy->is_catalog_active = (bool) $master->is_catalog_active;
-                $updates = collect($payload)
-                    ->reject(fn ($value): bool => $value === null)
-                    ->merge([
-                        'is_catalog_active' => (bool) $master->is_catalog_active,
-                        'updated_at' => now(),
-                    ])
-                    ->all();
+        DB::transaction(function () use ($master, $basePayload): void {
+            $master->localCopies()->each(function (Product $copy) use ($basePayload, $master): void {
+                $spinoff = Tenant::query()->withoutGlobalScopes()->find($copy->tenant_id);
+                if (! $spinoff) {
+                    return;
+                }
+
+                $updates = $basePayload;
+                $updates['is_catalog_active'] = (bool) $master->is_catalog_active;
+                $updates['updated_at'] = now();
+
+                // Resolver brand_id en el tenant del spinoff
+                if ($master->brand) {
+                    $this->ensureBrandCopyFor($master->brand, $spinoff);
+                    $localBrandId = Brand::query()->withoutGlobalScopes()
+                        ->where('tenant_id', $spinoff->id)
+                        ->where('slug', $master->brand->slug)
+                        ->value('id');
+                    $updates['brand_id'] = $localBrandId;
+                } else {
+                    $updates['brand_id'] = null;
+                }
+
+                // Resolver warranty_policy_id en el tenant del spinoff
+                if ($master->warrantyPolicy) {
+                    $this->ensureWarrantyPolicyCopyFor($master->warrantyPolicy, $spinoff);
+                    $localWarrantyId = WarrantyPolicy::query()->withoutGlobalScopes()
+                        ->where('tenant_id', $spinoff->id)
+                        ->where('name', $master->warrantyPolicy->name)
+                        ->value('id');
+                    $updates['warranty_policy_id'] = $localWarrantyId;
+                } else {
+                    $updates['warranty_policy_id'] = null;
+                }
+
+                // Resolver sale_exchange_rate_type_id en el tenant del spinoff
+                if ($master->saleExchangeRateType) {
+                    $this->ensureExchangeRateTypeCopyFor($master->saleExchangeRateType, $spinoff);
+                    $localExchangeRateTypeId = ExchangeRateType::query()->withoutGlobalScopes()
+                        ->where('tenant_id', $spinoff->id)
+                        ->where('code', $master->saleExchangeRateType->code)
+                        ->value('id');
+                    $updates['sale_exchange_rate_type_id'] = $localExchangeRateTypeId;
+                } else {
+                    $updates['sale_exchange_rate_type_id'] = null;
+                }
+
                 DB::table('products')
                     ->where('id', $copy->id)
                     ->where('tenant_id', $copy->tenant_id)
                     ->update($updates);
 
-                $spinoff = Tenant::query()->withoutGlobalScopes()->find($copy->tenant_id);
-                if ($spinoff) {
-                    $this->recordProductCopyEvent($copy->fresh(), $master, $spinoff, false);
+                $fresh = $copy->fresh();
+                if ($fresh) {
+                    $this->recordProductCopyEvent($fresh, $master, $spinoff, false);
                 }
             });
         });
@@ -1005,18 +1049,26 @@ class SharedCatalogPropagationService
             if ($localId && (int) $copy->brand_id !== (int) $localId) {
                 $updates['brand_id'] = $localId;
             }
+        } elseif ($copy->brand_id !== null) {
+            $updates['brand_id'] = null;
         }
+
         if ($master->warrantyPolicy) {
             $localId = WarrantyPolicy::query()->withoutGlobalScopes()->where('tenant_id', $spinoff->id)->where('name', $master->warrantyPolicy->name)->value('id');
             if ($localId && (int) $copy->warranty_policy_id !== (int) $localId) {
                 $updates['warranty_policy_id'] = $localId;
             }
+        } elseif ($copy->warranty_policy_id !== null) {
+            $updates['warranty_policy_id'] = null;
         }
+
         if ($master->saleExchangeRateType) {
             $localId = ExchangeRateType::query()->withoutGlobalScopes()->where('tenant_id', $spinoff->id)->where('code', $master->saleExchangeRateType->code)->value('id');
             if ($localId && (int) $copy->sale_exchange_rate_type_id !== (int) $localId) {
                 $updates['sale_exchange_rate_type_id'] = $localId;
             }
+        } elseif ($copy->sale_exchange_rate_type_id !== null) {
+            $updates['sale_exchange_rate_type_id'] = null;
         }
 
         if ($updates !== []) {
@@ -1711,7 +1763,7 @@ class SharedCatalogPropagationService
         };
     }
 
-    private function spinoffsFor(int $groupTenantId): Collection
+    public function spinoffsFor(int $groupTenantId): Collection
     {
         return Tenant::query()
             ->where('parent_id', $groupTenantId)

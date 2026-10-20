@@ -6,7 +6,7 @@
  *   para editarlos todos a la vez con el PermissionTree).
  */
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/Badge';
@@ -17,8 +17,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from '@/lib/toast';
 
-import { useRole, useRolePreview } from '@/features/access/api';
+import { useRole, useRolePreview, useDeleteRole } from '@/features/access/api';
 import { ProtectedRoleBadge } from '@/features/access/ProtectedRoleBadge';
 import { PermissionTree } from '@/features/access/PermissionTree';
 import { usePermissionCatalog } from '@/features/access/api';
@@ -34,7 +36,9 @@ function RoleDetailPage() {
   const { data: role, isLoading, isError } = useRole(id);
   const { data: preview } = useRolePreview(id);
   const { data: catalog } = usePermissionCatalog();
+  const deleteRole = useDeleteRole();
   const [tab, setTab] = useState('general');
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -70,6 +74,20 @@ function RoleDetailPage() {
       actions={
         <div className="flex items-center gap-2">
           {isProtected && <ProtectedRoleBadge isProtected />}
+          {!isProtected && (
+            <Can I={PERMISSIONS.ROLES_DELETE}>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setConfirmDeleteOpen(true)}
+                className="gap-1.5"
+                data-testid="detail-role-delete"
+              >
+                <Trash2 className="size-4" />
+                Eliminar rol
+              </Button>
+            </Can>
+          )}
           <Can I={PERMISSIONS.ROLES_VIEW}>
             <Button asChild variant="outline" size="sm">
               <Link to="/access/roles">
@@ -147,6 +165,34 @@ function RoleDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Eliminar rol"
+        description={
+          <>
+            ¿Estás seguro de que deseas eliminar el rol <strong>{role.name}</strong>?
+            <br />
+            Los usuarios que solo tengan este rol asignado quedarán sin esos permisos. Esta acción no se puede deshacer.
+          </>
+        }
+        confirmLabel="Eliminar rol"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={deleteRole.isPending}
+        onConfirm={async () => {
+          try {
+            await deleteRole.mutateAsync(role.id);
+            setConfirmDeleteOpen(false);
+            toast.success(`Rol "${role.name}" eliminado correctamente.`);
+            void navigate({ to: '/access/roles' });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Error al eliminar el rol.';
+            toast.error(msg);
+          }
+        }}
+      />
     </PageLayout>
   );
 }

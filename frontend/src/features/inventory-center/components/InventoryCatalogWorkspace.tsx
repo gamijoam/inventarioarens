@@ -123,6 +123,7 @@ interface ComputedPrice {
   isDefault: boolean;
   price: number;
   currency: string;
+  rateMarkup?: number;
 }
 
 /**
@@ -134,16 +135,34 @@ function computeProductPrices(product: Product, priceLists: PriceList[]): Comput
   const manualById = new Map(manualPrices.map((p) => [p.price_list_id, p]));
 
   const effectivePrice = (list: PriceList, seen = new Set<number>()): number | null => {
-    if (seen.has(list.id)) return product.base_price != null ? Number(product.base_price) : null;
+    if (seen.has(list.id)) {
+      return product.base_price != null && Number(product.base_price) > 0
+        ? Number(product.base_price)
+        : null;
+    }
     seen.add(list.id);
 
     const manual = manualById.get(list.id);
     if (manual) return Number(manual.price);
 
-    let base: number | null = product.base_price != null ? Number(product.base_price) : null;
+    let base: number | null =
+      product.base_price != null && Number(product.base_price) > 0
+        ? Number(product.base_price)
+        : null;
+
+    const rawCost = product.average_cost ?? product.last_purchase_cost;
+    const costVal = rawCost != null && Number(rawCost) > 0 ? Number(rawCost) : null;
+    if (base == null && costVal != null) {
+      const margin = Number(product.profit_margin ?? 0);
+      base = Number((costVal * (1 + margin / 100)).toFixed(2));
+    }
+
     if (list.base_price_list_id) {
       const baseList = priceLists.find((l) => l.id === list.base_price_list_id);
-      if (baseList) base = effectivePrice(baseList, seen);
+      if (baseList) {
+        const parentPrice = effectivePrice(baseList, seen);
+        if (parentPrice != null) base = parentPrice;
+      }
     }
 
     if (base == null) return null;
@@ -157,25 +176,43 @@ function computeProductPrices(product: Product, priceLists: PriceList[]): Comput
   for (const list of priceLists.filter((l) => l.is_active)) {
     const calc = effectivePrice(list);
     if (calc != null) {
+      const manual = manualById.get(list.id);
       results.push({
         listId: list.id,
         listName: list.name,
         isDefault: Boolean(list.is_default),
         price: calc,
-        currency: 'USD',
+        currency: manual?.currency || product.sale_currency || 'USD',
+        rateMarkup: Number(list.payment_exchange_rate_markup_percentage ?? 0),
       });
     }
   }
 
-  // Si no hubo listas calculadas pero tiene base_price
-  if (results.length === 0 && product.base_price != null) {
-    results.push({
-      listId: 0,
-      listName: 'Precio Base',
-      isDefault: true,
-      price: Number(product.base_price),
-      currency: product.sale_currency || 'USD',
-    });
+  // Si no hubo listas calculadas pero tiene base_price o costo con margen
+  if (results.length === 0) {
+    const rawCost = product.average_cost ?? product.last_purchase_cost;
+    const costVal = rawCost != null && Number(rawCost) > 0 ? Number(rawCost) : null;
+    const fallbackBase =
+      product.base_price != null && Number(product.base_price) > 0
+        ? Number(product.base_price)
+        : costVal != null
+          ? Number(
+              (
+                costVal *
+                (1 + Number(product.profit_margin ?? 0) / 100)
+              ).toFixed(2),
+            )
+          : null;
+
+    if (fallbackBase != null) {
+      results.push({
+        listId: 0,
+        listName: 'Precio Base',
+        isDefault: true,
+        price: fallbackBase,
+        currency: product.sale_currency || 'USD',
+      });
+    }
   }
 
   return results;
@@ -568,10 +605,10 @@ export function InventoryCatalogWorkspace({
                   <Button
                     onClick={onNewProduct}
                     size="sm"
-                    className="gap-1.5 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                    className="gap-1.5 mt-2 bg-primary hover:bg-primary-hover text-white font-medium"
                   >
-                    <Sparkles className="size-3.5" />
-                    Crear producto rápido
+                    <Plus className="size-3.5" />
+                    Nuevo producto
                   </Button>
                 ) : undefined
               }
@@ -755,7 +792,12 @@ export function InventoryCatalogWorkspace({
                     <div className="flex flex-col gap-1.5 bg-surface-subtle/50 rounded-lg p-2 border border-border/40">
                       {prices.length > 0 ? (
                         prices.slice(0, 3).map((p) => {
-                          const pVes = activeRate ? p.price * activeRate.rate : null;
+                          const effRate = activeRate
+                            ? Number(activeRate.rate) * (1 + Number(p.rateMarkup ?? 0) / 100)
+                            : null;
+                          const pVes = p.currency === 'VES'
+                            ? p.price
+                            : (effRate ? p.price * effRate : null);
                           const shortName = p.listName.length > 25 ? p.listName.slice(0, 23) + '…' : p.listName;
                           return (
                             <div key={p.listId} className="flex items-center justify-between gap-1 text-xs leading-tight">
@@ -764,8 +806,8 @@ export function InventoryCatalogWorkspace({
                               </span>
                               <div className="flex items-center gap-1.5">
                                 <div className="flex items-baseline gap-1.5 font-bold text-text-primary tabular-nums">
-                                  <span className="text-xs sm:text-sm">{formatMoney(p.price)}</span>
-                                  {pVes != null && (
+                                  <span className="text-xs sm:text-sm">{p.currency === 'VES' ? `Bs ${p.price.toFixed(2)}` : formatMoney(p.price)}</span>
+                                  {pVes != null && p.currency !== 'VES' && (
                                     <span className="text-xs text-text-muted font-normal">
                                       (Bs {pVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                                     </span>
@@ -1728,7 +1770,9 @@ function ProductCatalogDetailModal({
                       .map((list) => {
                         const currentVal = priceMap[list.id]?.amount ?? '';
                         const numVal = parseFloat(currentVal) || 0;
-                        const vesVal = activeRate && numVal > 0 ? numVal * activeRate.rate : null;
+                        const rateMarkup = Number(list.payment_exchange_rate_markup_percentage ?? 0);
+                        const effRate = activeRate ? Number(activeRate.rate) * (1 + rateMarkup / 100) : null;
+                        const vesVal = effRate && numVal > 0 ? numVal * effRate : null;
                         const costNum = parseFloat(cost) || 0;
                         const margin =
                           costNum > 0 && numVal > 0

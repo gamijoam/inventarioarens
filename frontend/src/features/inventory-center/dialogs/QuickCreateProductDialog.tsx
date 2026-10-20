@@ -56,6 +56,7 @@ import {
   type Product,
 } from '@/features/inventory-center/schemas';
 import { cn } from '@/lib/cn';
+import { calcAmountFromPercent, calcPercentFromAmount } from '../components/PricesEditor';
 
 export interface QuickCreateProductDialogProps {
   open: boolean;
@@ -115,6 +116,7 @@ export function QuickCreateProductDialog({
   const [cost, setCost] = useState('');
   const [basePrice, setBasePrice] = useState('');
   const [priceMap, setPriceMap] = useState<Record<number, string>>({});
+  const [percentMap, setPercentMap] = useState<Record<number, string>>({});
 
   // Parámetros avanzados
   const [minStock, setMinStock] = useState('');
@@ -133,11 +135,34 @@ export function QuickCreateProductDialog({
     return list.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0));
   }, [priceLists]);
 
+  const handlePercentChange = (listId: number, val: string, isDefault: boolean) => {
+    setPercentMap((prev) => ({ ...prev, [listId]: val }));
+    const pNum = parseFloat(val);
+    const baseNum = parseFloat(basePrice) || 0;
+    if (!isNaN(pNum) && baseNum > 0 && pNum < 100) {
+      const computed = calcAmountFromPercent(baseNum, pNum, 'margin');
+      if (computed !== null) {
+        setPriceMap((prev) => ({ ...prev, [listId]: computed.toFixed(2) }));
+        if (isDefault) {
+          setBasePrice(computed.toFixed(2));
+        }
+      }
+    }
+  };
+
   const handlePriceChange = (listId: number, val: string, isDefault: boolean) => {
     setPriceMap((prev) => ({
       ...prev,
       [listId]: val,
     }));
+    const aNum = parseFloat(val);
+    const baseNum = parseFloat(basePrice) || 0;
+    if (!isNaN(aNum) && baseNum > 0 && aNum > 0) {
+      const p = calcPercentFromAmount(baseNum, aNum, 'margin');
+      if (p !== null) {
+        setPercentMap((prev) => ({ ...prev, [listId]: String(p) }));
+      }
+    }
     if (isDefault) {
       setBasePrice(val);
     }
@@ -659,19 +684,39 @@ export function QuickCreateProductDialog({
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span className="text-xs font-semibold text-text-muted">$</span>
-                                <Input
-                                  type="number"
-                                  step="any"
-                                  min="0"
-                                  placeholder="0.00"
-                                  value={currentVal}
-                                  onChange={(e) =>
-                                    handlePriceChange(list.id, e.target.value, isDefault)
-                                  }
-                                  className="w-24 text-right font-bold text-xs h-7"
-                                />
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <div className="relative flex items-center">
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    placeholder="%"
+                                    value={percentMap[list.id] ?? ''}
+                                    onChange={(e) =>
+                                      handlePercentChange(list.id, e.target.value, isDefault)
+                                    }
+                                    className="w-16 text-right font-medium text-xs h-7 pr-4"
+                                    title="Porcentaje de margen sobre venta (ej: 50% de $50 = $100)"
+                                  />
+                                  <span className="absolute right-1 text-[10px] text-text-muted pointer-events-none select-none font-bold">
+                                    %
+                                  </span>
+                                </div>
+                                <div className="relative flex items-center">
+                                  <span className="absolute left-1.5 text-xs text-text-muted pointer-events-none select-none font-medium">
+                                    $
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    placeholder="0.00"
+                                    value={currentVal}
+                                    onChange={(e) =>
+                                      handlePriceChange(list.id, e.target.value, isDefault)
+                                    }
+                                    className="w-20 text-right font-bold text-xs h-7 pl-4"
+                                  />
+                                </div>
                               </div>
                             </div>
 

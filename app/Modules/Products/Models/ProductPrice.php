@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'product_id',
     'price_list_id',
     'price',
+    'margin_percentage',
     'currency',
     'exchange_rate_type_id',
     'is_active',
@@ -27,6 +28,7 @@ class ProductPrice extends Model
     {
         return [
             'price' => 'decimal:4',
+            'margin_percentage' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }

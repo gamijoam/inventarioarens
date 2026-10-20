@@ -10,13 +10,14 @@
 import { useEffect, useState } from 'react';
 import { toast } from '@/lib/toast';
 
-import { Building2, Trash2, Upload } from 'lucide-react';
+import { Building2, ShieldCheck, Trash2, Upload } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Spinner } from '@/components/ui/Spinner';
+import { Textarea } from '@/components/ui/Textarea';
 
 import { OfflineSetupDownloads } from './OfflineSetupDownloads';
 
@@ -73,6 +74,19 @@ export function CompanySettingsPanel() {
   const [allowCatalogStockEdit, setAllowCatalogStockEdit] = useState(false);
   const [defaultPosViewMode, setDefaultPosViewMode] = useState<'classic' | 'catalog' | 'ticket'>('classic');
 
+  const [warrantyCertEnabled, setWarrantyCertEnabled] = useState(true);
+  const [warrantyCertTitle, setWarrantyCertTitle] = useState('CERTIFICADO DE GARANTÍA OFICIAL');
+  const [warrantyCertCovers, setWarrantyCertCovers] = useState('');
+  const [warrantyCertNotCovers, setWarrantyCertNotCovers] = useState('');
+  const [warrantyCertClaimSteps, setWarrantyCertClaimSteps] = useState('');
+  const [warrantyCertImportantNotes, setWarrantyCertImportantNotes] = useState('');
+
+  const isMiInventarioFacil =
+    typeof window !== 'undefined' &&
+    (window.location.hostname.includes('miinventariofacil.com') ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1');
+
   useEffect(() => {
     if (!data) return;
     setRazonSocial(data.razon_social ?? '');
@@ -96,6 +110,24 @@ export function CompanySettingsPanel() {
       report_z: data.show_on?.report_z ?? true,
       quotation: data.show_on?.quotation ?? true,
     });
+    setWarrantyCertEnabled(data.warranty_certificate?.enabled ?? true);
+    setWarrantyCertTitle(data.warranty_certificate?.title ?? 'CERTIFICADO DE GARANTÍA OFICIAL');
+    setWarrantyCertCovers(
+      data.warranty_certificate?.covers ??
+        '• Defectos de fabricación\n• Fallas técnicas internas\n• Componentes defectuosos\n• Mal funcionamiento del equipo en condiciones normales',
+    );
+    setWarrantyCertNotCovers(
+      data.warranty_certificate?.not_covers ??
+        '• Mal uso o negligencia\n• Caídas, golpes o impactos\n• Contacto con líquidos o humedad\n• Modificaciones no autorizadas o sellos violados',
+    );
+    setWarrantyCertClaimSteps(
+      data.warranty_certificate?.claim_steps ??
+        '1. Presente este certificado original\n2. Junto al comprobante de pago\n3. El equipo debe estar completo con empaque y accesorios\n4. Acuda a nuestra sede en horario de atención',
+    );
+    setWarrantyCertImportantNotes(
+      data.warranty_certificate?.important_notes ??
+        '• Conserve este documento en buen estado\n• Sin certificado la garantía no aplica\n• Garantía personal e intransferible\n• Válida solo en el local de compra',
+    );
   }, [data]);
 
   if (isLoading) return <Spinner label="Cargando información de la empresa..." />;
@@ -161,6 +193,14 @@ export function CompanySettingsPanel() {
         catalog_allow_stock_edit: allowCatalogStockEdit,
         pos_default_view_mode: defaultPosViewMode,
         show_on: showOn,
+        warranty_certificate: {
+          enabled: warrantyCertEnabled,
+          title: warrantyCertTitle.trim() || 'CERTIFICADO DE GARANTÍA OFICIAL',
+          covers: warrantyCertCovers.trim() || null,
+          not_covers: warrantyCertNotCovers.trim() || null,
+          claim_steps: warrantyCertClaimSteps.trim() || null,
+          important_notes: warrantyCertImportantNotes.trim() || null,
+        },
       };
       await update.mutateAsync(payload);
       toast.success('Información de la empresa guardada.');
@@ -475,6 +515,117 @@ export function CompanySettingsPanel() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Certificado de Garantía (Impresora Estándar / Carta) - Exclusivo app.miinventariofacil */}
+      {isMiInventarioFacil && (
+        <Card data-testid="company-warranty-certificate-card">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-5 text-primary" />
+              <CardTitle>Certificado de Garantía Oficial (Impresora Estándar)</CardTitle>
+            </div>
+            <CardDescription>
+              Configuración del documento en formato Carta / A4 para impresoras de oficina (HP, Epson, Canon).
+              Al cobrar una venta con teléfonos o equipos amparados por garantía, se llenará automáticamente
+              con los datos de la factura, el cliente y los números de IMEI / serial.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg/40 p-3">
+              <div>
+                <div className="text-sm font-medium">Habilitar emisión de Certificado de Garantía</div>
+                <div className="text-text-muted text-xs">
+                  Si se activa, el POS mostrará el botón para imprimir el certificado oficial en impresoras estándar tras confirmar la venta.
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={warrantyCertEnabled}
+                onChange={(e) => setWarrantyCertEnabled(e.target.checked)}
+                className="size-4"
+                data-testid="company-warranty-cert-enabled"
+              />
+            </div>
+
+            {warrantyCertEnabled && (
+              <div className="space-y-4 pt-2">
+                <div>
+                  <Label htmlFor="warranty-title">Título del Certificado</Label>
+                  <Input
+                    id="warranty-title"
+                    value={warrantyCertTitle}
+                    onChange={(e) => setWarrantyCertTitle(e.target.value)}
+                    placeholder="CERTIFICADO DE GARANTÍA OFICIAL"
+                    className="mt-1"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="warranty-covers" className="text-success font-semibold flex items-center gap-1.5">
+                      <span>✓</span> Qué sí cubre
+                    </Label>
+                    <Textarea
+                      id="warranty-covers"
+                      value={warrantyCertCovers}
+                      onChange={(e) => setWarrantyCertCovers(e.target.value)}
+                      rows={4}
+                      placeholder="• Defectos de fabricación&#10;• Fallas técnicas internas..."
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-[11px] text-text-muted mt-1">Una condición o viñeta por línea.</p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="warranty-not-covers" className="text-destructive font-semibold flex items-center gap-1.5">
+                      <span>✕</span> Qué no cubre
+                    </Label>
+                    <Textarea
+                      id="warranty-not-covers"
+                      value={warrantyCertNotCovers}
+                      onChange={(e) => setWarrantyCertNotCovers(e.target.value)}
+                      rows={4}
+                      placeholder="• Caídas o golpes&#10;• Contacto con líquidos..."
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-[11px] text-text-muted mt-1">Una exclusión o viñeta por línea.</p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="warranty-claim" className="text-primary font-semibold flex items-center gap-1.5">
+                      <span>ℹ</span> Pasos para reclamar
+                    </Label>
+                    <Textarea
+                      id="warranty-claim"
+                      value={warrantyCertClaimSteps}
+                      onChange={(e) => setWarrantyCertClaimSteps(e.target.value)}
+                      rows={4}
+                      placeholder="1. Presente este certificado original&#10;2. Junto al comprobante de pago..."
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-[11px] text-text-muted mt-1">Un paso por línea.</p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="warranty-notes" className="text-amber-500 font-semibold flex items-center gap-1.5">
+                      <span>⚠</span> Importante / Advertencias
+                    </Label>
+                    <Textarea
+                      id="warranty-notes"
+                      value={warrantyCertImportantNotes}
+                      onChange={(e) => setWarrantyCertImportantNotes(e.target.value)}
+                      rows={4}
+                      placeholder="• Conserve este documento en buen estado&#10;• Sin certificado no aplica..."
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-[11px] text-text-muted mt-1">Una nota por línea.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <OfflineSetupDownloads />
 

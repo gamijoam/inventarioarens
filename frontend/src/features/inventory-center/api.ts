@@ -128,7 +128,8 @@ export function useProducts(filters: InventoryFilters, options: { enabled?: bool
   return useQuery({
     queryKey: productKeys.list(filters as Record<string, unknown>),
     queryFn: async ({ signal }) => {
-      const query = toQueryString(filters);
+      const filtersWithPrices: InventoryFilters = { ...filters, with_prices: 1 };
+      const query = toQueryString(filtersWithPrices);
       // El backend pagina con LengthAwarePaginator, asi que retorna
       // { data: [...], meta: {...}, links: {...} }. Usamos getPaginated
       // para preservar el shape completo antes de validar con Zod.
@@ -149,7 +150,7 @@ export function useProduct(productId: number) {
   return useQuery({
     queryKey: productKeys.detail(productId),
     queryFn: async () => {
-      const data = await getOne<unknown>(`/products/${productId}?with_images=1`);
+      const data = await getOne<unknown>(`/products/${productId}?with_images=1&with_prices=1`);
       return ProductSchema.parse(data);
     },
     enabled: Number.isFinite(productId) && productId > 0,

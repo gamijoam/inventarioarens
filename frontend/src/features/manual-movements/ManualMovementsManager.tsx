@@ -275,6 +275,21 @@ function MovementDetailDialog({
               <Detail label="Notas" value={movement.notes} />
             </div>
           )}
+          {movement.serial_units && movement.serial_units.length > 0 && (
+            <div className="sm:col-span-2">
+              <dt className="text-text-muted">IMEIs / Seriales ({movement.serial_units.length})</dt>
+              <dd className="mt-1.5 flex flex-wrap gap-1.5 font-mono text-xs max-h-36 overflow-y-auto p-2 bg-surface-subtle rounded-lg border border-border">
+                {movement.serial_units.map((u, i) => (
+                  <span
+                    key={i}
+                    className="rounded bg-surface border border-border px-2 py-0.5 font-semibold text-text-primary shadow-2xs"
+                  >
+                    {u.serial_number}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          )}
           {movement.rejection_reason && (
             <div className="sm:col-span-2">
               <Detail label="Motivo del rechazo" value={movement.rejection_reason} />

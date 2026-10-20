@@ -392,7 +392,7 @@ export function PosCatalogGrid({
                   {...touchTapHandlers(cardAction, !isOutOfStock)}
                   onClick={cardAction}
                   className={cn(
-                    'group bg-surface rounded-2xl border border-border/80 hover:border-primary hover:shadow-md transition-all duration-150 flex flex-col overflow-hidden cursor-pointer select-none active:scale-[0.99] relative',
+                    'group bg-surface rounded-2xl border border-border/80 hover:border-primary flex flex-col overflow-hidden cursor-pointer select-none relative',
                     isOutOfStock && 'opacity-85',
                   )}
                   title={`Clic para agregar ${product.name} al ticket`}
@@ -403,7 +403,7 @@ export function PosCatalogGrid({
                       <img
                         src={imageUrl}
                         alt={product.name}
-                        className="size-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        className="size-full object-contain"
                         loading="lazy"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
@@ -432,12 +432,12 @@ export function PosCatalogGrid({
                     {/* Badge de Stock en esquina superior izquierda */}
                     <div className="absolute top-2 left-2 flex flex-col gap-1">
                       {isOutOfStock ? (
-                        <span className="bg-rose-600/95 backdrop-blur-xs text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                        <span className="bg-rose-600 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                           <AlertTriangle className="size-2.5" />
                           Agotado
                         </span>
                       ) : (
-                        <span className="bg-emerald-600/95 backdrop-blur-xs text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                        <span className="bg-emerald-600 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                           <CheckCircle2 className="size-2.5" />
                           {Number.isFinite(stockNum) ? stockNum.toFixed(0) : '0'}{' '}
                           {product.unit_of_measure && product.unit_of_measure.toLowerCase() !== 'unit'
@@ -450,7 +450,7 @@ export function PosCatalogGrid({
                     {/* Badge de Categoría en esquina superior derecha (igual al catálogo de inventario) */}
                     {categoryName && (
                       <span
-                        className="absolute top-2 right-2 bg-surface/90 backdrop-blur-xs text-text-secondary text-xs font-semibold px-2 py-0.5 rounded-full border border-border/70 shadow-2xs truncate max-w-[120px]"
+                        className="absolute top-2 right-2 bg-surface text-text-secondary text-xs font-semibold px-2 py-0.5 rounded-full border border-border/70 truncate max-w-[120px]"
                         title={categoryName}
                       >
                         {categoryName}

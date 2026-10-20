@@ -108,6 +108,9 @@ class PosCheckoutService
                 }
                 $priceLists = $this->priceListsForItems($items);
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
+                $paymentRateMarkup = $priceLists->first()?->payment_exchange_rate_markup_percentage !== null
+                    ? (float) $priceLists->first()->payment_exchange_rate_markup_percentage
+                    : null;
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS validar metodos de pago',
                     fn (): array => $this->validatePaymentMethods($priceLists, $payments, $customerId),
@@ -140,7 +143,7 @@ class PosCheckoutService
                 foreach ($payments as $index => $payment) {
                     $resolved = PerformanceProbe::measure(
                         'POS resolver pago',
-                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId),
+                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId, $paymentRateMarkup),
                         150,
                         ['payment_index' => $index, 'currency' => strtoupper($payment['currency'])]
                     );
@@ -422,6 +425,9 @@ class PosCheckoutService
 
                 $priceLists = $this->priceListsForItems($this->itemsForExistingOrder($order));
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
+                $paymentRateMarkup = $priceLists->first()?->payment_exchange_rate_markup_percentage !== null
+                    ? (float) $priceLists->first()->payment_exchange_rate_markup_percentage
+                    : null;
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS pendiente validar metodos de pago',
                     fn (): array => $this->validatePaymentMethods($priceLists, $payments, $order->customer_id),
@@ -432,7 +438,7 @@ class PosCheckoutService
                 foreach ($payments as $index => $payment) {
                     $resolved = PerformanceProbe::measure(
                         'POS pendiente resolver pago',
-                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId),
+                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId, $paymentRateMarkup),
                         150,
                         ['order_id' => $order->id, 'payment_index' => $index]
                     );
@@ -970,7 +976,7 @@ class PosCheckoutService
             ->first();
     }
 
-    private function resolvePayment(array $payment, ?int $configuredRateTypeId = null): array
+    private function resolvePayment(array $payment, ?int $configuredRateTypeId = null, ?float $rateMarkup = null): array
     {
         $currency = strtoupper($payment['currency']);
         $amount = (float) $payment['amount'];
@@ -1000,6 +1006,9 @@ class PosCheckoutService
             }
 
             $exchangeRate = (float) $rate->rate;
+            if ($rateMarkup !== null && (float) $rateMarkup != 0.0) {
+                $exchangeRate = round($exchangeRate * (1 + (float) $rateMarkup / 100), 4);
+            }
 
             return [
                 'amount_base' => round($amount, 4),
@@ -1031,6 +1040,9 @@ class PosCheckoutService
         }
 
         $exchangeRate = (float) $rate->rate;
+        if ($rateMarkup !== null && (float) $rateMarkup != 0.0) {
+            $exchangeRate = round($exchangeRate * (1 + (float) $rateMarkup / 100), 4);
+        }
 
         return [
             'amount_base' => $currency === Product::CURRENCY_USD ? round($amount, 4) : round($amount / $exchangeRate, 4),
@@ -1389,6 +1401,9 @@ class PosCheckoutService
                     'name' => $customer?->name,
                     'document_type' => $customer?->document_type,
                     'document_number' => $customer?->document_number,
+                    'phone' => $customer?->phone,
+                    'email' => $customer?->email,
+                    'fiscal_address' => $customer?->fiscal_address,
                 ],
                 'items' => $order->sale?->items->map(fn ($item): array => [
                     'id' => $item->id,

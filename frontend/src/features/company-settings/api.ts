@@ -4,6 +4,17 @@ import { getOne, patchOne, postOne, deleteOne } from '@/api/client';
 import { useSessionStore } from '@/stores/session';
 import { z } from 'zod';
 
+export const WarrantyCertificateConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  title: z.string().nullable().optional(),
+  covers: z.string().nullable().optional(),
+  not_covers: z.string().nullable().optional(),
+  claim_steps: z.string().nullable().optional(),
+  important_notes: z.string().nullable().optional(),
+});
+
+export type WarrantyCertificateConfig = z.infer<typeof WarrantyCertificateConfigSchema>;
+
 export const CompanySettingsSchema = z.object({
   razon_social: z.string().nullable().optional(),
   rif: z.string().nullable().optional(),
@@ -29,6 +40,7 @@ export const CompanySettingsSchema = z.object({
       quotation: z.boolean().optional(),
     })
     .optional(),
+  warranty_certificate: WarrantyCertificateConfigSchema.optional(),
 });
 
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;

@@ -232,6 +232,23 @@ describe('pos api', () => {
     expect(rate).toBeNull();
   });
 
+  it('recalcula la tasa con el porcentaje de ajuste configurado en la lista de precio', () => {
+    // Si la tasa BCV es 45.00 y la lista tiene +10% de ajuste, debe recalcular a 49.50
+    const rateWithMarkup = resolvePosPaymentRate(
+      [{ exchange_rate_type_id: 1, rate: 45, base_currency: 'USD', quote_currency: 'VES' }],
+      [{ id: 1, code: 'BCV', name: 'BCV Oficial', is_default: true, is_active: true }],
+      1,
+      10,
+    );
+
+    expect(rateWithMarkup).toEqual({
+      exchange_rate_type_id: 1,
+      code: 'BCV',
+      name: 'BCV Oficial (+10%)',
+      rate: 49.5,
+    });
+  });
+
   it('resuelve la sesion abierta desde bootstrap o fallback del cajero', () => {
     const fallbackSession = {
       id: 9,

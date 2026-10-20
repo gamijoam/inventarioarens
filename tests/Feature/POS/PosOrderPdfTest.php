@@ -177,6 +177,151 @@ class PosOrderPdfTest extends TestCase
         $this->assertStringStartsWith('%PDF-', $response->getContent());
     }
 
+    public function test_user_can_view_warranty_certificate_json_and_html(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Test', 'slug' => 'empresa-test']);
+        app(TenantManager::class)->set($tenant);
+
+        $branch = Branch::create([
+            'name' => 'Sede Principal',
+            'code' => 'SP-01',
+            'status' => 'active',
+        ]);
+
+        $warehouse = Warehouse::create([
+            'branch_id' => $branch->id,
+            'name' => 'Almacén Central',
+            'code' => 'ALM-01',
+            'status' => 'active',
+        ]);
+
+        $product = Product::create([
+            'name' => 'Teléfono Inteligente Pro',
+            'sku' => 'TEL-001',
+            'currency' => 'USD',
+            'base_price' => 150.00,
+            'status' => 'active',
+        ]);
+
+        $user = $this->userWithPosView($tenant);
+
+        $sale = Sale::create([
+            'branch_id' => $branch->id,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'total_amount' => 150.00,
+            'currency' => 'USD',
+            'status' => 'completed',
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'quantity' => 1,
+            'sale_currency' => 'USD',
+            'unit_price' => 150.00,
+            'total_amount' => 150.00,
+            'base_unit_price' => 150.00,
+            'base_total_amount' => 150.00,
+            'warranty_policy_name' => 'Garantía 90 días',
+            'warranty_duration_days' => 90,
+            'warranty_expires_at' => now()->addDays(90),
+        ]);
+
+        $order = PosOrder::create([
+            'branch_id' => $branch->id,
+            'sale_id' => $sale->id,
+            'user_id' => $user->id,
+            'order_number' => 'ORD-0003',
+            'status' => PosOrder::STATUS_PAID,
+            'total_usd' => 150.00,
+            'total_ves' => 6000.00,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->getJson("/api/pos/orders/{$order->id}/warranty-certificate");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.has_warranty', true);
+        $this->assertStringContainsString('Teléfono Inteligente Pro', $response->json('data.html'));
+        $this->assertStringContainsString('CERTIFICADO DE GARANTÍA OFICIAL', $response->json('data.html'));
+    }
+
+    public function test_user_can_download_warranty_certificate_pdf(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Test', 'slug' => 'empresa-test']);
+        app(TenantManager::class)->set($tenant);
+
+        $branch = Branch::create([
+            'name' => 'Sede Principal',
+            'code' => 'SP-01',
+            'status' => 'active',
+        ]);
+
+        $warehouse = Warehouse::create([
+            'branch_id' => $branch->id,
+            'name' => 'Almacén Central',
+            'code' => 'ALM-01',
+            'status' => 'active',
+        ]);
+
+        $product = Product::create([
+            'name' => 'Teléfono Inteligente Pro',
+            'sku' => 'TEL-001',
+            'currency' => 'USD',
+            'base_price' => 150.00,
+            'status' => 'active',
+        ]);
+
+        $user = $this->userWithPosView($tenant);
+
+        $sale = Sale::create([
+            'branch_id' => $branch->id,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'total_amount' => 150.00,
+            'currency' => 'USD',
+            'status' => 'completed',
+        ]);
+
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'product_id' => $product->id,
+            'warehouse_id' => $warehouse->id,
+            'quantity' => 1,
+            'sale_currency' => 'USD',
+            'unit_price' => 150.00,
+            'total_amount' => 150.00,
+            'base_unit_price' => 150.00,
+            'base_total_amount' => 150.00,
+            'warranty_policy_name' => 'Garantía 90 días',
+            'warranty_duration_days' => 90,
+            'warranty_expires_at' => now()->addDays(90),
+        ]);
+
+        $order = PosOrder::create([
+            'branch_id' => $branch->id,
+            'sale_id' => $sale->id,
+            'user_id' => $user->id,
+            'order_number' => 'ORD-0004',
+            'status' => PosOrder::STATUS_PAID,
+            'total_usd' => 150.00,
+            'total_ves' => 6000.00,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->get("/api/pos/orders/{$order->id}/warranty-certificate.pdf");
+
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+    }
+
     private function userWithPosView(Tenant $tenant): User
     {
         $user = User::factory()->create();

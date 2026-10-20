@@ -1014,8 +1014,14 @@ export function PosTerminal() {
         currentRates,
         exchangeRateTypes,
         selectedPriceList?.payment_exchange_rate_type_id,
+        selectedPriceList?.payment_exchange_rate_markup_percentage,
       ),
-    [currentRates, exchangeRateTypes, selectedPriceList?.payment_exchange_rate_type_id],
+    [
+      currentRates,
+      exchangeRateTypes,
+      selectedPriceList?.payment_exchange_rate_type_id,
+      selectedPriceList?.payment_exchange_rate_markup_percentage,
+    ],
   );
   const allowedPaymentMethods = useMemo(
     () => filterPaymentMethodsForPriceList(activePaymentMethods, selectedPriceList),
@@ -1154,7 +1160,15 @@ export function PosTerminal() {
     pendingCount,
     hasPendingAlert,
   );
-  const serialLine = cart.find((line) => line.id === serialLineId) ?? null;
+  const serialLine =
+    cart.find((line) => line.id === serialLineId) ??
+    cart.find(
+      (line) =>
+        line.tracking_type === 'serialized' &&
+        (line.selected_serials?.length ?? 0) < Number(line.quantity),
+    ) ??
+    cart.find((line) => line.tracking_type === 'serialized') ??
+    null;
   const { data: availableSerials = [], isLoading: loadingSerials } =
     useAvailableProductSerialsForPos(
       serialLine?.product_id ?? null,
@@ -1874,7 +1888,7 @@ export function PosTerminal() {
     >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
         {posViewMode !== 'classic' && (
-          <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
+          <header className="border-border/80 bg-surface relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm">
           {/* Navegación y Búsqueda */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Button
@@ -1950,7 +1964,7 @@ export function PosTerminal() {
               {!panel &&
                 query.trim().length >= 2 &&
                 (loadingProducts || quickSearchResults.length > 0) && (
-                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] left-0 w-[min(680px,calc(100vw-32px))] z-50 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md flex flex-col max-h-[min(480px,calc(100vh-140px))]">
+                  <div className="border-border bg-surface absolute top-[calc(100%+8px)] left-0 w-[min(680px,calc(100vw-32px))] z-50 overflow-hidden rounded-2xl border shadow-xl flex flex-col max-h-[min(480px,calc(100vh-140px))]">
                     <div className="border-border text-text-muted flex items-center justify-between border-b px-3.5 py-2 text-xs tracking-wide uppercase bg-surface-subtle/50 shrink-0">
                       <span>
                         Resultados rápidos ({quickSearchResults.length})
@@ -2513,6 +2527,10 @@ export function PosTerminal() {
                 setProductSearch(query || '');
                 setPanel('product-search');
               }}
+              onOpenSerials={(lineId) => {
+                setSerialLineId(lineId);
+                setPanel('serials');
+              }}
               onHoldSale={() => void holdSaleRef.current?.()}
               onOpenHoldOrders={() => setPanel('hold')}
               pendingCount={pendingCount}
@@ -2541,7 +2559,7 @@ export function PosTerminal() {
 
               {/* Ventana / Barra Flotante de Ticket y Cobro (F10) */}
               <div
-                className="fixed bottom-3 inset-x-3 sm:inset-x-8 max-w-4xl mx-auto z-40 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-border/80 shadow-2xl rounded-2xl p-2.5 sm:p-3.5 flex items-center justify-between gap-3 sm:gap-6 animate-in slide-in-from-bottom-4 duration-200"
+                className="fixed bottom-3 inset-x-3 sm:inset-x-8 max-w-4xl mx-auto z-40 bg-surface dark:bg-zinc-900 border border-border/80 shadow-xl rounded-2xl p-2.5 sm:p-3.5 flex items-center justify-between gap-3 sm:gap-6"
                 data-testid="pos-floating-ticket-bar"
               >
                 {/* 1. Resumen Ticket (Click abre Drawer) + Cliente */}
@@ -3353,58 +3371,71 @@ export function PosTerminal() {
                 onConfirm={() => void confirmCreditSale()}
               />
             )}
-            {panel === 'serials' && serialLine && (
-              <SerialSelectionPanel
-                line={serialLine}
-                serials={availableSerials}
-                loading={loadingSerials}
-                search={serialSearch}
-                onSearch={setSerialSearch}
-                onToggle={(serial) => toggleSerial(serialLine.id, serial)}
-              />
+            {panel === 'serials' && (
+              serialLine ? (
+                <SerialSelectionPanel
+                  line={serialLine}
+                  serials={availableSerials}
+                  loading={loadingSerials}
+                  search={serialSearch}
+                  onSearch={setSerialSearch}
+                  onToggle={(serial) => toggleSerial(serialLine.id, serial)}
+                  onClose={() => setPanel(null)}
+                />
+              ) : (
+                <div className="border-border bg-surface rounded-2xl border p-6 text-center space-y-3">
+                  <p className="text-text-muted text-sm">
+                    No se encontró la línea serializada seleccionada.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setPanel(null)}>
+                    Cerrar
+                  </Button>
+                </div>
+              )
             )}
-            <VariantPicker
-              productId={variantPickerProduct?.id ?? 0}
-              productName={variantPickerProduct?.name ?? ''}
-              warehouseId={selectedWarehouse?.id ?? warehouseId}
-              open={variantPickerProduct !== null}
-              initialQuantity={variantPickerQuantity}
-              onClose={() => {
-                setVariantPickerProduct(null);
-                setVariantPickerPromotion(null);
-                setPendingPromotionLoad(null);
-              }}
-              onSelect={async ({ variant, quantity }) => {
-                const product = variantPickerProduct;
-                const promotion = variantPickerPromotion;
-                const pending = pendingPromotionLoad;
-                setVariantPickerProduct(null);
-                setVariantPickerPromotion(null);
-                if (product) {
-                  const added = await addProduct(
-                    product,
-                    undefined,
-                    quantity,
-                    variant,
-                    promotion?.price,
-                    promotion?.ref ?? null,
-                    promotion?.comboInstanceUuid ?? null,
-                  );
-                  if (!added) {
-                    setPendingPromotionLoad(null);
-                    return;
-                  }
-                  if (pending) {
-                    await continuePromotionLoad({
-                      ...pending,
-                      nextIndex: pending.nextIndex + 1,
-                    });
-                  }
-                }
-              }}
-            />
           </PanelShell>
         )}
+
+        <VariantPicker
+          productId={variantPickerProduct?.id ?? 0}
+          productName={variantPickerProduct?.name ?? ''}
+          warehouseId={selectedWarehouse?.id ?? warehouseId}
+          open={variantPickerProduct !== null}
+          initialQuantity={variantPickerQuantity}
+          onClose={() => {
+            setVariantPickerProduct(null);
+            setVariantPickerPromotion(null);
+            setPendingPromotionLoad(null);
+          }}
+          onSelect={async ({ variant, quantity }) => {
+            const product = variantPickerProduct;
+            const promotion = variantPickerPromotion;
+            const pending = pendingPromotionLoad;
+            setVariantPickerProduct(null);
+            setVariantPickerPromotion(null);
+            if (product) {
+              const added = await addProduct(
+                product,
+                undefined,
+                quantity,
+                variant,
+                promotion?.price,
+                promotion?.ref ?? null,
+                promotion?.comboInstanceUuid ?? null,
+              );
+              if (!added) {
+                setPendingPromotionLoad(null);
+                return;
+              }
+              if (pending) {
+                await continuePromotionLoad({
+                  ...pending,
+                  nextIndex: pending.nextIndex + 1,
+                });
+              }
+            }
+          }}
+        />
 
         {/* Modal Desktop de Búsqueda y Detalle de Productos (F3) */}
         <ProductSearchDetailModal
@@ -3419,7 +3450,13 @@ export function PosTerminal() {
           initialSearch={productSearch}
           onSelect={async (product) => {
             const added = await requestAddProduct(product);
-            if (added) setPanel(null);
+            if (added) {
+              if (product.tracking_type !== 'serialized') {
+                setPanel(null);
+              }
+            } else {
+              setPanel(null);
+            }
           }}
         />
 
@@ -3735,12 +3772,11 @@ export function PosTerminal() {
         return false;
       }
     }
-    let newLineId: string | null = null;
+    const targetLineId = matchingLine ? matchingLine.id : createClientId();
     setCart((current) => {
       const existingRaw = findMatchingVariantLine(current, variantMatch);
       const existing = existingRaw && samePriceList(existingRaw) ? existingRaw : null;
       if (existing) {
-        newLineId = existing.id;
         return current.map((line) =>
           line.id === existing.id
               ? {
@@ -3768,11 +3804,10 @@ export function PosTerminal() {
             : line,
         );
       }
-      newLineId = createClientId();
       return [
         ...current,
         {
-          id: newLineId,
+          id: targetLineId,
           product_id: product.id,
           product_variant_id: selectedVariant?.id ?? null,
           product_variant_name: selectedVariant?.color ?? null,
@@ -3828,10 +3863,8 @@ export function PosTerminal() {
       document.activeElement.blur();
     }
     if (shouldSelectSerials && !scannedSerial) {
-      window.setTimeout(() => {
-        if (newLineId) setSerialLineId(newLineId);
-        setPanel('serials');
-      }, 0);
+      setSerialLineId(targetLineId);
+      setPanel('serials');
     }
     return true;
   }
@@ -5169,7 +5202,7 @@ function OpenCashScreen(props: {
       <div className="bg-surface relative grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/70 shadow-2xl shadow-slate-900/10 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="flex min-h-[520px] flex-col justify-between bg-gradient-to-br from-[#17112f] via-[#241761] to-[#4338ca] p-8 text-white">
           <div>
-            <div className="flex size-14 items-center justify-center rounded-2xl bg-white/15 shadow-lg shadow-black/10 backdrop-blur">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-white/15 shadow-lg shadow-black/10">
               <Receipt className="size-7" />
             </div>
             <p className="mt-8 text-sm font-semibold tracking-[0.25em] text-white/55 uppercase">
@@ -5182,11 +5215,11 @@ function OpenCashScreen(props: {
             </p>
           </div>
           <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-1">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
               <p className="text-white/55">Tasa activa</p>
               <p className="mt-1 font-semibold">{props.rateLabel ?? 'Sin tasa USD/VES'}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
               <p className="text-white/55">Cajas disponibles</p>
               <p className="mt-1 font-semibold">{props.cashRegisters.length}</p>
             </div>
@@ -5314,6 +5347,7 @@ function PanelShell({
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent
+        hideOverlay
         className={cn(
           'flex h-full w-full flex-col overflow-hidden border-l border-white/40 bg-[#f5f7fb] p-0 shadow-2xl',
           wide ? 'sm:max-w-5xl' : 'sm:max-w-xl',
@@ -5345,6 +5379,7 @@ function SerialSelectionPanel({
   search,
   onSearch,
   onToggle,
+  onClose,
 }: {
   line: PosCartLine;
   serials: ProductSerial[];
@@ -5352,6 +5387,7 @@ function SerialSelectionPanel({
   search: string;
   onSearch: (value: string) => void;
   onToggle: (serial: ProductSerial) => void;
+  onClose?: () => void;
 }) {
   const selectedIds = new Set((line.selected_serials ?? []).map((serial) => serial.id));
   const complete = selectedIds.size === Number(line.quantity);
@@ -5363,9 +5399,22 @@ function SerialSelectionPanel({
         <p className="text-text-muted text-sm">
           Selecciona {line.quantity} IMEI/serial disponible para confirmar esta venta.
         </p>
-        <Badge className="mt-3" variant={complete ? 'success' : 'warning'}>
-          {selectedIds.size}/{line.quantity} seleccionados
-        </Badge>
+        <div className="flex items-center justify-between gap-2 mt-3">
+          <Badge variant={complete ? 'success' : 'warning'}>
+            {selectedIds.size}/{line.quantity} seleccionados
+          </Badge>
+          {complete && onClose && (
+            <Button
+              type="button"
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              onClick={onClose}
+            >
+              <Check className="size-4 mr-1.5" />
+              Listo
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="relative">
@@ -5399,13 +5448,14 @@ function SerialSelectionPanel({
             const checked = selectedIds.has(serial.id);
             const disabled = !checked && selectedIds.size >= Number(line.quantity);
             return (
-              <TapButton
+              <button
                 key={serial.id}
+                type="button"
                 disabled={disabled}
-                onPress={() => onToggle(serial)}
+                onClick={() => onToggle(serial)}
                 className={cn(
-                  'hover:bg-bg flex w-full items-center justify-between gap-3 p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                  checked && 'bg-primary/10 ring-primary/20 ring-1 ring-inset',
+                  'flex w-full items-center justify-between gap-3 p-3 text-left disabled:cursor-not-allowed disabled:opacity-50',
+                  checked ? 'bg-primary/10' : 'active:bg-surface-subtle',
                 )}
               >
                 <div>
@@ -5418,7 +5468,7 @@ function SerialSelectionPanel({
                 <Badge variant={checked ? 'success' : 'default'}>
                   {checked ? 'Seleccionado' : serial.status}
                 </Badge>
-              </TapButton>
+              </button>
             );
           })}
         </div>
@@ -5890,7 +5940,7 @@ export function CashPanel(props: {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.22),transparent_45%)]" />
         <div className="relative flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-lg backdrop-blur">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 shadow-lg">
               <Wallet className="size-6" aria-hidden="true" />
             </div>
             <div>
@@ -5905,7 +5955,7 @@ export function CashPanel(props: {
           </div>
           <Badge
             variant={isOpen ? 'success' : 'info'}
-            className="bg-white/15 text-white shadow-sm backdrop-blur"
+            className="bg-white/15 text-white shadow-sm"
           >
             {isOpen ? 'Turno abierto' : session.status}
           </Badge>
@@ -6146,7 +6196,7 @@ export function CashPanel(props: {
 
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur">
+    <div className="rounded-xl border border-white/10 bg-white/10 p-3">
       <p className="text-xs font-semibold tracking-wide text-white/55 uppercase">{label}</p>
       <p className="mt-0.5 truncate text-sm font-semibold">{value}</p>
     </div>

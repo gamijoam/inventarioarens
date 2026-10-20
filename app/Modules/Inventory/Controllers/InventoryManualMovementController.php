@@ -4,6 +4,7 @@ namespace App\Modules\Inventory\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Inventory\Models\InventoryManualMovement;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Requests\InventoryManualMovementFilterRequest;
 use App\Modules\Inventory\Requests\StoreInventoryManualMovementRequest;
 use App\Modules\Inventory\Resources\InventoryManualMovementResource;
@@ -13,6 +14,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class InventoryManualMovementController extends Controller
 {
@@ -89,6 +91,7 @@ class InventoryManualMovementController extends Controller
             'warehouse_id' => $request->warehouse_id,
             'product_id' => $request->product_id,
             'product_variant_id' => $request->product_variant_id,
+            'serial_units' => $request->input('serial_units'),
             'quantity' => $request->quantity,
             'type' => $request->type,
             'reason' => $request->reason,
@@ -125,46 +128,97 @@ class InventoryManualMovementController extends Controller
         $product = Product::query()
             ->findOrFail($movement->product_id);
 
-        $stockMovement = match ($movement->type) {
+        $stockMovement = DB::transaction(function () use ($request, $movement, $inventory, $warehouse, $product) {
+            $sm = match ($movement->type) {
+                'adjustment_in',
+                'return_internal',
+                'found' => $inventory->manualIn(
+                    $request->user(),
+                    $warehouse,
+                    $product,
+                    $movement->quantity,
+                    $movement->reason,
+                    $movement->product_variant_id,
+                ),
 
-            'adjustment_in',
-            'return_internal',
-            'found' => $inventory->manualIn(
-                $request->user(),
-                $warehouse,
-                $product,
-                $movement->quantity,
-                $movement->reason,
-                $movement->product_variant_id,
-            ),
+                'damaged',
+                'loss',
+                'write_off' => $inventory->manualDamaged(
+                    $request->user(),
+                    $warehouse,
+                    $product,
+                    $movement->quantity,
+                    $movement->reason,
+                    $movement->product_variant_id,
+                ),
 
-            'damaged',
-            'loss',
-            'write_off' => $inventory->manualDamaged(
-                $request->user(),
-                $warehouse,
-                $product,
-                $movement->quantity,
-                $movement->reason,
-                $movement->product_variant_id,
-            ),
+                default => $inventory->manualOut(
+                    $request->user(),
+                    $warehouse,
+                    $product,
+                    $movement->quantity,
+                    $movement->reason,
+                    $movement->product_variant_id,
+                ),
+            };
 
-            default => $inventory->manualOut(
-                $request->user(),
-                $warehouse,
-                $product,
-                $movement->quantity,
-                $movement->reason,
-                $movement->product_variant_id,
-            ),
-        };
+            // Manejo de unidades serializadas (IMEIs)
+            if ($product->requiresSerializedTracking() && ! empty($movement->serial_units)) {
+                $isInput = in_array($movement->type, ['adjustment_in', 'return_internal', 'found'], true);
 
-        $movement->update([
-            'status' => 'approved',
-            'approved_by' => $request->user()?->id,
-            'approved_at' => now(),
-            'stock_movement_id' => $stockMovement->id,
-        ]);
+                if ($isInput) {
+                    // ENTRADA: Crear o reactivar registros de unidades físicas disponibles
+                    foreach ($movement->serial_units as $unitData) {
+                        $serialNumber = trim((string) $unitData['serial_number']);
+                        $serialType = $unitData['serial_type'] ?? ProductUnit::SERIAL_TYPE_IMEI;
+
+                        ProductUnit::updateOrCreate(
+                            [
+                                'serial_type' => $serialType,
+                                'serial_number' => $serialNumber,
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'product_variant_id' => $movement->product_variant_id,
+                                'warehouse_id' => $warehouse->id,
+                                'status' => ProductUnit::STATUS_AVAILABLE,
+                                'acquired_stock_movement_id' => $sm->id,
+                                'released_stock_movement_id' => null,
+                            ]
+                        );
+                    }
+                } else {
+                    // SALIDA: Dar de baja o marcar como dañados los IMEIs seleccionados
+                    $serialNumbers = array_map(
+                        fn ($u) => trim((string) ($u['serial_number'] ?? '')),
+                        $movement->serial_units
+                    );
+
+                    $targetStatus = in_array($movement->type, ['damaged', 'loss', 'write_off'], true)
+                        ? ProductUnit::STATUS_DAMAGED
+                        : ProductUnit::STATUS_REMOVED;
+
+                    ProductUnit::query()
+                        ->where('product_id', $product->id)
+                        ->where('warehouse_id', $warehouse->id)
+                        ->whereIn('serial_number', $serialNumbers)
+                        ->where('status', ProductUnit::STATUS_AVAILABLE)
+                        ->update([
+                            'status' => $targetStatus,
+                            'released_stock_movement_id' => $sm->id,
+                        ]);
+                }
+            }
+
+            $movement->update([
+                'status' => 'approved',
+                'approved_by' => $request->user()?->id,
+                'approved_at' => now(),
+                'stock_movement_id' => $sm->id,
+            ]);
+
+            return $sm;
+        });
 
         return new InventoryManualMovementResource(
             $movement->load([

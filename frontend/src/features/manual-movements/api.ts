@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getOne, getPaginated, postOne } from '@/api/client';
+import { api, getOne, getPaginated, postOne } from '@/api/client';
 import {
   ManualMovementSchema,
   type CreateManualMovement,
@@ -83,3 +83,43 @@ export const useApproveManualMovement = actionMutation(
 export const useRejectManualMovement = actionMutation(
   (id) => `/inventory/manual-movements/${id}/reject`,
 );
+
+export interface AvailableProductUnit {
+  id: number;
+  product_id: number;
+  product_variant_id?: number | null;
+  variant_label?: string | null;
+  warehouse_id: number;
+  serial_type: 'serial' | 'imei';
+  serial_number: string;
+  status: string;
+}
+
+export function useAvailableSerials(
+  productId: number | null,
+  warehouseId: number,
+  variantId?: number | null,
+) {
+  return useQuery({
+    queryKey: ['available-serials-for-manual-movement', productId, warehouseId, variantId],
+    queryFn: async () => {
+      if (!productId || !warehouseId) return [];
+      const params = new URLSearchParams({
+        warehouse_id: String(warehouseId),
+        status: 'available',
+        limit: '500',
+      });
+      if (variantId && variantId > 0) {
+        params.set('product_variant_id', String(variantId));
+      }
+      const response = await api.get<{ data: AvailableProductUnit[] }>(
+        `/inventory-centers/products/${productId}/units?${params.toString()}`,
+      );
+      const body = response.data;
+      if (Array.isArray(body)) return body as AvailableProductUnit[];
+      if (Array.isArray(body?.data)) return body.data as AvailableProductUnit[];
+      return [];
+    },
+    enabled: Boolean(productId && warehouseId > 0),
+  });
+}

@@ -775,7 +775,7 @@ export function ProductSearchDetailModal({
                           }}
                           onDoubleClick={handleConfirmSelect}
                           className={cn(
-                            'grid cursor-pointer grid-cols-12 items-center gap-2 rounded-xl px-3 py-3 text-sm transition-colors select-none',
+                            'grid cursor-pointer grid-cols-12 items-center gap-2 rounded-xl px-3 py-3 text-sm select-none',
                             isSelected
                               ? 'bg-primary/10 ring-1 ring-primary/40'
                               : 'hover:bg-bg/60',
@@ -940,7 +940,7 @@ export function ProductSearchDetailModal({
                     {/* Tabla de Precios de Venta */}
                     <div className="flex-1 overflow-auto rounded-2xl border border-border/70 bg-surface">
                       <table className="w-full text-left text-xs border-collapse">
-                        <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-xs font-semibold text-text-muted uppercase">
+                        <thead className="sticky top-0 z-10 border-b border-border/70 bg-surface text-xs font-semibold text-text-muted uppercase">
                           <tr>
                             <th className="px-5 py-3.5">Nivel / Lista de Precio</th>
                             <th className="px-5 py-3.5 text-right font-bold text-text-primary">
@@ -1015,7 +1015,7 @@ export function ProductSearchDetailModal({
                         </div>
                       ) : (
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur-xs text-xs font-semibold text-text-muted uppercase">
+                          <thead className="sticky top-0 z-10 border-b border-border bg-surface text-xs font-semibold text-text-muted uppercase">
                             <tr>
                               <th className="py-2.5 px-3">Almacén</th>
                               <th className="py-2.5 px-3">Sucursal</th>
@@ -1328,7 +1328,7 @@ export function ProductSearchDetailModal({
                         </div>
                       ) : (
                         <table className="w-full text-left text-xs border-collapse">
-                          <thead className="sticky top-0 z-10 border-b border-border/70 bg-bg/80 backdrop-blur-xs text-xs font-semibold text-text-muted uppercase">
+                          <thead className="sticky top-0 z-10 border-b border-border/70 bg-surface text-xs font-semibold text-text-muted uppercase">
                             <tr>
                               <th className="px-4 py-3">Número Serial / IMEI</th>
                               <th className="px-4 py-3">Tipo</th>
