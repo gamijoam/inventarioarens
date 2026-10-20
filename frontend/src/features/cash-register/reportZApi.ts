@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { api, getOne } from '@/api/client';
-import type { PrinterStation } from '@/features/printing/api';
+import { getPrinterAgentUrl, type PrinterStation } from '@/features/printing/api';
 
 export const PRINTER_AGENT_URL = 'http://127.0.0.1:17777/print';
 
@@ -165,7 +165,8 @@ export async function printReportZThermal(
     },
   };
 
-  const response = await fetch(PRINTER_AGENT_URL, {
+  const targetUrl = await getPrinterAgentUrl();
+  const response = await fetch(targetUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

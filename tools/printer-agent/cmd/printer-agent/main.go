@@ -16,9 +16,36 @@ import (
 )
 
 func main() {
+	if isWindowsService() {
+		if err := runService(17777, "127.0.0.1"); err != nil {
+			log.Fatalf("[PrinterService] Error en servicio: %v", err)
+		}
+		return
+	}
+
+	installFlag := flag.Bool("install", false, "Instalar como servicio de Windows de inicio automatico")
+	uninstallFlag := flag.Bool("uninstall", false, "Desinstalar el servicio de Windows")
 	port := flag.Int("port", 17777, "Puerto TCP donde escucha el agente de impresion")
 	bind := flag.String("bind", "127.0.0.1", "IP donde escucha (default 127.0.0.1)")
 	flag.Parse()
+
+	if *installFlag {
+		fmt.Printf("Instalando Agente de Impresion como servicio de Windows (puerto %d)...\n", *port)
+		if err := installService(*port, *bind); err != nil {
+			log.Fatalf("Fallo instalacion del servicio: %v", err)
+		}
+		fmt.Println("¡Servicio BalanzaProPrinter instalado con éxito y configurado en inicio automático!")
+		return
+	}
+
+	if *uninstallFlag {
+		fmt.Println("Desinstalando servicio de Windows BalanzaProPrinter...")
+		if err := uninstallService(); err != nil {
+			log.Fatalf("Fallo desinstalacion del servicio: %v", err)
+		}
+		fmt.Println("Servicio desinstalado con éxito.")
+		return
+	}
 
 	if *port < 1024 || *port > 65535 {
 		log.Fatalf("Puerto invalido: %d (usa 1024-65535)", *port)

@@ -68,7 +68,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func trustedBrowserOrigin(origin string) bool {
-	if origin == "https://app.balanzapro.com" {
+	if origin == "https://app.balanzapro.com" ||
+		origin == "https://app.miinventariofacil.com" ||
+		origin == "https://app.tiendasarens.com" ||
+		origin == "https://app.repuestosavilacar.com" {
 		return true
 	}
 	parsed, err := url.Parse(origin)

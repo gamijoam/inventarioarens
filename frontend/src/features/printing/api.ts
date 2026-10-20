@@ -280,7 +280,47 @@ export function useUpdatePrintJobStatus() {
   });
 }
 
-export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
+export async function getPrinterAgentUrl(): Promise<string> {
+  if (typeof window !== 'undefined') {
+    // 1. Probar primero si hay un agente local en 127.0.0.1:17777 (Local-First para cada PC)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 700);
+      const res = await fetch('http://127.0.0.1:17777/health', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return 'http://127.0.0.1:17777/print';
+      }
+    } catch {
+      // Agente no respondiendo en localhost, continuar con respaldo de red
+    }
+
+    // 2. Si no hay agente local en esta máquina física y estamos conectados a un servidor LAN o Motor Local:
+    if (window.location.port === '8787' || window.location.port === '8789') {
+      return `${window.location.origin}/print`;
+    }
+    if (
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1' &&
+      !window.location.hostname.endsWith('balanzapro.com') &&
+      !window.location.hostname.endsWith('miinventariofacil.com') &&
+      !window.location.hostname.endsWith('tiendasarens.com') &&
+      !window.location.hostname.endsWith('repuestosavilacar.com')
+    ) {
+      return `${window.location.origin}/print`;
+    }
+  }
+
+  return 'http://127.0.0.1:17777/print';
+}
+
+export async function sendJobToLocalAgent(
+  job: PrintJob,
+  fallbackStation?: PrinterStation | null,
+): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
   let pdfBase64: string | undefined;
 
   if (job.output !== 'thermal') {
@@ -295,22 +335,34 @@ export async function sendJobToLocalAgent(job: PrintJob): Promise<{ status: stri
     }
   }
 
-  const response = await fetch('http://127.0.0.1:17777/print', {
+  const stationToUse = job.station?.printer_name ? job.station : (fallbackStation ?? job.station);
+  const targetUrl = await getPrinterAgentUrl();
+
+  const response = await fetch(targetUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      job_id: job.id,
+      job_id: String(job.id),
       output: job.output,
       ticket_pdf_url: job.ticket_pdf_url,
       ticket_html_url: job.ticket_html_url,
-      station: job.station,
+      station: stationToUse,
       payload: job.payload_snapshot,
       pdf_base64: pdfBase64,
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Agente local respondio ${response.status}`);
+    let errorDetail = `Agente local respondio ${response.status}`;
+    try {
+      const errorJson = (await response.json()) as { message?: string };
+      if (errorJson?.message) {
+        errorDetail = errorJson.message;
+      }
+    } catch {
+      // Ignorar si no es JSON
+    }
+    throw new Error(errorDetail);
   }
 
   return response.json() as Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }>;
@@ -441,7 +493,8 @@ export async function sendTestTicketToLocalAgent(
   station: PrinterStation,
   profile: PrintProfilePayload | PrintProfile,
 ): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
-  const response = await fetch('http://127.0.0.1:17777/print', {
+  const targetUrl = await getPrinterAgentUrl();
+  const response = await fetch(targetUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

@@ -294,7 +294,12 @@ export function PrintingManager() {
       title="Impresion"
       description="Configura tickets POS para impresora termica 58/80mm o salida digital en escritorio."
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <a href="/downloads/BalanzaPro-Impresor-Setup.exe" download="BalanzaPro-Impresor-Setup.exe">
+              <Download className="size-4" /> Agente Cajas Secundarias (.exe)
+            </a>
+          </Button>
           <Button variant="outline" onClick={() => setShowPreview((value) => !value)}>
             <Eye className="size-4" /> Vista previa
           </Button>
