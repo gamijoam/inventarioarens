@@ -16,11 +16,11 @@ export const PERMISSIONS = {
   PRODUCTS_UPDATE: 'products.update',
   PRODUCTS_DELETE: 'products.delete',
 
-  // Price Lists
-  PRICE_LISTS_VIEW: 'price_lists.view',
-  PRICE_LISTS_CREATE: 'price_lists.create',
-  PRICE_LISTS_UPDATE: 'price_lists.update',
-  PRICE_LISTS_DELETE: 'price_lists.delete',
+  // Price Lists (respaldado por los permisos de catalogo de productos)
+  PRICE_LISTS_VIEW: 'products.view',
+  PRICE_LISTS_CREATE: 'products.create',
+  PRICE_LISTS_UPDATE: 'products.update',
+  PRICE_LISTS_DELETE: 'products.delete',
 
   // Inventory
   INVENTORY_VIEW: 'inventory.view',
