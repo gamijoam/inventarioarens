@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, HardDrive, Laptop } from 'lucide-react';
+import { Download, HardDrive, Laptop, Printer } from 'lucide-react';
 
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/Button';
@@ -142,11 +142,11 @@ export function OfflineSetupDownloads() {
           Instala BalanzaPro en la PC central y descarga los datos de {tenant?.name ?? 'esta empresa'} para usarlo sin conexión.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3 lg:grid-cols-2">
+      <CardContent className="grid gap-3 lg:grid-cols-3">
         <section className="space-y-3 rounded-lg border border-border bg-bg/40 p-4" aria-labelledby="offline-installer-title">
           <div className="flex items-center gap-2 text-sm font-medium" id="offline-installer-title">
             <Laptop className="size-4 text-primary" />
-            Instalador para Windows
+            Instalador para Windows (Servidor / PC Central)
           </div>
           <p className="text-xs text-text-muted">
             Programa genérico para Windows de 64 bits. Instálalo una vez en la PC principal de la tienda.
@@ -178,6 +178,29 @@ export function OfflineSetupDownloads() {
               </Button>
             </>
           )}
+        </section>
+
+        <section className="space-y-3 rounded-lg border border-border bg-bg/40 p-4" aria-labelledby="offline-printer-agent-title">
+          <div className="flex items-center gap-2 text-sm font-medium" id="offline-printer-agent-title">
+            <Printer className="size-4 text-primary" />
+            Agente de Impresión para Cajas Secundarias
+          </div>
+          <p className="text-xs text-text-muted">
+            Instalador ligero (2.9 MB). Instálalo en computadoras secundarias para que impriman automáticamente en su propia impresora térmica USB sin configurar nada en Windows.
+          </p>
+          <p className="text-xs text-text-muted">
+            Versión 1.0.0 · 2.9 MB · Servicio de Windows automático
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            onClick={() => { window.location.assign('/downloads/BalanzaPro-Impresor-Setup.exe'); }}
+            data-testid="download-printer-agent-btn"
+          >
+            <Download className="size-4" />
+            Descargar BalanzaPro-Impresor-Setup.exe
+          </Button>
         </section>
 
         <section className="space-y-3 rounded-lg border border-border bg-bg/40 p-4" aria-labelledby="offline-data-title">

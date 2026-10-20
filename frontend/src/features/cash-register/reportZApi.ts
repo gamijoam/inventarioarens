@@ -165,7 +165,8 @@ export async function printReportZThermal(
     },
   };
 
-  const response = await fetch(getPrinterAgentUrl(), {
+  const targetUrl = await getPrinterAgentUrl();
+  const response = await fetch(targetUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

@@ -280,22 +280,40 @@ export function useUpdatePrintJobStatus() {
   });
 }
 
-export function getPrinterAgentUrl(): string {
+export async function getPrinterAgentUrl(): Promise<string> {
   if (typeof window !== 'undefined') {
-    // Si estamos navegando desde los puertos 8787 u 8789 del Motor Local (LAN o local)
+    // 1. Probar primero si hay un agente local en 127.0.0.1:17777 (Local-First para cada PC)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 700);
+      const res = await fetch('http://127.0.0.1:17777/health', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return 'http://127.0.0.1:17777/print';
+      }
+    } catch {
+      // Agente no respondiendo en localhost, continuar con respaldo de red
+    }
+
+    // 2. Si no hay agente local en esta máquina física y estamos conectados a un servidor LAN o Motor Local:
     if (window.location.port === '8787' || window.location.port === '8789') {
       return `${window.location.origin}/print`;
     }
-    // Si estamos accediendo a traves de una IP de red LAN
     if (
       window.location.hostname !== 'localhost' &&
       window.location.hostname !== '127.0.0.1' &&
       !window.location.hostname.endsWith('balanzapro.com') &&
-      !window.location.hostname.endsWith('miinventariofacil.com')
+      !window.location.hostname.endsWith('miinventariofacil.com') &&
+      !window.location.hostname.endsWith('tiendasarens.com') &&
+      !window.location.hostname.endsWith('repuestosavilacar.com')
     ) {
       return `${window.location.origin}/print`;
     }
   }
+
   return 'http://127.0.0.1:17777/print';
 }
 
@@ -318,8 +336,9 @@ export async function sendJobToLocalAgent(
   }
 
   const stationToUse = job.station?.printer_name ? job.station : (fallbackStation ?? job.station);
+  const targetUrl = await getPrinterAgentUrl();
 
-  const response = await fetch(getPrinterAgentUrl(), {
+  const response = await fetch(targetUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -474,7 +493,8 @@ export async function sendTestTicketToLocalAgent(
   station: PrinterStation,
   profile: PrintProfilePayload | PrintProfile,
 ): Promise<{ status: string; pdf_path?: string; html_path?: string; message?: string }> {
-  const response = await fetch(getPrinterAgentUrl(), {
+  const targetUrl = await getPrinterAgentUrl();
+  const response = await fetch(targetUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
