@@ -305,7 +305,7 @@ function ProductDetailPage() {
     <PageLayout
       title={product.name}
       description={`SKU: ${product.sku || 'Sin SKU'} · ${product.tracking_type === 'serialized' ? 'Serializado (IMEI/Serial)' : 'Por cantidad'}`}
-      className="max-w-[97%] xl:max-w-[1550px] 2xl:max-w-[1750px] mx-auto w-full pb-8"
+      className="max-w-5xl xl:max-w-6xl mx-auto w-full pb-8"
       breadcrumb={
         <Link
           to="/inventory"

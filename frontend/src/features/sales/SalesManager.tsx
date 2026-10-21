@@ -567,7 +567,7 @@ export function SalesManager() {
       <Sheet open={selectedSaleId !== null} onOpenChange={(open) => !open && setSelectedSaleId(null)}>
         <SheetContent
           side="right"
-          className="w-full sm:max-w-3xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[88vw] p-0 flex flex-col h-full bg-surface shadow-lg border-l border-border"
+          className="w-full sm:max-w-xl md:max-w-[60vw] lg:max-w-[56vw] xl:max-w-[55vw] p-0 flex flex-col h-full bg-surface shadow-lg border-l border-border"
         >
           {selectedSale && (
             <div className="flex flex-col h-full overflow-hidden">
