@@ -211,7 +211,9 @@ function DashboardPage() {
   const tenantSummary = useQuery({
     queryKey: ['dashboard', 'summary', period, dateFrom, dateTo],
     queryFn: () => getOne<DashboardSummary>(`/dashboard/summary?${query.toString()}`),
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     enabled: scope === 'tenant',
   });
 

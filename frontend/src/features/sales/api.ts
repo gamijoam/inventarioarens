@@ -90,6 +90,8 @@ export function useCancelSale() {
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: saleKeys.lists() });
       void qc.invalidateQueries({ queryKey: saleKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }

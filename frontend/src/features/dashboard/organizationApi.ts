@@ -97,7 +97,9 @@ export function useOrganizationDashboard({
       const raw = await getOne<unknown>(`/dashboard/summary?${query.toString()}`);
       return OrganizationDashboardSchema.parse(raw);
     },
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     enabled,
   });
 }

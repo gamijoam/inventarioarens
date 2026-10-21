@@ -699,6 +699,8 @@ export function useCheckout() {
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: productKeys.all });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -748,6 +750,8 @@ export function useAddPosPayments() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -759,6 +763,8 @@ export function useCancelPosOrder() {
       postOne<Record<string, never>, PosOrder>(`/pos/orders/${orderId}/cancel`, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: posKeys.orders('open') });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
@@ -1493,6 +1499,7 @@ export function useAddCashMovement() {
       void qc.invalidateQueries({ queryKey: posKeys.bootstrap() });
       void qc.invalidateQueries({ queryKey: [...posKeys.all, 'cash-sessions'] });
       void qc.invalidateQueries({ queryKey: posKeys.cashRegisters() });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
