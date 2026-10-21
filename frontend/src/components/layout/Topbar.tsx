@@ -75,7 +75,7 @@ export function Topbar() {
   };
 
   return (
-    <header className="border-slate-200/80 bg-white/95 backdrop-blur flex h-16 items-center justify-between border-b px-4 sm:px-6 sticky top-0 z-20 shadow-xs">
+    <header className="border-slate-200/80 bg-white dark:bg-surface flex h-16 items-center justify-between border-b px-4 sm:px-6 sticky top-0 z-20 shadow-xs">
       {/* Tenant activo */}
       <div className="flex items-center gap-2.5">
         <div className="hidden sm:flex size-8 items-center justify-center rounded-xl bg-orange-50 border border-orange-200 text-orange-600 overflow-hidden">

@@ -93,7 +93,7 @@ function CopyBadge({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1 rounded bg-bg px-1.5 py-0.5 font-mono text-xs text-text-primary hover:bg-border/60 transition-colors"
+      className="inline-flex items-center gap-1 rounded bg-bg px-1.5 py-0.5 font-mono text-xs text-text-primary hover:bg-border/60"
       title="Copiar al portapapeles"
     >
       <span>{text}</span>
@@ -323,7 +323,7 @@ function ProductDetailPage() {
             sort_by: undefined,
             sort_dir: undefined,
           }}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-primary transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-primary"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
           Volver a Inventario

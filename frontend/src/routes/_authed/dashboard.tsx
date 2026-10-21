@@ -236,7 +236,7 @@ function DashboardPage() {
       title="Dashboard"
       description="Centro ejecutivo de ventas, POS, caja, inventario y finanzas."
     >
-      <div className="bg-white/95 rounded-2xl border border-orange-100 shadow-sm backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-surface rounded-2xl border border-orange-100 dark:border-border shadow-xs p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-end">
           <Field label="Periodo">
             <Select value={period} onChange={(event) => setPeriod(event.target.value as Period)} className="rounded-xl">
