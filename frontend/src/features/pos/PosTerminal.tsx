@@ -1537,10 +1537,22 @@ export function PosTerminal() {
               <Button
                 size="sm"
                 onClick={() => {
-                  if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
-                  void confirmPaidSale();
+                  if (panel === null && payments.length === 0 && cart.length > 0) {
+                    if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                    setPanel('pay');
+                  } else {
+                    if (priceListPaymentIssue) return toast.error(priceListPaymentIssue);
+                    void confirmPaidSale();
+                  }
                 }}
-                disabled={Boolean(checkoutBlockReason) || checkout.isPending}
+                disabled={
+                  cart.length === 0 ||
+                  hasStockIssue(cart) ||
+                  hasPriceIssue(cart) ||
+                  Boolean(priceListPaymentIssue) ||
+                  checkout.isPending ||
+                  (payments.length > 0 && Boolean(checkoutBlockReason))
+                }
                 className="rounded-xl bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold shadow-md shadow-orange-500/20 h-10 px-4"
               >
                 {checkout.isPending ? (
@@ -3059,8 +3071,15 @@ export function PosTerminal() {
       setLastReceipt(order);
       clearTicket();
       setPanel(null);
-      toast.success('Venta confirmada.');
-      void createAndDispatchPrintJobs(order, false, 'thermal');
+      if (order.status === 'paid') {
+        toast.success('Venta confirmada.');
+        void createAndDispatchPrintJobs(order, false, 'thermal');
+      } else {
+        toast.info(
+          `Orden #${order.id} registrada en pendientes (${money(Number(order.paid_base_amount ?? 0))} de ${money(Number(order.total_base_amount ?? 0))} cobrado).`,
+        );
+        setPanel('hold');
+      }
     } catch (error) {
       void bootstrap.refetch();
       toast.error(error instanceof Error ? error.message : 'No se pudo completar el cobro.');
@@ -5489,7 +5508,7 @@ function filterPaymentMethodsForPriceList<T extends { id: number; is_active?: bo
   if (!priceList) return methods.filter((method) => method.is_active !== false);
 
   const allowed = new Set(priceList?.payment_method_ids ?? []);
-  if (allowed.size === 0) return [];
+  if (allowed.size === 0) return methods.filter((method) => method.is_active !== false);
 
   return methods.filter((method) => method.is_active !== false && allowed.has(method.id));
 }
@@ -5501,7 +5520,7 @@ function getPriceListPaymentIssue(
   if (!priceList) return null;
   const configuredIds = priceList.payment_method_ids ?? [];
   if (configuredIds.length === 0) {
-    return `La lista ${priceList.name} no tiene metodos de pago configurados para POS.`;
+    return allowedPaymentMethods.length === 0 ? 'No hay métodos de pago activos en la empresa.' : null;
   }
   if (allowedPaymentMethods.length === 0) {
     return `Los metodos asignados a ${priceList.name} no estan activos.`;
