@@ -567,7 +567,7 @@ export function SalesManager() {
       <Sheet open={selectedSaleId !== null} onOpenChange={(open) => !open && setSelectedSaleId(null)}>
         <SheetContent
           side="right"
-          className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl p-0 flex flex-col h-full bg-surface shadow-2xl border-l border-border"
+          className="w-full sm:max-w-3xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[88vw] p-0 flex flex-col h-full bg-surface shadow-2xl border-l border-border"
         >
           {selectedSale && (
             <div className="flex flex-col h-full overflow-hidden">
@@ -844,7 +844,7 @@ function SaleDetail({
         <table className="w-full table-dense">
           <thead className="border-b border-border bg-bg/60 text-left">
             <tr>
-              <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Producto</th>
+              <th className="px-3 py-2 font-semibold uppercase text-text-secondary min-w-[280px]">Producto</th>
               <th className="px-3 py-2 font-semibold uppercase text-text-secondary">Almacén</th>
               <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Cant.</th>
               <th className="px-3 py-2 text-right font-semibold uppercase text-text-secondary">Precio</th>
@@ -1258,8 +1258,8 @@ function SaleItemRow({
   const warrantyValid = isWarrantyValid(item);
   return (
     <tr className="border-b border-border last:border-0">
-      <td className="px-3 py-2">
-        <div className="font-medium">{item.product_name ?? `Producto #${item.product_id}`}</div>
+      <td className="px-3 py-2 min-w-[280px]">
+        <div className="font-medium text-sm leading-snug">{item.product_name ?? `Producto #${item.product_id}`}</div>
         <div className="text-xs text-text-muted">{item.product_sku ?? '-'}</div>
         {returnedQuantity > 0 && (
           <div className="mt-1">

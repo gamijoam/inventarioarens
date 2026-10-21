@@ -120,14 +120,14 @@ function CompactRow({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-2 py-1.5 border-b border-border/40 last:border-b-0 text-xs',
+        'flex items-center justify-between gap-3 py-1.5 border-b border-border/40 last:border-b-0 text-xs',
         className,
       )}
     >
       <span className="text-text-muted font-medium text-[11px] uppercase tracking-wider shrink-0">
         {label}
       </span>
-      <div className="font-medium text-text-primary text-right max-w-[68%] truncate">
+      <div className="font-medium text-text-primary text-right truncate">
         {children ?? value ?? '—'}
       </div>
     </div>
@@ -305,7 +305,7 @@ function ProductDetailPage() {
     <PageLayout
       title={product.name}
       description={`SKU: ${product.sku || 'Sin SKU'} · ${product.tracking_type === 'serialized' ? 'Serializado (IMEI/Serial)' : 'Por cantidad'}`}
-      className="max-w-6xl mx-auto w-full pb-8"
+      className="max-w-[97%] xl:max-w-[1550px] 2xl:max-w-[1750px] mx-auto w-full pb-8"
       breadcrumb={
         <Link
           to="/inventory"
@@ -422,40 +422,47 @@ function ProductDetailPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-3.5 pt-2 space-y-0.5">
-                  <CompactRow label="Nombre">
-                    <span className="font-semibold text-text-primary text-xs leading-snug">
+                <CardContent className="p-3.5 pt-2.5 space-y-2">
+                  {/* Nombre destacado a todo lo ancho para que nombres largos de repuestos no se monten en 3 filas */}
+                  <div className="pb-2 border-b border-border/40">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-0.5">
+                      Nombre del producto
+                    </div>
+                    <div className="text-sm sm:text-base font-bold text-text-primary leading-snug break-words">
                       {product.name}
-                    </span>
-                  </CompactRow>
-                  <CompactRow label="SKU">
-                    {product.sku ? <CopyBadge text={product.sku} /> : <span className="text-text-muted">Sin SKU</span>}
-                  </CompactRow>
-                  <CompactRow label="Código de barras">
-                    {product.barcode ? (
-                      <CopyBadge text={product.barcode} />
-                    ) : (
-                      <span className="text-text-muted">Sin código</span>
-                    )}
-                  </CompactRow>
-                  <CompactRow label="Unidad de medida">
-                    <span className="text-text-primary">{product.unit_of_measure || 'Unidad (UND)'}</span>
-                  </CompactRow>
-                  <CompactRow label="Control de stock">
-                    <Badge variant={product.track_stock !== false ? 'success' : 'default'} className="text-[10px] px-1.5 py-0">
-                      {product.track_stock !== false ? 'Sí' : 'No'}
-                    </Badge>
-                  </CompactRow>
-                  <CompactRow label="Vendible en POS">
-                    <Badge variant={product.is_active ? 'success' : 'default'} className="text-[10px] px-1.5 py-0">
-                      {product.is_active ? 'Sí' : 'No'}
-                    </Badge>
-                  </CompactRow>
-                  <CompactRow label="Actualizado">
-                    <span className="text-text-muted text-[11px]">
-                      {product.updated_at ? formatRelative(product.updated_at) : '—'}
-                    </span>
-                  </CompactRow>
+                    </div>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <CompactRow label="SKU">
+                      {product.sku ? <CopyBadge text={product.sku} /> : <span className="text-text-muted">Sin SKU</span>}
+                    </CompactRow>
+                    <CompactRow label="Código de barras">
+                      {product.barcode ? (
+                        <CopyBadge text={product.barcode} />
+                      ) : (
+                        <span className="text-text-muted">Sin código</span>
+                      )}
+                    </CompactRow>
+                    <CompactRow label="Unidad de medida">
+                      <span className="text-text-primary">{product.unit_of_measure || 'Unidad (UND)'}</span>
+                    </CompactRow>
+                    <CompactRow label="Control de stock">
+                      <Badge variant={product.track_stock !== false ? 'success' : 'default'} className="text-[10px] px-1.5 py-0">
+                        {product.track_stock !== false ? 'Sí' : 'No'}
+                      </Badge>
+                    </CompactRow>
+                    <CompactRow label="Vendible en POS">
+                      <Badge variant={product.is_active ? 'success' : 'default'} className="text-[10px] px-1.5 py-0">
+                        {product.is_active ? 'Sí' : 'No'}
+                      </Badge>
+                    </CompactRow>
+                    <CompactRow label="Actualizado">
+                      <span className="text-text-muted text-[11px]">
+                        {product.updated_at ? formatRelative(product.updated_at) : '—'}
+                      </span>
+                    </CompactRow>
+                  </div>
                 </CardContent>
               </Card>
 
