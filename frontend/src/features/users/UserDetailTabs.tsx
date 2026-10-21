@@ -7,16 +7,22 @@
  * - Scopes: gestion de branches/warehouses/customer-groups/vendor-of.
  */
 import { useState } from 'react';
-import { Clock, Lock, ShieldCheck, UserCircle } from 'lucide-react';
+import { Clock, Lock, Pencil, ShieldCheck, UserCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
+import { Can } from '@/components/permissions/Can';
+import { PERMISSIONS } from '@/permissions/constants';
 
-import { useEffectivePermissions, useUserAudits, type User } from './api';
+import { useEffectivePermissions, useUserAudits, userKeys, type User } from './api';
 import { UserOverridesTab } from './UserOverridesTab';
 import { UserScopesTab } from './UserScopesTab';
+import { EditUserDialog } from './dialogs/EditUserDialog';
+import { ChangeRolesDialog } from './dialogs/ChangeRolesDialog';
 import { ProtectedRoleBadge } from '@/features/access/ProtectedRoleBadge';
 
 interface UserDetailTabsProps {
@@ -55,46 +61,83 @@ export function UserDetailTabs({ user }: UserDetailTabsProps) {
 }
 
 function GeneralTab({ user }: { user: User }) {
+  const [editingUser, setEditingUser] = useState(false);
+  const [changingRoles, setChangingRoles] = useState(false);
+  const qc = useQueryClient();
   const effective = useEffectivePermissions(user.id);
   const isProtected = user.roles.some((r: { id: number; name: string; is_protected?: boolean }) => r.is_protected);
 
+  const handleUpdated = () => {
+    qc.invalidateQueries({ queryKey: userKeys.detail(user.id) });
+    qc.invalidateQueries({ queryKey: userKeys.lists() });
+  };
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Identidad</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <Row label="Nombre">{user.name}</Row>
-          <Row label="Email">
-            <code className="rounded bg-bg px-1.5 py-0.5">{user.email}</code>
-          </Row>
-          <Row label="Estado">
-            <Badge variant={user.status === 'active' ? 'success' : 'default'}>
-              {user.status === 'active' ? 'Activo' : 'Inactivo'}
-            </Badge>
-          </Row>
-          <Row label="Roles">
-            {user.roles.length === 0 ? (
-              <span className="text-text-muted">Sin rol</span>
-            ) : (
-              <div className="flex flex-wrap gap-1">
-                {user.roles.map((r) => (
-                  <Badge key={r.id} variant="info" className="gap-1 text-xs">
-                    {r.name}
-                    {r.is_protected && (
-                      <Lock className="size-2.5" aria-hidden="true" />
-                    )}
-                  </Badge>
-                ))}
-                {isProtected && (
-                  <span className="text-xs text-text-muted">(del sistema)</span>
-                )}
+    <>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle>Identidad</CardTitle>
+            <Can I={PERMISSIONS.USERS_UPDATE}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={() => setEditingUser(true)}
+                data-testid="detail-edit-user-btn"
+              >
+                <Pencil className="size-3.5" aria-hidden="true" />
+                Editar
+              </Button>
+            </Can>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Row label="Nombre">{user.name}</Row>
+            <Row label="Email">
+              <code className="rounded bg-bg px-1.5 py-0.5">{user.email}</code>
+            </Row>
+            <Row label="Estado">
+              <Badge variant={user.status === 'active' ? 'success' : 'default'}>
+                {user.status === 'active' ? 'Activo' : 'Inactivo'}
+              </Badge>
+            </Row>
+            <Row label="Roles">
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-1">
+                  {user.roles.length === 0 ? (
+                    <span className="text-text-muted">Sin rol</span>
+                  ) : (
+                    user.roles.map((r) => (
+                      <Badge key={r.id} variant="info" className="gap-1 text-xs">
+                        {r.name}
+                        {r.is_protected && (
+                          <Lock className="size-2.5" aria-hidden="true" />
+                        )}
+                      </Badge>
+                    ))
+                  )}
+                  {isProtected && (
+                    <span className="text-xs text-text-muted">(del sistema)</span>
+                  )}
+                </div>
+                <Can I={PERMISSIONS.USERS_UPDATE}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit gap-1 text-xs"
+                    onClick={() => setChangingRoles(true)}
+                    data-testid="detail-change-roles-btn"
+                  >
+                    <ShieldCheck className="size-3.5" aria-hidden="true" />
+                    Cambiar roles
+                  </Button>
+                </Can>
               </div>
-            )}
-          </Row>
-        </CardContent>
-      </Card>
+            </Row>
+          </CardContent>
+        </Card>
 
       <Card>
         <CardHeader>
@@ -152,6 +195,25 @@ function GeneralTab({ user }: { user: User }) {
         </CardContent>
       </Card>
     </div>
+
+      {editingUser && (
+        <EditUserDialog
+          open={editingUser}
+          onOpenChange={setEditingUser}
+          user={user}
+          onUpdated={handleUpdated}
+        />
+      )}
+
+      {changingRoles && (
+        <ChangeRolesDialog
+          open={changingRoles}
+          onOpenChange={setChangingRoles}
+          user={user}
+          onUpdated={handleUpdated}
+        />
+      )}
+    </>
   );
 }
 

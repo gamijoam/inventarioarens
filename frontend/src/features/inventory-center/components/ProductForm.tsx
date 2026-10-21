@@ -16,6 +16,7 @@
 import { type UseFormReturn, useController } from 'react-hook-form';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   Boxes,
   Check,
   ClipboardList,
@@ -26,9 +27,12 @@ import {
   Layers,
   Link2,
   ShieldCheck,
+  Sparkles,
+  Star,
   Tag as TagIcon,
   Tags as TagsIcon,
   Trash2,
+  UploadCloud,
 } from 'lucide-react';
 
 import { Input } from '@/components/ui/Input';
@@ -42,7 +46,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
 import { toast } from '@/lib/toast';
-import { putOne } from '@/api/client';
+import { putOne, postOne, api } from '@/api/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { productKeys } from '@/features/inventory-center/queries';
 
@@ -50,6 +54,7 @@ import {
   SALE_CURRENCIES,
   PRICING_MODES,
   TRACKING_TYPES,
+  type Product,
   type StoreProductInput,
   type StoreProductValues,
 } from '../schemas';
@@ -71,7 +76,7 @@ import { ImageGallery } from './ImageGallery';
 import { UnitOfMeasureSelector } from './UnitOfMeasureSelector';
 import { PricesEditor } from './PricesEditor';
 import { ProductStockDetailPanel } from './ProductStockDetailPanel';
-import { ProductVariantsTab } from './ProductVariantsTab';
+import { ProductVariantsTab, type PendingVariant } from './ProductVariantsTab';
 import { KardexTab } from './KardexTab';
 import { AuditsTab } from './AuditsTab';
 
@@ -86,13 +91,21 @@ export type ProductFormTab =
   | 'kardex'
   | 'audits';
 
+export interface StagedImageItem {
+  id: string;
+  file: File;
+  previewUrl: string;
+  name: string;
+  sizeStr: string;
+}
+
 export interface ProductFormProps {
   form: UseFormReturn<StoreProductInput, unknown, StoreProductValues>;
   tagOptions: { value: number; label: string; color?: string }[];
   compact?: boolean;
   onCancel?: () => void;
   submitLabel?: string;
-  onSubmit: () => void | Promise<unknown>;
+  onSubmit: (onSaveExtras?: (product: Product) => Promise<void>) => Promise<unknown> | void;
   isSubmitting: boolean;
   productId?: number;
   visibility?: Partial<ProductFormVisibility>;
@@ -142,6 +155,122 @@ export function ProductForm({
     },
     [],
   );
+
+  // Variantes pendientes para producto nuevo
+  const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([]);
+
+  // Modo de fotos en la pestaña F5: 'upload' (archivos de PC / portapapeles) o 'url' (enlace web)
+  const [photoMode, setPhotoMode] = useState<'upload' | 'url'>('upload');
+  const [isResolvingUrl, setIsResolvingUrl] = useState(false);
+  const [urlImageError, setUrlImageError] = useState(false);
+
+  const handleResolveUrl = async () => {
+    const rawUrl = form.getValues('image_url')?.trim();
+    if (!rawUrl) {
+      toast.error('Ingresa un enlace web primero.');
+      return;
+    }
+    try {
+      setIsResolvingUrl(true);
+      const response = await api.post<{ image_url: string; source: string }>(
+        '/products/resolve-image-url',
+        { url: rawUrl },
+      );
+      const res = response.data;
+      if (res && res.image_url) {
+        form.setValue('image_url', res.image_url, { shouldDirty: true, shouldValidate: true });
+        setUrlImageError(false);
+        if (res.source === 'og_image' || res.source === 'twitter_image') {
+          toast.success('¡Foto del producto extraída exitosamente de la página web!');
+        } else {
+          toast.success('Enlace de imagen verificado correctamente.');
+        }
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'No se pudo extraer la imagen del enlace ingresado.',
+      );
+    } finally {
+      setIsResolvingUrl(false);
+    }
+  };
+
+  // Imágenes seleccionadas listas para subida
+  const [stagedImages, setStagedImages] = useState<StagedImageItem[]>([]);
+  const [isDraggingPhotos, setIsDraggingPhotos] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFilesSelected = useCallback((fileList: FileList | File[] | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    const validItems: StagedImageItem[] = [];
+
+    for (const file of files) {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        toast.error(`"${file.name}" no es válido. Solo se admiten formatos JPG, PNG o WebP.`);
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`"${file.name}" supera el tamaño máximo permitido (5 MB).`);
+        continue;
+      }
+      validItems.push({
+        id: `staged-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        name: file.name,
+        sizeStr:
+          file.size < 1024 * 1024
+            ? `${(file.size / 1024).toFixed(1)} KB`
+            : `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      });
+    }
+
+    if (validItems.length > 0) {
+      setStagedImages((prev) => [...prev, ...validItems]);
+      toast.success(`${validItems.length} foto(s) lista(s) para guardar.`);
+    }
+  }, []);
+
+  const removeStagedImage = useCallback((id: string) => {
+    setStagedImages((prev) => {
+      const target = prev.find((i) => i.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((i) => i.id !== id);
+    });
+  }, []);
+
+  const setPrimaryStagedImage = useCallback((index: number) => {
+    if (index === 0) return;
+    setStagedImages((prev) => {
+      const item = prev[index];
+      if (!item) return prev;
+      const rest = prev.filter((_, i) => i !== index);
+      return [item, ...rest];
+    });
+    toast.success('Foto marcada como portada principal.');
+  }, []);
+
+  // Soporte para pegar imágenes directamente desde el portapapeles con Ctrl+V
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        handleFilesSelected(files);
+      }
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [handleFilesSelected]);
 
   const handleTabChange = (tab: ProductFormTab) => {
     setActiveTab(tab);
@@ -240,7 +369,7 @@ export function ProductForm({
       } else if (e.key === 'F6') {
         e.preventDefault();
         handleTabChange('details');
-      } else if (e.key === 'F7' && productId) {
+      } else if (e.key === 'F7') {
         e.preventDefault();
         handleTabChange('variants');
       } else if (e.key === 'F8' && productId) {
@@ -314,20 +443,64 @@ export function ProductForm({
     activeVisibility.warranty_policy_id || activeVisibility.is_active || activeVisibility.long_description,
   );
 
-  // Guardado unificado de producto + listas de precios
+  // Guardado unificado de producto + listas de precios + variantes + fotos
   const handleFormSubmit = async () => {
     try {
       setIsSyncingPrices(true);
-      // 1. Guardar primero los precios modificados de las listas
-      if (productId && pendingPrices.length > 0) {
-        await putOne(`/products/${productId}/prices`, { prices: pendingPrices });
-        setPendingPrices([]);
+      if (productId) {
+        // 1. Guardar primero los precios modificados de las listas
+        if (pendingPrices.length > 0) {
+          await putOne(`/products/${productId}/prices`, { prices: pendingPrices });
+          setPendingPrices([]);
+        }
+        // 2. Subir imágenes nuevas seleccionadas si las hay
+        if (stagedImages.length > 0) {
+          for (const item of stagedImages) {
+            const formData = new FormData();
+            formData.append('image', item.file);
+            await api.post(`/products/${productId}/images`, formData);
+          }
+          setStagedImages([]);
+        }
+        // 3. Guardar datos principales del producto (dispara onSuccess)
+        await onSubmit();
         void qc.invalidateQueries({ queryKey: productKeys.prices(productId) });
         void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
         void qc.invalidateQueries({ queryKey: productKeys.lists() });
+      } else {
+        // En modo creación, guardar producto y sus extras asociados
+        await onSubmit(async (newProduct: Product) => {
+          // A. Guardar precios de listas configurados
+          if (pendingPrices.length > 0) {
+            await putOne(`/products/${newProduct.id}/prices`, { prices: pendingPrices });
+          }
+          // B. Guardar variantes configuradas
+          if (pendingVariants.length > 0) {
+            for (const v of pendingVariants) {
+              await postOne(`/products/${newProduct.id}/variants`, {
+                color: v.color,
+                color_hex: v.color_hex || '#888888',
+                sku_variant: v.sku_variant || undefined,
+                barcode_variant: v.barcode_variant || undefined,
+                price_override: v.price_override ? Number(v.price_override) : null,
+                position: Number(v.position) || 0,
+                is_active: v.is_active,
+              });
+            }
+          }
+          // C. Subir imágenes seleccionadas
+          if (stagedImages.length > 0) {
+            for (const item of stagedImages) {
+              const formData = new FormData();
+              formData.append('image', item.file);
+              await api.post(`/products/${newProduct.id}/images`, formData);
+            }
+          }
+          void qc.invalidateQueries({ queryKey: productKeys.all });
+          void qc.invalidateQueries({ queryKey: productKeys.detail(newProduct.id) });
+          void qc.invalidateQueries({ queryKey: productKeys.lists() });
+        });
       }
-      // 2. Guardar datos principales del producto (dispara onSuccess)
-      await onSubmit();
     } catch (err) {
       console.error('Error al guardar producto:', err);
       toast.error(err instanceof Error ? err.message : 'Error al guardar producto.');
@@ -338,6 +511,7 @@ export function ProductForm({
 
   return (
     <form
+      noValidate
       onSubmit={(e) => {
         e.preventDefault();
         void handleFormSubmit();
@@ -384,7 +558,11 @@ export function ProductForm({
           active={activeTab === 'images'}
           onClick={() => handleTabChange('images')}
           shortcut="F5"
-          label="Galería de Fotos"
+          label={
+            stagedImages.length > 0
+              ? `Fotos (${stagedImages.length})`
+              : 'Galería de Fotos'
+          }
           icon={<ImageIcon className="size-3.5" />}
         />
         {showDetailsSection && (
@@ -397,15 +575,19 @@ export function ProductForm({
             hasError={hasDetailsErrors}
           />
         )}
+        <TabButton
+          active={activeTab === 'variants'}
+          onClick={() => handleTabChange('variants')}
+          shortcut="F7"
+          label={
+            pendingVariants.length > 0
+              ? `Variantes (${pendingVariants.length})`
+              : 'Variantes'
+          }
+          icon={<Layers className="size-3.5" />}
+        />
         {productId && (
           <>
-            <TabButton
-              active={activeTab === 'variants'}
-              onClick={() => handleTabChange('variants')}
-              shortcut="F7"
-              label="Variantes"
-              icon={<Layers className="size-3.5" />}
-            />
             <TabButton
               active={activeTab === 'kardex'}
               onClick={() => handleTabChange('kardex')}
@@ -459,6 +641,60 @@ export function ProductForm({
                           autoFocus
                         />
                       </Field>
+                    </div>
+
+                    {/* Indicador sutil de foto en Identificación */}
+                    <div className="sm:col-span-2 rounded-lg border border-border/80 bg-surface-subtle/30 px-3 py-2 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {stagedImages.length > 0 && stagedImages[0] ? (
+                          <div className="relative size-9 rounded-md border border-primary/50 overflow-hidden shrink-0 bg-surface">
+                            <img src={stagedImages[0].previewUrl} alt="Portada" className="size-full object-cover" />
+                          </div>
+                        ) : form.watch('image_url') ? (
+                          <div className="size-9 rounded-md border border-border overflow-hidden shrink-0 bg-surface">
+                            <img
+                              src={form.watch('image_url') || ''}
+                              alt="URL"
+                              className="size-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          </div>
+                        ) : galleryImages.length > 0 && galleryImages[0] ? (
+                          <div className="size-9 rounded-md border border-border overflow-hidden shrink-0 bg-surface">
+                            <img
+                              src={galleryImages[0].thumb_url || galleryImages[0].url}
+                              alt="Foto"
+                              className="size-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="size-9 rounded-md border border-dashed border-border flex items-center justify-center shrink-0 bg-surface text-text-muted">
+                            <ImageIcon className="size-4 text-text-muted/60" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-text-primary truncate">
+                            {stagedImages.length > 0
+                              ? `${stagedImages.length} foto(s) lista(s) para guardar`
+                              : galleryImages.length > 0
+                              ? `${galleryImages.length} foto(s) guardada(s)`
+                              : form.watch('image_url')
+                              ? 'Foto vinculada por enlace'
+                              : 'Sin fotografías todavía'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleTabChange('images')}
+                        className="h-7 px-2 text-xs text-primary hover:bg-primary/10 font-semibold gap-1 shrink-0"
+                      >
+                        <span>Gestionar fotos [F5]</span>
+                        <span>→</span>
+                      </Button>
                     </div>
 
                     {activeVisibility.sku && (
@@ -803,8 +1039,6 @@ export function ProductForm({
                       >
                         <Input
                           type="number"
-                          min="-999.99"
-                          max="999.99"
                           step="0.01"
                           {...form.register('profit_margin', { valueAsNumber: true })}
                           className="font-mono text-xs h-9"
@@ -906,16 +1140,14 @@ export function ProductForm({
               </div>
 
               {/* Editor de Precios por Lista vinculado al formulario */}
-              {productId && (
-                <div className="pt-3">
-                  <PricesEditor
-                    productId={productId}
-                    currentBasePrice={effectivePrice}
-                    onPricesChange={handlePricesChange}
-                    showSaveButton={true}
-                  />
-                </div>
-              )}
+              <div className="pt-3">
+                <PricesEditor
+                  productId={productId}
+                  currentBasePrice={effectivePrice}
+                  onPricesChange={handlePricesChange}
+                  showSaveButton={Boolean(productId)}
+                />
+              </div>
             </div>
 
             {/* 5. SECCIÓN CONTROL DE STOCK */}
@@ -1034,84 +1266,358 @@ export function ProductForm({
         {/* Pestaña 5: Imágenes [F5] */}
         <div className={cn('space-y-4', activeTab !== 'images' && 'hidden')}>
           <fieldset className="space-y-4">
-            <SectionLegend>Imágenes del producto</SectionLegend>
-            {activeVisibility.image_url && (
-              <Field
-                name="image_url"
-                label="URL externa de imagen (opcional)"
-                hint="Enlace directo a una imagen del fabricante o web externa"
-                error={form.formState.errors.image_url?.message}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input {...form.register('image_url')} placeholder="https://..." className="flex-1 h-9 text-xs" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-3">
+              <div>
+                <SectionLegend>Fotografías del producto</SectionLegend>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Elige si prefieres subir archivos desde tu equipo o vincular un enlace web.
+                </p>
+              </div>
+
+              {/* Selector de modo claro y profesional */}
+              <div className="inline-flex rounded-lg border border-border bg-surface-subtle/50 p-1 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setPhotoMode('upload')}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer',
+                    photoMode === 'upload'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-text-muted hover:text-text-primary',
+                  )}
+                >
+                  <UploadCloud className="size-3.5" />
+                  <span>Subir desde mi equipo</span>
+                  {stagedImages.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-white text-[10px] font-bold">
+                      {stagedImages.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhotoMode('url')}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer',
+                    photoMode === 'url'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-text-muted hover:text-text-primary',
+                  )}
+                >
+                  <Link2 className="size-3.5" />
+                  <span>Enlace Web (URL)</span>
+                  {Boolean(form.watch('image_url')) && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-white text-[10px] font-bold">
+                      1
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* MODO 1: SUBIDA DESDE LA PC / DRAG & DROP / CTRL+V */}
+            {photoMode === 'upload' && (
+              <div className="space-y-4">
+                {/* Input oculto para selección de archivos */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFilesSelected(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+
+                {/* Zona de subida Drag & Drop */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingPhotos(true);
+                  }}
+                  onDragLeave={() => setIsDraggingPhotos(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingPhotos(false);
+                    handleFilesSelected(e.dataTransfer.files);
+                  }}
+                  className={cn(
+                    'rounded-xl border-2 border-dashed p-7 transition-all text-center cursor-pointer',
+                    isDraggingPhotos
+                      ? 'border-primary bg-primary/10 scale-[1.01]'
+                      : 'border-border/80 bg-surface hover:border-primary/50 hover:bg-surface-subtle/30',
+                  )}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <UploadCloud className="size-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">
+                        Haz clic aquí para seleccionar fotos o arrástralas a esta zona
+                      </p>
+                      <p className="text-xs text-text-muted mt-0.5">
+                        Formatos JPG, PNG o WebP (hasta 5 MB) • Selección múltiple • Puedes pegar con <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border text-[10px] font-mono font-semibold">Ctrl+V</kbd>
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 h-8 text-xs font-semibold gap-1.5"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      <ImageIcon className="size-3.5" />
+                      <span>Explorar archivos de mi computadora</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Cuadrícula de fotos en cola / staged */}
+                {stagedImages.length > 0 && (
+                  <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="size-2 rounded-full bg-primary animate-pulse" />
+                        <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                          {stagedImages.length} foto(s) lista(s) para guardar al crear el producto
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          stagedImages.forEach((i) => URL.revokeObjectURL(i.previewUrl));
+                          setStagedImages([]);
+                        }}
+                        className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-100/50"
+                      >
+                        Quitar todas
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                      {stagedImages.map((item, index) => {
+                        const isPrimary = index === 0;
+                        return (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              'group relative rounded-xl border overflow-hidden bg-surface shadow-xs transition-all flex flex-col',
+                              isPrimary
+                                ? 'border-primary ring-2 ring-primary/20 shadow-sm'
+                                : 'border-border hover:border-border-strong',
+                            )}
+                          >
+                            <div className="relative aspect-square w-full bg-slate-50 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
+                              <img
+                                src={item.previewUrl}
+                                alt={item.name}
+                                className="size-full object-contain p-1"
+                              />
+
+                              {/* Badge de Portada */}
+                              {isPrimary ? (
+                                <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-primary text-white text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                                  <Star className="size-3 fill-white" />
+                                  <span>Principal</span>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPrimaryStagedImage(index);
+                                  }}
+                                  className="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded bg-black/75 hover:bg-primary text-white text-[10px] font-medium flex items-center gap-1 shadow-sm cursor-pointer"
+                                  title="Fijar como foto principal de portada"
+                                >
+                                  <Star className="size-3" />
+                                  <span>Portada</span>
+                                </button>
+                              )}
+
+                              {/* Botón eliminar */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeStagedImage(item.id);
+                                }}
+                                className="absolute top-1.5 right-1.5 size-6 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm cursor-pointer"
+                                title="Quitar foto"
+                              >
+                                <Trash2 className="size-3" />
+                              </button>
+                            </div>
+
+                            <div className="p-2 text-[11px] bg-surface border-t border-border/60">
+                              <p className="truncate font-medium text-text-primary" title={item.name}>
+                                {item.name}
+                              </p>
+                              <span className="text-[10px] text-text-muted">{item.sizeStr}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Galería de fotos existentes en el servidor si ya está creado */}
+                {productId !== undefined && (
+                  <div className="space-y-2 rounded-xl border border-border bg-surface-subtle/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase text-text-primary">
+                        Fotos ya guardadas en el producto ({galleryImages.length})
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        Formatos WebP con miniaturas automáticas.
+                      </p>
+                    </div>
+                    <ImageGallery productId={productId} images={galleryImages} canEdit />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* MODO 2: ENLACE WEB (URL) */}
+            {photoMode === 'url' && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-border/80 bg-surface shadow-xs p-4 space-y-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="image_url_input" className="text-xs font-bold text-text-primary">
+                      Dirección Web de la Imagen (URL) o Enlace del Producto
+                    </Label>
+                    <p className="text-xs text-text-muted">
+                      Puedes pegar el enlace directo a una foto (.jpg, .png) o el enlace de la página web del fabricante (smart-gsm, GSMArena, MercadoLibre, etc.) y nuestro sistema extraerá la foto por ti.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <Input
+                      id="image_url_input"
+                      {...form.register('image_url')}
+                      placeholder="https://ejemplo.com/foto.jpg o enlace de la página..."
+                      className="flex-1 h-9.5 text-xs font-mono"
+                      onChange={(e) => {
+                        form.setValue('image_url', e.target.value, { shouldDirty: true, shouldValidate: true });
+                        setUrlImageError(false);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={handleResolveUrl}
+                      loading={isResolvingUrl}
+                      className="h-9.5 px-3.5 text-xs font-semibold gap-1.5 shrink-0"
+                    >
+                      <Sparkles className="size-3.5" />
+                      <span>Extraer foto del enlace</span>
+                    </Button>
                     {form.watch('image_url') ? (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => form.setValue('image_url', '', { shouldDirty: true, shouldValidate: true })}
-                        className="h-9 px-3 gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 shrink-0 font-medium"
-                        title="Quitar URL de la imagen"
+                        onClick={() => {
+                          form.setValue('image_url', '', { shouldDirty: true, shouldValidate: true });
+                          setUrlImageError(false);
+                        }}
+                        className="h-9.5 px-3 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 shrink-0 font-medium"
                       >
                         <Trash2 className="size-3.5" />
-                        <span>Quitar URL</span>
+                        <span>Quitar</span>
                       </Button>
                     ) : null}
                   </div>
+
+                  {/* Vista Previa o Diagnóstico de Error */}
                   {form.watch('image_url') && (
-                    <div className="flex flex-col sm:flex-row items-center gap-4 p-3 bg-surface-subtle/50 rounded-lg border border-border/60">
-                      <div className="size-36 sm:size-44 rounded-lg border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0 p-1 shadow-inner">
-                        <img
-                          src={form.watch('image_url') || ''}
-                          alt="Vista previa URL"
-                          className="size-full object-contain"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1 text-center sm:text-left">
-                        <p className="text-xs font-semibold text-text-primary">Vista previa URL externa</p>
-                        <p className="text-xs text-text-muted break-all">{form.watch('image_url')}</p>
-                      </div>
+                    <div className="pt-2">
+                      {urlImageError ? (
+                        <div className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4 text-xs text-amber-900 dark:text-amber-200 space-y-2.5">
+                          <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+                            <AlertTriangle className="size-4 shrink-0 text-amber-600" />
+                            <span>No se pudo cargar la imagen desde este enlace</span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed">
+                            El enlace ingresado parece ser una página web completa (HTML) y no un archivo de imagen directo (.jpg, .png, .webp).
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleResolveUrl}
+                              loading={isResolvingUrl}
+                              className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                            >
+                              <Sparkles className="size-3.5" />
+                              <span>Extraer foto automáticamente de la página</span>
+                            </Button>
+                          </div>
+                          <div className="border-t border-amber-200 dark:border-amber-900/60 pt-2 text-[11px] text-amber-800 dark:text-amber-300">
+                            <p className="font-semibold mb-0.5">Cómo copiar la foto manualmente si lo prefieres:</p>
+                            <p>1. Ve a la página web donde ves la foto.</p>
+                            <p>2. Haz <strong>clic derecho</strong> directamente sobre la foto del celular/producto.</p>
+                            <p>3. Selecciona <strong>"Copiar dirección de imagen"</strong> (o "Copy image address").</p>
+                            <p>4. Vuelve aquí y pega ese enlace directo.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row items-center gap-4 p-3 bg-surface-subtle/50 rounded-xl border border-border/70">
+                          <div className="size-36 sm:size-44 rounded-lg border border-border bg-slate-50 dark:bg-zinc-900 overflow-hidden flex items-center justify-center shrink-0 p-1 shadow-inner">
+                            <img
+                              src={form.watch('image_url') || ''}
+                              alt="Vista previa URL"
+                              className="size-full object-contain"
+                              onError={() => setUrlImageError(true)}
+                              onLoad={() => setUrlImageError(false)}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-1.5 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold">
+                              <Check className="size-3" />
+                              <span>Foto vinculada y lista</span>
+                            </div>
+                            <p className="text-xs font-semibold text-text-primary">Vista previa del enlace</p>
+                            <p className="text-xs text-text-muted break-all font-mono text-[11px] bg-surface p-1.5 rounded border border-border/50">
+                              {form.watch('image_url')}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              </Field>
-            )}
-
-            {productId !== undefined ? (
-              <div className="space-y-2 rounded-xl border border-border bg-surface-subtle/30 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase text-text-primary">
-                    Galería de imágenes
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    Sube fotos en alta resolución. Formato WebP automático con miniaturas.
-                  </p>
-                </div>
-                <ImageGallery productId={productId} images={galleryImages} canEdit />
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-border p-6 text-center text-text-muted">
-                <ImageIcon className="size-8 mx-auto mb-2 text-text-muted/60" />
-                <p className="text-sm font-medium">Subida de fotos disponible tras crear el producto</p>
-                <p className="text-xs text-text-muted mt-1">
-                  Puedes especificar una URL de imagen externa arriba o guardar el producto y adjuntar imágenes inmediatamente.
-                </p>
               </div>
             )}
           </fieldset>
         </div>
 
-        {/* Pestañas avanzadas con productId */}
+        {/* Pestaña Variantes [F7]: tanto en creación como en edición */}
+        <div className={cn('space-y-4', activeTab !== 'variants' && 'hidden')}>
+          {visitedTabs.has('variants') && (
+            <ProductVariantsTab
+              productId={productId}
+              pendingVariants={pendingVariants}
+              onPendingVariantsChange={setPendingVariants}
+              baseSku={form.watch('sku') || ''}
+            />
+          )}
+        </div>
+
+        {/* Pestañas avanzadas exclusivas para producto existente */}
         {productId && (
           <>
-            <div className={cn('space-y-4', activeTab !== 'variants' && 'hidden')}>
-              {visitedTabs.has('variants') && <ProductVariantsTab productId={productId} />}
-            </div>
-
             <div className={cn('space-y-4', activeTab !== 'kardex' && 'hidden')}>
               {visitedTabs.has('kardex') && <KardexTab productId={productId} />}
             </div>
@@ -1145,7 +1651,7 @@ export function ProductForm({
       <div className="border-t border-border bg-surface-subtle/50 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 flex-wrap">
         <div className="flex items-center gap-2 text-xs text-text-muted font-mono hidden sm:flex">
           <span className="inline-flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">{productId ? 'F1-F9' : 'F1-F6'}</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">{productId ? 'F1-F9' : 'F1-F7'}</kbd>
             <span>Pestañas</span>
           </span>
           <span>•</span>
@@ -1162,7 +1668,23 @@ export function ProductForm({
             <>
               <span>•</span>
               <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                {pendingPrices.length} precio(s) modificado(s) listos para guardar
+                {pendingPrices.length} precio(s) modificado(s)
+              </span>
+            </>
+          )}
+          {pendingVariants.length > 0 && (
+            <>
+              <span>•</span>
+              <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                {pendingVariants.length} variante(s)
+              </span>
+            </>
+          )}
+          {stagedImages.length > 0 && (
+            <>
+              <span>•</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                {stagedImages.length} foto(s)
               </span>
             </>
           )}

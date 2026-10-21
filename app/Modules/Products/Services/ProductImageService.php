@@ -8,6 +8,7 @@ use App\Modules\Products\Models\ProductImage;
 use App\Modules\Products\Models\ProductImageVariant;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Sync\Services\SyncImageService;
+use App\Support\PublicHttpUrlGuard;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -224,10 +225,10 @@ class ProductImageService
     private function fetch(string $url): \Illuminate\Http\Client\Response
     {
         try {
-            return Http::withHeaders([
+            return PublicHttpUrlGuard::get($url, [
                 'User-Agent' => 'Mozilla/5.0 (compatible; InventarioArensBot/1.0)',
                 'Accept' => 'text/html,image/avif,image/webp,image/*,*/*;q=0.8',
-            ])->timeout(30)->get($url);
+            ], 30);
         } catch (\Throwable) {
             throw new RuntimeException('No se pudo descargar la imagen de la URL proporcionada.');
         }

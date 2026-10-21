@@ -49,8 +49,11 @@ export function InlineWarrantyPolicyCreate({ onCreated }: { onCreated: (id: numb
     setFieldErrors({});
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const errors: Record<string, string> = {};
     if (!name.trim()) errors.name = 'El nombre es obligatorio.';
     const days = Number(durationDays);
@@ -114,7 +117,16 @@ export function InlineWarrantyPolicyCreate({ onCreated }: { onCreated: (id: numb
               Define la cobertura, duracion y condiciones. Se asocia al producto sin salir del form.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <div
+            className="space-y-3"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                void handleSubmit(e);
+              }
+            }}
+          >
             <div className="space-y-1.5">
               <Label htmlFor="iwp-name">Nombre <span className="text-danger">*</span></Label>
               <Input
@@ -181,11 +193,19 @@ export function InlineWarrantyPolicyCreate({ onCreated }: { onCreated: (id: numb
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
                 Cancelar
               </Button>
-              <Button type="submit" loading={submitting}>
+              <Button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void handleSubmit(e);
+                }}
+                loading={submitting}
+              >
                 Crear
               </Button>
             </DialogFooter>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -32,22 +32,30 @@ echo "Candidato: $CANDIDATE_DIR"
 echo "Revisión Git: $REVISION"
 echo "Versión: $VERSION ($BUILD_NUMERIC)"
 
-FRONTEND_STAGE="$WORK_DIR/frontend"
-mkdir -p -- "$FRONTEND_STAGE"
-rsync -a --exclude=node_modules --exclude=dist --exclude=.vite --exclude=coverage \
-  --exclude=release --exclude=build --exclude=e2e --exclude=electron \
-  --exclude=.tanstack --exclude=.vscode --exclude=.husky \
-  "$REPO_DIR/frontend/" "$FRONTEND_STAGE/"
-pnpm --dir "$FRONTEND_STAGE" install --frozen-lockfile --store-dir "$WORK_DIR/pnpm-store"
-pnpm --dir "$FRONTEND_STAGE" run build:balanzapro-pos
-pnpm --dir "$FRONTEND_STAGE" run build:balanzapro-admin
-
 WEB_DIR="$WORK_DIR/web"
 mkdir -p -- "$WEB_DIR/assets"
-cp -- "$FRONTEND_STAGE/dist/pos/index.html" "$WEB_DIR/pos.html"
-cp -- "$FRONTEND_STAGE/dist/admin/index.html" "$WEB_DIR/admin.html"
-rsync -a "$FRONTEND_STAGE/dist/pos/assets/" "$WEB_DIR/assets/"
-rsync -a "$FRONTEND_STAGE/dist/admin/assets/" "$WEB_DIR/assets/"
+if [ -f "$REPO_DIR/frontend/dist/pos/index.html" ] && [ -f "$REPO_DIR/frontend/dist/admin/index.html" ]; then
+  echo ">> Reutilizando frontend precompilado en $REPO_DIR/frontend/dist..."
+  cp -- "$REPO_DIR/frontend/dist/pos/index.html" "$WEB_DIR/pos.html"
+  cp -- "$REPO_DIR/frontend/dist/admin/index.html" "$WEB_DIR/admin.html"
+  rsync -a "$REPO_DIR/frontend/dist/pos/assets/" "$WEB_DIR/assets/"
+  rsync -a "$REPO_DIR/frontend/dist/admin/assets/" "$WEB_DIR/assets/"
+else
+  FRONTEND_STAGE="$WORK_DIR/frontend"
+  mkdir -p -- "$FRONTEND_STAGE"
+  rsync -a --exclude=node_modules --exclude=dist --exclude=.vite --exclude=coverage \
+    --exclude=release --exclude=build --exclude=e2e --exclude=electron \
+    --exclude=.tanstack --exclude=.vscode --exclude=.husky \
+    "$REPO_DIR/frontend/" "$FRONTEND_STAGE/"
+  pnpm --dir "$FRONTEND_STAGE" install --frozen-lockfile --store-dir "$WORK_DIR/pnpm-store"
+  pnpm --dir "$FRONTEND_STAGE" run build:balanzapro-pos
+  pnpm --dir "$FRONTEND_STAGE" run build:balanzapro-admin
+
+  cp -- "$FRONTEND_STAGE/dist/pos/index.html" "$WEB_DIR/pos.html"
+  cp -- "$FRONTEND_STAGE/dist/admin/index.html" "$WEB_DIR/admin.html"
+  rsync -a "$FRONTEND_STAGE/dist/pos/assets/" "$WEB_DIR/assets/"
+  rsync -a "$FRONTEND_STAGE/dist/admin/assets/" "$WEB_DIR/assets/"
+fi
 
 MOTOR_STAGE="$WORK_DIR/motor-local"
 mkdir -p -- "$MOTOR_STAGE"

@@ -50,8 +50,11 @@ export function InlineExchangeRateTypeCreate({ onCreated }: InlineExchangeRateTy
     setFieldErrors({});
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     const errors: Record<string, string> = {};
     if (!code.trim()) errors.code = 'El codigo es obligatorio.';
@@ -116,7 +119,16 @@ export function InlineExchangeRateTypeCreate({ onCreated }: InlineExchangeRateTy
               predeterminado, reemplazara al actual.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <div
+            className="space-y-3"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                void handleSubmit(e);
+              }
+            }}
+          >
             <div className="space-y-1.5">
               <Label htmlFor="inline-rate-code">
                 Codigo <span className="text-danger">*</span>{' '}
@@ -170,11 +182,19 @@ export function InlineExchangeRateTypeCreate({ onCreated }: InlineExchangeRateTy
               >
                 Cancelar
               </Button>
-              <Button type="submit" loading={submitting}>
+              <Button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void handleSubmit(e);
+                }}
+                loading={submitting}
+              >
                 Crear
               </Button>
             </DialogFooter>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
     </>

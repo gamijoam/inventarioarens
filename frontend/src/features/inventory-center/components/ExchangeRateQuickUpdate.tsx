@@ -21,6 +21,7 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { useCreateExchangeRate, useExchangeRateTypes } from '@/features/inventory-center/api';
 import type { CurrentExchangeRate } from '@/features/pos/api';
 import { formatMoney } from '@/lib/money';
+import { formatEffectiveDate } from '@/lib/format';
 
 const SOURCE_OPTIONS = [
   { value: 'manual', label: 'Registro manual' },
@@ -98,7 +99,7 @@ export function ExchangeRateQuickUpdate({
                 {formatMoney(currentRate.rate, { showCurrency: true })} por USD
                 <span className="text-text-muted ml-2 font-normal">
                   {currentRate.effective_at
-                    ? new Date(currentRate.effective_at).toLocaleDateString('es-VE')
+                    ? formatEffectiveDate(currentRate.effective_at)
                     : 'Fecha sin indicar'}
                   {' · '}
                   {sourceLabel(currentRate.source)}

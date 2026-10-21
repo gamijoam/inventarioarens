@@ -139,6 +139,7 @@ import {
   mergePosExchangeRateTypes,
   mergePosPriceLists,
   resolvePosPaymentRate,
+  type PosResolvedPaymentRate,
   resolvePosOpenSession,
   useBranchesForPos,
   useCashSessions,
@@ -386,9 +387,20 @@ export function buildPosShellActions(
 }
 
 export function formatPosRateLabel(
-  rate: { code: string; name?: string; rate: number } | null,
+  rate: {
+    code: string;
+    name?: string;
+    rate: number;
+    base_rate?: number;
+    markup_percentage?: number;
+  } | null,
 ): string {
   if (!rate) return 'Sin tasa activa';
+  if (rate.markup_percentage && rate.markup_percentage !== 0 && rate.base_rate) {
+    const typeLabel =
+      rate.name && rate.name !== rate.code ? `${rate.name} (${rate.code})` : (rate.name ?? rate.code);
+    return `${typeLabel} @ ${formatLocalNumber(rate.base_rate)} (+${rate.markup_percentage}% en VES)`;
+  }
   const typeLabel =
     rate.name && rate.name !== rate.code ? `${rate.name} (${rate.code})` : (rate.name ?? rate.code);
   return `${typeLabel} @ ${formatLocalNumber(rate.rate)}`;
@@ -2153,8 +2165,13 @@ export function PosTerminal() {
                 >
                   <span className="text-text-muted font-normal">{activeRate.code}:</span>
                   <span className="font-bold text-text-primary">
-                    {formatLocalNumber(activeRate.rate)} VES
+                    {formatLocalNumber(activeRate.base_rate ?? activeRate.rate)} VES
                   </span>
+                  {activeRate.markup_percentage && activeRate.markup_percentage !== 0 && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                      (+{activeRate.markup_percentage}%)
+                    </span>
+                  )}
                   <Settings2 className="size-3 opacity-70" />
                 </button>
               ) : (
@@ -2164,8 +2181,13 @@ export function PosTerminal() {
                 >
                   <span className="text-text-muted font-normal">{activeRate.code}:</span>
                   <span className="font-bold text-text-primary">
-                    {formatLocalNumber(activeRate.rate)} VES
+                    {formatLocalNumber(activeRate.base_rate ?? activeRate.rate)} VES
                   </span>
+                  {activeRate.markup_percentage && activeRate.markup_percentage !== 0 && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                      (+{activeRate.markup_percentage}%)
+                    </span>
+                  )}
                 </div>
               ))}
 
@@ -2906,61 +2928,48 @@ export function PosTerminal() {
           </section>
 
           <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold text-white tracking-wide">
-                      {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-4xl font-bold tracking-normal text-white">
-                    {money(cartTotals.total)}
+            {/* Cabecera Limpia: Solo Total USD y Total Bs */}
+            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] px-4 py-2.5 text-white flex items-center justify-between gap-2 shrink-0">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider">Total</span>
+                <p className="text-2xl sm:text-3xl font-black font-mono leading-none tracking-tight">{money(cartTotals.total)}</p>
+              </div>
+              {activeRate && (
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider">En Bolívares</span>
+                  <p className="text-lg sm:text-xl font-black font-mono leading-none text-white/90">
+                    Bs {formatLocalNumber(cartTotals.total * activeRate.rate)}
                   </p>
                 </div>
-                <div className="min-w-32 space-y-1.5 text-right text-xs text-white/80">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-white/70">Total artículos:</span>
-                    <span className="font-bold font-mono text-white text-sm">{totalCartUnits}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-white/70">Líneas de ticket:</span>
-                    <span className="font-bold font-mono text-white">{cart.length}</span>
-                  </div>
-                  <div className="border-t border-white/20 pt-1">
-                    <AmountRow label="Subtotal" value={cartTotals.subtotal} className="text-white" />
-                    {cartTotals.discount > 0 && (
-                      <AmountRow label="Desc." value={cartTotals.discount} muted className="text-white/70" />
-                    )}
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-2 gap-1.5">
               {activePaymentMethods.length === 0 ? (
-                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
-                  Configura metodos de pago para cobrar rapido.
-                  <Button asChild className="mt-3 w-full" variant="outline">
-                    <Link to="/payment-methods">Configurar metodos</Link>
+                <div className="border-warning bg-warning/10 text-warning rounded-lg border p-2 text-xs">
+                  Configura métodos de pago para cobrar rápido.
+                  <Button asChild className="mt-1.5 w-full h-7 text-xs" variant="outline">
+                    <Link to="/payment-methods">Configurar métodos</Link>
                   </Button>
                 </div>
               ) : null}
+
               {priceListNotice ? (
-                <p className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                <p className="border-warning bg-warning/10 text-warning rounded-lg border p-1.5 text-xs">
                   {priceListNotice}
                 </p>
               ) : null}
+
               {priceListPaymentIssue && activePaymentMethods.length > 0 ? (
-                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                <div className="border-warning bg-warning/10 text-warning rounded-lg border p-2 text-xs">
                   {priceListPaymentIssue}
-                  <Button asChild className="mt-3 w-full" variant="outline">
+                  <Button asChild className="mt-1.5 w-full h-7 text-xs" variant="outline">
                     <Link to="/inventory/admin">Configurar lista</Link>
                   </Button>
                 </div>
               ) : null}
-              <div className="flex min-h-0 flex-1 flex-col gap-3">
+
+              <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                 {pendingInvoicePromotion && (
                   <InvoicePromotionDecisionPanel
                     promotionName={pendingInvoicePromotion.promotion_name ?? 'Descuento de factura'}
@@ -2968,37 +2977,35 @@ export function PosTerminal() {
                     onDecision={setInvoicePromotionAction}
                   />
                 )}
-                <AmountRow label="Pagado" value={paymentTotals.paid} />
+
+                {/* Pagos aplicados: área expandida con scroll suave */}
                 {payments.length > 0 && (
-                  <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
-                    <span>Pagos aplicados</span>
-                    <span>{payments.length}</span>
+                  <div className="min-h-0 flex-1 flex flex-col">
+                    <div className="border-border/70 bg-bg/20 min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain rounded-xl border p-1.5">
+                      {payments.map((payment) => (
+                        <PaymentChip
+                          key={payment.id}
+                          payment={payment}
+                          methods={configuredPaymentMethods}
+                          rateTypes={exchangeRateTypes}
+                          onChange={(patch) => updatePayment(payment.id, patch)}
+                          locked={Boolean(exchangeReturnId && payment.method === 'customer_credit')}
+                          onRemove={() =>
+                            setPayments((current) => current.filter((item) => item.id !== payment.id))
+                          }
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
-                {payments.length > 0 && (
-                  <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border p-2 pr-1">
-                    {payments.map((payment) => (
-                      <PaymentChip
-                        key={payment.id}
-                        payment={payment}
-                        methods={configuredPaymentMethods}
-                        rateTypes={exchangeRateTypes}
-                        onChange={(patch) => updatePayment(payment.id, patch)}
-                        locked={Boolean(exchangeReturnId && payment.method === 'customer_credit')}
-                        onRemove={() =>
-                          setPayments((current) => current.filter((item) => item.id !== payment.id))
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
+
                 {!exchangeReturnId &&
                   selectedCustomer &&
                   Number(customerCredit?.available_base_amount ?? 0) > 0 &&
                   paymentTotals.remaining > 0 &&
                   !payments.some((payment) => payment.method === 'customer_credit') && (
                     <Button
-                      className="w-full"
+                      className="w-full h-7 text-xs font-semibold shrink-0"
                       variant="outline"
                       onClick={() => applyCustomerCredit()}
                     >
@@ -3011,67 +3018,119 @@ export function PosTerminal() {
                       )}
                     </Button>
                   )}
-                {payments.length === 0 && (
-                  <button
-                    type="button"
+
+                {/* Si no hay pagos: mostrar cuadrícula compacta de métodos directos */}
+                {payments.length === 0 && allowedPaymentMethods.length > 0 && !priceListPaymentIssue && (
+                  <div className="shrink-0 space-y-1">
+                    <div className="flex items-center justify-between px-0.5 text-[10px] text-text-muted font-bold uppercase tracking-wider">
+                      <span>Métodos de pago</span>
+                      <button
+                        type="button"
+                        onClick={() => setPanel('pay')}
+                        className="text-primary hover:underline text-[10px] normal-case font-semibold cursor-pointer"
+                      >
+                        Ver todos [F2]
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {allowedPaymentMethods.slice(0, 4).map((m) => {
+                        const isVes = m.currency_mode === 'VES';
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => addQuickPayment(m.id)}
+                            className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-border bg-surface hover:border-primary hover:bg-primary/5 text-left transition-all shadow-xs cursor-pointer active:scale-98 group"
+                            title={`Pagar con ${m.name}`}
+                          >
+                            <span className="truncate text-xs font-semibold text-text-primary group-hover:text-primary transition-colors">
+                              {m.name}
+                            </span>
+                            <span
+                              className={cn(
+                                'text-[9px] font-mono font-bold px-1 py-0.2 rounded ml-1 shrink-0',
+                                isVes
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+                              )}
+                            >
+                              {isVes ? 'VES' : 'USD'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Si ya hay pagos pero aún resta saldo: botón compacto para agregar otro */}
+                {payments.length > 0 && paymentTotals.remaining > 0 && allowedPaymentMethods.length > 0 && !priceListPaymentIssue && (
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setPanel('pay')}
-                    disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-                    className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-7 w-full text-xs font-semibold border-dashed gap-1 text-primary hover:text-primary hover:bg-primary/5 shrink-0"
                   >
-                    Agregar pago con F2
-                  </button>
+                    <Plus className="size-3" />
+                    <span>+ Agregar método [F2]</span>
+                  </Button>
                 )}
               </div>
-              <div className="border-border bg-bg/50 mt-4 shrink-0 space-y-2 rounded border p-3">
-                <AmountRow label="Restante USD" value={paymentTotals.remaining} />
-                {activeRate && (
-                  <AmountRow
-                    label={`Restante en bolivares · ${activeRate.name}`}
-                    value={paymentAmountForCurrency(
-                      paymentTotals.remaining,
-                      'VES',
-                      activeRate.rate,
-                    )}
-                    currency="VES"
-                  />
+
+              {/* Resumen Limpio: Restante en 1 sola fila */}
+              <div className="border-border bg-bg/50 shrink-0 rounded-xl border p-2 space-y-1">
+                {paymentTotals.remaining > 0 ? (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-text-muted font-bold uppercase tracking-wider text-[10px]">Resta:</span>
+                    <div className="text-right">
+                      <span className="text-sm font-black font-mono text-danger">{money(paymentTotals.remaining)}</span>
+                      {activeRate && (
+                        <span className="text-[10px] font-mono text-text-muted ml-1.5">
+                          (Bs {formatLocalNumber(paymentAmountForCurrency(paymentTotals.remaining, 'VES', activeRate.rate))})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-lg py-1 px-2.5 text-center text-xs font-bold text-emerald-600">
+                    ✓ Total cubierto — listo para cobrar
+                  </div>
                 )}
-                <div className="bg-success/10 mt-2 rounded p-3">
-                  <p className="text-text-muted text-xs">Vuelto</p>
-                  <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
-                  {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
-                    <p className="text-success mt-1 text-sm font-semibold">
-                      Bs {formatLocalNumber(paymentTotals.change_amount ?? 0)}
-                      {paymentTotals.change_rate
-                        ? ` · ${exchangeRateTypes.find((type) => type.id === paymentTotals.change_rate_type_id)?.code ?? 'Tasa'} @ ${formatLocalNumber(paymentTotals.change_rate)}`
-                        : ''}
-                    </p>
-                  )}
-                </div>
+
+                {paymentTotals.change > 0 && (
+                  <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300 rounded-lg px-2 py-0.5 text-xs">
+                    <span className="font-bold text-[10px]">Vuelto:</span>
+                    <span className="font-mono font-black text-xs text-emerald-700 dark:text-emerald-400">
+                      {money(paymentTotals.change)}
+                      {paymentTotals.change_currency === 'VES' && ` (Bs ${formatLocalNumber(paymentTotals.change_amount ?? 0)})`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="border-border shrink-0 space-y-2 border-t p-3">
+            <div className="border-border shrink-0 space-y-1.5 border-t p-2">
               {checkoutBlockReason && (
-                <p className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-xs">
+                <p className="border-warning bg-warning/10 text-warning rounded-lg border px-2 py-1 text-xs">
                   {checkoutBlockReason}
                 </p>
               )}
               {sellerOnlyMode ? (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-10 w-full text-sm font-bold"
                   disabled={cart.length === 0 || holdOrder.isPending}
                   onClick={() => void holdSale()}
                 >
                   {holdOrder.isPending ? (
-                    <Loader2 className="size-5 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <PauseCircle className="size-5" />
+                    <PauseCircle className="size-4" />
                   )}
                   Armar orden
                 </Button>
               ) : (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-10 w-full text-sm font-bold gap-2 shadow-sm"
                   disabled={
                     cart.length === 0 ||
                     (!allowNegativeStock && hasStockIssue(cart)) ||
@@ -3092,14 +3151,14 @@ export function PosTerminal() {
                   {checkout.isPending ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <CreditCard className="size-5" />
+                    <CreditCard className="size-4" />
                   )}
                   <ShortcutText label="F10" text="Cobrar" />
                 </Button>
               )}
-              {!sellerOnlyMode && (
+              {!sellerOnlyMode && paymentTotals.remaining > 0 && (
                 <Button
-                  className="h-10 w-full"
+                  className="h-7 w-full text-xs font-semibold"
                   variant="secondary"
                   disabled={
                     !canCheckout ||
@@ -3112,7 +3171,7 @@ export function PosTerminal() {
                   }
                   onClick={() => setPanel('credit')}
                 >
-                  <Wallet className="size-4" />
+                  <Wallet className="size-3" />
                   Enviar a CxC
                 </Button>
               )}
@@ -5116,66 +5175,57 @@ function PaymentChip({
   const baseAmount = paymentBaseAmount(payment);
 
   return (
-    <div className="border-border bg-bg/40 rounded border p-2">
-      <div className="grid grid-cols-[minmax(0,1fr)_112px_auto] items-center gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold">
+    <div className="border-border/80 bg-surface rounded-xl border p-2 shadow-xs transition-colors">
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-xs font-bold text-text-primary">
               {selectedMethod?.name ?? methodLabel(payment.method)}
-            </p>
-            <Badge variant="info">{payment.currency}</Badge>
+            </span>
+            <Badge
+              variant={payment.currency === 'VES' ? 'info' : 'default'}
+              className="text-[9px] px-1 py-0 font-mono font-bold shrink-0"
+            >
+              {payment.currency}
+            </Badge>
           </div>
-          <p className="text-text-muted mt-1 text-xs">
+          <p className="text-text-muted text-[10px] truncate font-mono">
             {payment.currency === 'VES' && rateType
-              ? `${rateType.name}${payment.exchange_rate ? ` @ ${formatLocalNumber(payment.exchange_rate)}` : ''}`
+              ? `${rateType.code} @ ${formatLocalNumber(payment.exchange_rate ?? 0)} · ≈ ${money(baseAmount)}`
               : methodLabel(payment.method)}
           </p>
         </div>
-        <Input
-          className="h-9 text-right text-sm font-semibold"
-          type="number"
-          min="0"
-          value={payment.amount}
-          disabled={locked}
-          onChange={(event) => onChange({ amount: Number(event.target.value) })}
-          placeholder="Monto"
-          data-testid={`pos-payment-amount-${payment.id}`}
-        />
-        <Button size="icon-sm" variant="ghost" disabled={locked} onClick={onRemove}>
-          <X className="size-4" />
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          <Input
+            className="h-7 w-24 text-right text-xs font-bold font-mono px-2"
+            type="number"
+            min="0"
+            value={payment.amount}
+            disabled={locked}
+            onChange={(event) => onChange({ amount: Number(event.target.value) })}
+            placeholder="Monto"
+            data-testid={`pos-payment-amount-${payment.id}`}
+          />
+          <Button size="icon-sm" variant="ghost" className="size-6 text-text-muted hover:text-danger shrink-0 p-0" disabled={locked} onClick={onRemove}>
+            <X className="size-3" />
+          </Button>
+        </div>
       </div>
 
-      {(payment.currency === 'VES' && payment.exchange_rate) ||
-      payment.method === 'cash' ||
-      requiresReference ? (
-        <div className="mt-2 grid gap-2">
-          {payment.currency === 'VES' && payment.exchange_rate && (
-            <p className="text-text-muted text-xs font-medium">Equivale a {money(baseAmount)}</p>
-          )}
-          {payment.method === 'cash' && (
-            <Input
-              className="h-9 text-sm font-semibold"
-              type="number"
-              min="0"
-              value={payment.received_amount ?? ''}
-              placeholder="Recibido"
-              onChange={(event) => onChange({ received_amount: Number(event.target.value) })}
-            />
-          )}
-          {requiresReference && (
-            <Input
-              className="h-9 text-sm"
-              value={payment.reference ?? ''}
-              placeholder={
-                selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'
-              }
-              onChange={(event) => onChange({ reference: event.target.value })}
-              data-testid={`pos-payment-reference-${payment.id}`}
-            />
-          )}
+      {requiresReference && (
+        <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1.5">
+          <span className="text-[10px] text-text-muted shrink-0 font-medium">Ref:</span>
+          <Input
+            className="h-6 text-[11px] font-mono flex-1 px-1.5"
+            value={payment.reference ?? ''}
+            placeholder={
+              selectedMethod?.requires_reference ? 'Nro comprobante (obligatorio)' : 'Nro comprobante (opcional)'
+            }
+            onChange={(event) => onChange({ reference: event.target.value })}
+            data-testid={`pos-payment-reference-${payment.id}`}
+          />
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -5596,48 +5646,54 @@ function QuickPaymentPanel({
   }[];
   cartTotal: number;
   payments: PosPaymentLine[];
-  rate: { exchange_rate_type_id: number; code: string; name: string; rate: number } | null;
+  rate: PosResolvedPaymentRate | null;
   priceListName: string;
   issue: string | null;
   onSelect: (methodId: number) => void;
 }) {
   const remaining = calculatePaymentTotals(payments, cartTotal).remaining;
   return (
-    <div className="space-y-4">
-      <div className="border-border rounded-2xl border bg-gradient-to-br from-[#17112f] to-[#2f238f] p-5 text-white shadow-md">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-3">
+      <div className="border-border rounded-xl border bg-gradient-to-br from-[#17112f] to-[#2f238f] p-3.5 text-white shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <p className="text-sm text-white/70">Restante</p>
-            <p className="text-4xl font-bold">{money(remaining)}</p>
+            <p className="text-[11px] text-white/70 uppercase font-semibold tracking-wider">Restante a pagar</p>
+            <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight">{money(remaining)}</p>
           </div>
           {rate ? (
             <div className="text-right">
-              <p className="text-sm text-white/70">Equivalente VES</p>
-              <p className="text-2xl font-bold">
+              <p className="text-[11px] text-white/70 uppercase font-semibold">En Bolívares</p>
+              <p className="text-xl sm:text-2xl font-black font-mono">
                 Bs {formatLocalNumber(paymentAmountForCurrency(remaining, 'VES', rate.rate))}
               </p>
-              <p className="text-xs text-white/60">{formatPosRateLabel(rate)}</p>
+              {rate.markup_percentage && rate.markup_percentage !== 0 && rate.base_rate ? (
+                <p className="text-[10px] text-white/80 font-mono mt-0.5">
+                  ${remaining.toFixed(2)} + {rate.markup_percentage}% @ {rate.code} ({formatLocalNumber(rate.base_rate)} Bs)
+                </p>
+              ) : (
+                <p className="text-[11px] text-white/60">{formatPosRateLabel(rate)}</p>
+              )}
             </div>
           ) : (
-            <div className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-sm">
+            <div className="border-warning bg-warning/10 text-warning rounded-lg border px-2.5 py-1 text-xs">
               Configura una tasa activa USD/VES antes de cobrar.
             </div>
           )}
         </div>
       </div>
-      <p className="border-border bg-bg/40 text-text-muted rounded border px-3 py-2 text-xs">
-        Metodos permitidos para {priceListName}.
+      <p className="text-text-muted text-xs">
+        Métodos permitidos para <span className="font-semibold text-text-primary">{priceListName}</span>:
       </p>
 
       {methods.length === 0 ? (
-        <div className="border-warning bg-warning/10 text-warning rounded border p-4 text-sm">
-          {issue ?? 'No hay metodos activos para esta lista de precio.'}
+        <div className="border-warning bg-warning/10 text-warning rounded-xl border p-4 text-sm">
+          {issue ?? 'No hay métodos activos para esta lista de precios.'}
           <Button asChild className="mt-3" variant="outline">
             <Link to="/inventory/admin">Configurar lista</Link>
           </Button>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
           {methods.map((method) => {
             const preview = previewQuickPayment(method, cartTotal, payments, rate);
             return (
@@ -5645,21 +5701,25 @@ function QuickPaymentPanel({
                 key={method.id}
                 onPress={() => onSelect(method.id)}
                 data-testid={`pos-add-payment-${method.id}`}
-                className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 min-h-32 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 rounded-xl border p-3 text-left shadow-xs transition-all hover:shadow-sm cursor-pointer flex flex-col justify-between"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-1.5">
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{method.name}</p>
-                    <p className="text-text-muted mt-1 text-xs">{methodLabel(method.method)}</p>
+                    <p className="truncate text-xs sm:text-sm font-bold text-text-primary">{method.name}</p>
+                    <p className="text-text-muted text-[11px] truncate">{methodLabel(method.method)}</p>
                   </div>
-                  <Badge variant={method.currency_mode === 'VES' ? 'info' : 'default'}>
+                  <Badge variant={method.currency_mode === 'VES' ? 'info' : 'default'} className="text-[10px] px-1.5 py-0 font-mono font-bold">
                     {method.currency_mode === 'flexible'
                       ? 'USD/VES'
                       : (method.currency_mode ?? 'USD')}
                   </Badge>
                 </div>
-                <p className="mt-4 text-2xl font-bold">{preview.amountLabel}</p>
-                <p className="text-text-muted text-xs">{preview.detail}</p>
+                <div className="mt-2.5">
+                  <p className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">
+                    {preview.amountLabel}
+                  </p>
+                  <p className="text-text-muted text-[11px] truncate">{preview.detail}</p>
+                </div>
               </TapButton>
             );
           })}
@@ -6677,7 +6737,7 @@ function previewQuickPayment(
   method: { currency_mode?: 'USD' | 'VES' | 'flexible'; method?: string | null },
   total: number,
   payments: PosPaymentLine[],
-  rate: { exchange_rate_type_id: number; code: string; name: string; rate: number } | null,
+  rate: PosResolvedPaymentRate | null,
 ): { amountLabel: string; detail: string } {
   const remaining = Math.max(0, total - calculatePaymentTotals(payments, total).paid);
   const currency = method.currency_mode === 'VES' ? 'VES' : 'USD';
@@ -6685,7 +6745,9 @@ function previewQuickPayment(
   const amountLabel = currency === 'VES' ? `Bs ${formatLocalNumber(amount)}` : money(amount);
   const detail =
     currency === 'VES'
-      ? `${rate?.name ?? rate?.code ?? 'Tasa'}${rate?.rate ? ` @ ${formatLocalNumber(rate.rate)}` : ' sin valor activo'}`
+      ? (rate?.markup_percentage && rate.markup_percentage !== 0 && rate.base_rate
+          ? `${rate.code} (${formatLocalNumber(rate.base_rate)} Bs) +${rate.markup_percentage}%`
+          : `${rate?.name ?? rate?.code ?? 'Tasa'}${rate?.rate ? ` @ ${formatLocalNumber(rate.rate)}` : ' sin valor activo'}`)
       : methodLabel(method.method);
 
   return { amountLabel, detail };

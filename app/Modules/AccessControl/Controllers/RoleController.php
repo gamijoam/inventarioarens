@@ -27,8 +27,15 @@ class RoleController extends Controller
         $this->authorizePermission($request, 'roles.view');
 
         $tenant = $this->resolveTargetTenant($request);
+        $perPage = min(max($request->integer('per_page', 25), 1), 100);
 
-        return RoleResource::collection($this->service->roles($tenant)->paginate(25));
+        $query = $this->service->roles($tenant);
+
+        if ($search = trim((string) $request->string('search'))) {
+            $query->whereRaw('LOWER(name) LIKE ?', ['%' . mb_strtolower($search) . '%']);
+        }
+
+        return RoleResource::collection($query->paginate($perPage));
     }
 
     public function store(StoreRoleRequest $request): JsonResponse
@@ -150,7 +157,10 @@ class RoleController extends Controller
         abort_unless($actor instanceof User, Response::HTTP_FORBIDDEN);
 
         if ($tenant->isGroup()) {
-            abort_unless($actor->isOwnerOf($tenant), Response::HTTP_FORBIDDEN);
+            abort_unless(
+                $actor->belongsToTenant($tenant) || $actor->isOwnerOf($tenant),
+                Response::HTTP_FORBIDDEN,
+            );
 
             return $tenant;
         }

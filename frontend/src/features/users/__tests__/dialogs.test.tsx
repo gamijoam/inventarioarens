@@ -189,6 +189,17 @@ describe('EditUserDialog', () => {
     expect(payload.values.name).toBe('Lucia Modificada');
     expect(payload.values.email).toBe('lucia.nueva@empresa-demo.com');
   });
+
+  it('permite modificar roles directamente al editar el usuario', async () => {
+    const onUpdated = vi.fn();
+    render(<EditUserDialog open onOpenChange={vi.fn()} user={fakeUser} onUpdated={onUpdated} />, { wrapper: makeWrapper() });
+    const ownerCheckbox = screen.getByTestId('edit-role-1');
+    await userEvent.click(ownerCheckbox);
+    await userEvent.click(screen.getByTestId('edit-user-submit'));
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalled();
+    });
+  });
 });
 
 describe('ChangeRolesDialog', () => {

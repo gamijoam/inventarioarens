@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from '@/lib/toast';
 
-import { type StoreProductInput, type StoreProductValues, StoreProductSchema, UpdateProductSchema } from './schemas';
+import { type Product, type StoreProductInput, type StoreProductValues, StoreProductSchema, UpdateProductSchema } from './schemas';
 import { useCreateProduct, useUpdateProduct } from './api';
 
 export type ProductFormMode = 'create' | 'edit';
@@ -114,56 +114,74 @@ export function useProductForm({
     }
   };
 
-  const onSubmit = form.handleSubmit(async (values) => {
-    try {
-      // StoreProductSchema ya hace el .transform que limpia vacios.
-      const payload = { ...values } as typeof values & { base_price?: number };
-      if (
-        (payload.base_price === undefined || payload.base_price === null || payload.base_price === 0) &&
-        payload.last_purchase_cost !== undefined &&
-        payload.last_purchase_cost !== null &&
-        Number(payload.last_purchase_cost) > 0 &&
-        payload.profit_margin !== undefined &&
-        payload.profit_margin !== null
-      ) {
-        const c = Number(payload.last_purchase_cost);
-        const m = Number(payload.profit_margin);
-        if (Number.isFinite(c) && Number.isFinite(m)) {
-          payload.base_price = Number((c * (1 + m / 100)).toFixed(2));
+  const onSubmit = useCallback(
+    (onSaveExtras?: ((product: Product) => Promise<void>) | React.BaseSyntheticEvent) => {
+      const extraFn = typeof onSaveExtras === 'function' ? onSaveExtras : undefined;
+      const handler = form.handleSubmit(async (values) => {
+        try {
+          // StoreProductSchema ya hace el .transform que limpia vacios.
+          const payload = { ...values } as typeof values & { base_price?: number };
+          if (
+            (payload.base_price === undefined || payload.base_price === null || payload.base_price === 0) &&
+            payload.last_purchase_cost !== undefined &&
+            payload.last_purchase_cost !== null &&
+            Number(payload.last_purchase_cost) > 0 &&
+            payload.profit_margin !== undefined &&
+            payload.profit_margin !== null
+          ) {
+            const c = Number(payload.last_purchase_cost);
+            const m = Number(payload.profit_margin);
+            if (Number.isFinite(c) && Number.isFinite(m)) {
+              payload.base_price = Number((c * (1 + m / 100)).toFixed(2));
+            }
+          }
+          let result: unknown;
+          if (mode === 'create') {
+            result = await create.mutateAsync(payload);
+            if (extraFn && result && typeof result === 'object' && 'id' in result) {
+              await extraFn(result as Product);
+            }
+            toast.success('Producto creado correctamente.');
+          } else {
+            if (!productId) throw new Error('productId requerido en modo edit');
+            // En modo edit, si el usuario vació image_url, enviamos explícitamente null para que la BD lo limpie
+            const updatePayload = {
+              ...payload,
+              image_url: payload.image_url ? payload.image_url : null,
+            };
+            result = await update.mutateAsync({ id: productId, ...updatePayload });
+            if (extraFn && result && typeof result === 'object' && 'id' in result) {
+              await extraFn(result as Product);
+            }
+            toast.success('Producto actualizado correctamente.');
+          }
+          onSuccess?.(result);
+          return result;
+        } catch (err) {
+          // Errores 422 del backend: mapear a campos del form.
+          if (err instanceof Error && 'fieldErrors' in err) {
+            const fieldErrors = (err as { fieldErrors: Record<string, string[]> }).fieldErrors;
+            for (const [field, messages] of Object.entries(fieldErrors)) {
+              // Cast a never: el path del backend puede incluir notacion con puntos
+              // (ej: "category_ids.0") que el type de setError no soporta estrictamente.
+              form.setError(field as never, {
+                type: 'server',
+                message: messages[0],
+              });
+            }
+          } else {
+            toast.error(err instanceof Error ? err.message : 'Error al guardar el producto.');
+          }
         }
+      }, onInvalid);
+
+      if (onSaveExtras && typeof onSaveExtras !== 'function' && 'preventDefault' in onSaveExtras) {
+        return handler(onSaveExtras);
       }
-      let result: unknown;
-      if (mode === 'create') {
-        result = await create.mutateAsync(payload);
-        toast.success('Producto creado correctamente.');
-      } else {
-        if (!productId) throw new Error('productId requerido en modo edit');
-        // En modo edit, si el usuario vació image_url, enviamos explícitamente null para que la BD lo limpie
-        const updatePayload = {
-          ...payload,
-          image_url: payload.image_url ? payload.image_url : null,
-        };
-        result = await update.mutateAsync({ id: productId, ...updatePayload });
-        toast.success('Producto actualizado correctamente.');
-      }
-      onSuccess?.(result);
-    } catch (err) {
-      // Errores 422 del backend: mapear a campos del form.
-      if (err instanceof Error && 'fieldErrors' in err) {
-        const fieldErrors = (err as { fieldErrors: Record<string, string[]> }).fieldErrors;
-        for (const [field, messages] of Object.entries(fieldErrors)) {
-          // Cast a never: el path del backend puede incluir notacion con puntos
-          // (ej: "category_ids.0") que el type de setError no soporta estrictamente.
-          form.setError(field as never, {
-            type: 'server',
-            message: messages[0],
-          });
-        }
-      } else {
-        toast.error(err instanceof Error ? err.message : 'Error al guardar el producto.');
-      }
-    }
-  }, onInvalid);
+      return handler();
+    },
+    [form, mode, create, update, productId, onSuccess],
+  );
 
   const resetForm = useCallback(
     (values?: Partial<StoreProductValues>) => {

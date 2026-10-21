@@ -25,6 +25,39 @@ export function formatDateTime(iso: string | Date | null | undefined): string {
 }
 
 /**
+ * Formatea una fecha efectiva (ej. tasa de cambio) para mostrar en formato legible
+ * DD/MM/YYYY (o DD/MM/YYYY h:mm A si incluye hora distinta de medianoche),
+ * evitando el desfase de zona horaria cuando la fecha proviene de medianoche UTC (00:00:00Z).
+ *
+ * @example
+ *   formatEffectiveDate('2026-10-20T00:00:00.000000Z') // "20/10/2026"
+ *   formatEffectiveDate('2026-10-20')                   // "20/10/2026"
+ *   formatEffectiveDate('2026-10-20 16:40:00')          // "20/10/2026 4:40 PM"
+ */
+export function formatEffectiveDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const clean = String(dateStr).trim();
+  const match = clean.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!match) {
+    return dateStr;
+  }
+
+  const [, year, month, day, hour, minute] = match;
+  const hasTime = hour !== undefined && minute !== undefined && (hour !== '00' || minute !== '00');
+  const dateFormatted = `${day}/${month}/${year}`;
+
+  if (hasTime) {
+    const h = parseInt(hour, 10);
+    const m = minute;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${dateFormatted} ${h12}:${m} ${ampm}`;
+  }
+
+  return dateFormatted;
+}
+
+/**
  * "Hace X tiempo" localizado en español.
  *
  * @example

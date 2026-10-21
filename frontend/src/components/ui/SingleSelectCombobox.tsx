@@ -2,7 +2,7 @@
  * SingleSelectCombobox: input con typeahead single-select para listas planas.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 
 import { Badge } from './Badge';
 import { Input } from './Input';
@@ -23,6 +23,7 @@ interface SingleSelectComboboxProps {
   placeholder?: string;
   emptyMessage?: string;
   disabled?: boolean;
+  loading?: boolean;
   invalid?: boolean;
   openOnFocus?: boolean;
   onQueryChange?: (query: string) => void;
@@ -45,6 +46,7 @@ export function SingleSelectCombobox({
   placeholder = 'Buscar...',
   emptyMessage = 'Sin resultados',
   disabled = false,
+  loading = false,
   invalid = false,
   openOnFocus = false,
   onQueryChange,
@@ -205,7 +207,12 @@ export function SingleSelectCombobox({
 
       {open && !selected && (
         <div className="border-border bg-surface absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded border shadow-lg">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="text-text-muted p-3 text-sm flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin text-primary" />
+              <span>Buscando productos...</span>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="text-text-muted p-3 text-sm">{emptyMessage}</div>
           ) : (
             <ul role="listbox">

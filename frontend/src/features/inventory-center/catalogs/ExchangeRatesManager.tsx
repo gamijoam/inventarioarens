@@ -38,7 +38,7 @@ import {
 import { Label } from '@/components/ui/Label';
 import { Can } from '@/components/permissions/Can';
 import { PERMISSIONS } from '@/permissions/constants';
-import { todayDateString } from '@/lib/format';
+import { formatEffectiveDate, todayDateString } from '@/lib/format';
 
 import { formatMoney } from '@/lib/money';
 import { useSessionStore } from '@/stores/session';
@@ -177,13 +177,15 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
     )
     .map((x) => x.rate);
 
+  const activeRates = (rates as unknown as ExchangeRateRow[]).filter((r) => r.is_active);
+
   if (isLoading) return <Skeleton className="h-48" />;
   if (isError) {
     return <EmptyState title="Error al cargar tasas" description="Reintenta en unos segundos." />;
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {isInherited && (
         <div className="border-info/30 bg-info/5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm">
           <LockKeyhole className="text-info mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -193,6 +195,58 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
               Esta empresa usa el catálogo de tasas compartido. Solo el Owner del grupo puede crear,
               activar o desactivar tasas.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tasas vigentes activas */}
+      {activeRates.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="size-4 text-success" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-text-primary">
+              Tasas vigentes activas
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {activeRates.map((ar) => (
+              <div
+                key={ar.id}
+                className="rounded-lg border border-success/30 bg-success/5 p-3.5 shadow-sm transition-all"
+                data-testid={`active-rate-card-${ar.id}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className="font-semibold text-text-primary text-sm truncate"
+                    title={ar.exchange_rate_type_name ?? ar.exchange_rate_type_code ?? ''}
+                  >
+                    {ar.exchange_rate_type_code ?? 'Tasa'}
+                    {ar.exchange_rate_type_name && ` · ${ar.exchange_rate_type_name}`}
+                  </span>
+                  <Badge variant="success" className="text-xs shrink-0">
+                    <TrendingUp className="size-3" aria-hidden="true" />
+                    {getExchangeRateStatusLabel(true, isInherited)}
+                  </Badge>
+                </div>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-lg font-bold text-text-primary tabular-nums">
+                    {formatMoney(ar.rate, { showCurrency: true })}
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    {ar.base_currency} &rarr; {ar.quote_currency}
+                  </span>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between border-t border-border/50 pt-2 text-xs text-text-muted">
+                  <span>
+                    Fecha activa:{' '}
+                    <strong className="text-text-primary font-medium">
+                      {formatEffectiveDate(ar.effective_at)}
+                    </strong>
+                  </span>
+                  <span className="truncate ml-1">{formatRateSource(ar.source)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -312,7 +366,11 @@ export function ExchangeRatesManager({ initialTypeId }: ExchangeRatesManagerProp
             <tbody>
               {sortedRates.map((r) => (
                 <tr key={r.id} className="border-border border-b last:border-b-0">
-                  <td className="px-3 py-2 text-sm">{r.effective_at}</td>
+                  <td className="px-3 py-2 text-sm tabular-nums">
+                    <span className={r.is_active ? 'font-medium text-text-primary' : 'text-text-secondary'}>
+                      {formatEffectiveDate(r.effective_at)}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 font-mono text-sm">
                     <span>{r.exchange_rate_type_code ?? '-'}</span>
                     {r.exchange_rate_type_name && (

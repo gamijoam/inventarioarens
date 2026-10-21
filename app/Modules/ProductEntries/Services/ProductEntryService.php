@@ -137,12 +137,14 @@ class ProductEntryService
 
                 $serialKeys[$key] = true;
 
-                if (ProductUnit::query()
+                $existingUnit = ProductUnit::query()
                     ->where('serial_type', $serialUnit['serial_type'])
                     ->where('serial_number', $serialUnit['serial_number'])
-                    ->exists()) {
+                    ->first();
+
+                if ($existingUnit && $existingUnit->status !== ProductUnit::STATUS_REMOVED) {
                     throw ValidationException::withMessages([
-                        "items.{$index}.serial_units.{$serialIndex}.serial_number" => "El serial {$serialUnit['serial_number']} ya existe en la empresa actual.",
+                        "items.{$index}.serial_units.{$serialIndex}.serial_number" => "El serial {$serialUnit['serial_number']} ya existe y se encuentra activo en la empresa actual.",
                     ]);
                 }
             }
@@ -156,14 +158,19 @@ class ProductEntryService
         }
 
         foreach ($serialUnits as $serialUnit) {
-            ProductUnit::create([
-                'product_id' => $product->id,
-                'warehouse_id' => $warehouse->id,
-                'serial_type' => $serialUnit['serial_type'],
-                'serial_number' => $serialUnit['serial_number'],
-                'status' => ProductUnit::STATUS_AVAILABLE,
-                'acquired_stock_movement_id' => $movementId,
-            ]);
+            ProductUnit::updateOrCreate(
+                [
+                    'serial_type' => $serialUnit['serial_type'],
+                    'serial_number' => $serialUnit['serial_number'],
+                ],
+                [
+                    'product_id' => $product->id,
+                    'warehouse_id' => $warehouse->id,
+                    'status' => ProductUnit::STATUS_AVAILABLE,
+                    'acquired_stock_movement_id' => $movementId,
+                    'released_stock_movement_id' => null,
+                ]
+            );
         }
     }
 

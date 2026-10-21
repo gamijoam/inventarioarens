@@ -45,7 +45,7 @@ export function CreateManualMovementDialog({
 }: CreateProps) {
   const [productSearch, setProductSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const { data: products = [] } = useProductsForTransfer(debouncedSearch);
+  const { data: products = [], isLoading: isLoadingProducts } = useProductsForTransfer(debouncedSearch);
   const [selectedProduct, setSelectedProduct] = useState<(typeof products)[0] | null>(null);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function CreateManualMovementDialog({
   const [productId, setProductId] = useState<number | null>(null);
   const [variantId, setVariantId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [type, setType] = useState<ManualMovementType>('internal_consumption');
+  const [type, setType] = useState<ManualMovementType>('adjustment_in');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -91,7 +91,7 @@ export function CreateManualMovementDialog({
       setProductSearch('');
       setDebouncedSearch('');
       setQuantity(1);
-      setType('internal_consumption');
+      setType('adjustment_in');
       setReason('');
       setNotes('');
       setErrors({});
@@ -266,6 +266,7 @@ export function CreateManualMovementDialog({
           <Field label="Producto" error={errors.product_id}>
             <SingleSelectCombobox
               openOnFocus
+              loading={isLoadingProducts}
               value={productId}
               onChange={(value) => {
                 const nextId = value == null ? null : Number(value);
@@ -305,13 +306,20 @@ export function CreateManualMovementDialog({
             </Field>
           )}
 
-          <Field label="Tipo" error={errors.type}>
+          <Field label="Tipo de movimiento" error={errors.type}>
             <Select value={type} onChange={(e) => setType(e.target.value as ManualMovementType)}>
-              {MANUAL_MOVEMENT_TYPES.map((item) => (
-                <option key={item} value={item}>
-                  {MANUAL_MOVEMENT_TYPE_LABELS[item]}
-                </option>
-              ))}
+              <optgroup label="Entradas al Inventario">
+                <option value="adjustment_in">Ajuste positivo / Entrada</option>
+                <option value="found">Sobrante de inventario</option>
+                <option value="return_internal">Devolución interna</option>
+              </optgroup>
+              <optgroup label="Salidas / Egresos de Inventario">
+                <option value="internal_consumption">Consumo interno</option>
+                <option value="adjustment_out">Ajuste negativo / Salida</option>
+                <option value="damaged">Dañado</option>
+                <option value="loss">Pérdida</option>
+                <option value="write_off">Baja de inventario</option>
+              </optgroup>
             </Select>
           </Field>
 

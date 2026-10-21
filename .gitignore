@@ -42,3 +42,8 @@ Thumbs.db
 
 /public/downloads/*.exe
 /public/downloads/*.zip
+
+# Frontend dist backups
+frontend/dist-backup*
+frontend/dist.backup*
+frontend/dist.bak*

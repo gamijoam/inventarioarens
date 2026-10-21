@@ -81,7 +81,7 @@ export interface PriceRow {
 }
 
 export interface PricesEditorProps {
-  productId: number;
+  productId?: number;
   currentBasePrice?: number;
   onPricesChange?: (
     prices: Array<{
@@ -101,21 +101,21 @@ export function PricesEditor({
   onPricesChange,
   showSaveButton = true,
 }: PricesEditorProps) {
-  const { data: product, isLoading: productLoading } = useProduct(productId);
+  const { data: product, isLoading: productLoading } = useProduct(productId ?? 0);
   const { data: priceLists = [], isLoading: listsLoading } = usePriceLists(false);
   const qc = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
 
-  // Carga los precios del producto.
+  // Carga los precios del producto si existe.
   const pricesQuery = useQuery({
-    queryKey: productKeys.prices(productId),
+    queryKey: productKeys.prices(productId ?? 0),
     queryFn: async () => {
       return z
         .array(ProductPriceSchema)
         .parse(await getMany<unknown>(`/products/${productId}/prices`))
         .filter((price) => price.is_active !== false);
     },
-    enabled: productId > 0,
+    enabled: Boolean(productId && productId > 0),
     staleTime: 0,
     refetchOnMount: 'always',
   });
@@ -214,18 +214,21 @@ export function PricesEditor({
   // Notificar al padre cuando cambian los precios
   useEffect(() => {
     if (onPricesChange && rows.length > 0) {
-      const dirtyPrices = rows
-        .filter((r) => r.dirty && r.amount !== '')
+      const pricesToReport = rows
+        .filter((r) => (!productId ? r.amount !== '' : r.dirty && r.amount !== ''))
         .map((r) => ({
           price_list_id: r.price_list_id,
           price: r.remove ? null : Number(r.amount),
-          margin_percentage: r.percentage !== '' && !isNaN(Number(r.percentage)) ? Number(r.percentage) : null,
+          margin_percentage:
+            r.percentage !== '' && !isNaN(Number(r.percentage)) && Number(r.percentage) >= 0
+              ? Number(r.percentage)
+              : null,
           currency: r.currency,
           remove: r.remove,
         }));
-      onPricesChange(dirtyPrices);
+      onPricesChange(pricesToReport);
     }
-  }, [rows, onPricesChange]);
+  }, [rows, onPricesChange, productId]);
 
   const dirty = useMemo(() => rows.some((r) => r.dirty), [rows]);
 
@@ -307,10 +310,14 @@ export function PricesEditor({
       setRows((prev) => prev.map((r) => ({ ...r, dirty: false })));
       onPricesChange?.([]);
       void qc.invalidateQueries({ queryKey: productKeys.all });
-      void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
-      void qc.invalidateQueries({ queryKey: productKeys.prices(productId) });
+      if (productId) {
+        void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
+        void qc.invalidateQueries({ queryKey: productKeys.prices(productId) });
+      }
       void qc.invalidateQueries({ queryKey: productKeys.lists() });
-      await pricesQuery.refetch();
+      if (productId) {
+        await pricesQuery.refetch();
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar precios.');
     } finally {
@@ -516,32 +523,40 @@ export function PricesEditor({
         <div className="flex items-center justify-between gap-2 p-2.5 bg-surface-subtle/30 border-t border-border/60">
           <span className="text-[11px] text-text-muted hidden sm:inline-flex items-center gap-1">
             <Info className="size-3 text-primary" />
-            Los precios se aplican al instante en el punto de venta.
+            {productId
+              ? 'Los precios se aplican al instante en el punto de venta.'
+              : 'Las tarifas y márgenes configurados se guardarán automáticamente con el nuevo producto.'}
           </span>
-          <div className="flex items-center gap-2 ml-auto">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => pricesQuery.refetch()}
-              disabled={pricesQuery.isFetching || isSaving}
-              className="h-7 text-xs"
-            >
-              <X className="size-3.5 mr-1" aria-hidden="true" />
-              Descartar
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={saveAll}
-              disabled={!dirty || isSaving}
-              loading={isSaving}
-              className="h-7 text-xs gap-1.5"
-            >
-              <Save className="size-3.5" aria-hidden="true" />
-              Guardar Precios
-            </Button>
-          </div>
+          {productId ? (
+            <div className="flex items-center gap-2 ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => pricesQuery.refetch()}
+                disabled={pricesQuery.isFetching || isSaving}
+                className="h-7 text-xs"
+              >
+                <X className="size-3.5 mr-1" aria-hidden="true" />
+                Descartar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={saveAll}
+                disabled={!dirty || isSaving}
+                loading={isSaving}
+                className="h-7 text-xs gap-1.5"
+              >
+                <Save className="size-3.5" aria-hidden="true" />
+                Guardar Precios
+              </Button>
+            </div>
+          ) : (
+            <div className="ml-auto text-xs text-text-muted font-medium">
+              Listo para guardar con la ficha
+            </div>
+          )}
         </div>
       )}
     </div>

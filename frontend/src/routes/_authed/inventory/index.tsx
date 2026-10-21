@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, LayoutGrid, Package, Plus, Search, SlidersHorizontal, Store, TrendingUp, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, LayoutGrid, Package, Plus, Search, SlidersHorizontal, Sparkles, Store, TrendingUp, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -35,6 +35,7 @@ import { useAlertsSummary } from '@/features/inventory-center/api';
 import { useCurrentExchangeRatesForPos } from '@/features/pos/api';
 import { useUiPreferences, useUpdateUiPreferences } from '@/features/company-settings/api';
 import { CreateProductDialog } from '@/features/inventory-center/dialogs/CreateProductDialog';
+import { QuickCreateProductDialog } from '@/features/inventory-center/dialogs/QuickCreateProductDialog';
 import { CustomizeInventoryColumnsDialog } from '@/features/inventory-center/dialogs/CustomizeInventoryColumnsDialog';
 import { ExportInventoryDialog } from '@/features/inventory-center/dialogs/ExportInventoryDialog';
 import { BulkPriceAdjustmentModal } from '@/features/inventory-center/dialogs/BulkPriceAdjustmentModal';
@@ -373,7 +374,7 @@ function InventoryListPage() {
               className="gap-1.5 bg-primary hover:bg-primary-hover text-white font-semibold shadow-sm"
             >
               <Plus className="size-4" />
-              Nuevo producto
+              Crear producto
             </Button>
           </Can>
         </div>
@@ -614,12 +615,24 @@ function InventoryListPage() {
       </>
       )}
 
-      <CreateProductDialog
-        open={createOpen || quickCreateOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open);
-          setQuickCreateOpen(open);
+      <QuickCreateProductDialog
+        open={quickCreateOpen}
+        onOpenChange={setQuickCreateOpen}
+        priceLists={priceLists}
+        activeRate={activeRate}
+        onOpenFullForm={() => {
+          setQuickCreateOpen(false);
+          setCreateOpen(true);
         }}
+        onSuccess={(created) => {
+          if (created?.name) {
+            toast.success(`Producto "${created.name}" creado con éxito.`);
+          }
+        }}
+      />
+      <CreateProductDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
         onSuccess={(created) => {
           if (created?.name) {
             toast.success(`Producto "${created.name}" creado con éxito.`);

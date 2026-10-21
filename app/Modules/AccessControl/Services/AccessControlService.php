@@ -340,9 +340,14 @@ class AccessControlService
         $previousTeamId = function_exists('getPermissionsTeamId') ? getPermissionsTeamId() : null;
 
         if (! $user->belongsToTenant($targetTenant)) {
-            throw ValidationException::withMessages([
-                'user' => 'El usuario no pertenece a la empresa seleccionada o ya no esta asignado.',
-            ]);
+            $allowedTenantIds = $this->organizationTenantIdsForCurrentTenant($actor);
+            if (in_array($targetTenant->id, $allowedTenantIds, true)) {
+                $user->tenants()->syncWithoutDetaching([$targetTenant->id => ['status' => 'active']]);
+            } else {
+                throw ValidationException::withMessages([
+                    'user' => 'El usuario no pertenece a la empresa seleccionada o ya no esta asignado.',
+                ]);
+            }
         }
 
         $tenantManager->set($targetTenant);

@@ -22,7 +22,7 @@ class SyncProductPricesRequest extends FormRequest
                 Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'prices.*.price' => ['nullable', 'numeric', 'gte:0', 'required_unless:prices.*.remove,true'],
-            'prices.*.margin_percentage' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'prices.*.margin_percentage' => ['nullable', 'numeric', 'min:0'],
             'prices.*.currency' => ['required', 'string', 'size:3', Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES])],
             'prices.*.exchange_rate_type_id' => [
                 'nullable',

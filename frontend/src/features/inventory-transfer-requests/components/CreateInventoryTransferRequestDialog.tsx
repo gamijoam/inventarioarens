@@ -45,10 +45,11 @@ interface ItemRow {
   product_id: string;
   product: Product | null;
   product_variant_id: string;
+  hasVariants?: boolean;
   quantity: string;
 }
 
-const EMPTY_ITEM: ItemRow = { product_id: '', product: null, product_variant_id: '', quantity: '' };
+const EMPTY_ITEM: ItemRow = { product_id: '', product: null, product_variant_id: '', hasVariants: false, quantity: '' };
 
 export function CreateInventoryTransferRequestDialog({
   open,
@@ -122,6 +123,18 @@ export function CreateInventoryTransferRequestDialog({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormErrors({});
+
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.product_id && it.hasVariants && !it.product_variant_id) {
+        setFormErrors((prev) => ({
+          ...prev,
+          [`items.${i}.product_variant_id`]: 'Debes seleccionar una variante para este producto.',
+        }));
+        toast.error(`Selecciona una variante obligatoria para "${it.product?.name ?? 'el producto'}".`);
+        return;
+      }
+    }
 
     const payload = {
       flow_type: flowType,
@@ -311,19 +324,38 @@ export function CreateInventoryTransferRequestDialog({
                         }
                         invalid={Boolean(formErrors[`items.${idx}.product_id`])}
                       />
-                      {it.product && it.product.tracking_type !== 'serialized' && (
+                      {it.product && (
                         <div className="pt-1">
                           <VariantSelect
                             productId={it.product.id}
                             warehouseId={fromWarehouseId ? Number(fromWarehouseId) : undefined}
                             value={it.product_variant_id ? Number(it.product_variant_id) : null}
-                            onChange={(variantId) =>
+                            required={true}
+                            invalid={Boolean(formErrors[`items.${idx}.product_variant_id`])}
+                            onHasVariantsChange={(hasVars) => {
+                              if (it.hasVariants !== hasVars) {
+                                updateItem(idx, { hasVariants: hasVars });
+                              }
+                            }}
+                            onChange={(variantId) => {
                               updateItem(idx, {
                                 product_variant_id: variantId ? String(variantId) : '',
-                              })
-                            }
+                              });
+                              if (variantId) {
+                                setFormErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next[`items.${idx}.product_variant_id`];
+                                  return next;
+                                });
+                              }
+                            }}
                             testIdPrefix={`req-row-${idx}-variant`}
                           />
+                          {formErrors[`items.${idx}.product_variant_id`] && (
+                            <p className="text-danger text-xs mt-1">
+                              {formErrors[`items.${idx}.product_variant_id`]}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

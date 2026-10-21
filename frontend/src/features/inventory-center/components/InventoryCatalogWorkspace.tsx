@@ -608,7 +608,7 @@ export function InventoryCatalogWorkspace({
                     className="gap-1.5 mt-2 bg-primary hover:bg-primary-hover text-white font-medium"
                   >
                     <Plus className="size-3.5" />
-                    Nuevo producto
+                    Crear producto
                   </Button>
                 ) : undefined
               }

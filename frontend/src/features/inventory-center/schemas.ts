@@ -217,7 +217,7 @@ export const StoreProductSchema = z
     category_ids: z.array(z.number().int().positive()).default([]),
     tag_ids: z.array(z.number().int().positive()).default([]),
     base_price: optionalNumber(0),
-    profit_margin: optionalNumber(-999.99),
+    profit_margin: optionalNumber(-999999999),
     last_purchase_cost: optionalNumber(0),
     pricing_mode: z.enum(PRICING_MODES).default('automatic'),
     sale_currency: z.enum(SALE_CURRENCIES).default('USD'),
@@ -310,7 +310,7 @@ const StoreProductBaseSchema = z.object({
   category_ids: z.array(z.number().int().positive()).default([]),
   tag_ids: z.array(z.number().int().positive()).default([]),
   base_price: optionalNumber(0),
-  profit_margin: optionalNumber(-999.99),
+  profit_margin: optionalNumber(-999999999),
   last_purchase_cost: optionalNumber(0),
   pricing_mode: z.enum(PRICING_MODES).optional(),
   sale_currency: z.enum(SALE_CURRENCIES).default('USD'),
@@ -942,7 +942,7 @@ export const StorePriceListSchema = z
       .max(1000)
       .optional()
       .transform((s) => (s?.trim() ? s.trim() : null)),
-    markup_percentage: z.number().min(0).max(999.99).nullable().optional(),
+    markup_percentage: z.number().min(-99.99).max(999.99).nullable().optional(),
     base_price_list_id: z.coerce.number().int().positive().nullable().optional(),
     payment_exchange_rate_type_id: z.coerce.number().int().positive().nullable().optional(),
     payment_exchange_rate_markup_percentage: z.coerce.number().min(-99.99).max(999.99).nullable().optional(),

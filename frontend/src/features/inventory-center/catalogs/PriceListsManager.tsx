@@ -338,11 +338,6 @@ function FormDialog({
     );
   }, [paymentMethods, searchMethod]);
 
-  const effectiveRate = useMemo(() => {
-    if (baseRateVal <= 0) return 0;
-    if (markupPercentage == null || isNaN(Number(markupPercentage))) return baseRateVal;
-    return Math.round(baseRateVal * (1 + Number(markupPercentage) / 100) * 10000) / 10000;
-  }, [baseRateVal, markupPercentage]);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -526,7 +521,6 @@ function FormDialog({
                         <Input
                           type="number"
                           min={0}
-                          max={999.99}
                           step="0.01"
                           {...form.register('markup_percentage', {
                             setValueAs: (value) => (value === '' ? null : Number(value)),
@@ -591,35 +585,37 @@ function FormDialog({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-text-primary">Tasa de Cobro para POS (Bolívares)</h3>
-                      <p className="text-[11px] text-text-muted">Ajuste comercial de conversión de divisas para pagos en VES</p>
+                      <p className="text-[11px] text-text-muted">
+                        Reglas de cálculo y recargo para cuando el cliente paga en Bolívares (VES)
+                      </p>
                     </div>
                   </div>
 
-                  <div className="space-y-3.5">
-                    <Field
-                      label="Tipo de Tasa para Pagos en Bolívares"
-                      hint="Selecciona la tasa de referencia que rige los cobros en moneda nacional."
-                      error={form.formState.errors.payment_exchange_rate_type_id?.message}
-                    >
-                      <select
-                        className="border-border bg-surface h-10 w-full rounded-lg border px-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition"
-                        {...form.register('payment_exchange_rate_type_id', {
-                          setValueAs: (value) => (value === '' ? null : Number(value)),
-                        })}
-                      >
-                        <option value="">Tasa predeterminada de la empresa</option>
-                        {exchangeRateTypes.map((rateType) => (
-                          <option key={rateType.id} value={rateType.id} disabled={!rateType.is_active}>
-                            {rateType.name} ({rateType.code}){rateType.is_active ? '' : ' - Inactiva'}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-
+                  <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Field
-                        label="% Ajuste / Recargo a la Tasa"
-                        hint="Margen porcentual sobre la tasa base."
+                        label="Tasa de Referencia para Bolívares"
+                        hint="Selecciona la tasa oficial que rige la conversión (ej. BCV)."
+                        error={form.formState.errors.payment_exchange_rate_type_id?.message}
+                      >
+                        <select
+                          className="border-border bg-surface h-10 w-full rounded-lg border px-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition"
+                          {...form.register('payment_exchange_rate_type_id', {
+                            setValueAs: (value) => (value === '' ? null : Number(value)),
+                          })}
+                        >
+                          <option value="">Tasa predeterminada de la empresa</option>
+                          {exchangeRateTypes.map((rateType) => (
+                            <option key={rateType.id} value={rateType.id} disabled={!rateType.is_active}>
+                              {rateType.name} ({rateType.code}){rateType.is_active ? '' : ' - Inactiva'}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+
+                      <Field
+                        label="% Recargo por Cobro en Bolívares"
+                        hint="Porcentaje adicional sumado al saldo faltante en divisas."
                         error={form.formState.errors.payment_exchange_rate_markup_percentage?.message}
                       >
                         <div className="relative flex items-center">
@@ -636,108 +632,105 @@ function FormDialog({
                                 { shouldDirty: true },
                               );
                             }}
-                            className="text-right pr-7 font-mono font-medium"
+                            className="text-right pr-7 font-mono font-bold text-amber-600 dark:text-amber-400"
                           />
                           <span className="absolute right-3 text-xs text-text-muted font-bold pointer-events-none select-none">
                             %
                           </span>
                         </div>
                       </Field>
-
-                      <Field
-                        label="Tasa Recalculada Efectiva"
-                        hint={
-                          baseRateVal > 0
-                            ? `Tasa base oficial: ${baseRateVal.toFixed(4)} Bs`
-                            : 'Sin tasa base disponible'
-                        }
-                      >
-                        <div className="relative flex items-center">
-                          <Input
-                            type="number"
-                            step="0.0001"
-                            placeholder="0.0000"
-                            value={
-                              baseRateVal > 0
-                                ? (markupPercentage != null
-                                    ? (
-                                        Math.round(
-                                          baseRateVal *
-                                            (1 + Number(markupPercentage) / 100) *
-                                            10000,
-                                        ) / 10000
-                                      ).toFixed(4)
-                                    : baseRateVal.toFixed(4))
-                                : ''
-                            }
-                            onChange={(e) => {
-                              const target = parseFloat(e.target.value);
-                              if (!isNaN(target) && baseRateVal > 0) {
-                                const p =
-                                  Math.round((((target - baseRateVal) / baseRateVal) * 100) * 100) /
-                                  100;
-                                form.setValue('payment_exchange_rate_markup_percentage', p, {
-                                  shouldDirty: true,
-                                });
-                              } else if (e.target.value === '') {
-                                form.setValue('payment_exchange_rate_markup_percentage', null, {
-                                  shouldDirty: true,
-                                });
-                              }
-                            }}
-                            className="text-right font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-500/5 border-amber-500/30 focus:border-amber-500 pr-16"
-                          />
-                          <span className="absolute right-3 text-xs font-semibold text-amber-600/80 dark:text-amber-400/80 pointer-events-none select-none">
-                            Bs/USD
-                          </span>
-                        </div>
-                      </Field>
                     </div>
 
-                    {/* Tarjeta Visual de Conversión en Tiempo Real */}
-                    <div className="rounded-xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 p-3.5 space-y-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
+                    {/* Tarjeta Explicativa con el Desglose Exacto del Negocio */}
+                    <div className="rounded-xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-2.5">
+                        <div className="flex items-center gap-2">
                           <Badge
                             variant="outline"
-                            className="border-amber-500/40 text-amber-700 dark:text-amber-300 font-mono text-[11px]"
+                            className="border-amber-500/40 text-amber-700 dark:text-amber-300 font-mono text-xs font-bold"
                           >
                             {rateTypeName}
                           </Badge>
                           <span className="text-xs text-text-secondary">
-                            Oficial:{' '}
+                            Tasa Oficial:{' '}
                             <strong className="font-mono text-text-primary">
-                              {baseRateVal > 0 ? baseRateVal.toFixed(4) : '0.0000'} Bs
+                              {baseRateVal > 0 ? baseRateVal.toFixed(4) : '0.0000'} Bs/USD
                             </strong>
                           </span>
-                          {markupPercentage != null && Number(markupPercentage) !== 0 && (
-                            <Badge variant="warning" className="font-mono text-[11px]">
-                              {Number(markupPercentage) > 0
-                                ? `+${markupPercentage}%`
-                                : `${markupPercentage}%`}
-                            </Badge>
-                          )}
                         </div>
-                        <div className="text-right">
-                          <span className="text-[11px] text-text-muted block">
-                            Tasa Final en Cobro POS:
-                          </span>
-                          <span className="text-base sm:text-lg font-black font-mono text-amber-600 dark:text-amber-400">
-                            {effectiveRate > 0 ? effectiveRate.toFixed(4) : '0.0000'}{' '}
-                            <span className="text-xs font-semibold text-text-secondary">
-                              Bs/USD
+                        {markupPercentage != null && Number(markupPercentage) !== 0 ? (
+                          <Badge variant="warning" className="font-mono text-xs">
+                            Recargo: {Number(markupPercentage) > 0 ? `+${markupPercentage}%` : `${markupPercentage}%`}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="font-mono text-xs text-text-muted">
+                            Sin recargo (0%)
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Simulador Paso a Paso */}
+                      <div className="space-y-2 text-xs">
+                        <p className="font-semibold text-text-primary flex items-center gap-1.5">
+                          <span>🧮</span>
+                          <span>Fórmula de cobro en POS (Ejemplo con $10.00 USD faltantes):</span>
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 bg-surface/80 rounded-xl p-3 border border-amber-500/20 font-mono shadow-sm">
+                          <div className="space-y-1 bg-surface-subtle/60 p-2.5 rounded-lg border border-border/50">
+                            <span className="text-[10px] text-text-muted uppercase block font-sans font-medium">
+                              1. Saldo en Divisas
                             </span>
-                          </span>
+                            <span className="font-bold text-text-primary text-base block">$10.00 USD</span>
+                            <span className="text-[10px] text-text-muted font-sans block">
+                              Monto a liquidar en caja
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 bg-surface-subtle/60 p-2.5 rounded-lg border border-border/50">
+                            <span className="text-[10px] text-text-muted uppercase block font-sans font-medium">
+                              2. Recargo ({Number(markupPercentage || 0) > 0 ? `+${markupPercentage}%` : '0%'})
+                            </span>
+                            <span className="font-bold text-amber-600 dark:text-amber-400 text-base block">
+                              +${((10 * Number(markupPercentage || 0)) / 100).toFixed(2)} USD
+                            </span>
+                            <span className="text-[10px] text-text-muted font-sans block">
+                              Total base: <strong>${(10 * (1 + Number(markupPercentage || 0) / 100)).toFixed(2)} USD</strong>
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/30">
+                            <span className="text-[10px] text-amber-700 dark:text-amber-300 uppercase block font-sans font-bold">
+                              3. Total a Cobrar en Bs
+                            </span>
+                            <span className="font-black text-emerald-600 dark:text-emerald-400 text-base block">
+                              {baseRateVal > 0
+                                ? `${(10 * (1 + Number(markupPercentage || 0) / 100) * baseRateVal).toFixed(2)} Bs`
+                                : '0.00 Bs'}
+                            </span>
+                            <span className="text-[10px] text-text-muted font-sans block">
+                              {(10 * (1 + Number(markupPercentage || 0) / 100)).toFixed(2)}$ a tasa {rateTypeName} ({baseRateVal.toFixed(4)} Bs)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg bg-amber-500/5 p-2.5 border border-amber-500/15 text-[11px] text-text-secondary leading-relaxed font-sans space-y-1">
+                          <p>
+                            <strong>Explicación de la regla:</strong> Se toma el faltante en divisas ($10.00), se le suma el recargo del{' '}
+                            <strong>{Number(markupPercentage || 0)}%</strong> para un total de{' '}
+                            <strong>${(10 * (1 + Number(markupPercentage || 0) / 100)).toFixed(2)} USD</strong>, y se multiplica por la tasa oficial seleccionada ({rateTypeName}:{' '}
+                            <strong>{baseRateVal > 0 ? baseRateVal.toFixed(4) : '0.0000'} Bs</strong>), dando a cobrar{' '}
+                            <strong>
+                              {baseRateVal > 0
+                                ? `${(10 * (1 + Number(markupPercentage || 0) / 100) * baseRateVal).toFixed(2)} Bs`
+                                : '0.00 Bs'}
+                            </strong>.
+                          </p>
+                          <p className="text-text-muted text-[10px]">
+                            Al recibir ese pago en Bolívares en el POS, el sistema cancela exactamente los $10.00 USD de deuda sin generar diferencias.
+                          </p>
                         </div>
                       </div>
-                      {baseRateVal > 0 && (
-                        <div className="border-t border-amber-500/20 pt-2 flex items-center justify-between text-xs text-text-secondary">
-                          <span>💡 Ejemplo de cobro ($10.00 USD en caja):</span>
-                          <span className="font-mono font-bold text-text-primary">
-                            {(10 * effectiveRate).toFixed(2)} Bs
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>

@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { deleteOne, getMany, getOne, postOne, putOne } from '@/api/client';
+import { useSessionStore } from '@/stores/session';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
   ChecklistPayloadSchema,
@@ -376,12 +377,14 @@ export function useProductsForTransfer(
     includeInactive = optionsOrWarehouseId.includeInactive === true;
   }
 
+  const tenantSlug = useSessionStore((s) => s.tenant?.slug ?? 'default');
+
   return useQuery({
-    queryKey: [...productKeys.lists(), 'for-transfer', search, warehouseId ?? 'all', includeInactive] as const,
+    queryKey: [...productKeys.lists(), 'for-transfer', tenantSlug, search, warehouseId ?? 'all', includeInactive] as const,
     queryFn: async () => {
       // Search server-side so large catalogs do not hide valid products after
       // the first page, especially serialized products imported from the VPS.
-      const params = new URLSearchParams({ limit: '100', tracking_type: 'all' });
+      const params = new URLSearchParams({ limit: '150', tracking_type: 'all' });
       if (includeInactive) params.set('active_status', 'all');
       if (search.trim()) params.set('search', search.trim());
       if (warehouseId) params.set('warehouse_id', String(warehouseId));
@@ -389,6 +392,6 @@ export function useProductsForTransfer(
       const arr = Array.isArray(data) ? data : ((data as { data?: unknown[] })?.data ?? []);
       return (await import('zod')).z.array(ProductSchema).parse(arr);
     },
-    staleTime: 10 * 1000,
+    staleTime: 5 * 1000,
   });
 }

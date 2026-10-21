@@ -56,6 +56,7 @@ import {
   type Product,
 } from '@/features/inventory-center/schemas';
 import { cn } from '@/lib/cn';
+import { sortPriceListsByCode } from '@/lib/priceLists';
 import { calcAmountFromPercent, calcPercentFromAmount } from '../components/PricesEditor';
 
 export interface QuickCreateProductDialogProps {
@@ -129,10 +130,9 @@ export function QuickCreateProductDialog({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Listas activas ordenadas (la predeterminada primero)
+  // Listas activas ordenadas respetando el orden programado
   const activeLists = useMemo(() => {
-    const list = priceLists.filter((l) => l.is_active);
-    return list.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0));
+    return sortPriceListsByCode(priceLists.filter((l) => l.is_active));
   }, [priceLists]);
 
   const handlePercentChange = (listId: number, val: string, isDefault: boolean) => {

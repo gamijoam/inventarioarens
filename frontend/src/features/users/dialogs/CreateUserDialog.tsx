@@ -56,7 +56,11 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: CreateUserDi
     }
   }, [open]);
 
-  const { data: rolesData, isLoading: rolesLoading } = useAccessRoles();
+  const { data: rolesData, isLoading: rolesLoading } = useAccessRoles({
+    search: '',
+    page: 1,
+    per_page: 100,
+  });
   const create = useCreateUser();
 
   function toggleRole(roleName: string) {

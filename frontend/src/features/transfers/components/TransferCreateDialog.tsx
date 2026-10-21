@@ -437,7 +437,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                             )}
                           </div>
                         )}
-                        {!isSerialized && row.product_id && (
+                        {Boolean(row.product_id) && (
                           <div className="pt-1">
                             <VariantSelect
                               productId={row.product_id}

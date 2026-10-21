@@ -13,6 +13,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
+import { toast } from '@/lib/toast';
 import { rememberLocalTransferAction } from '@/lib/intercompanyTransferToasts';
 import { useSessionStore } from '@/stores/session';
 
@@ -238,6 +239,23 @@ function useGuideMutation(action: 'prepare' | 'dispatch' | 'deliver' | 'receive'
       void qc.invalidateQueries({ queryKey: transferRequestKeys.lists() });
       void qc.invalidateQueries({ queryKey: transferRequestKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: productKeys.all });
+      toast.success(
+        action === 'dispatch'
+          ? 'Guía despachada correctamente.'
+          : action === 'deliver'
+            ? 'Guía marcada como entregada.'
+            : action === 'prepare'
+              ? 'Guía preparada correctamente.'
+              : 'Guía recibida correctamente.',
+      );
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.message ||
+        (err?.response?.data?.errors ? Object.values(err.response.data.errors).flat().join(', ') : null) ||
+        err?.message ||
+        'Error al procesar la guía.';
+      toast.error(msg);
     },
   });
 }

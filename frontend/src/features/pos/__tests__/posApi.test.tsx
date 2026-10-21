@@ -71,6 +71,24 @@ describe('pos api', () => {
     expect(formatPosRateLabel({ code: 'BCV', name: 'Banco Central', rate: 3000 })).toContain(
       'Banco Central (BCV) @',
     );
+    expect(
+      formatPosRateLabel({
+        code: 'BCV',
+        name: 'Banco Central',
+        rate: 60,
+        base_rate: 40,
+        markup_percentage: 50,
+      }),
+    ).toContain('Banco Central (BCV) @ 40');
+    expect(
+      formatPosRateLabel({
+        code: 'BCV',
+        name: 'Banco Central',
+        rate: 60,
+        base_rate: 40,
+        markup_percentage: 50,
+      }),
+    ).toContain('+50% en VES');
     expect(formatPosRateLabel(null)).toBe('Sin tasa activa');
   });
 
@@ -215,6 +233,8 @@ describe('pos api', () => {
       code: 'DIVISA-RECIBIDA',
       name: 'DIVISA-RECIBIDA',
       rate: 850,
+      base_rate: 850,
+      markup_percentage: 0,
     });
     expect(10 * (rate?.rate ?? 0)).toBe(8500);
   });
@@ -246,7 +266,34 @@ describe('pos api', () => {
       code: 'BCV',
       name: 'BCV Oficial (+10%)',
       rate: 49.5,
+      base_rate: 45,
+      markup_percentage: 10,
     });
+  });
+
+  it('aplica el calculo de cobro en bolivares con recargo porcentual exacto al modelo venezolano', () => {
+    const rateBcv = resolvePosPaymentRate(
+      [{ exchange_rate_type_id: 1, rate: 40, base_currency: 'USD', quote_currency: 'VES' }],
+      [{ id: 1, code: 'BCV', name: 'Banco Central', is_default: true, is_active: true }],
+      1,
+      50, // +50%
+    );
+
+    expect(rateBcv).not.toBeNull();
+    expect(rateBcv?.base_rate).toBe(40);
+    expect(rateBcv?.markup_percentage).toBe(50);
+    expect(rateBcv?.rate).toBe(60);
+
+    // Saldo restante en divisas: $10.00 USD
+    const remainingUsd = 10;
+    // Base a liquidar en VES con recargo (+50%): $15.00 USD
+    const adjustedUsd = remainingUsd * (1 + (rateBcv?.markup_percentage ?? 0) / 100);
+    expect(adjustedUsd).toBe(15);
+
+    // Monto final en Bolivares = 15$ * 40 Bs = 600 Bs
+    const amountVes = adjustedUsd * (rateBcv?.base_rate ?? 0);
+    expect(amountVes).toBe(600);
+    expect(remainingUsd * (rateBcv?.rate ?? 0)).toBe(600);
   });
 
   it('resuelve la sesion abierta desde bootstrap o fallback del cajero', () => {

@@ -324,8 +324,8 @@ function useColumns(
                         e.stopPropagation();
                         onEdit(info.row.original);
                       }}
-                      title="Editar nombre"
-                      aria-label="Editar nombre"
+                      title="Editar usuario"
+                      aria-label="Editar usuario"
                       data-testid={`edit-user-${info.row.original.id}`}
                     >
                       <Pencil className="size-4 text-text-muted" aria-hidden="true" />

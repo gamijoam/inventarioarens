@@ -43,14 +43,32 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tenantId, setTenantId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const currentTenantId = useSessionStore((s) => s.tenant?.id ?? null);
+  const currentTenant = useSessionStore((s) => s.tenant ?? null);
+  const currentTenantId = currentTenant?.id ?? null;
+
+  const tenantOptions = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; slug: string }>();
+    if (currentTenant) {
+      map.set(currentTenant.id, {
+        id: currentTenant.id,
+        name: currentTenant.name,
+        slug: currentTenant.slug,
+      });
+    }
+    if (user?.tenants) {
+      for (const t of user.tenants) {
+        map.set(t.id, { id: t.id, name: t.name, slug: t.slug });
+      }
+    }
+    return Array.from(map.values());
+  }, [currentTenant, user?.tenants]);
 
   useEffect(() => {
     if (open && user) {
       setSearch('');
       setTenantSearch('');
       setSelected(new Set(user.roles.map((r) => r.name)));
-      const tenantIds = user.tenants?.map((tenant) => tenant.id) ?? [];
+      const tenantIds = tenantOptions.map((tenant) => tenant.id);
       if (tenantIds.length > 0) {
         setTenantId((prev) => {
           if (prev && tenantIds.includes(prev)) return prev;
@@ -61,7 +79,7 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
         setTenantId(currentTenantId);
       }
     }
-  }, [open, user, currentTenantId]);
+  }, [open, user, currentTenantId, tenantOptions]);
 
   const update = useUpdateUserRoles();
   const { data: rolesData, isLoading: rolesLoading } = useAccessRoles({
@@ -71,7 +89,6 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
     tenant_id: tenantId ?? undefined,
   });
 
-  const tenantOptions = user?.tenants ?? [];
   const filteredTenants = useMemo(() => {
     const term = tenantSearch.trim().toLowerCase();
     const filtered = !term
@@ -146,7 +163,7 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
               data-testid="change-roles-search"
             />
 
-            {tenantOptions.length > 1 && (
+            {tenantOptions.length > 1 ? (
               <div className="space-y-1">
                 <Label>Empresa destino</Label>
                 <Input
@@ -175,7 +192,12 @@ export function ChangeRolesDialog({ open, onOpenChange, user, onUpdated }: Chang
                     : `${filteredTenants.length} empresa(s) disponibles.`}
                 </p>
               </div>
-            )}
+            ) : tenantOptions.length === 1 && tenantOptions[0] ? (
+              <div className="flex items-center gap-2 rounded border border-border bg-bg/50 px-3 py-1.5 text-xs text-text-secondary">
+                <span className="font-medium text-text-primary">Empresa:</span>
+                <span>{tenantOptions[0].name} ({tenantOptions[0].slug})</span>
+              </div>
+            ) : null}
 
             {rolesLoading ? (
               <div className="text-sm text-text-muted">Cargando roles...</div>
