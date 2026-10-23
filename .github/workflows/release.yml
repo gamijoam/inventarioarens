@@ -12,12 +12,11 @@ on:
           - technician
           - admin
           - pos
-          - balanzapro-pos
-          - balanzapro-admin
-          - balanzapro-technician
   push:
     tags:
-      - 'v*'
+      - 'v*-admin'
+      - 'v*-pos'
+      - 'v*-technician'
 
 permissions:
   contents: write
@@ -54,9 +53,7 @@ jobs:
           CLIENT="${{ github.event.inputs.client }}"
           if [ -z "$CLIENT" ]; then
             TAG_NAME="${GITHUB_REF_NAME:-}"
-            # Los clientes con guion (balanzapro-pos) se resuelven primero para
-            # no confundirlos con el sufijo simple (pos).
-            for candidate in balanzapro-pos balanzapro-admin balanzapro-technician technician admin pos; do
+            for candidate in technician admin pos; do
               if [[ "$TAG_NAME" == *"-$candidate" ]]; then
                 CLIENT="$candidate"
                 break
@@ -64,8 +61,8 @@ jobs:
             done
           fi
           case "$CLIENT" in
-            admin|pos|technician|balanzapro-pos|balanzapro-admin|balanzapro-technician) ;;
-            *) echo "No se pudo resolver un cliente valido desde '$GITHUB_REF_NAME'. Usa un tag v<version>-admin|pos|technician|balanzapro-pos|balanzapro-admin|balanzapro-technician."; exit 1 ;;
+            admin|pos|technician) ;;
+            *) echo "No se pudo resolver un cliente valido desde '$GITHUB_REF_NAME'. Usa un tag v<version>-admin|pos|technician."; exit 1 ;;
           esac
           echo "client=$CLIENT" >> "$GITHUB_OUTPUT"
           echo "CLIENT=$CLIENT" >> "$GITHUB_ENV"
@@ -97,13 +94,16 @@ jobs:
           compgen -G "release/${CLIENT}/*.exe" > /dev/null || { echo "Falta instalador .exe para ${CLIENT}"; exit 1; }
           compgen -G "release/${CLIENT}/*.blockmap" > /dev/null || { echo "Falta blockmap para ${CLIENT}"; exit 1; }
 
-          # Borra cualquier release/tag previo con el mismo nombre para re-publicar limpio.
-          gh release delete "$TAG" --repo gamijoam/inventarioarens --yes --cleanup-tag 2>/dev/null || true
+          if gh release view "$TAG" --repo gamijoam/inventarioarens >/dev/null 2>&1; then
+            echo "El release $TAG ya existe; no se elimina ni se sobrescribe." >&2
+            exit 1
+          fi
 
           gh release create "$TAG" \
             --repo gamijoam/inventarioarens \
             --title "$VERSION" \
             --generate-notes \
+            --latest=false \
             release/${CLIENT}/*.exe \
             release/${CLIENT}/*.blockmap \
             release/${CLIENT}/${YML}

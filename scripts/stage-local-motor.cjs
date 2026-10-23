@@ -20,6 +20,10 @@ function stageLocalMotor({
     path.join(repoRoot, 'scripts', 'install-local-motor.ps1'),
     path.join(serviceRoot, 'install-local-motor.ps1'),
   );
+  fs.copyFileSync(
+    path.join(repoRoot, 'scripts', 'migrate-frankenphp-config.ps1'),
+    path.join(serviceRoot, 'migrate-frankenphp-config.ps1'),
+  );
   // FrankenPHP (servidor multi-hilo) es opcional: si el binario fue preparado
   // (scripts/prepare-frankenphp.cjs) se incluye en el payload como
   // runtime/frankenphp. El instalador lo usa para el servicio backend cuando

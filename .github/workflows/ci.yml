@@ -120,3 +120,24 @@ jobs:
       - name: Verify packaged client
         working-directory: frontend
         run: node ../scripts/verify-electron-artifact.cjs ${{ matrix.client }} release/${{ matrix.client }}/win-unpacked
+
+  motor-frankenphp-config:
+    name: FrankenPHP config migration
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test config migration and rollback backup
+        shell: powershell
+        run: .\scripts\tests\test-frankenphp-config-migration.ps1
+
+  installer-publication-gate:
+    name: All-in-one publication verification gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify missing hardware checks block publication
+        run: bash scripts/tests/test-installer-publication-gate.sh

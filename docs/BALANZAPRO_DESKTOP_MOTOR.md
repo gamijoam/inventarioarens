@@ -3,7 +3,7 @@
 > Documento operativo de la suite de escritorio branded **BalanzaPro** (POS,
 > Administrativo y Soporte Técnico) y del **Motor Local**, construidos desde la
 > rama `client/balanzapro` del repo `gamijoam/inventarioarens`.
-> Última actualización: 2026-09-17.
+> Última actualización: 2026-10-23.
 
 ---
 
@@ -71,29 +71,39 @@ Release y empaquetado:
 
 ---
 
-## 3. Publicar un release (GitHub Actions)
+## 3. Releases BalanzaPro (GitHub Actions)
 
-Requisito: la rama `client/balanzapro` debe estar en GitHub. El workflow
-`release.yml` corre en `windows-latest` y publica el tag
-`v<version>-<cliente>` con `.exe`, `.blockmap` y `<cliente>.yml`.
+Los tres clientes BalanzaPro se entregan juntos en `v0.2.66-balanzapro`, con un
+`.exe`, `.blockmap` y metadata de actualización (`balanzapro-*.yml`) por canal.
+El Motor y el setup todo-en-uno mantienen versiones independientes:
+Motor `0.1.5`, FrankenPHP `1.12.7` y setup `1.0.1`. Electron permanece en
+`43.3.0`. El release combinado declara Motor `0.1.5` como versión recomendada.
 
 ```bash
-# Cliente
-gh workflow run release.yml --ref client/balanzapro -f client=balanzapro-pos
-gh workflow run release.yml --ref client/balanzapro -f client=balanzapro-admin
-gh workflow run release.yml --ref client/balanzapro -f client=balanzapro-technician
-
-# Motor (variant=balanzapro => SYNC_CLOUD_URL=app.balanzapro.com/api)
+# Crear primero artefactos candidatos (no publica un release)
+gh workflow run release-balanzapro.yml --ref client/balanzapro \
+  -f ref=client/balanzapro -f publish=false
 gh workflow run release-motor.yml --ref client/balanzapro \
-  -f version=0.1.0 -f variant=balanzapro -f ref=client/balanzapro -f prerelease=false
+  -f version=0.1.5 -f variant=balanzapro -f ref=client/balanzapro -f publish=false
+
+# Tras probar el Motor 0.1.4 -> 0.1.5 y los tres clientes en Windows,
+# publicar el mismo candidato indicando el ID de su ejecución en Actions.
+gh workflow run release-motor.yml --ref client/balanzapro \
+  -f version=0.1.5 -f variant=balanzapro -f ref=client/balanzapro \
+  -f publish=true -f acceptance_verified=true -f candidate_run_id=<MOTOR_RUN_ID>
+gh workflow run release-balanzapro.yml --ref client/balanzapro \
+  -f ref=client/balanzapro -f publish=true -f acceptance_verified=true \
+  -f candidate_run_id=<ELECTRON_RUN_ID>
 ```
 
-Script helper: `scripts/release-balanzapro-desktop.sh` (necesita
-`GITHUB_TOKEN` con scopes `repo` + `workflow`; hace push y dispara los
-releases).
+El release de clientes se publica como latest y contiene los tres canales. Los
+releases del Motor, setup, conector y clientes individuales quedan fuera de
+latest. Los instaladores candidatos se deben validar antes de `publish=true`.
+El setup completo se publica por separado en el sitio BalanzaPro y requiere sus
+cuatro verificaciones manuales en el workflow `build-installer.yml`.
 
-Versión del `.exe`: sale de `frontend/package.json` (compartida entre clientes;
-el sufijo del tag desambigua). Hoy `0.2.58`.
+La versión Electron compartida sale de `frontend/package.json`; los tres
+instaladores del release combinado usan la misma versión.
 
 ---
 

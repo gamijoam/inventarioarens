@@ -64,6 +64,34 @@ releases and migrations are managed by `release-motor.yml` and the Motor install
 gh workflow run release.yml -f client=pos        # or admin / technician
 ```
 
+### BalanzaPro combined release
+
+The three BalanzaPro channels (`balanzapro-pos`, `balanzapro-admin` and
+`balanzapro-technician`) publish together as `v<version>-balanzapro`. The release contains each
+client's `.exe`, `.blockmap` and channel metadata file. The combined workflow first creates a
+candidate artifact; set `publish=true` and `acceptance_verified=true` only after the installers have
+been tested on Windows. Its release is the latest GitHub release so all three channels resolve their
+metadata from the same release. Motor, setup, connector and individual-client releases are marked
+non-latest. Standard product channels remain outside this combined BalanzaPro update release.
+
+The release manifest records the source commit, Electron app/runtime versions, all three update
+channels, and the recommended Motor version. BalanzaPro `0.2.66` pairs with Motor `0.1.5`; FrankenPHP
+stays pinned at `1.12.7`. The Go/WebView2 all-in-one setup remains a separate installation path at
+version `1.0.1`.
+
+```bash
+gh workflow run release-balanzapro.yml --ref client/balanzapro \
+  -f ref=client/balanzapro -f publish=false
+# After Windows install/update and per-channel updater checks:
+gh workflow run release-balanzapro.yml --ref client/balanzapro \
+  -f ref=client/balanzapro -f publish=true -f acceptance_verified=true \
+  -f candidate_run_id=<tested-actions-run-id>
+```
+
+Build the Motor candidate with `release-motor.yml` and validate upgrading `0.1.4 → 0.1.5` before
+publishing. The installer preserves the previous FrankenPHP `php.ini`, updates `extension_dir` for
+the new version folder and saves a backup under `%ProgramData%\InventarioArens\backups`.
+
 The workflow:
 
 1. checks out and installs frontend deps on `windows-latest`;

@@ -4,34 +4,51 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version independiente del Motor Local'
+        description: 'Versión independiente del Motor Local (BalanzaPro: 0.1.5)'
         required: true
         default: '0.1.0'
+        type: string
       variant:
-        description: 'Variante del Motor (default = generico)'
+        description: 'Variante del Motor (default = genérico)'
         required: true
         type: choice
         options:
           - default
           - balanzapro
       ref:
-        description: 'Rama/tag a construir (vacio = rama del workflow). Para BalanzaPro usar client/balanzapro.'
+        description: 'Rama/tag a construir (para BalanzaPro usar client/balanzapro)'
         required: false
         default: ''
+        type: string
+      publish:
+        description: 'Publicar el candidato probado como release'
+        required: true
+        default: false
+        type: boolean
+      candidate_run_id:
+        description: 'ID de la ejecución candidata probada (obligatorio al publicar)'
+        required: false
+        default: ''
+        type: string
+      acceptance_verified:
+        description: 'Confirmar actualización y arranque del Motor en Windows'
+        required: true
+        default: false
+        type: boolean
       prerelease:
         description: 'Publicar como release de prueba'
         required: true
-        type: boolean
         default: false
-
-permissions:
-  contents: write
+        type: boolean
 
 jobs:
-  publish:
+  build-candidate:
+    if: ${{ !inputs.publish }}
+    name: Build Motor candidate
     runs-on: windows-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,31 +69,98 @@ jobs:
       - name: Install backend dependencies
         run: composer install --prefer-dist --no-interaction --no-progress --no-dev
 
+      - name: Test FrankenPHP configuration migration
+        shell: powershell
+        run: .\scripts\tests\test-frankenphp-config-migration.ps1
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
       - name: Build Motor Local
+        env:
+          MOTOR_VERSION: ${{ inputs.version }}
+          MOTOR_VARIANT: ${{ inputs.variant }}
         shell: powershell
         run: |
-          $cloud = if ('${{ inputs.variant }}' -eq 'balanzapro') { 'https://app.balanzapro.com/api' } else { 'https://app.miinventariofacil.com/api' }
+          if ($env:MOTOR_VERSION -notmatch '^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$') { throw 'Versión inválida del Motor.' }
+          $cloud = if ($env:MOTOR_VARIANT -eq 'balanzapro') { 'https://app.balanzapro.com/api' } else { 'https://app.miinventariofacil.com/api' }
           Write-Host "Cloud URL: $cloud"
-          .\scripts\build-local-motor.ps1 -Version '${{ inputs.version }}' -CloudUrl $cloud
+          .\scripts\build-local-motor.ps1 -Version $env:MOTOR_VERSION -CloudUrl $cloud
 
-      - name: Validate artifact
+      - name: Validate candidate installer and checksum
         shell: powershell
         run: |
-          $artifact = @(Get-ChildItem -LiteralPath build\local-motor\release -Filter '*.exe')
-          if ($artifact.Count -ne 1) { throw "Se esperaba un instalador y se encontraron $($artifact.Count)." }
-          $hash = (Get-FileHash -LiteralPath $artifact[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash *$($artifact[0].Name)" | Set-Content -LiteralPath (Join-Path $artifact[0].DirectoryName "$($artifact[0].Name).sha256") -Encoding ASCII
-          Get-Content -LiteralPath (Join-Path $artifact[0].DirectoryName "$($artifact[0].Name).sha256")
+          $artifacts = @(Get-ChildItem -LiteralPath build\local-motor\release -Filter '*.exe' -File)
+          if ($artifacts.Count -ne 1) { throw "Se esperaba un instalador y se encontraron $($artifacts.Count)." }
+          $hash = (Get-FileHash -LiteralPath $artifacts[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash *$($artifacts[0].Name)" | Set-Content -LiteralPath (Join-Path $artifacts[0].DirectoryName "$($artifacts[0].Name).sha256") -Encoding ASCII
+          Get-Content -LiteralPath (Join-Path $artifacts[0].DirectoryName "$($artifacts[0].Name).sha256")
 
-      - name: Publish Motor Local
+      - name: Upload Motor candidate for Windows acceptance testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: motor-${{ inputs.variant }}-${{ inputs.version }}
+          path: build/local-motor/release/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    if: ${{ inputs.publish }}
+    name: Publish the exact tested Motor candidate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Verify candidate run, source and acceptance
+        id: candidate
+        env:
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          EXPECTED_REF: ${{ inputs.ref || github.ref_name }}
+          VERSION: ${{ inputs.version }}
+          VARIANT: ${{ inputs.variant }}
+          ACCEPTANCE_VERIFIED: ${{ inputs.acceptance_verified }}
         shell: bash
         run: |
           set -euo pipefail
-          VERSION='${{ inputs.version }}'
-          VARIANT='${{ inputs.variant }}'
+          [[ "$ACCEPTANCE_VERIFIED" == "true" ]] || { echo 'Confirma las pruebas de actualización y arranque del Motor.' >&2; exit 1; }
+          [[ "$CANDIDATE_RUN_ID" =~ ^[0-9]+$ ]] || { echo 'Indica candidate_run_id de la ejecución candidata.' >&2; exit 1; }
+          candidate_json="$(gh run view "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" --json workflowName,headBranch,headSha,status,conclusion)"
+          [[ "$(jq -r .workflowName <<<"$candidate_json")" == 'Release Motor Local' ]] || { echo 'La ejecución indicada no es un candidato del Motor.' >&2; exit 1; }
+          [[ "$(jq -r .status <<<"$candidate_json")" == 'completed' && "$(jq -r .conclusion <<<"$candidate_json")" == 'success' ]] || { echo 'La ejecución candidata no terminó correctamente.' >&2; exit 1; }
+          [[ "$(jq -r .headBranch <<<"$candidate_json")" == "$EXPECTED_REF" ]] || { echo 'El candidato se construyó desde otra rama.' >&2; exit 1; }
+          echo "source_sha=$(jq -r .headSha <<<"$candidate_json")" >> "$GITHUB_OUTPUT"
+          echo "artifact=motor-${VARIANT}-${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Download the exact installer that passed testing
+        env:
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          ARTIFACT_NAME: motor-${{ inputs.variant }}-${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/local-motor/release
+          gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "$ARTIFACT_NAME" --dir build/local-motor/release
+          mapfile -t installers < <(find build/local-motor/release -maxdepth 1 -type f -name '*.exe')
+          mapfile -t checksums < <(find build/local-motor/release -maxdepth 1 -type f -name '*.exe.sha256')
+          [[ ${#installers[@]} -eq 1 && ${#checksums[@]} -eq 1 ]] || { echo 'El candidato no incluye un instalador y su SHA-256.' >&2; exit 1; }
+          expected="$(awk '{print $1}' "${checksums[0]}")"
+          actual="$(sha256sum "${installers[0]}" | awk '{print $1}')"
+          [[ "$expected" == "$actual" ]] || { echo 'El SHA-256 del instalador candidato no coincide.' >&2; exit 1; }
+
+      - name: Publish Motor release as non-latest
+        env:
+          VERSION: ${{ inputs.version }}
+          VARIANT: ${{ inputs.variant }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          SOURCE_SHA: ${{ steps.candidate.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] || { echo 'Versión inválida del Motor.' >&2; exit 1; }
           SUFFIX=""
           LABEL=""
           if [[ "$VARIANT" == "balanzapro" ]]; then
@@ -84,13 +168,10 @@ jobs:
             LABEL=" (BalanzaPro)"
           fi
           TAG="motor-v${VERSION}${SUFFIX}"
-          RELEASE_FLAGS=(--repo gamijoam/inventarioarens --title "Motor Local ${VERSION}${LABEL}" --generate-notes)
-          if [[ '${{ inputs.prerelease }}' == 'true' ]]; then
-            RELEASE_FLAGS+=(--prerelease)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "El release $TAG ya existe; no se elimina ni se sobrescribe." >&2
+            exit 1
           fi
-          gh release delete "$TAG" --repo gamijoam/inventarioarens --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" \
-            "${RELEASE_FLAGS[@]}" \
-            build/local-motor/release/*.exe \
-            build/local-motor/release/*.sha256
-          echo "Publicado $TAG"
+          FLAGS=(--repo "$GITHUB_REPOSITORY" --title "Motor Local ${VERSION}${LABEL}" --generate-notes --latest=false --target "$SOURCE_SHA")
+          if [[ "$PRERELEASE" == 'true' ]]; then FLAGS+=(--prerelease); fi
+          gh release create "$TAG" "${FLAGS[@]}" build/local-motor/release/*.exe build/local-motor/release/*.exe.sha256
