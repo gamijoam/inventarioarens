@@ -17,7 +17,7 @@ try {
     $versionedLegacy = Join-Path $root 'versions\0.1.4\runtime\frankenphp\php.ini'
     $legacyDirectories = @((Split-Path -Parent $legacy), (Split-Path -Parent $versionedLegacy))
     New-Item -ItemType Directory -Path $legacyDirectories -Force | Out-Null
-    $legacyRuntimeDirectory = Split-Path -Parent $legacy
+    $legacyRuntimeDirectory = [IO.Path]::GetFullPath((Split-Path -Parent $legacy))
     $legacyExtensionDirectory = Join-Path $legacyRuntimeDirectory 'ext'
     $legacyText = @"
 extension_dir = "$legacyExtensionDirectory"
@@ -32,8 +32,9 @@ date.timezone=America/Caracas
 
     & $migrationScript -RuntimeDirectory $runtime -DataRoot $dataRoot -LegacyConfigPaths @($legacy, $versionedLegacy)
     $migrated = [IO.File]::ReadAllText((Join-Path $runtime 'php.ini'))
-    Assert-Contains $migrated ('extension_dir = "' + (Join-Path $runtime 'ext') + '"') 'No se actualizó extension_dir.'
-    Assert-Contains $migrated ('zend_extension="' + (Join-Path $runtime 'ext\php_opcache.dll') + '"') 'No se actualizó la ruta de una extensión personalizada.'
+    $expectedRuntimeDirectory = [IO.Path]::GetFullPath($runtime)
+    Assert-Contains $migrated ('extension_dir = "' + (Join-Path $expectedRuntimeDirectory 'ext') + '"') 'No se actualizó extension_dir.'
+    Assert-Contains $migrated ('zend_extension="' + (Join-Path $expectedRuntimeDirectory 'ext\php_opcache.dll') + '"') 'No se actualizó la ruta de una extensión personalizada.'
     Assert-Contains $migrated 'opcache.enable=0' 'Se perdió el override de OPcache.'
     Assert-Contains $migrated 'memory_limit=768M' 'Se perdió el límite de memoria personalizado.'
     Assert-Contains $migrated 'date.timezone=America/Caracas' 'Se perdió un ajuste personalizado de PHP.'
