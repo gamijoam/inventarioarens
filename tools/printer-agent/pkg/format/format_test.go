@@ -86,6 +86,52 @@ func TestBuildPlainTicketKeepsAmountColumnWithinConfiguredWidth(t *testing.T) {
 	}
 }
 
+func TestBuildPlainTicketIncludesCompanyDetailsWithoutRIFAndHonorsVisibility(t *testing.T) {
+	ticket := map[string]interface{}{
+		"tenant": map[string]interface{}{
+			"name":         "Nombre fiscal oculto",
+			"show_company": true,
+			"company": map[string]interface{}{
+				"razon_social":     "Empresa Fiscal C.A.",
+				"domicilio_fiscal": "Avenida Principal Centro Comercial Local 14",
+				"ciudad":           "Caracas",
+				"estado":           "Miranda",
+				"telefono":         "+58 212 555 0101",
+				"correo":           "ventas@example.com",
+				"website":          "https://example.com",
+				"regimen":          "Contribuyente formal",
+			},
+		},
+		"profile": map[string]interface{}{"paper_width_mm": 58, "show_non_fiscal_text": false},
+	}
+	result := BuildPlainTicket(ticket)
+	flattened := strings.Join(strings.Fields(result), " ")
+	for _, detail := range []string{
+		"Empresa Fiscal C.A.",
+		"Domicilio: Avenida Principal Centro Comercial Local 14",
+		"Caracas, Miranda",
+		"Telf: +58 212 555 0101",
+		"Correo: ventas@example.com",
+		"Web: https://example.com",
+		"Regimen: Contribuyente formal",
+	} {
+		if !strings.Contains(flattened, detail) {
+			t.Errorf("ticket missing company detail %q\nFull output:\n%s", detail, result)
+		}
+	}
+	for _, line := range strings.Split(result, "\n") {
+		if len(line) > 32 {
+			t.Errorf("company line exceeds 58mm width: %q", line)
+		}
+	}
+
+	ticket["tenant"].(map[string]interface{})["show_company"] = false
+	hidden := BuildPlainTicket(ticket)
+	if strings.Contains(hidden, "Empresa Fiscal") || strings.Contains(hidden, "Nombre fiscal oculto") || strings.Contains(hidden, "ventas@example.com") {
+		t.Fatalf("company data should be hidden when show_company is false:\n%s", hidden)
+	}
+}
+
 func TestBuildPlainReportZHonorsConfiguredCharacterWidth(t *testing.T) {
 	result := BuildPlainReportZ(map[string]interface{}{
 		"profile": map[string]interface{}{

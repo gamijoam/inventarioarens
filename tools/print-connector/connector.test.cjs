@@ -179,6 +179,42 @@ test('builds bounded ticket text and ESC/POS cut command', () => {
   assert.ok(cut.includes(Buffer.from('\n\n\n\n\x1d\x56\x00', 'binary')));
 });
 
+test('prints company details without requiring a RIF and respects the company visibility flag', () => {
+  const ticket = job().payload_snapshot;
+  ticket.profile.paper_width_mm = 58;
+  ticket.tenant.show_company = true;
+  ticket.tenant.company = {
+    razon_social: 'Empresa Fiscal C.A.',
+    domicilio_fiscal: 'Avenida Principal Centro Comercial Local 14',
+    ciudad: 'Caracas',
+    estado: 'Miranda',
+    telefono: '+58 212 555 0101',
+    correo: 'ventas@example.com',
+    website: 'https://example.com',
+    regimen: 'Contribuyente formal',
+  };
+
+  const text = buildPlainTicket(ticket);
+  for (const detail of [
+    'Empresa Fiscal C.A.',
+    'Domicilio: Avenida Principal Centro Comercial Local 14',
+    'Caracas, Miranda',
+    'Telf: +58 212 555 0101',
+    'Correo: ventas@example.com',
+    'Web: https://example.com',
+    'Régimen: Contribuyente formal',
+  ]) {
+    assert.ok(text.replaceAll('\n', ' ').includes(detail), `ticket is missing ${detail}`);
+  }
+  for (const line of text.split('\n')) {
+    assert.ok(Array.from(line).length <= 32, `ticket line exceeds 58mm width: ${line}`);
+  }
+
+  ticket.tenant.show_company = false;
+  const hidden = buildPlainTicket(ticket);
+  assert.doesNotMatch(hidden, /Empresa Fiscal|ventas@example\.com/);
+});
+
 test('puede ocultar el precio en $ y mostrar la lista de precio por item', () => {
   const ticket = job().payload_snapshot;
   ticket.profile.show_item_price = false;

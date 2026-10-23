@@ -334,15 +334,40 @@ class PrinterServer
         $money = static fn (float $value): string => '$'.number_format($value, 2, '.', '');
 
         $lines = [];
+        $tenant = $ticket['tenant'] ?? [];
+        $company = $tenant['company'] ?? [];
+        $showCompany = (bool) ($tenant['show_company'] ?? true);
 
         // Encabezado: logo / nombre del tenant.
         $header = (string) ($profile['logo_text'] ?? '');
-        if ($header === '') {
-            $header = (string) ($ticket['tenant']['name'] ?? '');
+        if ($header === '' && $showCompany) {
+            $header = (string) ($tenant['name'] ?? '');
         }
         if ($header !== '') {
             $lines[] = strtoupper($header);
         }
+
+        if ($showCompany && is_array($company)) {
+            $companyLines = [
+                $company['razon_social'] ?? null,
+                ! empty($company['rif']) ? 'RIF: '.$company['rif'] : null,
+                ! empty($company['domicilio_fiscal']) ? 'Domicilio: '.$company['domicilio_fiscal'] : null,
+                trim(implode(', ', array_filter([
+                    $company['ciudad'] ?? null,
+                    $company['estado'] ?? null,
+                ]))) ?: null,
+                ! empty($company['telefono']) ? 'Telf: '.$company['telefono'] : null,
+                ! empty($company['correo']) ? 'Correo: '.$company['correo'] : null,
+                ! empty($company['website']) ? 'Web: '.$company['website'] : null,
+                ! empty($company['regimen']) ? 'Régimen: '.$company['regimen'] : null,
+            ];
+            foreach ($companyLines as $companyLine) {
+                if (is_string($companyLine) && trim($companyLine) !== '') {
+                    $this->appendWrappedTicketLine($lines, trim($companyLine), $max);
+                }
+            }
+        }
+
         $headerText = (string) ($profile['header_text'] ?? '');
         if ($headerText !== '') {
             $lines[] = $headerText;
@@ -480,6 +505,37 @@ class PrinterServer
         }, $lines);
 
         return implode("\n", $lines);
+    }
+
+    /** Keeps company details readable on both supported thermal-paper widths. */
+    private function appendWrappedTicketLine(array &$lines, string $text, int $width): void
+    {
+        $current = '';
+        foreach (preg_split('/\s+/u', trim($text), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+            if ($current === '') {
+                $current = $word;
+                continue;
+            }
+
+            if (mb_strlen($current) + 1 + mb_strlen($word) <= $width) {
+                $current .= ' '.$word;
+                continue;
+            }
+
+            $lines[] = $current;
+            $current = '';
+            foreach (mb_str_split($word, $width) as $part) {
+                if (mb_strlen($part) < $width) {
+                    $current = $part;
+                } else {
+                    $lines[] = $part;
+                }
+            }
+        }
+
+        if ($current !== '') {
+            $lines[] = $current;
+        }
     }
 
     /**

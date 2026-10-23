@@ -165,10 +165,39 @@ func justify(left, right string, width int) string {
 	return left + strings.Repeat(" ", spaces) + right
 }
 
+func appendWrappedLine(lines *[]string, text string, width int) {
+	if width <= 0 {
+		return
+	}
+	words := strings.Fields(sanitizeLine(controlCharsRegex.ReplaceAllString(text, "")))
+	line := ""
+	for _, word := range words {
+		if line == "" {
+			line = word
+			continue
+		}
+		if len(line)+1+len(word) <= width {
+			line += " " + word
+			continue
+		}
+		*lines = append(*lines, line)
+		line = ""
+		for len(word) > width {
+			*lines = append(*lines, word[:width])
+			word = word[width:]
+		}
+		line = word
+	}
+	if line != "" {
+		*lines = append(*lines, line)
+	}
+}
+
 // BuildPlainTicket converts a ticket JSON map into formatted plain text
 func BuildPlainTicket(ticket map[string]interface{}) string {
 	profile := getMap(ticket, "profile")
 	tenant := getMap(ticket, "tenant")
+	company := getMap(tenant, "company")
 	posOrder := getMap(ticket, "pos_order")
 	totals := getMap(ticket, "totals")
 
@@ -187,12 +216,47 @@ func BuildPlainTicket(ticket map[string]interface{}) string {
 	var lines []string
 
 	// Header
+	showCompany := getBool(tenant, "show_company", true)
 	header := getString(profile, "logo_text")
-	if header == "" {
+	if header == "" && showCompany {
 		header = getString(tenant, "name")
 	}
 	if header != "" {
 		lines = append(lines, strings.ToUpper(header))
+	}
+
+	if showCompany {
+		companyLines := []string{
+			getString(company, "razon_social"),
+		}
+		if rif := getString(company, "rif"); rif != "" {
+			companyLines = append(companyLines, "RIF: "+rif)
+		}
+		if address := getString(company, "domicilio_fiscal"); address != "" {
+			companyLines = append(companyLines, "Domicilio: "+address)
+		}
+		city := getString(company, "ciudad")
+		state := getString(company, "estado")
+		if city != "" && state != "" {
+			companyLines = append(companyLines, city+", "+state)
+		} else if city != "" || state != "" {
+			companyLines = append(companyLines, city+state)
+		}
+		for _, detail := range []struct{ key, label string }{
+			{"telefono", "Telf: "},
+			{"correo", "Correo: "},
+			{"website", "Web: "},
+			{"regimen", "Regimen: "},
+		} {
+			if value := getString(company, detail.key); value != "" {
+				companyLines = append(companyLines, detail.label+value)
+			}
+		}
+		for _, companyLine := range companyLines {
+			if strings.TrimSpace(companyLine) != "" {
+				appendWrappedLine(&lines, companyLine, max)
+			}
+		}
 	}
 
 	headerText := getString(profile, "header_text")

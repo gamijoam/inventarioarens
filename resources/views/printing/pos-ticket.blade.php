@@ -45,7 +45,9 @@
         @endif
         @php
             $showCompany = !isset($ticket['tenant']['show_company']) || !empty($ticket['tenant']['show_company']);
-            $logoUrl = $ticket['tenant']['company']['logo_url'] ?? null;
+            $company = $ticket['tenant']['company'] ?? [];
+            $ticketHeading = $profile['logo_text'] ?: ($showCompany ? ($ticket['tenant']['name'] ?? 'Sistema de Inventario') : '');
+            $logoUrl = $company['logo_url'] ?? null;
             $logoSrc = $logoUrl;
             if ($logoUrl && str_starts_with($logoUrl, '/storage/')) {
                 $subPath = substr($logoUrl, 9);
@@ -64,19 +66,20 @@
                 <img src="{{ $logoSrc }}" alt="Logo" style="max-width: {{ $width === 58 ? '110px' : '140px' }}; max-height: 55px; object-fit: contain; margin: 0 auto; display: block;" />
             </div>
         @endif
-        <div class="bold">{{ $profile['logo_text'] ?: ($ticket['tenant']['name'] ?? 'Sistema de Inventario') }}</div>
-        @if($showCompany && !empty($ticket['tenant']['company']['rif']))
-            <div class="small">{{ $ticket['tenant']['company']['razon_social'] ?: ($ticket['tenant']['name'] ?? '') }}</div>
-            <div class="small">RIF: {{ $ticket['tenant']['company']['rif'] }}</div>
-            @if(!empty($ticket['tenant']['company']['domicilio_fiscal']))
-                <div class="small">{{ $ticket['tenant']['company']['domicilio_fiscal'] }}</div>
+        @if($ticketHeading)<div class="bold">{{ $ticketHeading }}</div>@endif
+        @if($showCompany)
+            @if(!empty($company['razon_social']))
+                <div class="small">{{ $company['razon_social'] }}</div>
             @endif
-            @if(!empty($ticket['tenant']['company']['ciudad']) || !empty($ticket['tenant']['company']['estado']))
-                <div class="small">{{ trim(($ticket['tenant']['company']['ciudad'] ?? '').' '.($ticket['tenant']['company']['estado'] ?? '')) }}</div>
+            @if(!empty($company['rif']))<div class="small">RIF: {{ $company['rif'] }}</div>@endif
+            @if(!empty($company['domicilio_fiscal']))<div class="small">{{ $company['domicilio_fiscal'] }}</div>@endif
+            @if(!empty($company['ciudad']) || !empty($company['estado']))
+                <div class="small">{{ trim(($company['ciudad'] ?? '').' '.($company['estado'] ?? '')) }}</div>
             @endif
-            @if(!empty($ticket['tenant']['company']['telefono']))
-                <div class="small">Telf: {{ $ticket['tenant']['company']['telefono'] }}</div>
-            @endif
+            @if(!empty($company['telefono']))<div class="small">Telf: {{ $company['telefono'] }}</div>@endif
+            @if(!empty($company['correo']))<div class="small">Correo: {{ $company['correo'] }}</div>@endif
+            @if(!empty($company['website']))<div class="small">Web: {{ $company['website'] }}</div>@endif
+            @if(!empty($company['regimen']))<div class="small">Régimen: {{ $company['regimen'] }}</div>@endif
         @endif
         @if(!empty($profile['header_text']))
             <div>{!! nl2br(e($profile['header_text'])) !!}</div>

@@ -226,7 +226,14 @@ class PrintTicketLogoTest extends TestCase
             'settings' => [
                 'company' => [
                     'razon_social' => 'Avilacar Repuestos C.A.',
-                    'rif' => 'J-12345678-0',
+                    'rif' => null,
+                    'domicilio_fiscal' => 'Avenida Principal, Local 14',
+                    'ciudad' => 'Caracas',
+                    'estado' => 'Miranda',
+                    'telefono' => '+58 212 555 0101',
+                    'correo' => 'ventas@avilacar.example',
+                    'website' => 'https://avilacar.example',
+                    'regimen' => 'Contribuyente formal',
                     'logo_url' => null,
                     'show_on' => ['sale_ticket' => true],
                 ],
@@ -257,6 +264,12 @@ class PrintTicketLogoTest extends TestCase
         $this->assertStringNotContainsString('class="logo-container"', $html);
         $this->assertStringNotContainsString('<img', $html);
         $this->assertStringContainsString('Avilacar Repuestos C.A.', $html);
+        $this->assertStringContainsString('Avenida Principal, Local 14', $html);
+        $this->assertStringContainsString('Caracas Miranda', $html);
+        $this->assertStringContainsString('+58 212 555 0101', $html);
+        $this->assertStringContainsString('ventas@avilacar.example', $html);
+        $this->assertStringContainsString('https://avilacar.example', $html);
+        $this->assertStringContainsString('Contribuyente formal', $html);
     }
 
     public function test_pos_ticket_does_not_render_logo_when_show_company_is_disabled(): void
@@ -301,6 +314,8 @@ class PrintTicketLogoTest extends TestCase
 
         $this->assertStringNotContainsString('class="logo-container"', $html);
         $this->assertStringNotContainsString('<img', $html);
+        $this->assertStringNotContainsString('Avilacar Repuestos C.A.', $html);
+        $this->assertStringNotContainsString('J-12345678-0', $html);
     }
 
     public function test_preview_ticket_renders_logo_when_company_has_logo(): void

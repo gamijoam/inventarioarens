@@ -51,6 +51,29 @@ function buildPlainTicket(ticket) {
   const max = Number(profile.paper_width_mm) === 58 ? 32 : 48;
   const lines = [];
   const push = (value = '') => lines.push(String(value).slice(0, max));
+  const pushWrapped = (value) => {
+    let line = '';
+    for (const word of String(value || '').trim().split(/\s+/u).filter(Boolean)) {
+      const characters = Array.from(word);
+      if (characters.length > max) {
+        if (line) push(line);
+        line = '';
+        for (let offset = 0; offset < characters.length; offset += max) {
+          push(characters.slice(offset, offset + max).join(''));
+        }
+        continue;
+      }
+      if (!line) {
+        line = word;
+      } else if (Array.from(line).length + 1 + Array.from(word).length <= max) {
+        line += ` ${word}`;
+      } else {
+        push(line);
+        line = word;
+      }
+    }
+    if (line) push(line);
+  };
   // Etiqueta a la izquierda y monto alineado a la derecha (usa todo el ancho).
   const pushPair = (left, right) => {
     const l = String(left ?? '');
@@ -61,7 +84,25 @@ function buildPlainTicket(ticket) {
   const tenant = ticket?.tenant || {};
   const order = ticket?.pos_order || {};
 
-  push(profile.logo_text || tenant.name || 'Sistema de Inventario');
+  const showCompany = tenant.show_company !== false;
+  const heading = profile.logo_text || (showCompany ? tenant.name : '');
+  if (heading) push(heading);
+  const company = tenant.company || {};
+  if (showCompany) {
+    const companyLines = [
+      company.razon_social,
+      company.rif && `RIF: ${company.rif}`,
+      company.domicilio_fiscal && `Domicilio: ${company.domicilio_fiscal}`,
+      [company.ciudad, company.estado].filter(Boolean).join(', '),
+      company.telefono && `Telf: ${company.telefono}`,
+      company.correo && `Correo: ${company.correo}`,
+      company.website && `Web: ${company.website}`,
+      company.regimen && `Régimen: ${company.regimen}`,
+    ];
+    for (const line of companyLines) {
+      if (line) pushWrapped(line);
+    }
+  }
   if (profile.header_text) push(profile.header_text);
   if (profile.show_tenant_slug !== false && tenant.slug) push(tenant.slug);
   push(`Ticket POS #${order.id || '?'}`);

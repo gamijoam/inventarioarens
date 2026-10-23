@@ -115,6 +115,60 @@ class PrinterServerTicketTest extends TestCase
         $this->assertStringContainsString('Documento no fiscal', $text);
     }
 
+    public function test_plain_ticket_prints_all_company_details_without_requiring_a_rif(): void
+    {
+        $ticket = $this->sampleTicket();
+        $ticket['tenant']['show_company'] = true;
+        $ticket['tenant']['company'] = [
+            'razon_social' => 'Empresa Fiscal, C.A.',
+            'rif' => null,
+            'domicilio_fiscal' => 'Avenida Principal, Centro Comercial Local 14',
+            'ciudad' => 'Caracas',
+            'estado' => 'Miranda',
+            'telefono' => '+58 212 555 0101',
+            'correo' => 'ventas@example.com',
+            'website' => 'https://example.com',
+            'regimen' => 'Contribuyente formal',
+        ];
+        $ticket['profile']['paper_width_mm'] = 58;
+
+        $text = $this->server->buildPlainTicket($ticket);
+        $flattened = preg_replace('/\s+/', ' ', $text);
+
+        foreach ([
+            'Empresa Fiscal, C.A.',
+            'Domicilio: Avenida Principal, Centro Comercial Local 14',
+            'Caracas, Miranda',
+            'Telf: +58 212 555 0101',
+            'Correo: ventas@example.com',
+            'Web: https://example.com',
+            'Régimen: Contribuyente formal',
+        ] as $detail) {
+            $this->assertStringContainsString($detail, $flattened);
+        }
+
+        foreach (explode("\n", $text) as $line) {
+            $this->assertLessThanOrEqual(32, mb_strlen($line));
+        }
+    }
+
+    public function test_plain_ticket_hides_company_details_when_disabled(): void
+    {
+        $ticket = $this->sampleTicket();
+        $ticket['tenant']['show_company'] = false;
+        $ticket['tenant']['company'] = [
+            'razon_social' => 'Empresa Oculta, C.A.',
+            'rif' => 'J-12345678-9',
+            'telefono' => '0414-0000000',
+        ];
+
+        $text = $this->server->buildPlainTicket($ticket);
+
+        $this->assertStringNotContainsString('Empresa Oculta', $text);
+        $this->assertStringNotContainsString('J-12345678-9', $text);
+        $this->assertStringNotContainsString('0414-0000000', $text);
+    }
+
     public function test_plain_ticket_hides_disabled_sections(): void
     {
         $text = $this->server->buildPlainTicket($this->sampleTicket([
