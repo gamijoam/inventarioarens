@@ -298,11 +298,13 @@ export function shouldUseWorkstationDefaultPrinter(location: Pick<Location, 'hos
   if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
     return false;
   }
+  const [firstOctet, secondOctet] = octets;
+  if (firstOctet === undefined || secondOctet === undefined) return false;
 
   return (
-    octets[0] === 10 ||
-    (octets[0] === 192 && octets[1] === 168) ||
-    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+    firstOctet === 10 ||
+    (firstOctet === 192 && secondOctet === 168) ||
+    (firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31)
   );
 }
 
