@@ -38,6 +38,7 @@ class StoreProductRequest extends FormRequest
                 'string',
                 'max:20',
             ],
+
             'track_stock' => ['sometimes', 'boolean'],
             'tracking_type' => [
                 'sometimes',
@@ -63,7 +64,7 @@ class StoreProductRequest extends FormRequest
             ],
 
             'base_price' => ['nullable', 'numeric', 'gte:0'],
-            'profit_margin' => ['nullable', 'numeric', 'gte:0', 'lte:999.99'],
+            'profit_margin' => ['nullable', 'numeric', 'lte:999.99'],
             'pricing_mode' => ['sometimes', 'string', Rule::in([Product::PRICING_AUTOMATIC, Product::PRICING_MANUAL])],
             'last_purchase_cost' => ['nullable', 'numeric', 'gte:0'],
             'min_stock' => ['nullable', 'numeric', 'gte:0'],
@@ -123,6 +124,7 @@ class StoreProductRequest extends FormRequest
             'barcode.unique' => 'Ya existe un producto con este codigo de barras en la empresa actual.',
             'tracking_type.in' => 'El tipo de control debe ser por cantidad o serializado/IMEI.',
             'unit_of_measure.max' => 'La unidad de medida no puede superar 20 caracteres.',
+
             'base_price.numeric' => 'El precio base debe ser numérico.',
             'base_price.gte' => 'El precio base no puede ser negativo.',
             'last_purchase_cost.gte' => 'El costo unitario no puede ser negativo.',

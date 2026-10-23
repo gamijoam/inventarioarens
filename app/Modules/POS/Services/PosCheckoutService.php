@@ -30,9 +30,11 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Models\SaleItem;
 use App\Modules\Sales\Services\SaleService;
 use App\Modules\Sync\Services\SyncOutboxService;
+use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Cache\TenantReferenceCache;
 use App\Support\Performance\PerformanceProbe;
+use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -106,6 +108,9 @@ class PosCheckoutService
                 }
                 $priceLists = $this->priceListsForItems($items);
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
+                $paymentRateMarkup = $priceLists->first()?->payment_exchange_rate_markup_percentage !== null
+                    ? (float) $priceLists->first()->payment_exchange_rate_markup_percentage
+                    : null;
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS validar metodos de pago',
                     fn (): array => $this->validatePaymentMethods($priceLists, $payments, $customerId),
@@ -138,7 +143,7 @@ class PosCheckoutService
                 foreach ($payments as $index => $payment) {
                     $resolved = PerformanceProbe::measure(
                         'POS resolver pago',
-                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId),
+                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId, $paymentRateMarkup),
                         150,
                         ['payment_index' => $index, 'currency' => strtoupper($payment['currency'])]
                     );
@@ -224,6 +229,28 @@ class PosCheckoutService
                     ]);
                     $this->commissions->recordPaidOrder($order->refresh());
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.paid');
+                    $paidData = [
+                        'order_id' => $order->id,
+                        'sale_id' => $sale->id,
+                        'customer_id' => $order->customer_id,
+                        'customer_name' => $order->customer_name,
+                        'total_base_amount' => (float) $order->total_base_amount,
+                        'total_local_amount' => (float) $order->total_local_amount,
+                        'cashier_id' => $cashier->id,
+                        'paid_at' => $order->paid_at?->toIso8601String(),
+                    ];
+
+                    WsHub::publishTenant($order->tenant_id, 'pos.order.paid', $paidData);
+
+                    $orderTenant = $order->tenant ?? Tenant::find($order->tenant_id);
+                    $groupId = $orderTenant?->parent_id ?? ($orderTenant?->isGroup() ? $orderTenant->id : null);
+                    if ($groupId) {
+                        WsHub::publish("group:{$groupId}", 'pos.order.paid', array_merge($paidData, [
+                            'tenant_id' => $order->tenant_id,
+                            'tenant_name' => $orderTenant?->name,
+                            'cashier_name' => $cashier->name,
+                        ]));
+                    }
                 } else {
                     PerformanceProbe::measure(
                         'POS reservar inventario pendiente',
@@ -232,6 +259,12 @@ class PosCheckoutService
                         ['order_id' => $order->id, 'items' => count($items)]
                     );
                     $this->recordOrderSyncEvent($order->refresh(), 'pos.order.pending');
+                    WsHub::publishTenant($order->tenant_id, 'pos.order.pending', [
+                        'order_id' => $order->id,
+                        'sale_id' => $sale->id,
+                        'customer_id' => $order->customer_id,
+                        'total_base_amount' => (float) $order->total_base_amount,
+                    ]);
                 }
 
                 return PerformanceProbe::measure(
@@ -392,6 +425,9 @@ class PosCheckoutService
 
                 $priceLists = $this->priceListsForItems($this->itemsForExistingOrder($order));
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
+                $paymentRateMarkup = $priceLists->first()?->payment_exchange_rate_markup_percentage !== null
+                    ? (float) $priceLists->first()->payment_exchange_rate_markup_percentage
+                    : null;
                 $resolvedPaymentMethods = PerformanceProbe::measure(
                     'POS pendiente validar metodos de pago',
                     fn (): array => $this->validatePaymentMethods($priceLists, $payments, $order->customer_id),
@@ -402,7 +438,7 @@ class PosCheckoutService
                 foreach ($payments as $index => $payment) {
                     $resolved = PerformanceProbe::measure(
                         'POS pendiente resolver pago',
-                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId),
+                        fn (): array => $this->resolvePayment($payment, $paymentRateTypeId, $paymentRateMarkup),
                         150,
                         ['order_id' => $order->id, 'payment_index' => $index]
                     );
@@ -551,6 +587,29 @@ class PosCheckoutService
                 if ($order->status !== PosOrder::STATUS_OPEN) {
                     throw ValidationException::withMessages([
                         'order' => 'Solo se pueden cancelar ordenes POS pendientes.',
+                    ]);
+                }
+
+                // Auto-reparacion / idempotencia: si la venta ya fue cancelada por
+                // otro proceso, la orden POS quedo huerfana en 'open'. La cerramos
+                // igual (liberando reserva) en vez de trabarla para siempre.
+                if ($order->sale && $order->sale->status === Sale::STATUS_CANCELLED) {
+                    $this->releaseOrderReservation($order, $cashier);
+
+                    $order->update([
+                        'status' => PosOrder::STATUS_CANCELLED,
+                        'closed_at' => now(),
+                    ]);
+                    $this->recordOrderSyncEvent($order->refresh(), 'pos.order.cancelled');
+
+                    return $order->refresh()->load([
+                        'cashRegisterSession',
+                        'customer',
+                        'sale.customer',
+                        'sale.items.product',
+                        'sale.items.variant',
+                        'sale.items.warehouse',
+                        'payments',
                     ]);
                 }
 
@@ -917,7 +976,7 @@ class PosCheckoutService
             ->first();
     }
 
-    private function resolvePayment(array $payment, ?int $configuredRateTypeId = null): array
+    private function resolvePayment(array $payment, ?int $configuredRateTypeId = null, ?float $rateMarkup = null): array
     {
         $currency = strtoupper($payment['currency']);
         $amount = (float) $payment['amount'];
@@ -947,6 +1006,9 @@ class PosCheckoutService
             }
 
             $exchangeRate = (float) $rate->rate;
+            if ($rateMarkup !== null && (float) $rateMarkup != 0.0) {
+                $exchangeRate = round($exchangeRate * (1 + (float) $rateMarkup / 100), 4);
+            }
 
             return [
                 'amount_base' => round($amount, 4),
@@ -978,6 +1040,9 @@ class PosCheckoutService
         }
 
         $exchangeRate = (float) $rate->rate;
+        if ($rateMarkup !== null && (float) $rateMarkup != 0.0) {
+            $exchangeRate = round($exchangeRate * (1 + (float) $rateMarkup / 100), 4);
+        }
 
         return [
             'amount_base' => $currency === Product::CURRENCY_USD ? round($amount, 4) : round($amount / $exchangeRate, 4),
@@ -1029,7 +1094,11 @@ class PosCheckoutService
 
     private function coversTotal(float $paidBase, float $totalBase): bool
     {
-        return round($paidBase, 4) + 0.0001 >= round($totalBase, 4);
+        // Tolerancia de un centavo: el POS cobra redondeado a centavos y puede
+        // quedar por debajo del total exacto (p. ej. total 0.173 y pago 0.17).
+        // Sin esto la venta quedaba pendiente con un pago capturado y no se
+        // podia cancelar.
+        return round($paidBase, 4) + 0.01 >= round($totalBase, 4);
     }
 
     private function reserveOrderInventory(PosOrder $order, User $cashier, bool $requireSerialUnits = true): void
@@ -1332,6 +1401,9 @@ class PosCheckoutService
                     'name' => $customer?->name,
                     'document_type' => $customer?->document_type,
                     'document_number' => $customer?->document_number,
+                    'phone' => $customer?->phone,
+                    'email' => $customer?->email,
+                    'fiscal_address' => $customer?->fiscal_address,
                 ],
                 'items' => $order->sale?->items->map(fn ($item): array => [
                     'id' => $item->id,

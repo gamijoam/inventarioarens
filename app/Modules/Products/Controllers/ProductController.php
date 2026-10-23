@@ -44,7 +44,7 @@ class ProductController extends Controller
         if ($request->boolean('with_images')) {
             $relations[] = 'images.variants';
         }
-        if ($request->boolean('with_prices')) {
+        if ($request->boolean('with_prices', true)) {
             $relations[] = 'prices.priceList';
             $relations[] = 'prices.exchangeRateType';
         }
@@ -86,28 +86,23 @@ class ProductController extends Controller
             $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
             $barcodeExpr = $isPgsql ? 'unaccent(LOWER(barcode))' : 'LOWER(barcode)';
             $descExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(description, \'\')))' : 'LOWER(COALESCE(description, \'\'))';
-            // El termino tambien se normaliza con unaccent: las columnas ya estan
-            // sin acento, asi que escribir con ñ/acentos (ej. "cigüeñal") debe
-            // seguir encontrando el producto. Sin esto, solo funcionaba el termino
-            // sin acento.
-            $termExpr = $isPgsql ? 'unaccent(?)' : '?';
 
-            $query->where(function ($q) use ($normalizedSearch, $tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
-                $q->where(function ($sub) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
-                    $sub->whereRaw("{$nameExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"])
-                        ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"])
-                        ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"])
-                        ->orWhereRaw("{$descExpr} LIKE {$termExpr}", ["%{$normalizedSearch}%"]);
+            $query->where(function ($q) use ($normalizedSearch, $tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                $q->where(function ($sub) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                    $sub->whereRaw("{$nameExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$normalizedSearch}%"])
+                        ->orWhereRaw("{$descExpr} LIKE ?", ["%{$normalizedSearch}%"]);
                 });
 
                 if (count($tokens) > 1) {
-                    $q->orWhere(function ($sub) use ($tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
+                    $q->orWhere(function ($sub) use ($tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
                         foreach ($tokens as $token) {
-                            $sub->where(function ($tokenQuery) use ($token, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
-                                $tokenQuery->whereRaw("{$nameExpr} LIKE {$termExpr}", ["%{$token}%"])
-                                    ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", ["%{$token}%"])
-                                    ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", ["%{$token}%"])
-                                    ->orWhereRaw("{$descExpr} LIKE {$termExpr}", ["%{$token}%"]);
+                            $sub->where(function ($tokenQuery) use ($token, $nameExpr, $skuExpr, $barcodeExpr, $descExpr): void {
+                                $tokenQuery->whereRaw("{$nameExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$skuExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$barcodeExpr} LIKE ?", ["%{$token}%"])
+                                    ->orWhereRaw("{$descExpr} LIKE ?", ["%{$token}%"]);
                             });
                         }
                     });
@@ -116,12 +111,12 @@ class ProductController extends Controller
 
             $query->orderByRaw(
                 "CASE
-                    WHEN {$barcodeExpr} = {$termExpr} THEN 0
-                    WHEN {$skuExpr} = {$termExpr} THEN 1
-                    WHEN {$nameExpr} = {$termExpr} THEN 2
-                    WHEN {$barcodeExpr} LIKE {$termExpr} THEN 3
-                    WHEN {$skuExpr} LIKE {$termExpr} THEN 4
-                    WHEN {$nameExpr} LIKE {$termExpr} THEN 5
+                    WHEN {$barcodeExpr} = ? THEN 0
+                    WHEN {$skuExpr} = ? THEN 1
+                    WHEN {$nameExpr} = ? THEN 2
+                    WHEN {$barcodeExpr} LIKE ? THEN 3
+                    WHEN {$skuExpr} LIKE ? THEN 4
+                    WHEN {$nameExpr} LIKE ? THEN 5
                     ELSE 6
                 END",
                 [
@@ -241,6 +236,29 @@ class ProductController extends Controller
             $this->recordAudit($created, ProductAudit::ACTION_CREATED, [], $created->only($this->auditedFields()), $userId);
             $syncCatalog->productCreated($created);
 
+            if ($created->base_price !== null && (float) $created->base_price > 0) {
+                $defaultPriceList = PriceList::query()
+                    ->where('tenant_id', $created->tenant_id)
+                    ->where('is_default', true)
+                    ->first();
+
+                if ($defaultPriceList) {
+                    $createdPrice = ProductPrice::firstOrCreate(
+                        [
+                            'tenant_id' => $created->tenant_id,
+                            'product_id' => $created->id,
+                            'price_list_id' => $defaultPriceList->id,
+                        ],
+                        [
+                            'price' => $created->base_price,
+                            'currency' => $created->sale_currency ?? 'USD',
+                            'is_active' => true,
+                        ]
+                    );
+                    $syncCatalog->productPriceCreated($createdPrice);
+                }
+            }
+
             if ($created->isCatalogMaster()) {
                 // Propaga el producto maestro a cada spinoff. Tambien propaga
                 // los catalogos referenciados (brand/categorias/tags) si
@@ -261,13 +279,21 @@ class ProductController extends Controller
     {
         Gate::authorize('view', $product);
 
-        $product->load([
+        $relations = [
             'saleExchangeRateType',
             'warrantyPolicy',
             'brand',
             'categories.parent',
             'tags',
-        ])->loadCount('units');
+            'prices.priceList',
+            'prices.exchangeRateType',
+        ];
+
+        if ($request->boolean('with_images')) {
+            $relations[] = 'images.variants';
+        }
+
+        $product->load($relations)->loadCount('units');
 
         if ($request->filled('warehouse_id')) {
             $warehouseId = $request->integer('warehouse_id');
@@ -391,6 +417,7 @@ class ProductController extends Controller
 
                 $attributes = [
                     'price' => $price['price'],
+                    'margin_percentage' => $price['margin_percentage'] ?? null,
                     'currency' => $price['currency'],
                     'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
                     'is_active' => $price['is_active'] ?? true,
@@ -455,10 +482,9 @@ class ProductController extends Controller
             $before = $product->only(array_keys($data));
             $product->update($data);
 
-            if (array_key_exists('base_price', $data) && $data['base_price'] !== null) {
+            if ($product->wasChanged('base_price') && $product->base_price !== null) {
                 // Sincronizar automaticamente la lista de precios por defecto (is_default = true)
-                // si tiene un registro en product_prices, para evitar que el POS y las cotizaciones
-                // queden con un precio desfasado del precio base actualizado.
+                // si tiene un registro en product_prices, solo si el precio base cambio deliberadamente.
                 $defaultPriceList = PriceList::query()
                     ->where('tenant_id', $product->tenant_id)
                     ->where('is_default', true)
@@ -472,7 +498,7 @@ class ProductController extends Controller
 
                     if ($defaultProductPrice) {
                         $defaultProductPrice->update([
-                            'price' => $data['base_price'],
+                            'price' => $product->base_price,
                             'currency' => $data['sale_currency'] ?? $product->sale_currency ?? 'USD',
                         ]);
                         $syncCatalog->productPriceUpdated($defaultProductPrice);

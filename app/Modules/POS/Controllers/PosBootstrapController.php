@@ -11,7 +11,9 @@ use App\Modules\CashRegister\Resources\CashRegisterSessionResource;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
+use App\Modules\POS\Models\PosOrder;
 use App\Modules\Products\Models\PriceList;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +27,8 @@ class PosBootstrapController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();
-        $tenantId = app(TenantManager::class)->current()?->id;
+        $tenant = app(TenantManager::class)->current();
+        $tenantId = $tenant?->id;
         $warehouseQuery = $this->scopes->applyWarehouseScope(
             $this->scopes->applyBranchScope(Warehouse::query(), $user, 'branch_id'),
             $user,
@@ -93,7 +96,7 @@ class PosBootstrapController extends Controller
                 ->with(['paymentMethods:id,name,code,method,currency_mode,is_active,sort_order'])
                 ->orderByDesc('is_default')
                 ->orderBy('name')
-                ->get(['id', 'code', 'name', 'is_default', 'is_active', 'payment_exchange_rate_type_id'])
+                ->get(['id', 'code', 'name', 'is_default', 'is_active', 'payment_exchange_rate_type_id', 'payment_exchange_rate_markup_percentage'])
                 ->map(fn (PriceList $list) => [
                     'id' => $list->id,
                     'code' => $list->code,
@@ -101,6 +104,7 @@ class PosBootstrapController extends Controller
                     'is_default' => (bool) $list->is_default,
                     'is_active' => (bool) $list->is_active,
                     'payment_exchange_rate_type_id' => $list->payment_exchange_rate_type_id,
+                    'payment_exchange_rate_markup_percentage' => $list->payment_exchange_rate_markup_percentage !== null ? (float) $list->payment_exchange_rate_markup_percentage : null,
                     'payment_method_ids' => $list->paymentMethods->pluck('id')->values(),
                 ])
                 ->all(),
@@ -130,6 +134,12 @@ class PosBootstrapController extends Controller
                 ])
                 ->all(),
             'open_session' => $this->resolveOpenSession($user, $tenantId),
+            'allow_negative_stock' => $tenant !== null && CompanySettings::allowsNegativeStock($tenant),
+            'allow_rate_edit' => $tenant !== null && CompanySettings::allowsPosRateEdit($tenant),
+            'allow_catalog_view' => $tenant === null || CompanySettings::allowsPosCatalogView($tenant),
+            'default_view_mode' => $tenant !== null ? CompanySettings::posDefaultViewMode($tenant) : 'classic',
+            'pos_default_view_mode' => $tenant !== null ? CompanySettings::posDefaultViewMode($tenant) : 'classic',
+            'next_order_number' => ((int) PosOrder::query()->max('id')) + 1,
         ];
 
         return response()->json($response);

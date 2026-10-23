@@ -32,6 +32,7 @@ class StorePriceListRequest extends FormRequest
                 'integer',
                 Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
             ],
+            'payment_exchange_rate_markup_percentage' => ['nullable', 'numeric', 'min:-99.99', 'max:999.99'],
             'payment_method_ids.*' => [
                 'integer',
                 Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),

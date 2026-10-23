@@ -11,6 +11,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use DateTimeInterface;
@@ -304,7 +305,9 @@ class InventoryMovementService
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product, $productVariantId);
-            $this->ensureEnough((float) $balance->quantity_available, $quantity, 'available');
+            if (! $this->allowsNegativeStock()) {
+                $this->ensureEnough((float) $balance->quantity_available, $quantity, 'available');
+            }
 
             $balance->quantity_available = (float) $balance->quantity_available - $quantity;
             $balance->quantity_reserved = (float) $balance->quantity_reserved + $quantity;
@@ -676,7 +679,9 @@ class InventoryMovementService
             $this->validateOperation($warehouse, $product, $quantity);
 
             $balance = $this->balanceFor($warehouse, $product, $productVariantId);
-            $this->ensureEnough((float) $balance->quantity_available, $quantity, 'available');
+            if (! $this->allowsNegativeStock()) {
+                $this->ensureEnough((float) $balance->quantity_available, $quantity, 'available');
+            }
 
             $balance->quantity_available = (float) $balance->quantity_available - $quantity;
             $balance->save();
@@ -784,5 +789,16 @@ class InventoryMovementService
         if ($available < $required) {
             throw new InsufficientStockException($bucket);
         }
+    }
+
+    /**
+     * La empresa puede habilitar "facturar sin stock" (stock negativo).
+     * Cuando esta activo, las ventas y reservas no exigen stock disponible.
+     */
+    private function allowsNegativeStock(): bool
+    {
+        $tenant = app(TenantManager::class)->current();
+
+        return $tenant !== null && CompanySettings::allowsNegativeStock($tenant);
     }
 }

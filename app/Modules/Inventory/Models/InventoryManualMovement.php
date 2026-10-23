@@ -17,6 +17,7 @@ class InventoryManualMovement extends Model
         'warehouse_id',
         'product_id',
         'product_variant_id',
+        'serial_units',
         'quantity',
         'type',
         'reason',
@@ -29,6 +30,10 @@ class InventoryManualMovement extends Model
         'rejected_at',
         'rejection_reason',
         'stock_movement_id',
+    ];
+
+    protected $casts = [
+        'serial_units' => 'array',
     ];
 
     public function warehouse()

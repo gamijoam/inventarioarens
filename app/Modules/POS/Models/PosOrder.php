@@ -53,6 +53,11 @@ class PosOrder extends Model
         ];
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Branches\Models\Branch::class);
+    }
+
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);

@@ -527,6 +527,39 @@ class InventoryTransferRequestService
                 $quantity,
                 $guideItem->prepared_serial_units,
             );
+
+            $senderVariantId = $this->localVariantId($senderProduct, $item->product_variant_id);
+            if ($senderVariantId === null && ! empty($unitIds)) {
+                $senderVariantId = ProductUnit::query()
+                    ->whereIn('id', $unitIds)
+                    ->whereNotNull('product_variant_id')
+                    ->value('product_variant_id');
+                if ($senderVariantId !== null && $item->product_variant_id === null) {
+                    $item->update(['product_variant_id' => $senderVariantId]);
+                }
+            }
+            if ($senderVariantId === null) {
+                $nullBalance = StockBalance::query()
+                    ->where('warehouse_id', $senderWarehouse->id)
+                    ->where('product_id', $senderProduct->id)
+                    ->whereNull('product_variant_id')
+                    ->first();
+                if (! $nullBalance || (float) $nullBalance->quantity_available < $quantity) {
+                    $variantBalance = StockBalance::query()
+                        ->where('warehouse_id', $senderWarehouse->id)
+                        ->where('product_id', $senderProduct->id)
+                        ->whereNotNull('product_variant_id')
+                        ->where('quantity_available', '>=', $quantity)
+                        ->first();
+                    if ($variantBalance) {
+                        $senderVariantId = $variantBalance->product_variant_id;
+                        if ($item->product_variant_id === null) {
+                            $item->update(['product_variant_id' => $senderVariantId]);
+                        }
+                    }
+                }
+            }
+
             $outMovement = $this->inventory->transferRequestOut(
                 warehouse: $senderWarehouse,
                 product: $senderProduct,
@@ -535,7 +568,7 @@ class InventoryTransferRequestService
                 reason: "Despacho interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
-                productVariantId: $this->localVariantId($senderProduct, $item->product_variant_id),
+                productVariantId: $senderVariantId,
             );
             $this->removeRespondingUnits($unitIds, $outMovement->id);
         } catch (InsufficientStockException) {
@@ -610,6 +643,7 @@ class InventoryTransferRequestService
                 throw ValidationException::withMessages(['items' => 'Un producto controlado por cantidad no admite IMEIs o seriales.']);
             }
 
+            $receiverVariantId = $this->localVariantId($receiverProduct, $item->product_variant_id);
             $inMovement = $this->inventory->transferRequestIn(
                 warehouse: $receiverWarehouse,
                 product: $receiverProduct,
@@ -618,9 +652,9 @@ class InventoryTransferRequestService
                 reason: "Recepción interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
-                productVariantId: $this->localVariantId($receiverProduct, $item->product_variant_id),
+                productVariantId: $receiverVariantId,
             );
-            $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits);
+            $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits, $receiverVariantId);
         } finally {
             $tenantManager->set($currentTenant);
         }
@@ -674,6 +708,39 @@ class InventoryTransferRequestService
                 $quantityOverride ?? (float) $item->quantity,
                 $serialUnitsFromPayload,
             );
+            $senderVariantId = $this->localVariantId($senderProduct, $item->product_variant_id);
+            if ($senderVariantId === null && ! empty($unitIds)) {
+                $senderVariantId = ProductUnit::query()
+                    ->whereIn('id', $unitIds)
+                    ->whereNotNull('product_variant_id')
+                    ->value('product_variant_id');
+                if ($senderVariantId !== null && $item->product_variant_id === null) {
+                    $item->update(['product_variant_id' => $senderVariantId]);
+                }
+            }
+            if ($senderVariantId === null) {
+                $neededQty = $quantityOverride ?? (float) $item->quantity;
+                $nullBalance = StockBalance::query()
+                    ->where('warehouse_id', $senderWarehouse->id)
+                    ->where('product_id', $senderProduct->id)
+                    ->whereNull('product_variant_id')
+                    ->first();
+                if (! $nullBalance || (float) $nullBalance->quantity_available < $neededQty) {
+                    $variantBalance = StockBalance::query()
+                        ->where('warehouse_id', $senderWarehouse->id)
+                        ->where('product_id', $senderProduct->id)
+                        ->whereNotNull('product_variant_id')
+                        ->where('quantity_available', '>=', $neededQty)
+                        ->first();
+                    if ($variantBalance) {
+                        $senderVariantId = $variantBalance->product_variant_id;
+                        if ($item->product_variant_id === null) {
+                            $item->update(['product_variant_id' => $senderVariantId]);
+                        }
+                    }
+                }
+            }
+
             $outMovement = $this->inventory->transferRequestOut(
                 warehouse: $senderWarehouse,
                 product: $senderProduct,
@@ -682,11 +749,12 @@ class InventoryTransferRequestService
                 reason: "Salida interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
-                productVariantId: $this->localVariantId($senderProduct, $item->product_variant_id),
+                productVariantId: $senderVariantId,
             );
             $this->removeRespondingUnits($unitIds, $outMovement->id);
 
             $tenantManager->set($receiverTenant);
+            $receiverVariantId = $this->localVariantId($receiverProduct, $item->product_variant_id ?? $senderVariantId);
             $inMovement = $this->inventory->transferRequestIn(
                 warehouse: $receiverWarehouse,
                 product: $receiverProduct,
@@ -695,9 +763,9 @@ class InventoryTransferRequestService
                 reason: "Entrada interempresa {$request->document_number}",
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
-                productVariantId: $this->localVariantId($receiverProduct, $item->product_variant_id),
+                productVariantId: $receiverVariantId,
             );
-            $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits);
+            $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits, $receiverVariantId);
         } catch (InsufficientStockException $exception) {
             throw ValidationException::withMessages([
                 'items' => 'El almacen de salida no tiene stock suficiente para completar la solicitud.',
@@ -951,30 +1019,53 @@ class InventoryTransferRequestService
             });
     }
 
-    private function createRequesterUnits(Product $product, Warehouse $warehouse, int $movementId, array $serialUnits): void
+    private function createRequesterUnits(Product $product, Warehouse $warehouse, int $movementId, array $serialUnits, ?int $productVariantId = null): void
     {
         if (! $product->requiresSerializedTracking()) {
             return;
         }
 
         foreach ($serialUnits as $serialUnit) {
-            if (ProductUnit::query()
+            $existingUnit = ProductUnit::query()
                 ->where('serial_type', $serialUnit['serial_type'])
                 ->where('serial_number', $serialUnit['serial_number'])
-                ->exists()) {
-                throw ValidationException::withMessages([
-                    'items' => "El serial {$serialUnit['serial_number']} ya existe en la empresa solicitante.",
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingUnit) {
+                if ($existingUnit->status === ProductUnit::STATUS_AVAILABLE) {
+                    throw ValidationException::withMessages([
+                        'items' => "El serial {$serialUnit['serial_number']} ya se encuentra activo y disponible en la empresa receptora.",
+                    ]);
+                }
+
+                if ($existingUnit->status === ProductUnit::STATUS_RESERVED) {
+                    throw ValidationException::withMessages([
+                        'items' => "El serial {$serialUnit['serial_number']} se encuentra reservado en la empresa receptora.",
+                    ]);
+                }
+
+                // Si la unidad pertenecía a esta empresa pero fue transferida previamente (STATUS_REMOVED),
+                // se reactiva y se asigna al nuevo almacén, variante y movimiento de entrada.
+                $existingUnit->update([
+                    'product_id' => $product->id,
+                    'warehouse_id' => $warehouse->id,
+                    'product_variant_id' => $productVariantId,
+                    'status' => ProductUnit::STATUS_AVAILABLE,
+                    'acquired_stock_movement_id' => $movementId,
+                    'released_stock_movement_id' => null,
+                ]);
+            } else {
+                ProductUnit::create([
+                    'product_id' => $product->id,
+                    'warehouse_id' => $warehouse->id,
+                    'serial_type' => $serialUnit['serial_type'],
+                    'serial_number' => $serialUnit['serial_number'],
+                    'status' => ProductUnit::STATUS_AVAILABLE,
+                    'acquired_stock_movement_id' => $movementId,
+                    'product_variant_id' => $productVariantId,
                 ]);
             }
-
-            ProductUnit::create([
-                'product_id' => $product->id,
-                'warehouse_id' => $warehouse->id,
-                'serial_type' => $serialUnit['serial_type'],
-                'serial_number' => $serialUnit['serial_number'],
-                'status' => ProductUnit::STATUS_AVAILABLE,
-                'acquired_stock_movement_id' => $movementId,
-            ]);
         }
     }
 
