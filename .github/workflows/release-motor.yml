@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Versión independiente del Motor Local (BalanzaPro: 0.1.7)'
+        description: 'Versión independiente del Motor Local (BalanzaPro: 0.1.8)'
         required: true
-        default: '0.1.7'
+        default: '0.1.8'
         type: string
       variant:
         description: 'Variante del Motor (default = genérico)'

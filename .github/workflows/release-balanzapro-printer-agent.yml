@@ -6,7 +6,7 @@ on:
       version:
         description: 'Version del agente local de impresion'
         required: true
-        default: '1.0.1'
+        default: '1.0.2'
         type: string
       prerelease:
         description: 'Publicar como version candidata'

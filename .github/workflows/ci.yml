@@ -230,7 +230,7 @@ jobs:
               "release_tag": f"v{os.environ['VERSION']}-balanzapro",
               "application_version": os.environ["VERSION"],
               "electron_runtime_version": "43.3.0",
-              "recommended_motor_version": "0.1.6",
+              "recommended_motor_version": "0.1.8",
               "frankenphp_version": "1.12.7",
               "all_in_one_setup_version": "1.0.1",
               "source_commit": os.environ["SOURCE_SHA"],
@@ -253,7 +253,7 @@ jobs:
           cat > release-notes.md <<EOF
           Candidato descargable de BalanzaPro ${VERSION} para POS, Administrativo y Soporte Técnico.
 
-          Incluye la selección de lista de precio por producto y requiere Motor Local BalanzaPro 0.1.6.
+          Incluye la selección de lista de precio por producto y requiere Motor Local BalanzaPro 0.1.8.
           Valida instalación, actualización y los canales de actualización en Windows antes de distribuirlo de forma general.
 
           Fuente: ${GITHUB_SHA}
