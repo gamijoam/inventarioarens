@@ -42,7 +42,7 @@ Section "Instalacion Principal" SecCore
 
     ; Se ejecuta en la sesion del cajero para acceder a sus impresoras Windows.
     CreateDirectory "$SMSTARTUP"
-    CreateShortCut "$SMSTARTUP\BalanzaPro Impresor Local.lnk" "$INSTDIR\${EXE_NAME}" "-port=17777 -bind=127.0.0.1" "$INSTDIR\${EXE_NAME}" 0 0
+    CreateShortCut "$SMSTARTUP\BalanzaPro Impresor Local.lnk" "$INSTDIR\${EXE_NAME}" "-port=17777 -bind=127.0.0.1" "$INSTDIR\${EXE_NAME}" 0 SW_SHOWNORMAL
     ExecShell "open" "$SMSTARTUP\BalanzaPro Impresor Local.lnk"
 
     WriteRegStr HKCU "Software\BalanzaPro\PrinterAgent" "InstallDir" "$INSTDIR"
