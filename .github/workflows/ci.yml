@@ -121,6 +121,69 @@ jobs:
         working-directory: frontend
         run: node ../scripts/verify-electron-artifact.cjs ${{ matrix.client }} release/${{ matrix.client }}/win-unpacked
 
+  balanzapro-windows-candidates:
+    name: BalanzaPro Windows candidate (${{ matrix.client }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [balanzapro-pos, balanzapro-admin, balanzapro-technician]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build renderer
+        working-directory: frontend
+        run: pnpm run build:${{ matrix.client }}
+
+      - name: Package Windows installer without publishing
+        working-directory: frontend
+        run: pnpm exec electron-builder --config electron-builder.${{ matrix.client }}.yml --win --publish never
+
+      - name: Validate installer, update metadata and checksum
+        shell: pwsh
+        run: |
+          $client = '${{ matrix.client }}'
+          $output = "frontend/release/$client"
+          $metadata = Join-Path $output "$client.yml"
+          $installers = @(Get-ChildItem -LiteralPath $output -Filter '*.exe' -File)
+          $blockmaps = @(Get-ChildItem -LiteralPath $output -Filter '*.blockmap' -File)
+          if (-not (Test-Path -LiteralPath $metadata -PathType Leaf)) { throw "Missing update metadata: $metadata" }
+          if ($installers.Count -ne 1) { throw "Expected one installer for $client; found $($installers.Count)." }
+          if ($blockmaps.Count -ne 1) { throw "Expected one blockmap for $client; found $($blockmaps.Count)." }
+          $sumFile = Join-Path $output 'SHA256SUMS'
+          Remove-Item -LiteralPath $sumFile -Force -ErrorAction SilentlyContinue
+          foreach ($file in @($metadata) + @($installers[0].FullName) + @($blockmaps[0].FullName)) {
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$(Split-Path -Leaf $file)" | Add-Content -LiteralPath $sumFile -Encoding ASCII
+          }
+
+      - name: Upload candidate for Windows acceptance testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: balanzapro-electron-${{ matrix.client }}
+          path: |
+            frontend/release/${{ matrix.client }}/*.exe
+            frontend/release/${{ matrix.client }}/*.blockmap
+            frontend/release/${{ matrix.client }}/*.yml
+            frontend/release/${{ matrix.client }}/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
   motor-frankenphp-config:
     name: FrankenPHP config migration
     runs-on: windows-latest
