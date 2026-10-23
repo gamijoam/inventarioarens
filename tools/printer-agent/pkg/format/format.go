@@ -19,22 +19,51 @@ var accentReplacer = strings.NewReplacer(
 
 var controlCharsRegex = regexp.MustCompile(`[\x00-\x08\x0B-\x1F\x7F]`)
 
+// sanitizeLine converts a single line to the single-byte character set used by
+// ESC/POS printers. Unsupported Unicode is replaced so it cannot shift columns.
+func sanitizeLine(line string) string {
+	replaced := accentReplacer.Replace(line)
+	var out strings.Builder
+	for _, char := range replaced {
+		switch {
+		case char == '\t':
+			out.WriteByte(' ')
+		case char >= 32 && char <= 126:
+			out.WriteRune(char)
+		case char == '\n' || char == '\r':
+			out.WriteByte(' ')
+		case char > 126:
+			out.WriteByte('?')
+		}
+	}
+	return out.String()
+}
+
+func clampLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	runes := []rune(line)
+	if len(runes) <= width {
+		return line
+	}
+	if width <= 3 {
+		return string(runes[:width])
+	}
+	return string(runes[:width-3]) + "..."
+}
+
 // Sanitize cleans text for generic thermal printers:
-// - Converts common accents to ASCII
-// - Removes non-printable control characters (except \t and \n)
+// - Converts common accents to ASCII and unsupported characters to '?'
+// - Removes non-printable control characters and converts tabs to spaces
 // - Truncates lines exceeding 64 chars
 func Sanitize(text string) string {
-	replaced := accentReplacer.Replace(text)
-	lines := strings.Split(replaced, "\n")
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	var out []string
 
 	for _, line := range lines {
-		clean := controlCharsRegex.ReplaceAllString(line, "")
-		runes := []rune(clean)
-		if len(runes) > 64 {
-			clean = string(runes[:61]) + "..."
-		}
-		out = append(out, clean)
+		clean := sanitizeLine(controlCharsRegex.ReplaceAllString(line, ""))
+		out = append(out, clampLine(clean, 64))
 	}
 
 	return strings.Join(out, "\n") + "\n"
@@ -121,21 +150,19 @@ func getSlice(m map[string]interface{}, key string) []interface{} {
 
 // justify returns left and right aligned to width characters
 func justify(left, right string, width int) string {
-	leftRunes := []rune(left)
-	rightRunes := []rune(right)
-	total := len(leftRunes) + len(rightRunes)
-	if total >= width {
-		space := width - len(rightRunes) - 1
-		if space > 6 {
-			return string(leftRunes[:space]) + " " + right
-		}
-		spaces := width - len(rightRunes)
-		if spaces < 0 {
-			spaces = 0
-		}
-		return left + "\n" + strings.Repeat(" ", spaces) + right
+	if width <= 0 {
+		return ""
 	}
-	return left + strings.Repeat(" ", width-total) + right
+
+	left = sanitizeLine(left)
+	right = clampLine(sanitizeLine(right), width)
+	leftWidth := width - len([]rune(right)) - 1
+	if leftWidth < 0 {
+		return right
+	}
+	left = clampLine(left, leftWidth)
+	spaces := width - len([]rune(left)) - len([]rune(right))
+	return left + strings.Repeat(" ", spaces) + right
 }
 
 // BuildPlainTicket converts a ticket JSON map into formatted plain text
@@ -410,16 +437,10 @@ func BuildPlainTicket(ticket map[string]interface{}) string {
 		lines = append(lines, legal)
 	}
 
-	// Clamp line length
+	// Normalize before clamping so multi-byte characters cannot shift printed
+	// columns or exceed the configured width after conversion to ESC/POS text.
 	for i, l := range lines {
-		runes := []rune(l)
-		if len(runes) > max {
-			cutoff := max - 3
-			if cutoff < 1 {
-				cutoff = 1
-			}
-			lines[i] = string(runes[:cutoff]) + "..."
-		}
+		lines[i] = clampLine(sanitizeLine(controlCharsRegex.ReplaceAllString(l, "")), max)
 	}
 
 	return strings.Join(lines, "\n")
@@ -437,6 +458,9 @@ func BuildPlainReportZ(ticket map[string]interface{}) string {
 	max := 48
 	if width == 58 {
 		max = 32
+	}
+	if chars := int(getFloat(profile, "characters_per_line")); chars > 0 {
+		max = chars
 	}
 
 	var lines []string
@@ -544,14 +568,7 @@ func BuildPlainReportZ(ticket map[string]interface{}) string {
 	}
 
 	for i, l := range lines {
-		runes := []rune(l)
-		if len(runes) > max {
-			cutoff := max - 3
-			if cutoff < 1 {
-				cutoff = 1
-			}
-			lines[i] = string(runes[:cutoff]) + "..."
-		}
+		lines[i] = clampLine(sanitizeLine(controlCharsRegex.ReplaceAllString(l, "")), max)
 	}
 
 	return strings.Join(lines, "\n")

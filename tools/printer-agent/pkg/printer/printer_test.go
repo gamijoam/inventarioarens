@@ -1,6 +1,7 @@
 package printer
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -56,12 +57,18 @@ func TestNetworkPrinter_Success(t *testing.T) {
 
 	select {
 	case data := <-receivedChan:
-		// Check that cash drawer kick prefix and cut suffix are present
+		// Check that drawer kick, ticket, feed and cut reach the network printer.
 		if len(data) < 10 {
 			t.Errorf("Received data too short: %v", data)
 		}
+		if !bytes.HasPrefix(data, []byte{0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA}) {
+			t.Errorf("Received data is missing the ESC/POS initialization or drawer command: %v", data)
+		}
 		if !strings.Contains(string(data), "Hello ESC/POS") {
 			t.Errorf("Received data missing text: %s", string(data))
+		}
+		if !bytes.HasSuffix(data, []byte("\n\n\n\n\x1d\x56\x00")) {
+			t.Errorf("Received data is missing the four-line feed and full-cut command: %v", data)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for printer data")

@@ -19,7 +19,17 @@ func TestSanitize(t *testing.T) {
 		{
 			name:     "strip non-printable control characters",
 			input:    "Hello\x00\x05World\t!",
-			expected: "HelloWorld\t!\n",
+			expected: "HelloWorld !\n",
+		},
+		{
+			name:     "normalize only one trailing line break",
+			input:    "Ticket\n",
+			expected: "Ticket\n",
+		},
+		{
+			name:     "replace unsupported unicode without shifting columns",
+			input:    "Cafe\u0301 \u2022 \U0001F680",
+			expected: "Cafe? ? ?\n",
 		},
 		{
 			name:     "truncate long lines exceeding 64 chars",
@@ -35,6 +45,63 @@ func TestSanitize(t *testing.T) {
 				t.Errorf("Sanitize() = %q, want %q", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestBuildPlainTicketKeepsAmountColumnWithinConfiguredWidth(t *testing.T) {
+	ticket := map[string]interface{}{
+		"profile": map[string]interface{}{
+			"paper_width_mm":       80,
+			"characters_per_line": 48,
+			"show_non_fiscal_text": false,
+		},
+		"payments": []interface{}{
+			map[string]interface{}{
+				"method":   "Metodo de pago con una descripcion muy larga que excede la columna",
+				"currency": "USD",
+				"amount":   1.0,
+			},
+		},
+	}
+
+	lines := strings.Split(BuildPlainTicket(ticket), "\n")
+	for _, line := range lines {
+		if len(line) > 48 {
+			t.Errorf("line exceeds configured width (%d): %q", 48, line)
+		}
+	}
+
+	var paymentLine string
+	for _, line := range lines {
+		if strings.Contains(line, "$1.00") {
+			paymentLine = line
+			break
+		}
+	}
+	if paymentLine == "" {
+		t.Fatal("formatted payment amount was not found")
+	}
+	if len(paymentLine) != 48 || !strings.HasSuffix(paymentLine, "$1.00") {
+		t.Errorf("payment amount is not aligned to the right edge: %q", paymentLine)
+	}
+}
+
+func TestBuildPlainReportZHonorsConfiguredCharacterWidth(t *testing.T) {
+	result := BuildPlainReportZ(map[string]interface{}{
+		"profile": map[string]interface{}{
+			"paper_width_mm":       80,
+			"characters_per_line": 24,
+			"show_non_fiscal_text": false,
+		},
+		"totals": map[string]interface{}{
+			"paid_base_amount": 123456789.12,
+			"paid_local_amount": 123456789.12,
+		},
+	})
+	for _, line := range strings.Split(result, "\n") {
+		if len(line) > 24 {
+			t.Errorf("report line exceeds configured width (%d): %q", 24, line)
+		}
 	}
 }
 

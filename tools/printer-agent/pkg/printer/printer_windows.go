@@ -72,8 +72,8 @@ func printRawToSpooler(printerName string, data []byte) error {
 		uintptr(len(data)),
 		uintptr(unsafe.Pointer(&written)),
 	)
-	if ret == 0 || written == 0 {
-		return fmt.Errorf("WritePrinter fallo: %v", err)
+	if ret == 0 || written != uint32(len(data)) {
+		return fmt.Errorf("WritePrinter envio %d de %d bytes: %v", written, len(data), err)
 	}
 
 	return nil

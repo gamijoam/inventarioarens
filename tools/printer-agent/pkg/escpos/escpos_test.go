@@ -34,19 +34,19 @@ func TestBuildEscPos(t *testing.T) {
 		},
 		{
 			name:       "with paper cut",
-			text:       "Ticket #125\n",
+			text:       "Ticket #125",
 			cutPaper:   true,
 			openDrawer: false,
-			wantSuffix: []byte{0x1D, 0x56, 0x00}, // GS V 0
+			wantSuffix: []byte("\n\n\n\n\x1d\x56\x00"), // Feed four lines, then GS V 0 full cut.
 			contains:   "Ticket #125",
 		},
 		{
 			name:       "with drawer kick and paper cut",
-			text:       "Ticket #126\n",
+			text:       "Ticket #126",
 			cutPaper:   true,
 			openDrawer: true,
 			wantPrefix: []byte{0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA},
-			wantSuffix: []byte{0x1D, 0x56, 0x00},
+			wantSuffix: []byte("\n\n\n\n\x1d\x56\x00"),
 			contains:   "Ticket #126",
 		},
 	}

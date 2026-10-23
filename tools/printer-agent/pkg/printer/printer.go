@@ -197,24 +197,32 @@ public class RawPrint {
     di.pDocName = "Ticket POS";
     di.pDataType = "RAW";
     if (!OpenPrinter(printer, out h, IntPtr.Zero)) return false;
-    bool ok = StartDocPrinter(h, 1, ref di);
-    if (ok) ok = StartPagePrinter(h);
-    IntPtr p = Marshal.AllocCoTaskMem(b.Length);
-    Marshal.Copy(b, 0, p, b.Length);
-    int written;
-    if (ok) ok = WritePrinter(h, p, b.Length, out written);
-    Marshal.FreeCoTaskMem(p);
-    if (ok) { EndPagePrinter(h); EndDocPrinter(h); }
-    ClosePrinter(h);
-    return ok;
+    bool docStarted = false;
+    bool pageStarted = false;
+    IntPtr p = IntPtr.Zero;
+    try {
+      if (!StartDocPrinter(h, 1, ref di)) return false;
+      docStarted = true;
+      if (!StartPagePrinter(h)) return false;
+      pageStarted = true;
+      p = Marshal.AllocCoTaskMem(b.Length);
+      Marshal.Copy(b, 0, p, b.Length);
+      int written;
+      return WritePrinter(h, p, b.Length, out written) && written == b.Length;
+    } finally {
+      if (p != IntPtr.Zero) Marshal.FreeCoTaskMem(p);
+      if (pageStarted) EndPagePrinter(h);
+      if (docStarted) EndDocPrinter(h);
+      ClosePrinter(h);
+    }
   }
 }
 '@
 Add-Type -TypeDefinition $code -Language CSharp | Out-Null
 if (-not [RawPrint]::Send('%s', '%s')) {
-  Get-Content -LiteralPath '%s' -Raw | Out-Printer -Name '%s'
+  throw 'No se pudo enviar el ticket en modo RAW. Verifica que la impresora acepte ESC/POS y que su cola permita impresion RAW.'
 }
-`, escapePowerShellLiteral(printerName), escapePowerShellLiteral(tmpPath), escapePowerShellLiteral(tmpPath), escapePowerShellLiteral(printerName))
+`, escapePowerShellLiteral(printerName), escapePowerShellLiteral(tmpPath))
 		args = []string{"-NoProfile", "-NonInteractive", "-Command", psScript}
 	} else {
 		cmd = "lp"

@@ -191,6 +191,12 @@ func TestPrintThermal_Success(t *testing.T) {
 			"network_port": 9100,
 		},
 		"payload": map[string]interface{}{
+			"profile": map[string]interface{}{
+				"paper_width_mm":         80,
+				"characters_per_line":    48,
+				"cut_paper":              true,
+				"open_cash_drawer":       true,
+			},
 			"tenant": map[string]interface{}{
 				"name": "Tienda Test",
 			},
@@ -225,6 +231,12 @@ func TestPrintThermal_Success(t *testing.T) {
 	}
 	if !strings.Contains(mock.lastText, "TIENDA TEST") {
 		t.Errorf("Printer was not called with formatted ticket text")
+	}
+	if !mock.lastOptions.CutPaper {
+		t.Error("cut_paper was not forwarded to the local printer bridge")
+	}
+	if !mock.lastOptions.OpenCashDrawer {
+		t.Error("open_cash_drawer was not forwarded to the local printer bridge")
 	}
 }
 

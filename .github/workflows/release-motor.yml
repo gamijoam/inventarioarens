@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Versión independiente del Motor Local (BalanzaPro: 0.1.5)'
+        description: 'Versión independiente del Motor Local (BalanzaPro: 0.1.7)'
         required: true
-        default: '0.1.0'
+        default: '0.1.7'
         type: string
       variant:
         description: 'Variante del Motor (default = genérico)'
@@ -65,6 +65,23 @@ jobs:
         with:
           php-version: '8.4'
           extensions: pdo_sqlite, mbstring, bcmath, gd, intl, zip, curl, xml, dom, fileinfo, sodium
+
+      - name: Setup Go printer agent
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/printer-agent/go.mod
+          cache-dependency-path: tools/printer-agent/go.sum
+
+      - name: Test and build native printer agent
+        working-directory: tools/printer-agent
+        shell: powershell
+        run: |
+          go test ./...
+          if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del agente de impresion fallaron.' }
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          $env:CGO_ENABLED = '0'
+          go build -trimpath -ldflags='-s -w -H=windowsgui' -o bin/printer-agent.exe ./cmd/printer-agent
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo compilar el agente nativo de impresion.' }
 
       - name: Install backend dependencies
         run: composer install --prefer-dist --no-interaction --no-progress --no-dev
@@ -223,7 +240,7 @@ jobs:
           cat > release-notes.md <<EOF
           Candidato descargable de Motor Local BalanzaPro ${VERSION}.
 
-          Incluye los cambios de backend necesarios por BalanzaPro 0.2.67. Valida la actualización y la persistencia de configuración y base de datos en Windows antes de distribuirlo de forma general.
+          Incluye el agente nativo de impresión térmica actualizado para tickets ESC/POS de 80 mm, alineación de importes y corte de papel. Valida impresión y corte en Windows antes de distribuirlo de forma general.
 
           Fuente: ${GITHUB_SHA}
           EOF
