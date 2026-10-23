@@ -2901,7 +2901,7 @@ export function PosTerminal() {
           </section>
 
           <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
+            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-3 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -2910,11 +2910,11 @@ export function PosTerminal() {
                       {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
                     </span>
                   </div>
-                  <p className="mt-1 text-4xl font-bold tracking-normal text-white">
+                  <p className="mt-1 text-3xl font-bold tracking-normal text-white">
                     {money(cartTotals.total)}
                   </p>
                 </div>
-                <div className="min-w-32 space-y-1.5 text-right text-xs text-white/80">
+                <div className="min-w-28 space-y-1 text-right text-xs text-white/80">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-white/70">Total artículos:</span>
                     <span className="font-bold font-mono text-white text-sm">{totalCartUnits}</span>
@@ -2933,7 +2933,7 @@ export function PosTerminal() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
               {activePaymentMethods.length === 0 ? (
                 <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
                   Configura metodos de pago para cobrar rapido.
@@ -2955,7 +2955,7 @@ export function PosTerminal() {
                   </Button>
                 </div>
               ) : null}
-              <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
                 {pendingInvoicePromotion && (
                   <InvoicePromotionDecisionPanel
                     promotionName={pendingInvoicePromotion.promotion_name ?? 'Descuento de factura'}
@@ -2963,7 +2963,7 @@ export function PosTerminal() {
                     onDecision={setInvoicePromotionAction}
                   />
                 )}
-                <AmountRow label="Pagado" value={paymentTotals.paid} />
+                <AmountRow label="Pagado" value={paymentTotals.paid} className="text-xs" />
                 {payments.length > 0 && (
                   <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
                     <span>Pagos aplicados</span>
@@ -2971,7 +2971,7 @@ export function PosTerminal() {
                   </div>
                 )}
                 {payments.length > 0 && (
-                  <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border p-2 pr-1">
+                  <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain rounded-lg border p-1.5 pr-1">
                     {payments.map((payment) => (
                       <PaymentChip
                         key={payment.id}
@@ -3011,14 +3011,14 @@ export function PosTerminal() {
                     type="button"
                     onClick={() => setPanel('pay')}
                     disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-                    className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Agregar pago con F2
                   </button>
                 )}
               </div>
-              <div className="border-border bg-bg/50 mt-4 shrink-0 space-y-2 rounded border p-3">
-                <AmountRow label="Restante USD" value={paymentTotals.remaining} />
+              <div className="border-border bg-bg/50 mt-2 shrink-0 space-y-1.5 rounded border p-2">
+                <AmountRow label="Restante USD" value={paymentTotals.remaining} className="text-xs" />
                 {activeRate && (
                   <AmountRow
                     label={`Restante en bolivares · ${activeRate.name}`}
@@ -3028,11 +3028,12 @@ export function PosTerminal() {
                       activeRate.rate,
                     )}
                     currency="VES"
+                    className="text-xs"
                   />
                 )}
-                <div className="bg-success/10 mt-2 rounded p-3">
+                <div className="bg-success/10 mt-1.5 rounded p-2">
                   <p className="text-text-muted text-xs">Vuelto</p>
-                  <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
+                  <p className="text-success text-2xl font-bold">{money(paymentTotals.change)}</p>
                   {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
                     <p className="text-success mt-1 text-sm font-semibold">
                       Bs {formatLocalNumber(paymentTotals.change_amount ?? 0)}
@@ -3045,7 +3046,7 @@ export function PosTerminal() {
               </div>
             </div>
 
-            <div className="border-border shrink-0 space-y-2 border-t p-3">
+            <div className="border-border shrink-0 space-y-1.5 border-t p-2">
               {checkoutBlockReason && (
                 <p className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-xs">
                   {checkoutBlockReason}
@@ -3053,7 +3054,7 @@ export function PosTerminal() {
               )}
               {sellerOnlyMode ? (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-10 w-full text-sm"
                   disabled={cart.length === 0 || holdOrder.isPending}
                   onClick={() => void holdSale()}
                 >
@@ -3066,7 +3067,7 @@ export function PosTerminal() {
                 </Button>
               ) : (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-10 w-full text-sm"
                   disabled={
                     cart.length === 0 ||
                     (!allowNegativeStock && hasStockIssue(cart)) ||
@@ -5165,27 +5166,28 @@ function PaymentChip({
   const selectedMethod = methods.find((method) => method.id === payment.payment_method_id) ?? null;
   const requiresReference =
     selectedMethod?.requires_reference === true || payment.method !== 'cash';
+  const hasReceivedAmount = payment.method === 'cash';
   const rateType = rateTypes.find((rate) => rate.id === payment.exchange_rate_type_id) ?? null;
   const baseAmount = paymentBaseAmount(payment);
 
   return (
-    <div className="border-border bg-bg/40 rounded border p-2">
-      <div className="grid grid-cols-[minmax(0,1fr)_112px_auto] items-center gap-2">
+    <div className="border-border bg-bg/40 rounded border p-1.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_88px_auto] items-center gap-1.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-semibold">
               {selectedMethod?.name ?? methodLabel(payment.method)}
             </p>
-            <Badge variant="info">{payment.currency}</Badge>
+            <Badge variant="info" className="px-1.5 py-0 text-[10px]">{payment.currency}</Badge>
           </div>
-          <p className="text-text-muted mt-1 text-xs">
+          <p className="text-text-muted mt-0.5 truncate text-[11px]">
             {payment.currency === 'VES' && rateType
               ? `${rateType.name}${payment.exchange_rate ? ` @ ${formatLocalNumber(payment.exchange_rate)}` : ''}`
               : methodLabel(payment.method)}
           </p>
         </div>
         <Input
-          className="h-9 text-right text-sm font-semibold"
+          className="h-8 px-2 text-right text-xs font-semibold"
           type="number"
           min="0"
           value={payment.amount}
@@ -5194,21 +5196,26 @@ function PaymentChip({
           placeholder="Monto"
           data-testid={`pos-payment-amount-${payment.id}`}
         />
-        <Button size="icon-sm" variant="ghost" disabled={locked} onClick={onRemove}>
-          <X className="size-4" />
+        <Button size="icon-sm" variant="ghost" className="size-7" disabled={locked} onClick={onRemove}>
+          <X className="size-3.5" />
         </Button>
       </div>
 
       {(payment.currency === 'VES' && payment.exchange_rate) ||
       payment.method === 'cash' ||
       requiresReference ? (
-        <div className="mt-2 grid gap-2">
+        <div
+          className={cn(
+            'mt-1.5 grid gap-1.5',
+            hasReceivedAmount && requiresReference ? 'grid-cols-2' : 'grid-cols-1',
+          )}
+        >
           {payment.currency === 'VES' && payment.exchange_rate && (
-            <p className="text-text-muted text-xs font-medium">Equivale a {money(baseAmount)}</p>
+            <p className="text-text-muted col-span-full text-[11px] font-medium">Equivale a {money(baseAmount)}</p>
           )}
           {payment.method === 'cash' && (
             <Input
-              className="h-9 text-sm font-semibold"
+              className="h-8 text-xs font-semibold"
               type="number"
               min="0"
               value={payment.received_amount ?? ''}
@@ -5218,7 +5225,7 @@ function PaymentChip({
           )}
           {requiresReference && (
             <Input
-              className="h-9 text-sm"
+              className="h-8 text-xs"
               value={payment.reference ?? ''}
               placeholder={
                 selectedMethod?.requires_reference ? 'Referencia obligatoria' : 'Referencia'
@@ -5639,17 +5646,17 @@ function QuickPaymentPanel({
 }) {
   const remaining = calculatePaymentTotals(payments, cartTotal).remaining;
   return (
-    <div className="space-y-4">
-      <div className="border-border rounded-2xl border bg-gradient-to-br from-[#17112f] to-[#2f238f] p-5 text-white shadow-md">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-3">
+      <div className="border-border rounded-xl border bg-gradient-to-br from-[#17112f] to-[#2f238f] p-3 text-white shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <p className="text-sm text-white/70">Restante</p>
-            <p className="text-4xl font-bold">{money(remaining)}</p>
+            <p className="text-xs text-white/70">Restante</p>
+            <p className="text-3xl font-bold">{money(remaining)}</p>
           </div>
           {rate ? (
             <div className="text-right">
-              <p className="text-sm text-white/70">Equivalente VES</p>
-              <p className="text-2xl font-bold">
+              <p className="text-xs text-white/70">Equivalente VES</p>
+              <p className="text-xl font-bold">
                 Bs {formatLocalNumber(paymentAmountForCurrency(remaining, 'VES', rate.rate))}
               </p>
               <p className="text-xs text-white/60">{formatPosRateLabel(rate)}</p>
@@ -5673,7 +5680,7 @@ function QuickPaymentPanel({
           </Button>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {methods.map((method) => {
             const preview = previewQuickPayment(method, cartTotal, payments, rate);
             return (
@@ -5681,12 +5688,12 @@ function QuickPaymentPanel({
                 key={method.id}
                 onPress={() => onSelect(method.id)}
                 data-testid={`pos-add-payment-${method.id}`}
-                className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 min-h-32 rounded-2xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                className="border-border bg-surface hover:border-primary/60 hover:bg-primary/5 min-h-24 rounded-xl border p-3 text-left shadow-sm transition-colors hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{method.name}</p>
-                    <p className="text-text-muted mt-1 text-xs">{methodLabel(method.method)}</p>
+                    <p className="text-text-muted mt-0.5 text-xs">{methodLabel(method.method)}</p>
                   </div>
                   <Badge variant={method.currency_mode === 'VES' ? 'info' : 'default'}>
                     {method.currency_mode === 'flexible'
@@ -5694,7 +5701,7 @@ function QuickPaymentPanel({
                       : (method.currency_mode ?? 'USD')}
                   </Badge>
                 </div>
-                <p className="mt-4 text-2xl font-bold">{preview.amountLabel}</p>
+                <p className="mt-2 text-xl font-bold">{preview.amountLabel}</p>
                 <p className="text-text-muted text-xs">{preview.detail}</p>
               </TapButton>
             );
