@@ -25,17 +25,24 @@ class DataImportTemplateController extends Controller
         }
 
         $current = $request->boolean('current');
+        $simpleProducts = $request->boolean('simple');
+        if ($simpleProducts && $entity !== 'products') {
+            return response()->json(['message' => 'La plantilla sencilla solo esta disponible para productos.'], 422);
+        }
 
         try {
-            $csv = $current
-                ? $this->builder->buildCurrent($entity)
-                : $this->builder->build($entity);
+            $csv = $simpleProducts
+                ? $this->builder->buildSimpleProducts($current)
+                : ($current
+                    ? $this->builder->buildCurrent($entity)
+                    : $this->builder->build($entity));
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $prefix = $current ? 'datos' : 'plantilla';
-        $filename = "{$prefix}_{$entity}.csv";
+        $filename = $simpleProducts
+            ? ($current ? 'productos_para_actualizar.csv' : 'plantilla_productos_sencilla.csv')
+            : (($current ? 'datos' : 'plantilla')."_{$entity}.csv");
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',

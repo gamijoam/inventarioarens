@@ -118,6 +118,30 @@ class TemplateDownloadTest extends TestCase
         $this->assertStringContainsString('SKU-CURRENT-1,Producto Actual', $content);
     }
 
+    public function test_simple_product_download_uses_friendly_columns_and_current_values(): void
+    {
+        Product::create([
+            'sku' => 'SKU-SIMPLE-1',
+            'name' => 'Producto Facil',
+            'barcode' => '7501234567890',
+            'base_price' => 14.5,
+            'sale_currency' => 'USD',
+            'unit_of_measure' => 'unit',
+            'tracking_type' => 'quantity',
+            'is_active' => true,
+        ]);
+
+        $response = $this
+            ->actingAs($this->admin)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->get('/api/import/templates/products?simple=1&current=1');
+
+        $response->assertOk();
+        $content = $response->getContent();
+        $this->assertStringStartsWith("\xEF\xBB\xBFcodigo,nombre,codigo_de_barras,precio,moneda", $content);
+        $this->assertStringContainsString('SKU-SIMPLE-1,Producto Facil,7501234567890,14.5000,USD', $content);
+    }
+
     public function test_current_download_rejects_entity_without_current_support(): void
     {
         $response = $this

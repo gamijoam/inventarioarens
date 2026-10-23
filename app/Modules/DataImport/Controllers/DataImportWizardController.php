@@ -27,8 +27,11 @@ class DataImportWizardController extends Controller
             return response()->json(['message' => 'Entidad invalida.'], 422);
         }
 
+        $allowedTypes = $entity === 'products'
+            ? 'mimes:csv,txt,xlsx,xls'
+            : 'mimes:csv,txt';
         $request->validate([
-            'file' => ['required', 'file', 'max:'.((int) config('data_import.max_file_mb', 50) * 1024)],
+            'file' => ['required', 'file', $allowedTypes, 'max:'.((int) config('data_import.max_file_mb', 50) * 1024)],
         ]);
 
         $entityRow = $this->service->uploadFile($dataImport, $entity, $request->file('file'));

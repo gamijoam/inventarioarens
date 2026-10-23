@@ -158,6 +158,34 @@ class TemplateBuilder
     }
 
     /**
+     * Hoja simplificada para personas que solo necesitan agregar o editar los
+     * datos basicos de un producto, sin exponer campos internos del importador.
+     */
+    public function buildSimpleProducts(bool $current = false): string
+    {
+        $headers = ['codigo', 'nombre', 'codigo_de_barras', 'precio', 'moneda'];
+        $rows = [$headers];
+
+        if ($current) {
+            $products = Product::query()
+                ->orderBy('id')
+                ->get(['sku', 'name', 'barcode', 'base_price', 'sale_currency']);
+
+            foreach ($products as $product) {
+                $rows[] = [
+                    $product->sku,
+                    $product->name,
+                    $product->barcode ?? '',
+                    $product->base_price ?? '',
+                    $product->sale_currency ?? 'USD',
+                ];
+            }
+        }
+
+        return "\xEF\xBB\xBF".$this->toCsv($rows, ',');
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function currentProductRecords(): array

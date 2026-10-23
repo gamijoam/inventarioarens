@@ -74,6 +74,69 @@ class ImportUpsertTest extends TestCase
         ]);
     }
 
+    public function test_simple_product_file_updates_matching_code_and_preserves_blank_fields(): void
+    {
+        Product::create([
+            'sku' => 'EASY-001',
+            'name' => 'Nombre anterior',
+            'barcode' => '7501111111111',
+            'description' => 'Descripcion que debe conservarse',
+            'unit_of_measure' => 'unit',
+            'tracking_type' => 'quantity',
+            'base_price' => 10,
+            'sale_currency' => 'USD',
+            'min_stock' => 5,
+            'is_active' => true,
+        ]);
+
+        $results = $this->runImport('products', $this->writeCsv(
+            'productos-sencillos.csv',
+            "codigo,nombre,codigo_de_barras,precio,moneda\nEASY-001,Nombre actualizado,,25,USD\nEASY-002,Producto nuevo,7502222222222,8.5,USD\n",
+        ));
+
+        $this->assertSame(ImportRowResult::STATUS_UPDATED, $results[0]->status);
+        $this->assertSame(ImportRowResult::STATUS_OK, $results[1]->status);
+        $updated = Product::query()->where('sku', 'EASY-001')->first();
+        $this->assertNotNull($updated);
+        $this->assertSame('Nombre actualizado', $updated->name);
+        $this->assertSame('7501111111111', $updated->barcode);
+        $this->assertSame('Descripcion que debe conservarse', $updated->description);
+        $this->assertSame(25.0, (float) $updated->base_price);
+        $this->assertSame(5.0, (float) $updated->min_stock);
+        $created = Product::query()->where('sku', 'EASY-002')->first();
+        $this->assertNotNull($created);
+        $this->assertSame('Producto nuevo', $created->name);
+        $this->assertSame('7502222222222', $created->barcode);
+        $this->assertSame(8.5, (float) $created->base_price);
+    }
+
+    public function test_simple_product_file_can_find_an_existing_item_by_barcode(): void
+    {
+        Product::create([
+            'sku' => 'CODIGO-ANTERIOR',
+            'name' => 'Producto anterior',
+            'barcode' => '7503333333333',
+            'unit_of_measure' => 'unit',
+            'tracking_type' => 'quantity',
+            'base_price' => 10,
+            'sale_currency' => 'USD',
+            'is_active' => true,
+        ]);
+
+        $results = $this->runImport('products', $this->writeCsv(
+            'producto-con-codigo-nuevo.csv',
+            "codigo,nombre,codigo_de_barras,precio,moneda\nCODIGO-NUEVO,Producto actualizado,7503333333333,18,USD\n",
+        ));
+
+        $this->assertSame(ImportRowResult::STATUS_UPDATED, $results[0]->status);
+        $updated = Product::query()->where('sku', 'CODIGO-NUEVO')->first();
+        $this->assertNotNull($updated);
+        $this->assertSame('Producto actualizado', $updated->name);
+        $this->assertSame('7503333333333', $updated->barcode);
+        $this->assertSame(18.0, (float) $updated->base_price);
+        $this->assertDatabaseMissing('products', ['sku' => 'CODIGO-ANTERIOR']);
+    }
+
     public function test_product_importer_skips_existing_without_changes(): void
     {
         $this->runImport('products', $this->writeCsv('p1.csv', "sku,name,base_price\nSKU-SAME,Igual,10\n"));

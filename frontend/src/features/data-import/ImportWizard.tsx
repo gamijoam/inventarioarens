@@ -23,8 +23,8 @@ interface StepState {
   step: 'select' | 'upload' | 'preview' | 'running' | 'done';
   entity: SupportedEntity | null;
   sessionId: number | null;
-  previewRows: Record<string, string | null>[];
   uploadedFileName: string | null;
+  uploadedFile: File | null;
   result: RunSummary | null;
 }
 
@@ -32,8 +32,8 @@ const initial: StepState = {
   step: 'select',
   entity: null,
   sessionId: null,
-  previewRows: [],
   uploadedFileName: null,
+  uploadedFile: null,
   result: null,
 };
 
@@ -72,7 +72,11 @@ export function ImportWizard() {
   async function downloadTemplate() {
     if (!state.entity) return;
     try {
-      await downloadImportFile(templateUrl(state.entity), `plantilla_${state.entity}.csv`);
+      const simpleProducts = state.entity === 'products';
+      await downloadImportFile(
+        templateUrl(state.entity, false, simpleProducts),
+        simpleProducts ? 'plantilla_productos_sencilla.csv' : `plantilla_${state.entity}.csv`,
+      );
     } catch {
       toast.error('No se pudo descargar la plantilla.');
     }
@@ -81,7 +85,11 @@ export function ImportWizard() {
   async function downloadCurrentData() {
     if (!state.entity || !supportsCurrentData(state.entity)) return;
     try {
-      await downloadImportFile(templateUrl(state.entity, true), `datos_${state.entity}.csv`);
+      const simpleProducts = state.entity === 'products';
+      await downloadImportFile(
+        templateUrl(state.entity, true, simpleProducts),
+        simpleProducts ? 'productos_para_actualizar.csv' : `datos_${state.entity}.csv`,
+      );
       toast.success('Descargado. Edita el archivo y vuelve a subirlo.');
     } catch {
       toast.error('No se pudieron descargar los datos actuales.');
@@ -90,7 +98,8 @@ export function ImportWizard() {
 
   async function handleFile(file: File) {
     try {
-      const session = state.sessionId ?? (await createSession.mutateAsync({ meta: { entity: state.entity } })).id;
+      const session =
+        state.sessionId ?? (await createSession.mutateAsync({ meta: { entity: state.entity } })).id;
       if (!state.sessionId) {
         setState((s) => ({ ...s, sessionId: session }));
       }
@@ -100,6 +109,7 @@ export function ImportWizard() {
         sessionId: session,
         step: 'preview',
         uploadedFileName: file.name,
+        uploadedFile: file,
       }));
       toast.success('Archivo subido correctamente.');
     } catch (err) {
@@ -115,7 +125,9 @@ export function ImportWizard() {
         entity: state.entity ?? 'branches',
       });
       setState((s) => ({ ...s, step: 'running', sessionId: result.session.id }));
-      toast.success('Importacion iniciada. Puedes dejar esta ventana abierta para ver el progreso.');
+      toast.success(
+        'Importacion iniciada. Puedes dejar esta ventana abierta para ver el progreso.',
+      );
     } catch (err) {
       toast.error((err as Error).message);
       setState((s) => ({ ...s, step: 'preview' }));
@@ -130,35 +142,36 @@ export function ImportWizard() {
     <div className="space-y-6">
       {state.step === 'select' && (
         <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Tipo de dato a importar</label>
-            <Select
-              value={state.entity ?? ''}
-              onChange={(e) => pickEntity(e.target.value as SupportedEntity)}
-            >
-              <option value="">Selecciona...</option>
-              {SUPPORTED_ENTITIES.map((e) => (
-                <option key={e} value={e}>
-                  {ENTITY_LABELS[e]}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {state.entity && (
-            <div className="flex gap-3">
-              <Button onClick={downloadTemplate} variant="secondary">
-                Descargar plantilla
-              </Button>
-              {supportsCurrentData(state.entity) && (
-                <Button onClick={downloadCurrentData} variant="secondary">
-                  Descargar datos actuales
-                </Button>
-              )}
-              <Button onClick={resetWizard} variant="ghost">
-                Cambiar tipo
-              </Button>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <div>
+              <h2 className="text-base font-semibold text-blue-950">
+                Agregar o actualizar productos
+              </h2>
+              <p className="mt-1 text-sm text-blue-900">
+                Sube una hoja de Excel. El código o código de barras permite reconocer los productos
+                existentes.
+              </p>
             </div>
-          )}
+            <Button className="mt-3" onClick={() => pickEntity('products')}>
+              Subir productos
+            </Button>
+          </div>
+          <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Cargar otro tipo de dato
+            </summary>
+            <div className="mt-3">
+              <label className="mb-1 block text-sm font-medium">Selecciona el tipo de dato</label>
+              <Select value="" onChange={(e) => pickEntity(e.target.value as SupportedEntity)}>
+                <option value="">Selecciona...</option>
+                {SUPPORTED_ENTITIES.filter((entity) => entity !== 'products').map((entity) => (
+                  <option key={entity} value={entity}>
+                    {ENTITY_LABELS[entity]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </details>
         </div>
       )}
 
@@ -166,15 +179,17 @@ export function ImportWizard() {
         <div className="rounded-md border bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
             <div>
-              Tipo: <strong>{ENTITY_LABELS[state.entity]}</strong>
+              <strong>{ENTITY_LABELS[state.entity]}</strong>
             </div>
             <div className="flex gap-2">
               <Button onClick={downloadTemplate} variant="secondary" size="sm">
-                Descargar plantilla
+                {state.entity === 'products' ? 'Plantilla sencilla' : 'Descargar plantilla'}
               </Button>
               {supportsCurrentData(state.entity) && (
                 <Button onClick={downloadCurrentData} variant="secondary" size="sm">
-                  Descargar datos actuales
+                  {state.entity === 'products'
+                    ? 'Productos actuales para editar'
+                    : 'Descargar datos actuales'}
                 </Button>
               )}
               <Button onClick={resetWizard} variant="ghost" size="sm">
@@ -185,25 +200,58 @@ export function ImportWizard() {
 
           {state.step === 'upload' && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                Sube aqui el CSV ya completado usando la plantilla del tipo elegido.
-              </p>
+              {state.entity === 'products' ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
+                  <p className="font-semibold">
+                    Agrega o actualiza productos desde una hoja sencilla.
+                  </p>
+                  <p className="mt-1">
+                    Usa el código del producto para identificarlo. Si ya existe, se actualiza; si es
+                    nuevo, se agrega. Deja vacíos los campos que no quieras cambiar. Esta hoja no
+                    modifica existencias.
+                  </p>
+                  <p className="mt-1 text-xs">
+                    Puedes subir el archivo Excel tal como lo guardaste (.xlsx o .xls).
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  Sube aquí el CSV completado con la plantilla descargada.
+                </p>
+              )}
               <FileDropzone
                 onFile={handleFile}
                 fileName={state.uploadedFileName}
                 loading={upload.isPending || createSession.isPending}
+                accept={
+                  state.entity === 'products'
+                    ? '.csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    : '.csv,text/csv'
+                }
               />
             </div>
           )}
 
           {state.step === 'preview' && (
-            <ImportPreviewTable fileName={state.uploadedFileName} entity={state.entity} />
+            <ImportPreviewTable
+              fileName={state.uploadedFileName}
+              entity={state.entity}
+              file={state.uploadedFile}
+            />
           )}
 
           {(state.step === 'preview' || state.step === 'running') && (
             <div className="mt-4 flex gap-3">
-              <Button onClick={handleRun} loading={run.isPending} disabled={state.step === 'running'}>
-                {state.step === 'running' ? 'Importando...' : 'Ejecutar importacion'}
+              <Button
+                onClick={handleRun}
+                loading={run.isPending}
+                disabled={state.step === 'running'}
+              >
+                {state.step === 'running'
+                  ? 'Importando...'
+                  : state.entity === 'products'
+                    ? 'Aplicar cambios a productos'
+                    : 'Importar datos'}
               </Button>
               <Button onClick={resetWizard} variant="ghost" disabled={state.step === 'running'}>
                 Cancelar
@@ -212,7 +260,11 @@ export function ImportWizard() {
           )}
 
           {state.step === 'done' && state.result && (
-            <ImportRunResult result={state.result} sessionId={state.sessionId ?? 0} onReset={resetWizard} />
+            <ImportRunResult
+              result={state.result}
+              sessionId={state.sessionId ?? 0}
+              onReset={resetWizard}
+            />
           )}
         </div>
       )}
@@ -224,10 +276,12 @@ interface FileDropzoneProps {
   onFile: (f: File) => void;
   fileName: string | null;
   loading: boolean;
+  accept: string;
 }
 
-function FileDropzone({ onFile, fileName, loading }: FileDropzoneProps) {
+function FileDropzone({ onFile, fileName, loading, accept }: FileDropzoneProps) {
   const [dragOver, setDragOver] = useState(false);
+  const supportsSpreadsheet = accept.includes('.xlsx');
 
   return (
     <label
@@ -248,7 +302,7 @@ function FileDropzone({ onFile, fileName, loading }: FileDropzoneProps) {
     >
       <input
         type="file"
-        accept=".csv,text/csv"
+        accept={accept}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -256,9 +310,15 @@ function FileDropzone({ onFile, fileName, loading }: FileDropzoneProps) {
         }}
       />
       <p className="text-sm font-medium">
-        {loading ? 'Subiendo...' : fileName ? `Archivo: ${fileName}` : 'Arrastra tu CSV aqui o haz click para seleccionar'}
+        {loading
+          ? 'Subiendo...'
+          : fileName
+            ? `Archivo: ${fileName}`
+            : `Selecciona o arrastra aquí tu archivo ${supportsSpreadsheet ? 'Excel o CSV' : 'CSV'}`}
       </p>
-      <p className="mt-1 text-xs text-gray-500">El archivo se procesa en segundo plano; el limite se configura en el servidor.</p>
+      <p className="mt-1 text-xs text-gray-500">
+        {supportsSpreadsheet ? 'Admite Excel (.xlsx, .xls) y CSV.' : 'Admite archivos CSV.'}
+      </p>
     </label>
   );
 }

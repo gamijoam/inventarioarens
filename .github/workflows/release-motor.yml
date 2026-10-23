@@ -237,14 +237,7 @@ jobs:
             echo "El release $TAG ya existe; no se sobrescribe." >&2
             exit 1
           fi
-          cat > release-notes.md <<EOF
-          Candidato descargable de Motor Local BalanzaPro ${VERSION}.
-
-          Incluye el agente nativo de impresión térmica actualizado para tickets ESC/POS de 80 mm, alineación de importes y corte de papel. Valida impresión y corte en Windows antes de distribuirlo de forma general.
-
-          Fuente: ${GITHUB_SHA}
-          EOF
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Motor Local BalanzaPro ${VERSION} — Candidato Windows" \
-            --notes-file release-notes.md --prerelease --latest=false \
+            --generate-notes --prerelease --latest=false \
             build/local-motor/release/*.exe build/local-motor/release/*.exe.sha256

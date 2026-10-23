@@ -11,7 +11,7 @@ function ImportPage() {
   return (
     <PageLayout
       title="Importar datos"
-      description="Carga catalogos desde un CSV. Plantillas dinamicas con valores reales del tenant, validacion por fila y reporte descargable."
+      description="Agrega o actualiza productos desde una hoja sencilla. También puedes cargar otros catálogos."
     >
       <DataImportPage />
     </PageLayout>

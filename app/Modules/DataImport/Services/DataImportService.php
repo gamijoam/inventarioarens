@@ -12,6 +12,8 @@ use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\DataImport\Support\ImportStatus;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 
 class DataImportService
@@ -51,14 +53,29 @@ class DataImportService
             mkdir($dir, 0755, true);
         }
 
-        $extension = $file->getClientOriginalExtension() ?: 'csv';
-        $filename = $entity.'_'.time().'_'.uniqid().'.'.$extension;
+        $extension = strtolower($file->getClientOriginalExtension() ?: 'csv');
+        $spreadsheetUpload = $entity === 'products' && in_array($extension, ['xlsx', 'xls'], true);
+        $filename = $entity.'_'.time().'_'.uniqid().'.'.($spreadsheetUpload ? 'csv' : $extension);
         $path = $dir.'/'.$filename;
+        $uploadPath = $spreadsheetUpload ? $dir.'/.upload_'.uniqid().'.'.$extension : $path;
 
         try {
-            $file->move($dir, $filename);
+            $file->move($dir, basename($uploadPath));
         } catch (FileException $e) {
             throw new \RuntimeException('No se pudo guardar el archivo: '.$e->getMessage());
+        }
+
+        if ($spreadsheetUpload) {
+            try {
+                $this->convertProductSpreadsheetToCsv($uploadPath, $path);
+            } catch (\Throwable $e) {
+                @unlink($uploadPath);
+                throw new \RuntimeException(
+                    'No se pudo leer la hoja. Sube un archivo Excel valido con los encabezados de la plantilla.',
+                    previous: $e,
+                );
+            }
+            @unlink($uploadPath);
         }
 
         $entityRow = DataImportEntity::query()->updateOrCreate(
@@ -67,6 +84,59 @@ class DataImportService
         );
 
         return $entityRow;
+    }
+
+    private function convertProductSpreadsheetToCsv(string $sourcePath, string $targetPath): void
+    {
+        if (strtolower(pathinfo($sourcePath, PATHINFO_EXTENSION)) === 'xlsx' && class_exists(\ZipArchive::class)) {
+            $archive = new \ZipArchive;
+            if ($archive->open($sourcePath) !== true) {
+                throw new \RuntimeException('El archivo Excel no se puede abrir.');
+            }
+            $expandedBytes = 0;
+            for ($index = 0; $index < $archive->numFiles; $index++) {
+                $entry = $archive->statIndex($index);
+                $expandedBytes += (int) ($entry['size'] ?? 0);
+                if ($expandedBytes > 100 * 1024 * 1024) {
+                    $archive->close();
+                    throw new \RuntimeException('La hoja Excel excede el tamaño permitido al descomprimirse.');
+                }
+            }
+            $archive->close();
+        }
+
+        $reader = IOFactory::createReaderForFile($sourcePath);
+        $reader->setReadDataOnly(true);
+        $workbook = $reader->load($sourcePath);
+
+        try {
+            $sheet = $workbook->getActiveSheet();
+            $lastRow = $sheet->getHighestDataRow();
+            $lastColumn = Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+            $maxRows = min(25_000, max(1, (int) config('data_import.max_rows', 100_000)));
+            if ($lastRow > $maxRows + 1 || $lastColumn > 32) {
+                throw new \RuntimeException('La hoja excede el numero permitido de filas o columnas.');
+            }
+
+            $output = fopen($targetPath, 'wb');
+            if ($output === false) {
+                throw new \RuntimeException('No se pudo preparar el archivo de importacion.');
+            }
+
+            try {
+                for ($row = 1; $row <= $lastRow; $row++) {
+                    $values = [];
+                    for ($column = 1; $column <= $lastColumn; $column++) {
+                        $values[] = $sheet->getCell([$column, $row])->getFormattedValue();
+                    }
+                    fputcsv($output, $values, ',', '"', '');
+                }
+            } finally {
+                fclose($output);
+            }
+        } finally {
+            $workbook->disconnectWorksheets();
+        }
     }
 
     /**

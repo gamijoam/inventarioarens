@@ -61,11 +61,14 @@ class ProductImporter extends BaseImporter
 
     public function naturalKey(array $payload): string
     {
-        return trim((string) ($payload['sku'] ?? ''));
+        return trim((string) ($payload['sku'] ?? $payload['codigo'] ?? ''));
     }
 
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
+        $simpleMode = $this->isSimpleProductPayload($payload);
+        $originalPayload = $payload;
+        $payload = $this->normalizeSimpleProductPayload($payload);
         $payload = $this->fillDefaults($payload);
         $sku = $payload['sku'];
         $name = $payload['name'];
@@ -187,29 +190,69 @@ class ProductImporter extends BaseImporter
             $sku, $name, $barcode, $description, $brandId, $categoryIds, $tagIds,
             $unitOfMeasure, $trackingType, $basePrice, $saleCurrency,
             $minStock, $maxStock, $reorderQty, $isActive,
-            $stockInicial, $warehouseId, $costoUnitario,
+            $stockInicial, $warehouseId, $costoUnitario, $simpleMode, $originalPayload,
         ) {
             $existing = Product::query()->where('sku', $sku)->first();
+            if (! $existing && $simpleMode && $barcode !== null && $barcode !== '') {
+                $existing = Product::query()->where('barcode', $barcode)->first();
+            }
             if ($existing) {
+                if (
+                    $simpleMode && $barcode !== null && $barcode !== '' &&
+                    Product::query()->where('barcode', $barcode)->where('id', '!=', $existing->id)->exists()
+                ) {
+                    return ImportRowResult::failed(
+                        ['codigo_de_barras' => "El codigo de barras '{$barcode}' ya pertenece a otro producto."],
+                        $sku,
+                    );
+                }
+
+                $attributes = [
+                    'name' => $name,
+                    'barcode' => $barcode,
+                    'description' => $description,
+                    'brand_id' => $brandId,
+                    'unit_of_measure' => $unitOfMeasure,
+                    'tracking_type' => $trackingType,
+                    'base_price' => $basePrice,
+                    'sale_currency' => $saleCurrency,
+                    'min_stock' => $minStock,
+                    'max_stock' => $maxStock,
+                    'reorder_quantity' => $reorderQty,
+                    'is_active' => $isActive,
+                ];
+
+                if ($simpleMode) {
+                    $attributes['sku'] = $sku;
+                    $sourceFields = [
+                        'sku' => ['codigo', 'sku'],
+                        'name' => ['nombre', 'name'],
+                        'barcode' => ['codigo_de_barras', 'codigo_barras', 'barcode'],
+                        'base_price' => ['precio', 'base_price'],
+                        'sale_currency' => ['moneda', 'sale_currency'],
+                    ];
+                    $attributes = array_filter(
+                        $attributes,
+                        fn (string $field): bool => collect($sourceFields[$field] ?? [])
+                            ->contains(fn (string $source) => isset($originalPayload[$source]) && trim((string) $originalPayload[$source]) !== ''),
+                        ARRAY_FILTER_USE_KEY,
+                    );
+                }
+
                 return $this->updateExistingProduct(
                     $existing,
                     $sku,
-                    [
-                        'name' => $name,
-                        'barcode' => $barcode,
-                        'description' => $description,
-                        'brand_id' => $brandId,
-                        'unit_of_measure' => $unitOfMeasure,
-                        'tracking_type' => $trackingType,
-                        'base_price' => $basePrice,
-                        'sale_currency' => $saleCurrency,
-                        'min_stock' => $minStock,
-                        'max_stock' => $maxStock,
-                        'reorder_quantity' => $reorderQty,
-                        'is_active' => $isActive,
-                    ],
+                    $attributes,
                     $categoryIds,
                     $tagIds,
+                    ! $simpleMode,
+                );
+            }
+
+            if ($simpleMode && $barcode !== null && $barcode !== '' && Product::query()->where('barcode', $barcode)->exists()) {
+                return ImportRowResult::failed(
+                    ['codigo_de_barras' => "El codigo de barras '{$barcode}' ya pertenece a otro producto."],
+                    $sku,
                 );
             }
 
@@ -312,6 +355,7 @@ class ProductImporter extends BaseImporter
         array $attributes,
         array $categoryIds,
         array $tagIds,
+        bool $syncRelations = true,
     ): ImportRowResult {
         $dirty = [];
         foreach ($attributes as $field => $value) {
@@ -326,27 +370,31 @@ class ProductImporter extends BaseImporter
             }
         }
 
-        $currentCategoryIds = DB::table('product_category')
-            ->where('product_id', $product->id)
-            ->where('tenant_id', $product->tenant_id)
-            ->pluck('category_id')
-            ->map(fn ($id) => (int) $id)
-            ->sort()
-            ->values()
-            ->all();
-        $desiredCategoryIds = collect($categoryIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
-        $categoriesChanged = $currentCategoryIds !== $desiredCategoryIds;
+        $categoriesChanged = false;
+        $tagsChanged = false;
+        if ($syncRelations) {
+            $currentCategoryIds = DB::table('product_category')
+                ->where('product_id', $product->id)
+                ->where('tenant_id', $product->tenant_id)
+                ->pluck('category_id')
+                ->map(fn ($id) => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+            $desiredCategoryIds = collect($categoryIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+            $categoriesChanged = $currentCategoryIds !== $desiredCategoryIds;
 
-        $currentTagIds = DB::table('product_tag')
-            ->where('product_id', $product->id)
-            ->where('tenant_id', $product->tenant_id)
-            ->pluck('tag_id')
-            ->map(fn ($id) => (int) $id)
-            ->sort()
-            ->values()
-            ->all();
-        $desiredTagIds = collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
-        $tagsChanged = $currentTagIds !== $desiredTagIds;
+            $currentTagIds = DB::table('product_tag')
+                ->where('product_id', $product->id)
+                ->where('tenant_id', $product->tenant_id)
+                ->pluck('tag_id')
+                ->map(fn ($id) => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+            $desiredTagIds = collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+            $tagsChanged = $currentTagIds !== $desiredTagIds;
+        }
 
         if ($dirty === [] && ! $categoriesChanged && ! $tagsChanged) {
             return ImportRowResult::skipped("Producto {$sku} sin cambios", $sku);
@@ -424,5 +472,31 @@ class ProductImporter extends BaseImporter
             'almacen_codigo' => $payload['almacen_codigo'] ?? null,
             'costo_unitario' => $this->normalizeDecimal($payload['costo_unitario'] ?? null),
         ];
+    }
+
+    private function isSimpleProductPayload(array $payload): bool
+    {
+        return array_intersect(
+            ['codigo', 'nombre', 'codigo_de_barras', 'codigo_barras', 'precio', 'moneda'],
+            array_keys($payload),
+        ) !== [];
+    }
+
+    private function normalizeSimpleProductPayload(array $payload): array
+    {
+        foreach ([
+            'codigo' => 'sku',
+            'nombre' => 'name',
+            'codigo_de_barras' => 'barcode',
+            'codigo_barras' => 'barcode',
+            'precio' => 'base_price',
+            'moneda' => 'sale_currency',
+        ] as $source => $target) {
+            if (! array_key_exists($target, $payload) && array_key_exists($source, $payload)) {
+                $payload[$target] = $payload[$source];
+            }
+        }
+
+        return $payload;
     }
 }
