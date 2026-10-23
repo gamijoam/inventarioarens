@@ -34,7 +34,10 @@ Section "Instalacion Principal" SecCore
 
     ; Solo detiene la edicion independiente, no el agente del Motor Local.
     ExecWait '"$SYSDIR\taskkill.exe" /F /IM "${EXE_NAME}"'
-    File "/oname=${EXE_NAME}" "../bin/${EXE_NAME}"
+    !ifndef AGENT_EXE
+    !define AGENT_EXE "../bin/${EXE_NAME}"
+    !endif
+    File "/oname=${EXE_NAME}" "${AGENT_EXE}"
     WriteUninstaller "$INSTDIR\uninstall.exe"
 
     ; Se ejecuta en la sesion del cajero para acceder a sus impresoras Windows.

@@ -92,9 +92,13 @@ jobs:
             throw "Version invalida: $version"
           }
           $output = "BalanzaPro-Impresor-Setup-$version.exe"
+          $agentExe = Join-Path $PWD.Path 'tools/printer-agent/bin/BalanzaPro-Printer-Agent.exe'
+          if (-not (Test-Path -LiteralPath $agentExe -PathType Leaf)) {
+            throw "No se encontro el agente compilado: $agentExe"
+          }
           Push-Location tools/printer-agent/installer
           try {
-            makensis.exe "/DVERSION=$version" "/DOUT_FILE=$output" installer-user.nsi
+            makensis.exe "/DVERSION=$version" "/DOUT_FILE=$output" "/DAGENT_EXE=$agentExe" installer-user.nsi
           } finally {
             Pop-Location
           }
@@ -116,7 +120,7 @@ jobs:
           make_latest: false
           generate_release_notes: true
           files: |
-            build/printer-agent/BalanzaPro-Impresor-Setup-${{ inputs.version }}.exe
-            build/printer-agent/BalanzaPro-Impresor-Setup-${{ inputs.version }}.exe.sha256
+            build/printer-agent/BalanzaPro-Impresor-Setup-${{ steps.version.outputs.version }}.exe
+            build/printer-agent/BalanzaPro-Impresor-Setup-${{ steps.version.outputs.version }}.exe.sha256
             build/printer-agent/BalanzaPro-Printer-Agent.exe
             build/printer-agent/BalanzaPro-Printer-Agent.exe.sha256
