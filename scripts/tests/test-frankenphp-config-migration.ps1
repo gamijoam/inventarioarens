@@ -3,7 +3,11 @@ $root = Join-Path $env:TEMP ('frankenphp-config-test-' + [guid]::NewGuid().ToStr
 $migrationScript = Join-Path $PSScriptRoot '..\migrate-frankenphp-config.ps1'
 
 function Assert-Contains([string]$Content, [string]$Value, [string]$Message) {
-    if (-not $Content.Contains($Value)) { throw $Message }
+    if (-not $Content.Contains($Value)) {
+        Write-Host "Expected text: [$Value]"
+        Write-Host "Actual config:`n$Content"
+        throw $Message
+    }
 }
 
 try {
