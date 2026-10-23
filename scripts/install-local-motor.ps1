@@ -365,23 +365,17 @@ function Install-Motor {
     $backendEnvironment = $environment.Clone()
     if ((Test-Path -LiteralPath $frankenPhpExe) -and (Test-Path -LiteralPath (Join-Path $frankenPhpDir 'ext\php_pdo_sqlite.dll'))) {
         Write-Info 'Motor backend: FrankenPHP (multi-hilo).'
-        $frankenPhpIni = @"
-extension_dir = "$frankenPhpDir\ext"
-extension=pdo_sqlite
-extension=sqlite3
-extension=mbstring
-extension=fileinfo
-extension=openssl
-extension=curl
-extension=zip
-extension=gd
-extension=intl
-extension=sodium
-opcache.enable=1
-opcache.enable_cli=1
-memory_limit=512M
-"@
-        [IO.File]::WriteAllText((Join-Path $frankenPhpDir 'php.ini'), $frankenPhpIni, [Text.UTF8Encoding]::new($false))
+        $legacyFrankenPhpConfigs = @(
+            (Join-Path $DataRoot 'runtime\frankenphp\php.ini')
+        )
+        if ($previousMarker -and ($previousMarker.PSObject.Properties.Name -contains 'motor_version') -and $previousMarker.motor_version) {
+            $legacyFrankenPhpConfigs += (Join-Path $MotorRoot "versions\$($previousMarker.motor_version)\runtime\frankenphp\php.ini")
+        }
+        $legacyFrankenPhpConfigs += (Join-Path $frankenPhpDir 'php.ini')
+        & (Join-Path $PSScriptRoot 'migrate-frankenphp-config.ps1') `
+            -RuntimeDirectory $frankenPhpDir `
+            -DataRoot $DataRoot `
+            -LegacyConfigPaths $legacyFrankenPhpConfigs
         $backendEnvironment['PHPRC'] = $frankenPhpDir
         $backendExecutable = $frankenPhpExe
         $backendArguments = 'php-server --root "' + (Join-Path $Backend 'public') + '" --listen 127.0.0.1:8787'
@@ -440,6 +434,8 @@ memory_limit=512M
         $marker = [ordered]@{
             enabled = $true; service_manager = 'scm'; motor_version = $Version; motor_root = $MotorRoot
             backend_root = $Backend; php_binary = $Php; backend_service = $BackendService
+            frankenphp_ini = if (Test-Path -LiteralPath (Join-Path $frankenPhpDir 'php.ini')) { Join-Path $frankenPhpDir 'php.ini' } else { $null }
+            frankenphp_version = if (Test-Path -LiteralPath $frankenPhpExe) { '1.12.7' } else { $null }
             printer_service = $PrinterService; sync_service = $SyncService; backend_wrapper = $backendWrapper
             printer_wrapper = $printerWrapper; sync_wrapper = $syncWrapper
             installed_at = (Get-Date).ToUniversalTime().ToString('o')

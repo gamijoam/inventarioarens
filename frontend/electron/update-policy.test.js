@@ -27,12 +27,38 @@ describe('Electron update policy', () => {
     expect(shouldEnableAutoUpdater({ isPackaged: true, isRuntimeSupervisor: true })).toBe(false);
   });
 
-  it('publishes a client inferred from a channel-suffixed tag, including balanzapro', () => {
+  it('keeps BalanzaPro out of the single-client release workflow', () => {
     const workflowPath = path.resolve(import.meta.dirname, '../../.github/workflows/release.yml');
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
     expect(workflow).toContain('GITHUB_REF_NAME');
-    expect(workflow).toContain('for candidate in balanzapro-pos balanzapro-admin balanzapro-technician technician admin pos');
-    expect(workflow).toContain('balanzapro-pos|balanzapro-admin|balanzapro-technician');
+    expect(workflow).toContain("- 'v*-admin'");
+    expect(workflow).toContain("- 'v*-pos'");
+    expect(workflow).toContain("- 'v*-technician'");
+    expect(workflow).not.toContain("- 'v*'");
+    expect(workflow).not.toContain('balanzapro-pos|balanzapro-admin|balanzapro-technician');
+  });
+
+  it('builds and publishes the three BalanzaPro update channels together', () => {
+    const workflowPath = path.resolve(
+      import.meta.dirname,
+      '../../.github/workflows/release-balanzapro.yml',
+    );
+    const workflow = fs.readFileSync(workflowPath, 'utf8');
+
+    for (const client of ['balanzapro-pos', 'balanzapro-admin', 'balanzapro-technician']) {
+      expect(workflow).toContain(client);
+      const builderPath = path.resolve(import.meta.dirname, `../electron-builder.${client}.yml`);
+      expect(fs.readFileSync(builderPath, 'utf8')).toContain(`channel: ${client}`);
+    }
+    expect(workflow).toContain('candidate_run_id');
+    expect(workflow).toContain('acceptance_verified');
+    expect(workflow).toContain('sha256sum --check SHA256SUMS');
+    expect(workflow).toContain('--latest');
+    expect(workflow).toContain('BalanzaPro-desktop-release.json');
+
+    const packageJson = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../package.json'), 'utf8'));
+    expect(packageJson.version).toBe('0.2.66');
+    expect(packageJson.devDependencies.electron).toBe('^43.3.0');
   });
 });

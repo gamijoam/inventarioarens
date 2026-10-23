@@ -1,0 +1,205 @@
+name: Release Electron clients BalanzaPro
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Rama o commit fuente del candidato'
+        required: true
+        default: 'client/balanzapro'
+        type: string
+      publish:
+        description: 'Publicar el candidato probado como release latest'
+        required: true
+        default: false
+        type: boolean
+      candidate_run_id:
+        description: 'ID de la ejecución candidata probada (obligatorio al publicar)'
+        required: false
+        default: ''
+        type: string
+      acceptance_verified:
+        description: 'Confirmar instalación, actualización y updater de los tres canales en Windows'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  build-candidate:
+    if: ${{ !inputs.publish }}
+    name: Build ${{ matrix.client }} candidate
+    runs-on: windows-latest
+    permissions:
+      actions: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        client:
+          - balanzapro-pos
+          - balanzapro-admin
+          - balanzapro-technician
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and verify Windows client
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLIENT='${{ matrix.client }}'
+          pnpm run "build:${CLIENT}"
+          pnpm exec electron-builder --config "electron-builder.${CLIENT}.yml" --publish never
+          node ../scripts/verify-electron-artifact.cjs "$CLIENT" "release/$CLIENT/win-unpacked"
+
+      - name: Verify update metadata and installer
+        shell: pwsh
+        run: |
+          $client = '${{ matrix.client }}'
+          $output = "frontend/release/$client"
+          $metadata = Join-Path $output "$client.yml"
+          $installers = @(Get-ChildItem -LiteralPath $output -Filter '*.exe' -File)
+          $blockmaps = @(Get-ChildItem -LiteralPath $output -Filter '*.blockmap' -File)
+          if (-not (Test-Path -LiteralPath $metadata -PathType Leaf)) { throw "Falta $metadata" }
+          if ($installers.Count -ne 1) { throw "Se esperaba un instalador $client; encontrados: $($installers.Count)." }
+          if ($blockmaps.Count -ne 1) { throw "Se esperaba un blockmap $client; encontrados: $($blockmaps.Count)." }
+          foreach ($file in @($metadata) + @($installers[0].FullName) + @($blockmaps[0].FullName)) {
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$(Split-Path -Leaf $file)" | Add-Content -LiteralPath (Join-Path $output 'SHA256SUMS') -Encoding ASCII
+          }
+
+      - name: Upload tested candidate files
+        uses: actions/upload-artifact@v4
+        with:
+          name: balanzapro-electron-${{ matrix.client }}
+          path: |
+            frontend/release/${{ matrix.client }}/*.exe
+            frontend/release/${{ matrix.client }}/*.blockmap
+            frontend/release/${{ matrix.client }}/*.yml
+            frontend/release/${{ matrix.client }}/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    if: ${{ inputs.publish }}
+    name: Publish combined BalanzaPro release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Verify candidate run and acceptance
+        id: candidate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          EXPECTED_REF: ${{ inputs.ref }}
+          ACCEPTANCE_VERIFIED: ${{ inputs.acceptance_verified }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$ACCEPTANCE_VERIFIED" == "true" ]] || { echo 'Faltan las verificaciones manuales de los tres clientes.' >&2; exit 1; }
+          [[ "$CANDIDATE_RUN_ID" =~ ^[0-9]+$ ]] || { echo 'Indica candidate_run_id de la ejecución candidata.' >&2; exit 1; }
+          candidate_json="$(gh run view "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" --json workflowName,headBranch,headSha,status,conclusion)"
+          [[ "$(jq -r .workflowName <<<"$candidate_json")" == 'Release Electron clients BalanzaPro' ]] || { echo 'La ejecución indicada no corresponde al workflow candidato BalanzaPro.' >&2; exit 1; }
+          [[ "$(jq -r .status <<<"$candidate_json")" == 'completed' && "$(jq -r .conclusion <<<"$candidate_json")" == 'success' ]] || { echo 'La ejecución candidata no terminó correctamente.' >&2; exit 1; }
+          [[ "$(jq -r .headBranch <<<"$candidate_json")" == "$EXPECTED_REF" ]] || { echo 'El candidato se construyó desde otra rama.' >&2; exit 1; }
+          candidate_sha="$(jq -r .headSha <<<"$candidate_json")"
+          source_sha="$(git rev-parse HEAD)"
+          [[ "$candidate_sha" == "$source_sha" ]] || { echo 'El checkout cambió desde que se probó el candidato.' >&2; exit 1; }
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download the exact tested installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          for client in balanzapro-pos balanzapro-admin balanzapro-technician; do
+            gh run download "$CANDIDATE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "balanzapro-electron-${client}" --dir "assets/${client}"
+          done
+
+      - name: Verify channels and write release manifest
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./frontend/package.json').version")"
+          for client in balanzapro-pos balanzapro-admin balanzapro-technician; do
+            directory="assets/${client}"
+            (cd "$directory" && sha256sum --check SHA256SUMS)
+            test -f "$directory/${client}.yml"
+            test "$(find "$directory" -maxdepth 1 -type f -name '*.exe' | wc -l)" -eq 1
+            test "$(find "$directory" -maxdepth 1 -type f -name '*.blockmap' | wc -l)" -eq 1
+            cp "$directory"/*.exe "$directory"/*.blockmap "$directory"/*.yml assets/
+          done
+          mkdir -p release-meta
+          VERSION="$VERSION" SOURCE_SHA='${{ steps.candidate.outputs.source_sha }}' python3 - <<'PY'
+          import json, os, pathlib
+          data = {
+              "product": "BalanzaPro",
+              "release_tag": f"v{os.environ['VERSION']}-balanzapro",
+              "application_version": os.environ["VERSION"],
+              "electron_runtime_version": "43.3.0",
+              "recommended_motor_version": "0.1.5",
+              "frankenphp_version": "1.12.7",
+              "all_in_one_setup_version": "1.0.1",
+              "source_commit": os.environ["SOURCE_SHA"],
+              "update_channels": ["balanzapro-pos", "balanzapro-admin", "balanzapro-technician"],
+          }
+          pathlib.Path("assets/BalanzaPro-desktop-release.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
+          (cd assets && sha256sum *.exe *.blockmap *.yml BalanzaPro-desktop-release.json > SHA256SUMS)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create combined GitHub release as latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          TAG="v${VERSION}-balanzapro"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "El release $TAG ya existe; no se elimina ni se sobrescribe." >&2
+            exit 1
+          fi
+          cat > release-notes.md <<EOF
+          BalanzaPro desktop ${VERSION}.
+
+          Incluye POS, Administrativo y Soporte Técnico con metadatos de actualización separados.
+          Requiere/recomienda Motor Local 0.1.5. FrankenPHP sigue en 1.12.7 y el runtime Electron en 43.3.0.
+          El instalador todo-en-uno Go/WebView2 se distribuye aparte (1.0.1).
+
+          Fuente: ${{ steps.candidate.outputs.source_sha }}
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --target '${{ steps.candidate.outputs.source_sha }}' \
+            --title "BalanzaPro ${VERSION}" --notes-file release-notes.md --latest \
+            assets/*.exe assets/*.blockmap assets/*.yml assets/BalanzaPro-desktop-release.json assets/SHA256SUMS

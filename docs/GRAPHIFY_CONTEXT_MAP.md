@@ -335,13 +335,23 @@ Nodos de codigo frecuentes:
 
 ## Electron Updates Y Sincronizacion De Escritorio
 
-Los tres clientes Electron (admin, pos, technician) usan `electron-updater` con GitHub
-Releases y canales separados. Cada cliente se instala en su propia carpeta
-(`oneClick: false`). La publicacion la orquesta `.github/workflows/release.yml`, que
-construye en Windows, verifica `win-unpacked/resources/app.asar` y publica con
-`gh release create v<version>-<client>` (no-draft). `.github/workflows/ci.yml` tambien
-empaqueta los tres clientes en Linux y Windows con `--dir` y valida el mismo contrato de
-aislamiento.
+Los clientes Electron usan `electron-updater` con GitHub Releases y canales separados. Los
+clientes BalanzaPro POS, Administrativo y Soporte Técnico comparten el release
+`v<version>-balanzapro`, que lleva los tres `.exe`, `.blockmap` y sus tres archivos de metadata.
+`.github/workflows/release-balanzapro.yml` genera un candidato y solo lo publica después de la
+confirmación de pruebas de instalación/actualización. Ese release es latest para resolver los tres
+canales; los releases de Motor, setup, conector y clientes individuales no son latest. Los clientes
+genéricos quedan fuera del release combinado.
+
+El cliente y Motor tienen versiones independientes: BalanzaPro Electron `0.2.66` recomienda Motor
+`0.1.5`; Electron permanece en `43.3.0` y FrankenPHP en `1.12.7`. El Motor conserva la
+configuración previa de FrankenPHP y guarda una copia antes de activar el runtime de la nueva versión.
+El setup todo-en-uno Go/WebView2 sigue siendo una distribución separada (`1.0.1`) publicada en el
+sitio BalanzaPro después de sus cuatro verificaciones manuales.
+
+`.github/workflows/release.yml` mantiene los releases individuales para los canales estándar y
+compatibilidad con tags individuales; `.github/workflows/ci.yml` empaqueta los clientes en Linux y
+Windows con `--dir` y valida el contrato de aislamiento.
 
 Documento principal:
 
@@ -365,6 +375,8 @@ Nodos de codigo frecuentes:
 - `frontend/electron/artifact-verifier.test.js` (renderer correcto y exclusion del Motor Local)
 - `scripts/smoke-linux-appimage.cjs` (nombres AppImage derivados de `package.json`)
 - `.github/workflows/release.yml`
+- `.github/workflows/release-balanzapro.yml`
+- `.github/workflows/release-motor.yml`
 - `.github/workflows/ci.yml`
 - `LocalTechnicalConsoleService` (vinculacion, tareas programadas)
 - `SharedCatalogPropagationService` (propagacion master -> hijas)

@@ -109,7 +109,7 @@ jobs:
           set -euo pipefail
           VERSION='${{ steps.version.outputs.version }}'
           TAG="v${VERSION}-connector"
-          RELEASE_FLAGS=(--repo gamijoam/inventarioarens --title "Print Connector ${VERSION}" --generate-notes)
+          RELEASE_FLAGS=(--repo gamijoam/inventarioarens --title "Print Connector ${VERSION}" --generate-notes --latest=false)
           if [[ '${{ inputs.prerelease }}' == 'true' ]]; then
             RELEASE_FLAGS+=(--prerelease)
           fi

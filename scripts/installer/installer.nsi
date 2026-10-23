@@ -9,10 +9,10 @@
   !error "Define OUTPUT_PATH"
 !endif
 !ifndef APP_VERSION
-  !define APP_VERSION "1.0.0"
+  !define APP_VERSION "1.0.1"
 !endif
 !ifndef BUILD_VERSION
-  !define BUILD_VERSION "1.0.0.0"
+  !define BUILD_VERSION "1.0.1.0"
 !endif
 
 Name "BalanzaPro"

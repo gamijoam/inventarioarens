@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${APP_VERSION:-1.0.0}"
+VERSION="${APP_VERSION:-1.0.1}"
 WINDOWS_ARCH="x64"
 
 if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$ ]]; then

@@ -1105,7 +1105,7 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
-## Electron updates, technician client y Motor Local (actualizado 2026-08-14)
+## Electron updates, technician client y Motor Local (actualizado 2026-10-23)
 
 The Electron desktop clients use `electron-updater` with GitHub Releases as the initial provider.
 Each client has an independent update channel and artifact configuration:
@@ -1129,9 +1129,23 @@ client=pos` (o admin/technician). Construye en `windows-latest`, y publica con
 (`pos.yml`, `admin.yml`, `technician.yml`). El tag es `v<version>-<client>` para que los tres
 clientes compartan el mismo `package.json` sin colisionar.
 
+**BalanzaPro (suite separada)**: POS, Administrativo y Soporte Técnico publican juntos con
+`.github/workflows/release-balanzapro.yml` en `v<version>-balanzapro`. El release contiene los tres
+`.exe`, `.blockmap`, archivos de canal `balanzapro-*.yml`, manifest de versiones y `SHA256SUMS`.
+Primero se genera un candidato descargable; para publicar hay que indicar el run candidato probado y
+confirmar las pruebas de Windows. Ese es el único release latest para los canales BalanzaPro; los
+releases individuales, Motor, setup y conector usan `latest=false`. Los canales estándar quedan fuera
+de este release combinado.
+
 `.github/workflows/release-motor.yml` construye el instalador independiente del Motor. Una versión
 de cliente no obliga a publicar otra versión del Motor; si cambia Laravel, PHP, impresión, sync o
-la infraestructura local, se publica primero y se valida el Motor correspondiente.
+la infraestructura local, se genera y valida un candidato del Motor antes de publicar el artefacto
+exacto. La actualización de php.ini FrankenPHP conserva overrides anteriores, corrige rutas del runtime
+y deja respaldo bajo `%ProgramData%\InventarioArens\backups`.
+
+El instalador todo-en-uno Go/WebView2 sigue siendo independiente del Motor/Electron modular. Su
+versión es `1.0.1`; el workflow crea candidato por defecto y exige confirmaciones para instalación
+limpia, importación de empresa, acceso LAN y prueba de balanza/impresora antes de publicar en web.
 
 **Regla de build**: siempre regenerar el bundle antes de empaquetar
 (`pnpm run build:<client>` y luego `electron-builder`). Empaquetar sin regenerar `dist` publica un

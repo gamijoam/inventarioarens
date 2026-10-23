@@ -1,5 +1,24 @@
 # Registro de implementación — 2026-08-29
 
+## 2026-10-23 — Preparar release BalanzaPro 0.2.66 y actualizar instaladores
+
+- Se subió la versión de aplicación Electron a `0.2.66`; el runtime sigue fijado en `43.3.0`.
+- Se agregó un release combinado BalanzaPro con POS, Administrativo y Soporte Técnico, metadata por
+  canal, hashes y manifest de compatibilidad. El workflow construye candidatos primero y publica el
+  mismo artefacto probado como latest solo después de la confirmación de Windows.
+- El Motor `0.1.5` conserva overrides de `php.ini` FrankenPHP al actualizar, corrige rutas absolutas
+  del runtime y respalda la configuración anterior en `%ProgramData%\InventarioArens\backups`.
+  FrankenPHP permanece en `1.12.7`.
+- El setup todo-en-uno queda en `1.0.1`; publicar requiere las cuatro verificaciones reales y ya no
+  se marcan automáticamente desde el script de build. Releases de Motor, setup, conector y cliente
+  individual se crean como no-latest.
+- Validación local: 11 pruebas dirigidas de Vitest, `tsc --noEmit`, los tres builds Vite, análisis de
+  sintaxis YAML y `bash -n` pasaron. La prueba de gate bloqueó la publicación sin confirmaciones.
+- La suite Vitest completa se detuvo tras quedar esperando la descarga del binario Electron; informó
+  fallos en pruebas de inventario/taller/UI fuera de este cambio y en auto-updater por la instalación
+  incompleta del binario en este entorno. No se ejecutaron builds NSIS ni pruebas reales de Windows,
+  hardware o publicación; los workflows las exigen antes de publicar.
+
 ## 2026-08-29 - API read-only para integracion CRM e IA
 
 - Se agregaron credenciales dedicadas en `crm_api_tokens`, con secreto hasheado, expiracion,

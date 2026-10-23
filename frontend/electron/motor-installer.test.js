@@ -72,6 +72,32 @@ describe('Motor Local packaging contracts', () => {
     expect(workflow).toContain('https://app.balanzapro.com/api');
   });
 
+  it('stages the FrankenPHP config migration helper with the Windows Motor payload', () => {
+    const stageScript = fs.readFileSync(path.join(repositoryRoot, 'scripts', 'stage-local-motor.cjs'), 'utf8');
+    const installer = fs.readFileSync(
+      path.join(repositoryRoot, 'scripts', 'install-local-motor.ps1'),
+      'utf8',
+    );
+
+    expect(stageScript).toContain("'migrate-frankenphp-config.ps1'");
+    expect(installer).toContain("Join-Path $DataRoot 'runtime\\frankenphp\\php.ini'");
+    expect(installer).toContain('migrate-frankenphp-config.ps1');
+    expect(installer).toContain("frankenphp_version = if (Test-Path -LiteralPath $frankenPhpExe)");
+  });
+
+  it('publishes a Motor candidate only from its separately tested run', () => {
+    const workflow = fs.readFileSync(
+      path.join(repositoryRoot, '.github', 'workflows', 'release-motor.yml'),
+      'utf8',
+    );
+
+    expect(workflow).toContain('candidate_run_id');
+    expect(workflow).toContain('acceptance_verified');
+    expect(workflow).toContain('gh run download');
+    expect(workflow).toContain('--latest=false');
+    expect(workflow).not.toContain('gh release delete');
+  });
+
   it('creates the application window before waiting for Motor health', () => {
     const main = fs.readFileSync(
       path.join(repositoryRoot, 'frontend', 'electron', 'main.cjs'),

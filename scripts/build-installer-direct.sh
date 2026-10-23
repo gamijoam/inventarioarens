@@ -8,7 +8,7 @@
 set -Eeuo pipefail
 
 REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="1.0.0"
+VERSION="1.0.1"
 TARGET="balanzapro"
 PUBLISH=false
 SKIP_FRONTEND=false
@@ -41,12 +41,18 @@ echo "    Instancia destino: $TARGET"
 echo "    Publicar en web: $PUBLISH"
 echo "============================================================"
 
-# Exportar variables requeridas por el empaquetador
+# Exportar la versión usada por el empaquetador. Las verificaciones de publicación
+# deben venir del operador; este script nunca las marca como completadas.
 export APP_VERSION="$VERSION"
-export WINDOWS_CLEAN_INSTALL_VERIFIED=1
-export TENANT_IMPORT_VERIFIED=1
-export LAN_INSTALL_VERIFIED=1
-export SCALE_HARDWARE_VERIFIED=1
+
+if [ "$PUBLISH" = true ]; then
+  for confirmation in WINDOWS_CLEAN_INSTALL_VERIFIED TENANT_IMPORT_VERIFIED LAN_INSTALL_VERIFIED SCALE_HARDWARE_VERIFIED; do
+    if [ "${!confirmation:-}" != "1" ]; then
+      echo "Publicación bloqueada: falta confirmar $confirmation=1 tras una prueba real." >&2
+      exit 3
+    fi
+  done
+fi
 
 # Ejecutar el empaquetador integral
 PUBLISH_FLAG=""

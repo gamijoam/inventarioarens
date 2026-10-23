@@ -6,7 +6,7 @@ on:
       version:
         description: 'Versión del instalador (ej: 1.0.0, 1.0.1)'
         required: true
-        default: '1.0.0'
+        default: '1.0.1'
         type: string
       target_instance:
         description: 'Instancia web donde publicar el .exe para descarga directa'
@@ -23,19 +23,81 @@ on:
         required: false
         default: false
         type: boolean
+      publish:
+        description: 'Publicar Setup y manifest en el sitio de descarga (por defecto solo crea candidato)'
+        required: true
+        default: false
+        type: boolean
+      windows_clean_install_verified:
+        description: 'Candidato probado con instalación limpia en Windows'
+        required: true
+        default: false
+        type: boolean
+      tenant_import_verified:
+        description: 'Candidato probado importando el ZIP de una empresa'
+        required: true
+        default: false
+        type: boolean
+      lan_install_verified:
+        description: 'Candidato probado con acceso desde otra PC en la LAN'
+        required: true
+        default: false
+        type: boolean
+      scale_hardware_verified:
+        description: 'Candidato probado con la balanza e impresora reales'
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: build-installer-${{ github.event.inputs.target_instance }}
   cancel-in-progress: false
 
 jobs:
+  verify-publication:
+    name: Revisar condiciones de publicación
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exigir las cuatro verificaciones para publicar
+        env:
+          PUBLISH: ${{ inputs.publish }}
+          CLEAN_INSTALL: ${{ inputs.windows_clean_install_verified }}
+          TENANT_IMPORT: ${{ inputs.tenant_import_verified }}
+          LAN_INSTALL: ${{ inputs.lan_install_verified }}
+          SCALE_HARDWARE: ${{ inputs.scale_hardware_verified }}
+          CREATE_GITHUB_RELEASE: ${{ inputs.create_github_release }}
+        run: |
+          set -euo pipefail
+          if [[ "$CREATE_GITHUB_RELEASE" == "true" && "$PUBLISH" != "true" ]]; then
+            echo "El release informativo de GitHub solo se crea junto con una publicación web verificada." >&2
+            exit 1
+          fi
+          if [[ "$PUBLISH" == "true" ]]; then
+            for confirmation in CLEAN_INSTALL TENANT_IMPORT LAN_INSTALL SCALE_HARDWARE; do
+              if [[ "${!confirmation}" != "true" ]]; then
+                echo "Publicación bloqueada: falta completar $confirmation." >&2
+                exit 1
+              fi
+            done
+          fi
+
   build-and-publish:
     name: Compilar y Publicar Instalador
     runs-on: ubuntu-latest
+    needs: verify-publication
     steps:
       - name: Ejecutar compilacion y empaquetado en VPS
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          PUBLISH_SITE: ${{ inputs.publish }}
+          INSTALLER_VERSION: ${{ inputs.version }}
+          TARGET_INSTANCE: ${{ inputs.target_instance }}
+          WINDOWS_CLEAN_INSTALL_VERIFIED: ${{ inputs.windows_clean_install_verified }}
+          TENANT_IMPORT_VERIFIED: ${{ inputs.tenant_import_verified }}
+          LAN_INSTALL_VERIFIED: ${{ inputs.lan_install_verified }}
+          SCALE_HARDWARE_VERIFIED: ${{ inputs.scale_hardware_verified }}
         with:
+          envs: PUBLISH_SITE,INSTALLER_VERSION,TARGET_INSTANCE,WINDOWS_CLEAN_INSTALL_VERIFIED,TENANT_IMPORT_VERIFIED,LAN_INSTALL_VERIFIED,SCALE_HARDWARE_VERIFIED
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
@@ -44,18 +106,28 @@ jobs:
           script: |
             set -euo pipefail
             
-            TARGET="${{ github.event.inputs.target_instance }}"
-            VERSION="${{ github.event.inputs.version }}"
+            TARGET="$TARGET_INSTANCE"
+            VERSION="$INSTALLER_VERSION"
+            to_flag() { [[ "$1" == "true" ]] && echo 1 || echo 0; }
+            export WINDOWS_CLEAN_INSTALL_VERIFIED="$(to_flag "$WINDOWS_CLEAN_INSTALL_VERIFIED")"
+            export TENANT_IMPORT_VERIFIED="$(to_flag "$TENANT_IMPORT_VERIFIED")"
+            export LAN_INSTALL_VERIFIED="$(to_flag "$LAN_INSTALL_VERIFIED")"
+            export SCALE_HARDWARE_VERIFIED="$(to_flag "$SCALE_HARDWARE_VERIFIED")"
             
             echo "=========================================================="
             echo "Compilando instalador para $TARGET (v$VERSION)..."
             echo "=========================================================="
             
-            bash /opt/${TARGET}-cloud/scripts/build-installer-direct.sh \
-              --version="${VERSION}" \
-              --target="${TARGET}" \
-              --publish
+            BUILD_ARGS=("--version=${VERSION}" "--target=${TARGET}")
+            if [[ "$PUBLISH_SITE" == "true" ]]; then
+              BUILD_ARGS+=(--publish)
+            fi
+            bash "/opt/${TARGET}-cloud/scripts/build-installer-direct.sh" "${BUILD_ARGS[@]}"
             
+            if [[ "$PUBLISH_SITE" != "true" ]]; then
+              echo "Candidato generado en el VPS. No se publicó en el sitio."
+              exit 0
+            fi
             PORT="8086"
             case "$TARGET" in
               balanzapro) PORT="8086" ;;
@@ -72,7 +144,7 @@ jobs:
             echo "=========================================================="
 
       - name: Crear GitHub Release si fue solicitado
-        if: ${{ github.event.inputs.create_github_release == 'true' }}
+        if: ${{ inputs.publish && inputs.create_github_release }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.event.inputs.version }}-setup
@@ -84,5 +156,6 @@ jobs:
             - Disponible para descarga directa en la sección de Configuración web.
           draft: false
           prerelease: false
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
