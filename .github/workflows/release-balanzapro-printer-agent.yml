@@ -13,6 +13,9 @@ on:
         required: true
         default: true
         type: boolean
+  push:
+    tags:
+      - 'printer-v*-balanzapro'
 
 permissions:
   contents: write
@@ -24,6 +27,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        env:
+          PRINTER_VERSION: ${{ inputs.version }}
+        run: |
+          $version = $env:PRINTER_VERSION
+          if (-not $version) {
+            $tag = $env:GITHUB_REF_NAME
+            if ($tag -notmatch '^printer-v(\d+\.\d+\.\d+)-balanzapro$') {
+              throw "No se pudo inferir la version desde la etiqueta: $tag"
+            }
+            $version = $Matches[1]
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Version invalida: $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -57,7 +79,7 @@ jobs:
       - name: Package and hash installers
         shell: pwsh
         env:
-          PRINTER_VERSION: ${{ inputs.version }}
+          PRINTER_VERSION: ${{ steps.version.outputs.version }}
         run: |
           $version = $env:PRINTER_VERSION
           if ($version -notmatch '^\d+\.\d+\.\d+$') {
@@ -82,9 +104,9 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: printer-v${{ inputs.version }}-balanzapro
-          name: BalanzaPro Impresor Local ${{ inputs.version }}
-          prerelease: ${{ inputs.prerelease }}
+          tag_name: printer-v${{ steps.version.outputs.version }}-balanzapro
+          name: BalanzaPro Impresor Local ${{ steps.version.outputs.version }}
+          prerelease: ${{ github.event_name == 'push' || inputs.prerelease }}
           make_latest: false
           generate_release_notes: true
           files: |
