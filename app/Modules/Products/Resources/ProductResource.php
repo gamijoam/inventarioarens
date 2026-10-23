@@ -87,6 +87,7 @@ class ProductResource extends JsonResource
                     'is_active' => (bool) $price->priceList->is_active,
                 ] : null,
                 'price' => (float) $price->price,
+                'margin_percentage' => $price->margin_percentage !== null ? (float) $price->margin_percentage : null,
                 'currency' => $price->currency,
                 'exchange_rate_type_id' => $price->exchange_rate_type_id,
                 'exchange_rate_type_code' => $price->exchangeRateType?->code,

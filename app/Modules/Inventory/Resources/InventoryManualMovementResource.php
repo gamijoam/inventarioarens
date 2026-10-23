@@ -17,6 +17,7 @@ class InventoryManualMovementResource extends JsonResource
             'product' => [
                 'id' => $this->product?->id,
                 'name' => $this->product?->name,
+                'tracking_type' => $this->product?->tracking_type,
             ],
             'product_variant_id' => $this->product_variant_id,
             'product_variant' => $this->productVariant ? [
@@ -24,6 +25,7 @@ class InventoryManualMovementResource extends JsonResource
                 'color' => $this->productVariant->color,
                 'sku_variant' => $this->productVariant->sku_variant,
             ] : null,
+            'serial_units' => $this->serial_units ?? [],
             'quantity' => $this->quantity,
             'warehouse' => [
                 'id' => $this->warehouse?->id,

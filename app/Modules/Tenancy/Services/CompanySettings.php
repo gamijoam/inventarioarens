@@ -38,6 +38,14 @@ class CompanySettings
             'report_z' => true,
             'quotation' => true,
         ],
+        'warranty_certificate' => [
+            'enabled' => true,
+            'title' => 'CERTIFICADO DE GARANTÍA OFICIAL',
+            'covers' => "• Defectos de fabricación\n• Fallas técnicas internas\n• Componentes defectuosos\n• Mal funcionamiento del equipo en condiciones normales",
+            'not_covers' => "• Mal uso, descuido o negligencia\n• Caídas, golpes o impactos\n• Contacto con líquidos o humedad\n• Modificaciones no autorizadas o sellos violados",
+            'claim_steps' => "1. Presente este certificado original\n2. Junto al comprobante de pago\n3. El equipo debe estar completo con empaque y accesorios\n4. Acuda a nuestra sede en horario de atención",
+            'important_notes' => "• Conserve este documento en buen estado\n• Sin certificado la garantía no aplica\n• Garantía personal e intransferible\n• Válida solo en el local de compra",
+        ],
     ];
 
     public static function defaults(): array
@@ -129,5 +137,25 @@ class CompanySettings
         $mode = $settings['pos_default_view_mode'] ?? 'classic';
 
         return in_array($mode, ['classic', 'catalog', 'ticket'], true) ? $mode : 'classic';
+    }
+
+    /**
+     * Indica si el certificado de garantia para impresora estandar esta habilitado.
+     */
+    public static function isWarrantyCertificateEnabled(Tenant $tenant): bool
+    {
+        $settings = self::getForTenant($tenant);
+
+        return (bool) ($settings['warranty_certificate']['enabled'] ?? true);
+    }
+
+    /**
+     * Obtiene la configuracion del certificado de garantia.
+     */
+    public static function warrantyCertificateSettings(Tenant $tenant): array
+    {
+        $settings = self::getForTenant($tenant);
+
+        return array_replace_recursive(self::DEFAULTS['warranty_certificate'], $settings['warranty_certificate'] ?? []);
     }
 }

@@ -23,6 +23,8 @@ Route::prefix('pos')->group(function (): void {
     // Previsualizacion del ticket sin crear PrintJob: disponible para cualquier
     // usuario con pos.view, aunque no tenga permisos de impresion.
     Route::get('orders/{posOrder}/ticket-preview', [PosOrderController::class, 'ticketPreview']);
+    Route::get('orders/{posOrder}/warranty-certificate', [PosOrderController::class, 'warrantyCertificate']);
+    Route::get('orders/{posOrder}/warranty-certificate.pdf', [PosOrderController::class, 'warrantyCertificatePdf']);
     Route::get('orders/{posOrder}/pdf', [PosOrderController::class, 'pdf']);
     Route::post('orders/{posOrder}/payments', [PosOrderController::class, 'addPayments'])
         ->middleware('idempotency');

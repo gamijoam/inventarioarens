@@ -78,19 +78,30 @@ class ProductUnitLookupController extends Controller
             $query->where('status', $status);
         }
 
+        if ($request->filled('product_variant_id')) {
+            $variantId = (int) $request->query('product_variant_id');
+            $query->where(function ($q) use ($variantId) {
+                $q->where('product_variant_id', $variantId)
+                  ->orWhereNull('product_variant_id');
+            });
+        }
+
         if ($search !== '') {
             $query->where('serial_number', 'like', $search.'%');
         }
 
         $units = $query
+            ->with(['productVariant:id,color,sku_variant'])
             ->orderBy('serial_number')
             ->limit($limit)
-            ->get(['id', 'product_id', 'warehouse_id', 'serial_type', 'serial_number', 'status']);
+            ->get(['id', 'product_id', 'product_variant_id', 'warehouse_id', 'serial_type', 'serial_number', 'status']);
 
         return response()->json([
             'data' => $units->map(fn (ProductUnit $u) => [
                 'id' => $u->id,
                 'product_id' => $u->product_id,
+                'product_variant_id' => $u->product_variant_id,
+                'variant_label' => $u->productVariant ? ($u->productVariant->color ?? $u->productVariant->sku_variant) : null,
                 'warehouse_id' => $u->warehouse_id,
                 'serial_type' => $u->serial_type,
                 'serial_number' => $u->serial_number,
