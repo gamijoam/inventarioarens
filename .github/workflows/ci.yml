@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+    inputs:
+      publish_balanzapro_candidate:
+        description: 'Publicar los tres clientes BalanzaPro como prerelease descargable'
+        required: true
+        default: false
+        type: boolean
 
 # Cancela los jobs en curso si hay un push nuevo al mismo branch.
 concurrency:
@@ -183,6 +189,80 @@ jobs:
             frontend/release/${{ matrix.client }}/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
+
+  publish-balanzapro-candidate:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_balanzapro_candidate }}
+    name: Publish BalanzaPro desktop candidate
+    needs: [balanzapro-windows-candidates, motor-frankenphp-config]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout exact candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download and verify tested Windows clients
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          for client in balanzapro-pos balanzapro-admin balanzapro-technician; do
+            directory="assets/${client}"
+            gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "balanzapro-electron-${client}" --dir "$directory"
+            (cd "$directory" && sha256sum --check SHA256SUMS)
+            test "$(find "$directory" -maxdepth 1 -type f -name '*.exe' | wc -l)" -eq 1
+            test "$(find "$directory" -maxdepth 1 -type f -name '*.blockmap' | wc -l)" -eq 1
+            test -f "$directory/${client}.yml"
+            cp "$directory"/*.exe "$directory"/*.blockmap "$directory"/*.yml assets/
+          done
+          VERSION="$(node -p "require('./frontend/package.json').version")"
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          VERSION="$VERSION" SOURCE_SHA="$SOURCE_SHA" python3 - <<'PY'
+          import json, os, pathlib
+          data = {
+              "product": "BalanzaPro",
+              "release_tag": f"v{os.environ['VERSION']}-balanzapro",
+              "application_version": os.environ["VERSION"],
+              "electron_runtime_version": "43.3.0",
+              "recommended_motor_version": "0.1.6",
+              "frankenphp_version": "1.12.7",
+              "all_in_one_setup_version": "1.0.1",
+              "source_commit": os.environ["SOURCE_SHA"],
+              "update_channels": ["balanzapro-pos", "balanzapro-admin", "balanzapro-technician"],
+          }
+          pathlib.Path("assets/BalanzaPro-desktop-release.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
+          (cd assets && sha256sum *.exe *.blockmap *.yml BalanzaPro-desktop-release.json > SHA256SUMS)
+
+      - name: Publish downloadable desktop prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./frontend/package.json').version")"
+          TAG="v${VERSION}-balanzapro"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "El release $TAG ya existe; no se sobrescribe." >&2
+            exit 1
+          fi
+          cat > release-notes.md <<EOF
+          Candidato descargable de BalanzaPro ${VERSION} para POS, Administrativo y Soporte Técnico.
+
+          Incluye la selección de lista de precio por producto y requiere Motor Local BalanzaPro 0.1.6.
+          Valida instalación, actualización y los canales de actualización en Windows antes de distribuirlo de forma general.
+
+          Fuente: ${GITHUB_SHA}
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "BalanzaPro ${VERSION} — Candidato Windows" --notes-file release-notes.md \
+            --prerelease --latest=false \
+            assets/*.exe assets/*.blockmap assets/*.yml \
+            assets/BalanzaPro-desktop-release.json assets/SHA256SUMS
 
   motor-frankenphp-config:
     name: FrankenPHP config migration
