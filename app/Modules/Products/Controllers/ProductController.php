@@ -44,7 +44,7 @@ class ProductController extends Controller
         if ($request->boolean('with_images')) {
             $relations[] = 'images.variants';
         }
-        if ($request->boolean('with_prices')) {
+        if ($request->boolean('with_prices', true)) {
             $relations[] = 'prices.priceList';
             $relations[] = 'prices.exchangeRateType';
         }
@@ -279,13 +279,21 @@ class ProductController extends Controller
     {
         Gate::authorize('view', $product);
 
-        $product->load([
+        $relations = [
             'saleExchangeRateType',
             'warrantyPolicy',
             'brand',
             'categories.parent',
             'tags',
-        ])->loadCount('units');
+            'prices.priceList',
+            'prices.exchangeRateType',
+        ];
+
+        if ($request->boolean('with_images')) {
+            $relations[] = 'images.variants';
+        }
+
+        $product->load($relations)->loadCount('units');
 
         if ($request->filled('warehouse_id')) {
             $warehouseId = $request->integer('warehouse_id');
@@ -409,6 +417,7 @@ class ProductController extends Controller
 
                 $attributes = [
                     'price' => $price['price'],
+                    'margin_percentage' => $price['margin_percentage'] ?? null,
                     'currency' => $price['currency'],
                     'exchange_rate_type_id' => $price['exchange_rate_type_id'] ?? null,
                     'is_active' => $price['is_active'] ?? true,
@@ -473,10 +482,9 @@ class ProductController extends Controller
             $before = $product->only(array_keys($data));
             $product->update($data);
 
-            if (array_key_exists('base_price', $data) && $data['base_price'] !== null) {
+            if ($product->wasChanged('base_price') && $product->base_price !== null) {
                 // Sincronizar automaticamente la lista de precios por defecto (is_default = true)
-                // si tiene un registro en product_prices, para evitar que el POS y las cotizaciones
-                // queden con un precio desfasado del precio base actualizado.
+                // si tiene un registro en product_prices, solo si el precio base cambio deliberadamente.
                 $defaultPriceList = PriceList::query()
                     ->where('tenant_id', $product->tenant_id)
                     ->where('is_default', true)
@@ -490,7 +498,7 @@ class ProductController extends Controller
 
                     if ($defaultProductPrice) {
                         $defaultProductPrice->update([
-                            'price' => $data['base_price'],
+                            'price' => $product->base_price,
                             'currency' => $data['sale_currency'] ?? $product->sale_currency ?? 'USD',
                         ]);
                         $syncCatalog->productPriceUpdated($defaultProductPrice);

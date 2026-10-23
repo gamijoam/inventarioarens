@@ -192,7 +192,6 @@ export function InlinePriceListCreate({ onCreated }: { onCreated: (id: number) =
                 id="ipl-markup"
                 type="number"
                 min={0}
-                max={999.99}
                 step="0.01"
                 value={markup}
                 onChange={(e) => setMarkup(e.target.value)}

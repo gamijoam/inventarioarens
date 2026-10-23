@@ -21,7 +21,7 @@ class StorePriceListRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:50', Rule::unique('price_lists', 'code')->where(fn ($query) => $query->whereIn('tenant_id', $tenantIds))],
             'description' => ['nullable', 'string', 'max:1000'],
-            'markup_percentage' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'markup_percentage' => ['nullable', 'numeric', 'min:0'],
             'base_price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId)],
             'is_default' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
@@ -32,6 +32,7 @@ class StorePriceListRequest extends FormRequest
                 'integer',
                 Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
             ],
+            'payment_exchange_rate_markup_percentage' => ['nullable', 'numeric', 'min:-99.99', 'max:999.99'],
             'payment_method_ids.*' => [
                 'integer',
                 Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),

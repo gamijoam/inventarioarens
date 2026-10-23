@@ -22,7 +22,7 @@ import { PERMISSIONS } from '@/permissions/constants';
 import { DeleteProductDialog } from './DeleteProductDialog';
 import { useProductForm } from '../forms';
 import { ProductForm } from '../components/ProductForm';
-import { useTags } from '../api';
+import { useProduct, useTags } from '../api';
 import type { Product, StoreProductValues } from '../schemas';
 
 export interface EditProductDialogProps {
@@ -36,20 +36,20 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
   const [deleteOpen, setDeleteOpen] = useState(false);
   const { data: tags = [] } = useTags();
 
-  // Memoizamos los initialValues para evitar recrear el objeto en cada
-  // render. Si no se memoiza, productToFormValues retorna una referencia
-  // nueva cada vez y useProductForm (con [formId] en deps) se dispara
-  // + veces -> loop infinito de re-renders.
-  // Dependemos de product.id para recalcular cuando cambia el producto.
+  // Consulta fresca del producto para asegurar que al abrir el modal siempre
+  // tengamos los precios y datos mas recientes del servidor.
+  const { data: freshProduct } = useProduct(product.id);
+  const currentProduct = freshProduct ?? product;
+
+  // Memoizamos los initialValues con dependencia en open y en el producto fresco
   const initialValues = useMemo(
-    () => productToFormValues(product),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [product.id],
+    () => productToFormValues(currentProduct),
+    [currentProduct.id, currentProduct.updated_at, currentProduct.base_price, open],
   );
 
   const { form, onSubmit, isSubmitting } = useProductForm({
     mode: 'edit',
-    productId: product.id,
+    productId: currentProduct.id,
     initialValues,
     onSuccess: (data) => {
       onOpenChange(false);

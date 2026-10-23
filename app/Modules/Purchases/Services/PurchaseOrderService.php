@@ -535,12 +535,14 @@ class PurchaseOrderService
 
             $seen[$key] = true;
 
-            if (ProductUnit::query()
+            $existingUnit = ProductUnit::query()
                 ->where('serial_type', $serialUnit['serial_type'])
                 ->where('serial_number', $serialUnit['serial_number'])
-                ->exists()) {
+                ->first();
+
+            if ($existingUnit && in_array($existingUnit->status, [ProductUnit::STATUS_AVAILABLE, ProductUnit::STATUS_RESERVED], true)) {
                 throw ValidationException::withMessages([
-                    'serial_units' => "El serial {$serialUnit['serial_number']} ya existe en la empresa actual.",
+                    'serial_units' => "El serial {$serialUnit['serial_number']} ya existe y se encuentra activo en la empresa actual.",
                 ]);
             }
         }
@@ -549,15 +551,20 @@ class PurchaseOrderService
     private function createProductUnits(PurchaseItem $item, int $movementId, ?array $serialUnits = null): void
     {
         foreach ($serialUnits ?? $item->serial_units ?? [] as $serialUnit) {
-            ProductUnit::create([
-                'product_id' => $item->product_id,
-                'product_variant_id' => $item->product_variant_id,
-                'warehouse_id' => $item->warehouse_id,
-                'serial_type' => $serialUnit['serial_type'],
-                'serial_number' => $serialUnit['serial_number'],
-                'status' => ProductUnit::STATUS_AVAILABLE,
-                'acquired_stock_movement_id' => $movementId,
-            ]);
+            ProductUnit::updateOrCreate(
+                [
+                    'serial_type' => $serialUnit['serial_type'],
+                    'serial_number' => $serialUnit['serial_number'],
+                ],
+                [
+                    'product_id' => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'warehouse_id' => $item->warehouse_id,
+                    'status' => ProductUnit::STATUS_AVAILABLE,
+                    'acquired_stock_movement_id' => $movementId,
+                    'released_stock_movement_id' => null,
+                ]
+            );
         }
     }
 

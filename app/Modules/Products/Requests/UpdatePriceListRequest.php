@@ -26,7 +26,7 @@ class UpdatePriceListRequest extends FormRequest
                     ->ignore($priceList?->id),
             ],
             'description' => ['nullable', 'string', 'max:1000'],
-            'markup_percentage' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
+            'markup_percentage' => ['nullable', 'numeric', 'min:0'],
             'base_price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')->where('tenant_id', $tenantId), Rule::notIn([$priceList?->id])],
             'is_default' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
@@ -37,6 +37,7 @@ class UpdatePriceListRequest extends FormRequest
                 'integer',
                 Rule::exists('exchange_rate_types', 'id')->where('tenant_id', $tenantId),
             ],
+            'payment_exchange_rate_markup_percentage' => ['nullable', 'numeric', 'min:-99.99', 'max:999.99'],
             'payment_method_ids.*' => [
                 'integer',
                 Rule::exists('payment_methods', 'id')->whereIn('tenant_id', $tenantIds),

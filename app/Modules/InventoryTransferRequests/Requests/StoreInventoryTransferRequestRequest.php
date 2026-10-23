@@ -32,4 +32,35 @@ class StoreInventoryTransferRequestRequest extends FormRequest
             'items.*.serial_units.*.serial_number' => ['required_with:items.*.serial_units', 'string', 'max:100'],
         ];
     }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $items = $this->input('items', []);
+            if (! is_array($items)) {
+                return;
+            }
+
+            foreach ($items as $index => $item) {
+                if (empty($item['product_id'])) {
+                    continue;
+                }
+
+                $hasVariants = \App\Modules\Products\Models\ProductVariant::query()
+                    ->where('product_id', $item['product_id'])
+                    ->where('is_active', true)
+                    ->where(function ($q) {
+                        $q->whereNotNull('color')->orWhereNotNull('sku_variant');
+                    })
+                    ->exists();
+
+                if ($hasVariants && empty($item['product_variant_id'])) {
+                    $validator->errors()->add(
+                        "items.{$index}.product_variant_id",
+                        'El producto seleccionado tiene variantes (colores/modelos). Debe seleccionar una variante obligatoria.'
+                    );
+                }
+            }
+        });
+    }
 }

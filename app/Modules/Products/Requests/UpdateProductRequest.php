@@ -63,7 +63,7 @@ class UpdateProductRequest extends FormRequest
             ],
 
             'base_price' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
-            'profit_margin' => ['sometimes', 'nullable', 'numeric', 'lte:999.99'],
+            'profit_margin' => ['sometimes', 'nullable', 'numeric'],
             'pricing_mode' => ['sometimes', 'string', Rule::in([Product::PRICING_AUTOMATIC, Product::PRICING_MANUAL])],
             'last_purchase_cost' => ['sometimes', 'nullable', 'numeric', 'gte:0'],
             'min_stock' => ['sometimes', 'nullable', 'numeric', 'gte:0'],

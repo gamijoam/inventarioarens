@@ -167,6 +167,8 @@ interface PriceTableRow {
   packageUsd: number;
   packageVes: number;
   marginPercent?: number | null;
+  isManual?: boolean;
+  rateMarkup?: number;
 }
 
 export function InventoryErpWorkspace({
@@ -389,9 +391,58 @@ export function InventoryErpWorkspace({
     if (!activeProduct) return [];
 
     const rateVal = activeRate?.rate && activeRate.rate > 0 ? activeRate.rate : 0;
-    const basePrice = Number(activeProduct.base_price ?? 0);
-    const existingPrices = activeProduct.prices ?? [];
+    const rawBase = Number(activeProduct.base_price ?? 0);
     const cost = Number(activeProduct.last_purchase_cost ?? activeProduct.average_cost ?? 0);
+    const margin = Number(activeProduct.profit_margin ?? 0);
+    const effectiveBase =
+      rawBase > 0
+        ? rawBase
+        : cost > 0 && margin > 0
+          ? Math.round(cost * (1 + margin / 100) * 100) / 100
+          : 0;
+
+    const existingPrices = (activeProduct.prices ?? []).filter((p) => p.is_active !== false);
+
+    const resolveListPrice = (
+      list: PriceList,
+      seen = new Set<number>(),
+    ): { priceUsd: number; priceVes: number | null; isManual: boolean } => {
+      if (seen.has(list.id)) return { priceUsd: effectiveBase, priceVes: null, isManual: false };
+      seen.add(list.id);
+
+      // 1. ¿Tiene precio manual asignado?
+      const manual = existingPrices.find(
+        (p) => p.price_list_id === list.id || p.price_list?.id === list.id,
+      );
+      if (manual) {
+        const val = Number(manual.price ?? (manual as unknown as { amount?: number }).amount ?? 0);
+        if (manual.currency === 'VES') {
+          const markup = Number(list.payment_exchange_rate_markup_percentage ?? 0);
+          const effRate = markup !== 0 && rateVal > 0 ? rateVal * (1 + markup / 100) : rateVal;
+          const usd = effRate > 0 ? Math.round((val / effRate) * 100) / 100 : 0;
+          return { priceUsd: usd, priceVes: val, isManual: true };
+        }
+        return { priceUsd: val, priceVes: null, isManual: true };
+      }
+
+      // 2. ¿Depende de una lista base encadenada?
+      let parentBase = effectiveBase;
+      if (list.base_price_list_id) {
+        const baseList = priceLists.find((l) => l.id === list.base_price_list_id);
+        if (baseList) {
+          parentBase = resolveListPrice(baseList, seen).priceUsd;
+        }
+      }
+
+      // 3. Aplicar recargo/markup comercial de la lista si existe
+      const markup = Number(list.markup_percentage ?? 0);
+      if (markup !== 0 && parentBase > 0) {
+        const calc = Math.round(parentBase * (1 + markup / 100) * 100) / 100;
+        return { priceUsd: calc, priceVes: null, isManual: false };
+      }
+
+      return { priceUsd: parentBase, priceVes: null, isManual: false };
+    };
 
     const rows: PriceTableRow[] = [];
 
@@ -401,12 +452,25 @@ export function InventoryErpWorkspace({
       usdPriceWithTax: number,
       code?: string,
       isDefault?: boolean,
+      isManual?: boolean,
+      customVes?: number | null,
+      rateMarkup?: number | null,
     ): PriceTableRow => {
       const totalUsd = Math.max(0, Math.round(Number(usdPriceWithTax || 0) * 100) / 100);
       const netUsd = totalUsd > 0 ? Math.round((totalUsd / (1 + IVA_RATE)) * 100) / 100 : 0;
       const taxUsd = totalUsd > 0 ? Math.round((totalUsd - netUsd) * 100) / 100 : 0;
 
-      const totalVes = rateVal > 0 && totalUsd > 0 ? Math.round(totalUsd * rateVal * 100) / 100 : 0;
+      // Tasa efectiva con markup de tasa de la lista si existe
+      const markupPct = Number(rateMarkup ?? 0);
+      const effectiveRate = markupPct !== 0 && rateVal > 0
+        ? rateVal * (1 + markupPct / 100)
+        : rateVal;
+
+      const totalVes = customVes != null && customVes > 0
+        ? customVes
+        : effectiveRate > 0 && totalUsd > 0
+          ? Math.round(totalUsd * effectiveRate * 100) / 100
+          : 0;
       const netVes = totalVes > 0 ? Math.round((totalVes / (1 + IVA_RATE)) * 100) / 100 : 0;
       const taxVes = totalVes > 0 ? Math.round((totalVes - netVes) * 100) / 100 : 0;
 
@@ -416,12 +480,14 @@ export function InventoryErpWorkspace({
 
       const costBase = cost > 0 ? Math.round(cost * 100) / 100 : 0;
       const costWithIva = costBase > 0 ? Math.round(costBase * (1 + IVA_RATE) * 100) / 100 : 0;
-      const profitUsd = totalUsd > 0 && costBase > 0 ? Math.round((totalUsd - costBase) * 100) / 100 : 0;
 
-      // Margen sobre costo de compra
+      // Ganancia neta real en USD (PVP Neto sin IVA - Costo Base sin IVA, o PVP Total - Costo c/IVA)
+      const profitUsd = netUsd > 0 && costBase > 0 ? Math.round((netUsd - costBase) * 100) / 100 : 0;
+
+      // Margen de ganancia comercial sobre costo
       let marginPercent: number | null = null;
-      if (totalUsd > 0 && costBase > 0) {
-        marginPercent = Math.round(((totalUsd - costBase) / costBase) * 1000) / 10;
+      if (netUsd > 0 && costBase > 0) {
+        marginPercent = Math.round(((netUsd - costBase) / costBase) * 1000) / 10;
       }
 
       return {
@@ -442,44 +508,32 @@ export function InventoryErpWorkspace({
         packageUsd,
         packageVes,
         marginPercent,
+        isManual,
+        rateMarkup: markupPct !== 0 ? markupPct : undefined,
       };
     };
 
     if (priceLists.length > 0) {
       priceLists.forEach((list, idx) => {
-        const found = existingPrices.find(
-          (p) => p.price_list_id === list.id || p.price_list?.id === list.id,
-        );
-        let listPrice = found ? Number(found.price) : 0;
-
-        if (!found && (list.is_default || idx === 0)) {
-          listPrice = basePrice;
-        }
-
-        if (!found && list.markup_percentage && basePrice > 0) {
-          listPrice = basePrice * (1 + Number(list.markup_percentage) / 100);
-        }
-
+        const resolved = resolveListPrice(list);
         const labelName = list.name || `Precio ${idx + 1}`;
-        rows.push(buildRow(list.id, labelName, listPrice, list.code, list.is_default));
+        rows.push(
+          buildRow(
+            list.id,
+            labelName,
+            resolved.priceUsd,
+            list.code,
+            list.is_default,
+            resolved.isManual,
+            resolved.priceVes,
+            list.payment_exchange_rate_markup_percentage,
+          ),
+        );
       });
     }
 
     if (rows.length === 0) {
-      rows.push(buildRow('p1', 'Precio 1 (Detal / Normal)', basePrice, 'P1', true));
-      const p2 = existingPrices.find((p) => p.price_list?.code === 'P2' || p.price_list_id === 2);
-      rows.push(
-        buildRow('p2', 'Precio 2 (Al Mayor)', p2 ? Number(p2.price) : basePrice * 0.9, 'P2'),
-      );
-      const p3 = existingPrices.find((p) => p.price_list?.code === 'P3' || p.price_list_id === 3);
-      rows.push(
-        buildRow(
-          'p3',
-          'Precio 3 (Especial / Mayorista)',
-          p3 ? Number(p3.price) : basePrice * 0.85,
-          'P3',
-        ),
-      );
+      rows.push(buildRow('p1', 'Precio 1 (Detal / Normal)', effectiveBase, 'P1', true));
     }
 
     return rows;
@@ -737,9 +791,21 @@ export function InventoryErpWorkspace({
                       )}
 
                       {/* Precio de Referencia */}
-                      <span className="text-xs font-semibold text-text-primary">
-                        {money(prod.base_price)}
-                      </span>
+                      {(() => {
+                        const defPrice = prod.prices?.find((p) => p.price_list?.is_default && p.is_active !== false) ?? prod.prices?.[0];
+                        const refPrice = defPrice && Number(defPrice.price) > 0
+                          ? Number(defPrice.price)
+                          : prod.base_price != null && Number(prod.base_price) > 0
+                            ? Number(prod.base_price)
+                            : prod.last_purchase_cost != null && Number(prod.profit_margin) != null && Number(prod.last_purchase_cost) > 0
+                              ? Math.round(Number(prod.last_purchase_cost) * (1 + Number(prod.profit_margin) / 100) * 100) / 100
+                              : 0;
+                        return (
+                          <span className="text-xs font-semibold text-text-primary">
+                            {money(refPrice)}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1059,13 +1125,27 @@ export function InventoryErpWorkspace({
                           {priceRows.map((row) => (
                             <tr key={row.id} className="hover:bg-muted/30">
                               <td className="p-2.5 font-sans font-medium text-text-primary">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span>{row.label}</span>
                                   {row.isDefault && (
-                                    <span className="text-xs px-1 py-0.2 rounded bg-primary/10 text-primary font-mono">
+                                    <span className="text-[10px] px-1 py-0.2 rounded bg-primary/10 text-primary font-mono font-bold">
                                       DEF
                                     </span>
                                   )}
+                                  {row.isManual ? (
+                                    <span className="text-[10px] px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold" title="Precio personalizado asignado en esta lista">
+                                      Manual
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] px-1 py-0.2 rounded bg-slate-500/10 text-text-muted font-mono" title="Cálculo automático de la lista">
+                                      Auto
+                                    </span>
+                                  )}
+                                  {row.rateMarkup ? (
+                                    <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-bold" title={`Recálculo con ${row.rateMarkup > 0 ? '+' : ''}${row.rateMarkup}% sobre tasa cambiaria`}>
+                                      {row.rateMarkup > 0 ? `+${row.rateMarkup}% tasa` : `${row.rateMarkup}% tasa`}
+                                    </span>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="p-2.5 text-right text-text-muted font-bold">

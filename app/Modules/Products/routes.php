@@ -23,6 +23,7 @@ Route::patch('products/{product}/categories', [ProductController::class, 'syncCa
 Route::patch('products/{product}/tags', [ProductController::class, 'syncTags']);
 Route::get('products/{product}/cross-branch-stock', \App\Modules\POS\Controllers\CrossBranchStockController::class);
 Route::delete('products/{product}/force', [ProductController::class, 'forceDestroy']);
+Route::post('products/resolve-image-url', [ProductImageController::class, 'resolveImageUrl']);
 Route::apiResource('products', ProductController::class);
 
 // Imagenes propias de producto (galeria multi-imagen, Nivel 2).

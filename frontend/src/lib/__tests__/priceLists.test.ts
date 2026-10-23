@@ -32,4 +32,23 @@ describe('sortPriceListsByCode', () => {
 
     expect(sortPriceListsByCode(lists).map((list) => list.name)).toEqual(['Alfa', 'Zeta']);
   });
+
+  it('respeta el sort_order programado prioritariamente', () => {
+    const lists = [
+      { id: 1, code: 'P3', name: 'Lista Tercera', sort_order: 3 },
+      { id: 2, code: 'P1', name: 'Lista Primera', sort_order: 1 },
+      { id: 3, code: 'P2', name: 'Lista Segunda', sort_order: 2 },
+    ];
+
+    expect(sortPriceListsByCode(lists).map((list) => list.code)).toEqual(['P1', 'P2', 'P3']);
+  });
+
+  it('usa code natural cuando los sort_order son iguales', () => {
+    const lists = [
+      { id: 1, code: 'P2', name: 'Mayor', sort_order: 0 },
+      { id: 2, code: 'P1', name: 'Detal', sort_order: 0 },
+    ];
+
+    expect(sortPriceListsByCode(lists).map((list) => list.code)).toEqual(['P1', 'P2']);
+  });
 });

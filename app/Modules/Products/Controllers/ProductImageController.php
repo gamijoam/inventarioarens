@@ -13,6 +13,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class ProductImageController extends Controller
@@ -146,5 +147,77 @@ class ProductImageController extends Controller
         $this->service->reorder($product, $data['ordered_ids']);
 
         return response()->json(['message' => 'Orden actualizado.']);
+    }
+
+    public function resolveImageUrl(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'url' => ['required', 'url', 'max:1000'],
+        ]);
+
+        $url = trim($data['url']);
+
+        // 1. Si termina directamente en extensión de imagen, asumimos que es imagen directa
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'avif'])) {
+            return response()->json([
+                'image_url' => $url,
+                'source' => 'direct',
+            ]);
+        }
+
+        // 2. Si no es imagen directa, descargamos el contenido para ver si es HTML
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/*,*/*;q=0.8',
+            ])->timeout(8)->get($url);
+
+            if (! $response->successful()) {
+                return response()->json([
+                    'message' => 'No se pudo acceder al enlace proporcionado (código HTTP '.$response->status().').',
+                ], 422);
+            }
+
+            $contentType = strtolower($response->header('Content-Type') ?? '');
+
+            if (str_starts_with($contentType, 'image/')) {
+                return response()->json([
+                    'image_url' => $url,
+                    'source' => 'direct_content_type',
+                ]);
+            }
+
+            $html = $response->body();
+
+            // Buscar og:image
+            if (preg_match('/<meta[^>]+property=[\'"](?:og:image|og:image:url)[\'"][^>]+content=[\'"]([^\'"]+)[\'"]/i', $html, $matches) ||
+                preg_match('/<meta[^>]+content=[\'"]([^\'"]+)[\'"][^>]+property=[\'"](?:og:image|og:image:url)[\'"]/i', $html, $matches)) {
+                $extracted = html_entity_decode(trim($matches[1]));
+                return response()->json([
+                    'image_url' => $extracted,
+                    'source' => 'og_image',
+                ]);
+            }
+
+            // Buscar twitter:image
+            if (preg_match('/<meta[^>]+(?:name|property)=[\'"]twitter:image[\'"][^>]+content=[\'"]([^\'"]+)[\'"]/i', $html, $matches) ||
+                preg_match('/<meta[^>]+content=[\'"]([^\'"]+)[\'"][^>]+(?:name|property)=[\'"]twitter:image[\'"]/i', $html, $matches)) {
+                $extracted = html_entity_decode(trim($matches[1]));
+                return response()->json([
+                    'image_url' => $extracted,
+                    'source' => 'twitter_image',
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'El enlace ingresado es una página web pero no contiene una imagen principal identificable (og:image). Por favor copia el enlace directo de la imagen haciendo clic derecho sobre la foto > "Copiar dirección de imagen".',
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Error al analizar el enlace: '.$e->getMessage(),
+            ], 422);
+        }
     }
 }

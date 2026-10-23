@@ -11,6 +11,7 @@ use App\Modules\POS\Requests\StorePosHoldRequest;
 use App\Modules\POS\Resources\PosOrderResource;
 use App\Modules\POS\Resources\PosOrderSummaryResource;
 use App\Modules\POS\Services\PosCheckoutService;
+use App\Modules\POS\Services\WarrantyCertificateService;
 use App\Modules\Printing\Services\PosTicketPrintService;
 use App\Modules\Promotions\Models\Promotion;
 use App\Modules\Promotions\Models\SalePromotionApplication;
@@ -96,6 +97,36 @@ class PosOrderController extends Controller
                 'html' => $preview['html'],
                 'paper_width_mm' => $preview['paper_width_mm'],
             ],
+        ]);
+    }
+
+    public function warrantyCertificate(PosOrder $posOrder, WarrantyCertificateService $service): JsonResponse
+    {
+        Gate::authorize('view', $posOrder);
+
+        $data = $service->buildCertificateData($posOrder);
+        $html = $service->renderHtml($posOrder);
+
+        return response()->json([
+            'data' => [
+                'has_warranty' => $data['has_equipments'],
+                'is_enabled' => $data['warranty']['is_enabled'],
+                'html' => $html,
+                'certificate' => $data,
+            ],
+        ]);
+    }
+
+    public function warrantyCertificatePdf(PosOrder $posOrder, WarrantyCertificateService $service): Response
+    {
+        Gate::authorize('view', $posOrder);
+
+        $pdf = $service->renderPdf($posOrder);
+        $filename = "certificado-garantia-{$posOrder->id}.pdf";
+
+        return response($pdf, Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"{$filename}\"",
         ]);
     }
 

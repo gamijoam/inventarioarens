@@ -118,8 +118,11 @@ export function InlineCatalogCreate({ kind, onCreated }: InlineCatalogCreateProp
     }
   }, [open]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     // Validacion client-side.
     const errors: Record<string, string> = {};
@@ -203,7 +206,16 @@ export function InlineCatalogCreate({ kind, onCreated }: InlineCatalogCreateProp
             <DialogTitle>{copy.title}</DialogTitle>
             <DialogDescription>{copy.description}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <div
+            className="space-y-3"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                void handleSubmit(e);
+              }
+            }}
+          >
             <div className="space-y-1.5">
               <Label htmlFor="inline-name">
                 {copy.name} <span className="text-danger">*</span>
@@ -257,11 +269,19 @@ export function InlineCatalogCreate({ kind, onCreated }: InlineCatalogCreateProp
               >
                 Cancelar
               </Button>
-              <Button type="submit" loading={submitting}>
+              <Button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void handleSubmit(e);
+                }}
+                loading={submitting}
+              >
                 Crear
               </Button>
             </DialogFooter>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
     </>

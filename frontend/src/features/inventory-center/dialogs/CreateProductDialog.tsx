@@ -26,7 +26,7 @@ import { useTags } from '../api';
 import type { Product } from '../schemas';
 import {
   type ProductFormVisibility,
-  getStoredProductFormVisibility,
+  FULL_PRODUCT_FORM_VISIBILITY,
   saveStoredProductFormVisibility,
   resetStoredProductFormVisibility,
 } from '../productFormConfig';
@@ -47,21 +47,29 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess, initialName
   const { data: uiPreferences } = useUiPreferences();
   const updateUiPreferences = useUpdateUiPreferences();
 
-  const [visibility, setVisibility] = useState<ProductFormVisibility>(() =>
-    getStoredProductFormVisibility(tenant?.id),
-  );
+  const [visibility, setVisibility] = useState<ProductFormVisibility>(() => {
+    if (uiPreferences?.product_form_visibility) {
+      return {
+        ...FULL_PRODUCT_FORM_VISIBILITY,
+        ...uiPreferences.product_form_visibility,
+        name: true,
+        base_price: true,
+      };
+    }
+    return FULL_PRODUCT_FORM_VISIBILITY;
+  });
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
   useEffect(() => {
     if (uiPreferences?.product_form_visibility) {
       setVisibility({
-        ...getStoredProductFormVisibility(tenant?.id),
+        ...FULL_PRODUCT_FORM_VISIBILITY,
         ...uiPreferences.product_form_visibility,
         name: true,
         base_price: true,
       });
     } else {
-      setVisibility(getStoredProductFormVisibility(tenant?.id));
+      setVisibility(FULL_PRODUCT_FORM_VISIBILITY);
     }
   }, [tenant?.id, uiPreferences?.product_form_visibility]);
 

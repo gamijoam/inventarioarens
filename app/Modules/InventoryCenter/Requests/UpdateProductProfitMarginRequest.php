@@ -9,7 +9,7 @@ class UpdateProductProfitMarginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'profit_margin' => ['required', 'numeric', 'lte:999.99'],
+            'profit_margin' => ['required', 'numeric'],
         ];
     }
 
@@ -23,7 +23,6 @@ class UpdateProductProfitMarginRequest extends FormRequest
         return [
             'profit_margin.required' => 'El margen es obligatorio.',
             'profit_margin.numeric' => 'El margen debe ser numerico.',
-            'profit_margin.lte' => 'El margen no puede superar 999.99.',
         ];
     }
 }

@@ -59,7 +59,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
   const isAutomatic = product.pricing_mode !== 'manual';
 
   const inputNum = marginInput.trim() === '' ? NaN : Number(marginInput);
-  const validInput = !Number.isNaN(inputNum) && inputNum >= -999.99 && inputNum <= 999.99;
+  const validInput = !Number.isNaN(inputNum);
 
   const projectedPrice = useMemo(() => {
     if (!validInput || lastCost == null) return null;
@@ -77,7 +77,7 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
 
   async function handleSave() {
     if (!validInput) {
-      toast.error('El margen debe estar entre -999.99 y 999.99.');
+      toast.error('Ingresa un margen numérico válido.');
       return;
     }
     setSaving(true);
@@ -222,16 +222,15 @@ export function ProfitMarginPanel({ product }: ProfitMarginPanelProps) {
                   type="number"
                   step="0.01"
                   min={0}
-                  max={999.99}
                   value={marginInput}
                   onChange={(e) => setMarginInput(e.target.value)}
-                  placeholder="0 - 999.99"
+                  placeholder="0.00"
                 />
                 <span className="text-sm">%</span>
               </div>
               {!validInput && (
                 <p className="mt-1 text-xs text-red-500">
-                  El margen debe estar entre 0 y 999.99.
+                  Ingresa un margen numérico válido.
                 </p>
               )}
             </div>

@@ -47,8 +47,11 @@ export function UnitOfMeasureSelector({
     onChange(selected);
   };
 
-  const handleCreateCustomUnit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateCustomUnit = (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!newUnitName.trim()) return;
 
     const created = saveCustomUnit(newUnitName, tenant?.id);
@@ -110,7 +113,16 @@ export function UnitOfMeasureSelector({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateCustomUnit} className="space-y-4 pt-2">
+          <div
+            className="space-y-4 pt-2"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCreateCustomUnit(e);
+              }
+            }}
+          >
             <div className="space-y-2">
               <Label htmlFor="new-unit-name">Nombre de la unidad</Label>
               <Input
@@ -120,7 +132,6 @@ export function UnitOfMeasureSelector({
                 onChange={(e) => setNewUnitName(e.target.value)}
                 maxLength={20}
                 autoFocus
-                required
               />
               <p className="text-xs text-text-muted">
                 Máximo 20 caracteres. Se mostrará en facturas, inventario y punto de venta.
@@ -136,7 +147,12 @@ export function UnitOfMeasureSelector({
                 Cancelar
               </Button>
               <Button
-                type="submit"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCreateCustomUnit(e);
+                }}
                 disabled={!newUnitName.trim()}
                 className="gap-1.5"
               >
@@ -144,7 +160,7 @@ export function UnitOfMeasureSelector({
                 <span>Guardar y Usar</span>
               </Button>
             </DialogFooter>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

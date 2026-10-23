@@ -45,6 +45,7 @@ vi.mock('@/features/inventory-center/api', () => ({
   }),
   useWarehouses: () => ({ data: [{ id: 1, name: 'Almacén Principal' }], isLoading: false }),
   useSetProductStock: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteProduct: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 // Mock de EditProductDialog

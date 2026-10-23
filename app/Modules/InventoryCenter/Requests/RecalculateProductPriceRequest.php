@@ -9,7 +9,7 @@ class RecalculateProductPriceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'profit_margin' => ['sometimes', 'nullable', 'numeric', 'lte:999.99'],
+            'profit_margin' => ['sometimes', 'nullable', 'numeric'],
         ];
     }
 
