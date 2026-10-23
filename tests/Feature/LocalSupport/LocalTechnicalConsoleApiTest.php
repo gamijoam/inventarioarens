@@ -60,6 +60,7 @@ class LocalTechnicalConsoleApiTest extends TestCase
             $response
                 ->assertJsonPath('data.enabled', true)
                 ->assertJsonPath('data.bind_host', '0.0.0.0')
+                ->assertJsonPath('data.renderer_ports', [8788, 8789, 8790, 8791, 8792, 8793])
                 ->assertJsonPath('data.restart_required', true);
         } finally {
             $previous === null ? File::delete($path) : File::put($path, $previous);

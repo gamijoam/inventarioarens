@@ -89,7 +89,7 @@ class LocalTechnicalConsoleService
             'enabled' => $enabled,
             'bind_host' => $enabled ? '0.0.0.0' : '127.0.0.1',
             'api_port' => 8787,
-            'renderer_ports' => [8788, 8789, 8790],
+            'renderer_ports' => [8788, 8789, 8790, 8791, 8792, 8793],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL, true);
 
         return $this->localServerStatus();
@@ -583,7 +583,7 @@ class LocalTechnicalConsoleService
             'enabled' => $enabled,
             'bind_host' => $enabled ? '0.0.0.0' : '127.0.0.1',
             'api_port' => 8787,
-            'renderer_ports' => [8788, 8789, 8790],
+            'renderer_ports' => [8788, 8789, 8790, 8791, 8792, 8793],
             'restart_required' => true,
         ];
     }

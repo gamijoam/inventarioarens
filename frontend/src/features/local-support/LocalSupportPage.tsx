@@ -349,7 +349,9 @@ function InstallationCard({
   async function toggleLan(): Promise<void> {
     try {
       await serverMode.mutateAsync(!(lan?.enabled ?? false));
-      toast.success('Modo LAN guardado. Reinicia los clientes Electron para aplicar el cambio.');
+      toast.success(
+        'Modo LAN guardado. Cierra y vuelve a abrir POS en la PC principal antes de conectar desde otra PC.',
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo actualizar el modo LAN.');
     }
@@ -395,7 +397,7 @@ function InstallationCard({
               <p className="text-text-muted text-xs">Servidor LAN</p>
               <p className="text-sm font-medium">
                 {lan?.enabled
-                  ? `Activo en ${lan.bind_host}:${lan.api_port}`
+                  ? 'Activado; si acabas de cambiarlo, vuelve a abrir POS en esta PC'
                   : 'Desactivado por seguridad'}
               </p>
             </div>
@@ -403,9 +405,18 @@ function InstallationCard({
               {lan?.enabled ? 'Activo' : 'Local'}
             </Badge>
           </div>
-          <p className="text-text-muted mt-2 text-xs">
-            Permite clientes por API en la red privada. No comparte el archivo SQLite.
-          </p>
+          {lan?.enabled ? (
+            <div className="text-text-muted mt-2 space-y-1 text-xs">
+              <p>En la otra PC, abre el navegador con la IP privada de esta PC:</p>
+              <p><span className="font-semibold">BalanzaPro:</span> POS :8791 · Administrativo :8792</p>
+              <p><span className="font-semibold">Inventario Arens:</span> POS :8789 · Administrativo :8788</p>
+              <p>Permite esos puertos en el firewall privado. El 8787 es la API, no la pantalla POS; SQLite no se comparte.</p>
+            </div>
+          ) : (
+            <p className="text-text-muted mt-2 text-xs">
+              Expone las pantallas POS y Administrativo en la red privada. No comparte el archivo SQLite.
+            </p>
+          )}
           <Button
             className="mt-3"
             size="sm"

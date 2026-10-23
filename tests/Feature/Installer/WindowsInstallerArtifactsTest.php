@@ -97,6 +97,9 @@ class WindowsInstallerArtifactsTest extends TestCase
         $this->assertStringContainsString('users-modify', $inno);
         $this->assertStringContainsString('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe', $inno);
 
+        $motorSetup = file_get_contents($root.'/scripts/installer/installer.nsi');
+        $this->assertStringContainsString('localport=8787,8788,8789,8791,8792 profile=private', $motorSetup);
+
         $workerLauncher = file_get_contents($root.'/scripts/sync-worker.cmd');
         $this->assertStringContainsString('%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', $workerLauncher);
 

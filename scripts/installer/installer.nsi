@@ -236,7 +236,7 @@ DataAclComplete:
 FunctionEnd
 
 Function ConfigureLanFirewall
-  ExecWait '"$SYSDIR\netsh.exe" advfirewall firewall add rule name="BalanzaPro Motor Local" dir=in action=allow protocol=TCP localport=8787 profile=private' $0
+  ExecWait '"$SYSDIR\netsh.exe" advfirewall firewall add rule name="BalanzaPro Motor Local" dir=in action=allow protocol=TCP localport=8787,8788,8789,8791,8792 profile=private' $0
   IntCmp $0 0 LanFirewallReady
   MessageBox MB_ICONSTOP "Windows no pudo habilitar el acceso de BalanzaPro en la red privada. Se cancelará la instalación para no dejar una PC central sin acceso LAN."
   Call RollBackInstallation
