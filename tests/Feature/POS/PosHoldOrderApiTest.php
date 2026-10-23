@@ -192,6 +192,81 @@ class PosHoldOrderApiTest extends TestCase
         ]);
     }
 
+    public function test_held_order_keeps_global_payment_list_separate_from_item_price_lists(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Orden Mixta', 'slug' => 'empresa-orden-mixta']);
+        [$warehouse, $productA, $rateType] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-HOLD-MIX', 500);
+        $productB = Product::create([
+            'name' => 'Producto Lista Individual',
+            'sku' => 'SKU-HOLD-LISTA-INDIVIDUAL',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_USD,
+            'sale_exchange_rate_type_id' => $rateType->id,
+        ]);
+        $globalList = PriceList::create(['name' => 'Lista Global', 'code' => 'HOLD-GLOBAL', 'is_active' => true]);
+        $itemList = PriceList::create(['name' => 'Lista Individual', 'code' => 'HOLD-ITEM', 'is_active' => true]);
+        foreach ([[$productA, $globalList, 60], [$productB, $itemList, 40]] as [$product, $list, $price]) {
+            ProductPrice::create([
+                'product_id' => $product->id,
+                'price_list_id' => $list->id,
+                'price' => $price,
+                'currency' => Product::CURRENCY_USD,
+                'is_active' => true,
+            ]);
+            StockBalance::create([
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'quantity_available' => 2,
+            ]);
+        }
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo de lista global',
+            'code' => 'CASH-HOLD-GLOBAL',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+            'is_active' => true,
+        ]);
+        $globalList->paymentMethods()->sync([$cash->id => ['tenant_id' => $tenant->id]]);
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor Orden Mixta', ['pos.orders.hold', 'pos.view']);
+
+        $held = $this
+            ->actingAs($seller)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'payment_price_list_id' => $globalList->id,
+                'items' => [
+                    ['warehouse_id' => $warehouse->id, 'product_id' => $productA->id, 'price_list_id' => $globalList->id, 'price_source' => 'price_list', 'quantity' => 1],
+                    ['warehouse_id' => $warehouse->id, 'product_id' => $productB->id, 'price_list_id' => $itemList->id, 'price_source' => 'price_list', 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.payment_price_list_id', $globalList->id)
+            ->assertJsonPath('data.payment_price_list_explicit', true)
+            ->assertJsonPath('data.sale.items.0.price_list_id', $globalList->id)
+            ->assertJsonPath('data.sale.items.1.price_list_id', $itemList->id);
+
+        $cashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajera Orden Mixta', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id);
+
+        $this
+            ->actingAs($cashier)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders/'.$held->json('data.id').'/payments', [
+                'cash_register_session_id' => $session->id,
+                'payments' => [[
+                    'payment_method_id' => $cash->id,
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+    }
+
     public function test_seller_can_arm_with_promotion_and_commission_uses_discounted_price(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Promo', 'slug' => 'empresa-promo']);

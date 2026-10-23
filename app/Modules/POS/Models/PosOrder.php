@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'sale_id',
     'cash_register_session_id',
     'customer_id',
+    'payment_price_list_id',
+    'payment_price_list_explicit',
     'status',
     'cashier_id',
     'seller_id',
@@ -50,6 +52,7 @@ class PosOrder extends Model
             'total_local_amount' => 'decimal:4',
             'paid_base_amount' => 'decimal:4',
             'paid_local_amount' => 'decimal:4',
+            'payment_price_list_explicit' => 'boolean',
         ];
     }
 
@@ -81,6 +84,11 @@ class PosOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function paymentPriceList(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Products\Models\PriceList::class, 'payment_price_list_id');
     }
 
     public function payments(): HasMany

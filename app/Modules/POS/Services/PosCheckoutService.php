@@ -70,9 +70,11 @@ class PosCheckoutService
         ?string $invoicePromotionCode = null,
         array $comboApplications = [],
         array $productOfferApplications = [],
+        ?int $paymentPriceListId = null,
+        bool $paymentPriceListExplicit = false,
     ): PosOrder {
-        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
-            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
+        return PerformanceProbe::measure('POS checkout total', function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications, $paymentPriceListId, $paymentPriceListExplicit): PosOrder {
+            return DB::transaction(function () use ($cashier, $cashRegisterSession, $items, $payments, $customerId, $customerName, $credit, $creditDueDate, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications, $paymentPriceListId, $paymentPriceListExplicit): PosOrder {
                 if ($credit && ! $customerId) {
                     throw ValidationException::withMessages([
                         'customer_id' => 'La venta a credito requiere un cliente registrado.',
@@ -106,7 +108,9 @@ class PosCheckoutService
                 } else {
                     $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode, $payments);
                 }
-                $priceLists = $this->priceListsForItems($items);
+                $priceLists = $paymentPriceListExplicit
+                    ? $this->paymentPriceLists($paymentPriceListId)
+                    : $this->priceListsForItems($items);
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
                 $paymentRateMarkup = $priceLists->first()?->payment_exchange_rate_markup_percentage !== null
                     ? (float) $priceLists->first()->payment_exchange_rate_markup_percentage
@@ -129,6 +133,8 @@ class PosCheckoutService
                     'sale_id' => $sale->id,
                     'cash_register_session_id' => $cashRegisterSession->id,
                     'customer_id' => $customerId,
+                    'payment_price_list_id' => $paymentPriceListId,
+                    'payment_price_list_explicit' => $paymentPriceListExplicit,
                     'status' => PosOrder::STATUS_OPEN,
                     'cashier_id' => $cashier->id,
                     'customer_name' => $customerName,
@@ -288,9 +294,11 @@ class PosCheckoutService
         ?string $invoicePromotionCode = null,
         array $comboApplications = [],
         array $productOfferApplications = [],
+        ?int $paymentPriceListId = null,
+        bool $paymentPriceListExplicit = false,
     ): PosOrder {
-        return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
-            return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
+        return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications, $paymentPriceListId, $paymentPriceListExplicit): PosOrder {
+            return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications, $paymentPriceListId, $paymentPriceListExplicit): PosOrder {
                 $this->assertWarehousesWithinScope($items, $seller);
 
                 if ($invoicePromotionId !== null || $invoicePromotionCode !== null || $comboApplications !== [] || $productOfferApplications !== []) {
@@ -323,6 +331,8 @@ class PosCheckoutService
                     'sale_id' => $sale->id,
                     'cash_register_session_id' => null,
                     'customer_id' => $customerId,
+                    'payment_price_list_id' => $paymentPriceListId,
+                    'payment_price_list_explicit' => $paymentPriceListExplicit,
                     'status' => PosOrder::STATUS_OPEN,
                     'seller_id' => $seller->id,
                     'customer_name' => $customerName,
@@ -423,7 +433,9 @@ class PosCheckoutService
                 $cashRegisterSession = CashRegisterSession::query()->lockForUpdate()->findOrFail($sessionId);
                 $this->assertCashRegisterCanSell($cashRegisterSession, $cashier);
 
-                $priceLists = $this->priceListsForItems($this->itemsForExistingOrder($order));
+                $priceLists = $order->payment_price_list_explicit
+                    ? $this->paymentPriceLists($order->payment_price_list_id)
+                    : $this->priceListsForItems($this->itemsForExistingOrder($order));
                 $paymentRateTypeId = $this->paymentRateTypeIdFor($priceLists);
                 $paymentRateMarkup = $priceLists->first()?->payment_exchange_rate_markup_percentage !== null
                     ? (float) $priceLists->first()->payment_exchange_rate_markup_percentage
@@ -845,6 +857,18 @@ class PosCheckoutService
             ->with('paymentMethods')
             ->whereIn('id', $priceListIds)
             ->get();
+    }
+
+    private function paymentPriceLists(?int $priceListId): Collection
+    {
+        if (! $priceListId) {
+            return collect();
+        }
+
+        return $this->priceListsForItems([[
+            'price_list_id' => $priceListId,
+            'price_source' => ProductPriceService::PRICE_SOURCE_LIST,
+        ]]);
     }
 
     private function itemsForExistingOrder(PosOrder $order): array

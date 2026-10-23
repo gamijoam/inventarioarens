@@ -67,6 +67,54 @@ export interface PosCartLine {
   }[];
 }
 
+export interface PosLinePriceQuote {
+  price_list_id?: number | null;
+  price_list_name?: string | null;
+  base_price_usd: number;
+  sale_currency: CurrencyCode;
+  exchange_rate?: number | null;
+  exchange_rate_type_id?: number | null;
+  exchange_rate_type_code?: string | null;
+}
+
+export function applyPosLinePriceList(
+  line: PosCartLine,
+  priceList: { id: number; name: string } | null,
+  quote?: PosLinePriceQuote | null,
+): PosCartLine {
+  if (!priceList) {
+    return {
+      ...line,
+      unit_price: Number(line.base_unit_price ?? line.unit_price),
+      currency: line.base_currency ?? line.currency,
+      price_list_id: null,
+      price_source: 'base',
+      price_list_name: 'Precio base',
+      exchange_rate: null,
+      exchange_rate_type_id: null,
+      exchange_rate_type_code: null,
+      price_issue: null,
+    };
+  }
+
+  if (!quote) {
+    throw new Error(`Falta la cotización de ${line.name} para ${priceList.name}.`);
+  }
+
+  return {
+    ...line,
+    unit_price: quote.base_price_usd,
+    currency: quote.sale_currency,
+    price_list_id: quote.price_list_id ?? priceList.id,
+    price_source: 'price_list',
+    price_list_name: quote.price_list_name ?? priceList.name,
+    exchange_rate: quote.exchange_rate ?? null,
+    exchange_rate_type_id: quote.exchange_rate_type_id ?? null,
+    exchange_rate_type_code: quote.exchange_rate_type_code ?? null,
+    price_issue: null,
+  };
+}
+
 export interface PromotionCartItem {
   product_id: number;
   quantity: number;
@@ -185,6 +233,19 @@ export function posLineQuoteKey(
   selectedPriceListId: number | null,
 ): string {
   return `${line.product_id}_${line.warehouse_id}_${resolveLineQuoteListId(line, selectedPriceListId) ?? 'base'}`;
+}
+
+export function findMatchingVariantPriceListLine(
+  lines: PosCartLine[],
+  input: VariantMatchInput,
+  priceListId: number | null,
+  selectedPriceListId: number | null,
+): PosCartLine | undefined {
+  return lines.find(
+    (line) =>
+      findMatchingVariantLine([line], input) !== undefined &&
+      resolveLineQuoteListId(line, selectedPriceListId) === priceListId,
+  );
 }
 
 export function expandPromotionItems(
@@ -442,12 +503,12 @@ export function formatUnitSuffix(unit?: string | null): string {
 export function resolvePosProductPrice(
   product: {
     base_price?: number | string | null;
-    prices?: Array<{
+    prices?: {
       price_list_id?: number | null;
       price_list?: { id: number } | null;
       is_active?: boolean | null;
       price?: number | string | null;
-    }> | null;
+    }[] | null;
   },
   selectedPriceList: { id: number; markup_percentage?: number | string | null } | null,
 ): number {
@@ -460,7 +521,7 @@ export function resolvePosProductPrice(
         (p.price_list_id === selectedPriceList.id || p.price_list?.id === selectedPriceList.id) &&
         (p.is_active ?? true),
     );
-    if (found && found.price != null && Number(found.price) > 0) {
+    if (found?.price != null && Number(found.price) > 0) {
       return Number(found.price);
     }
   }

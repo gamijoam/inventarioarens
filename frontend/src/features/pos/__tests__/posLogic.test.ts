@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyPosLinePriceList,
   calculateCartTotals,
   calculatePaymentTotals,
   clampQuantity,
+  findMatchingVariantPriceListLine,
   findMatchingVariantLine,
   firstPriceIssue,
   hasPriceIssue,
@@ -54,6 +56,58 @@ describe('POS cart logic', () => {
     expect(resolveInitialPosPriceListId(lists, null)).toBeNull();
   });
 
+  it('cambia la lista y el precio de una linea sin alterar las demas propiedades', () => {
+    const pricedLine = applyPosLinePriceList(
+      { ...baseLine, base_unit_price: 20, base_currency: 'USD' },
+      { id: 7, name: 'Mayor' },
+      {
+        price_list_id: 7,
+        price_list_name: 'Mayor',
+        base_price_usd: 16,
+        sale_currency: 'USD',
+        exchange_rate_type_id: 2,
+        exchange_rate_type_code: 'BCV',
+        exchange_rate: 40,
+      },
+    );
+
+    expect(pricedLine).toMatchObject({
+      unit_price: 16,
+      quantity: 2,
+      price_list_id: 7,
+      price_source: 'price_list',
+      price_list_name: 'Mayor',
+      exchange_rate_type_code: 'BCV',
+    });
+  });
+
+  it('devuelve una sola linea a precio base y limpia su tasa de cotizacion', () => {
+    const basePricedLine = applyPosLinePriceList(
+      {
+        ...baseLine,
+        unit_price: 18,
+        base_unit_price: 20,
+        price_list_id: 7,
+        price_source: 'price_list',
+        exchange_rate: 40,
+        exchange_rate_type_id: 2,
+        exchange_rate_type_code: 'BCV',
+      },
+      null,
+    );
+
+    expect(basePricedLine).toMatchObject({
+      unit_price: 20,
+      currency: 'USD',
+      price_list_id: null,
+      price_source: 'base',
+      price_list_name: 'Precio base',
+      exchange_rate: null,
+      exchange_rate_type_id: null,
+      exchange_rate_type_code: null,
+    });
+  });
+
   it('descarta una preferencia persistida que ya no esta activa', () => {
     expect(
       resolveInitialPosPriceListId(
@@ -73,6 +127,30 @@ describe('POS cart logic', () => {
     ]);
 
     expect(totals).toEqual({ subtotal: 55, discount: 4, total: 51 });
+  });
+
+  it('encuentra el producto repetido que ya pertenece a la misma lista de precios', () => {
+    const lines: PosCartLine[] = [
+      { ...baseLine, id: 'base', price_source: 'base' },
+      { ...baseLine, id: 'mayor', price_list_id: 7, price_source: 'price_list' },
+    ];
+
+    expect(
+      findMatchingVariantPriceListLine(
+        lines,
+        { product_id: 10, warehouse_id: 1 },
+        7,
+        7,
+      )?.id,
+    ).toBe('mayor');
+    expect(
+      findMatchingVariantPriceListLine(
+        lines,
+        { product_id: 10, warehouse_id: 1 },
+        null,
+        7,
+      )?.id,
+    ).toBe('base');
   });
 
   it('no vuelve a aplicar una promocion de factura sobre una orden pendiente', () => {

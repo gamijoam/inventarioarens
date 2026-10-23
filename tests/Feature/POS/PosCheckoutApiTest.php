@@ -116,6 +116,78 @@ class PosCheckoutApiTest extends TestCase
         ]);
     }
 
+    public function test_pos_checkout_accepts_item_price_lists_while_payment_rules_follow_the_global_list(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa Listas Mixtas', 'slug' => 'empresa-listas-mixtas']);
+        [$warehouse, $productA, $rateType] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV-MIX', 500);
+        $productB = Product::create([
+            'name' => 'Producto POS Lista Individual',
+            'sku' => 'SKU-POS-LISTA-INDIVIDUAL',
+            'tracking_type' => Product::TRACKING_QUANTITY,
+            'base_price' => 100,
+            'sale_currency' => Product::CURRENCY_USD,
+            'sale_exchange_rate_type_id' => $rateType->id,
+        ]);
+        $globalList = $this->priceListWithPrice($tenant, $productA, 'Precio Global', 'GLOBAL-MIX', 75);
+        $itemList = $this->priceListWithPrice($tenant, $productB, 'Precio Individual', 'ITEM-MIX', 25);
+        $cash = PaymentMethod::create([
+            'name' => 'Efectivo global',
+            'code' => 'CASH-GLOBAL-MIX',
+            'method' => PosPayment::METHOD_CASH,
+            'currency_mode' => PaymentMethod::CURRENCY_USD,
+        ]);
+        $globalList->paymentMethods()->sync([$cash->id => ['tenant_id' => $tenant->id]]);
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $productA->id, 'quantity_available' => 2]);
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $productB->id, 'quantity_available' => 2]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero Listas Mixtas', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'payment_price_list_id' => $globalList->id,
+                'items' => [
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $productA->id,
+                        'price_list_id' => $globalList->id,
+                        'price_source' => 'price_list',
+                        'quantity' => 1,
+                    ],
+                    [
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $productB->id,
+                        'price_list_id' => $itemList->id,
+                        'price_source' => 'price_list',
+                        'quantity' => 1,
+                    ],
+                ],
+                'payments' => [[
+                    'payment_method_id' => $cash->id,
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 100,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.payment_price_list_id', $globalList->id)
+            ->assertJsonPath('data.payment_price_list_explicit', true)
+            ->assertJsonPath('data.sale.items.0.price_list_id', $globalList->id)
+            ->assertJsonPath('data.sale.items.0.unit_price', 75)
+            ->assertJsonPath('data.sale.items.1.price_list_id', $itemList->id)
+            ->assertJsonPath('data.sale.items.1.unit_price', 25);
+
+        $this->assertDatabaseHas('pos_orders', [
+            'tenant_id' => $tenant->id,
+            'id' => $response->json('data.id'),
+            'payment_price_list_id' => $globalList->id,
+            'payment_price_list_explicit' => true,
+        ]);
+    }
+
     public function test_pos_checkout_accepts_payment_rounded_to_cents_when_line_total_has_more_decimals(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa Redondeo', 'slug' => 'empresa-redondeo']);

@@ -161,6 +161,7 @@ import {
 import { useCustomerCredit } from '@/features/customers/api';
 import { useCompleteSalesReturnExchange } from '@/features/sales-returns/api';
 import {
+  applyPosLinePriceList,
   calculateCartTotals,
   calculatePaymentTotals,
   formatCartUnitPrice,
@@ -173,7 +174,7 @@ import {
   lineTotal,
   missingSerialIssue,
   paymentBaseAmount,
-  findMatchingVariantLine,
+  findMatchingVariantPriceListLine,
   requiresPosVariantSelection,
   resolveInitialPosPriceListId,
   resolveLineQuoteListId,
@@ -408,7 +409,7 @@ export function resolvePosProductPrice(
         (p.price_list_id === selectedPriceList.id || p.price_list?.id === selectedPriceList.id) &&
         (p.is_active ?? true),
     );
-    if (found && found.price != null && Number(found.price) > 0) {
+    if (found?.price != null && Number(found.price) > 0) {
       return Number(found.price);
     }
   }
@@ -1506,7 +1507,7 @@ export function PosTerminal() {
             warehouses.some((warehouse) => warehouse.id === lineWarehouseId);
           const wId = hasValidLineWarehouse
             ? lineWarehouseId
-            : effectiveWarehouseId || null;
+            : effectiveWarehouseId ?? null;
           try {
             productMap.set(key, await getProductForPos(pId, wId));
           } catch {
@@ -1560,7 +1561,7 @@ export function PosTerminal() {
             } else if (line.price_source !== 'price_list' || !line.price_list_id) {
               if (line.base_unit_price === undefined || line.unit_price === line.base_unit_price) {
                 newUnitPrice = newBasePrice;
-                newCurrency = (product.sale_currency ?? 'USD') as CurrencyCode;
+                newCurrency = product.sale_currency ?? 'USD';
               }
             }
           }
@@ -1874,9 +1875,9 @@ export function PosTerminal() {
     >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
         {posViewMode !== 'classic' && (
-          <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
+          <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-col items-stretch gap-2 border-b px-3.5 py-2 shadow-sm backdrop-blur">
           {/* Navegación y Búsqueda */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -2127,7 +2128,7 @@ export function PosTerminal() {
           </div>
 
           {/* Contexto, Cliente y Acciones */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-2">
             {activeRate &&
               (allowRateEdit ? (
                 <button
@@ -2704,6 +2705,12 @@ export function PosTerminal() {
                         <CartLineRow
                           key={line.id}
                           line={line}
+                          priceLists={priceLists}
+                          defaultPriceListId={selectedPriceListId}
+                          priceListDisabled={repricing || selectedPending !== null}
+                          onPriceListChange={(priceListId) =>
+                            void changeLinePriceList(line.id, priceListId)
+                          }
                           canDiscount={canDiscount}
                           skuColor={posColorTheme.to}
                           onChange={(patch) => updateLine(line.id, patch)}
@@ -2872,6 +2879,12 @@ export function PosTerminal() {
                     <CartLineRow
                       key={line.id}
                       line={line}
+                      priceLists={priceLists}
+                      defaultPriceListId={selectedPriceListId}
+                      priceListDisabled={repricing || selectedPending !== null}
+                      onPriceListChange={(priceListId) =>
+                        void changeLinePriceList(line.id, priceListId)
+                      }
                       canDiscount={canDiscount}
                       skuColor={posColorTheme.to}
                       onChange={(patch) => updateLine(line.id, patch)}
@@ -3563,7 +3576,7 @@ export function PosTerminal() {
       return;
     }
     if (nextId === selectedPriceListId) return;
-    const nextList = nextId ? priceLists.find((list) => list.id === nextId) : null;
+    const nextList = nextId ? (priceLists.find((list) => list.id === nextId) ?? null) : null;
     if (nextId && !nextList) return;
 
     setPriceListNotice(null);
@@ -3577,17 +3590,7 @@ export function PosTerminal() {
     setRepricing(true);
     try {
       if (!nextList) {
-        setCart((current) =>
-          current.map((line) => ({
-            ...line,
-            unit_price: Number(line.base_unit_price ?? line.unit_price),
-            currency: line.base_currency ?? line.currency,
-            price_list_id: null,
-            price_source: 'base',
-            price_list_name: BASE_PRICE_LIST_LABEL,
-            price_issue: null,
-          })),
-        );
+        setCart((current) => current.map((line) => applyPosLinePriceList(line, null)));
       } else {
         const quoted = await Promise.all(
           cart.map(async (line) => ({
@@ -3600,15 +3603,7 @@ export function PosTerminal() {
             const found = quoted.find((item) => item.line.id === line.id);
             if (!found) return line;
 
-            return {
-              ...line,
-              unit_price: found.quote.base_price_usd,
-              currency: found.quote.sale_currency,
-              price_list_id: nextList.id,
-              price_source: 'price_list',
-              price_list_name: found.quote.price_list_name ?? nextList.name,
-              price_issue: null,
-            };
+            return applyPosLinePriceList(line, nextList, found.quote);
           }),
         );
       }
@@ -3622,6 +3617,46 @@ export function PosTerminal() {
       const message = `No se puede cambiar a ${nextList?.name ?? BASE_PRICE_LIST_LABEL}: hay productos sin precio en esa lista.`;
       setPriceListNotice(message);
       toast.error(message);
+    } finally {
+      setRepricing(false);
+    }
+  }
+
+  async function changeLinePriceList(lineId: string, nextId: number | null): Promise<void> {
+    if (selectedPending) {
+      toast.info('La orden pendiente conserva la lista de precio seleccionada por el vendedor.');
+      return;
+    }
+
+    const target = cart.find((line) => line.id === lineId);
+    if (!target) return;
+
+    const currentListId =
+      target.price_source === 'base'
+        ? null
+        : (target.price_list_id ?? selectedPriceListId ?? null);
+    if (currentListId === nextId) return;
+
+    const nextList = nextId ? (priceLists.find((list) => list.id === nextId) ?? null) : null;
+    if (nextId && !nextList) return;
+
+    setPriceListNotice(null);
+    setRepricing(true);
+    try {
+      const quote = nextList
+        ? await quoteProduct({ id: target.product_id, name: target.name }, nextList)
+        : null;
+      if (nextList && !quote) return;
+
+      setCart((current) =>
+        current.map((line) =>
+          line.id === lineId ? applyPosLinePriceList(line, nextList, quote) : line,
+        ),
+      );
+      setPayments([]);
+      toast.success(
+        `${target.name} actualizado a ${nextList?.name ?? BASE_PRICE_LIST_LABEL}. Pagos limpiados.`,
+      );
     } finally {
       setRepricing(false);
     }
@@ -3712,10 +3747,14 @@ export function PosTerminal() {
       product_variant_id: selectedVariant?.id ?? null,
       combo_instance_uuid: comboInstanceUuid ?? null,
     };
-    const samePriceList = (line: { price_list_id?: number | null }): boolean =>
-      !forced || line.price_list_id === forced.id;
-    const matchingLineRaw = findMatchingVariantLine(cart, variantMatch);
-    const matchingLine = matchingLineRaw && samePriceList(matchingLineRaw) ? matchingLineRaw : null;
+    const requestedPriceListId = forced?.id ?? selectedPriceList?.id ?? null;
+    const matchingLine =
+      findMatchingVariantPriceListLine(
+        cart,
+        variantMatch,
+        requestedPriceListId,
+        selectedPriceList?.id ?? null,
+      ) ?? null;
     const maximumQuantity =
       product.track_stock === false || allowNegativeStock ? Number.MAX_SAFE_INTEGER : available;
     if (matchingLine && matchingLine.quantity + quantity > maximumQuantity) {
@@ -3737,8 +3776,13 @@ export function PosTerminal() {
     }
     let newLineId: string | null = null;
     setCart((current) => {
-      const existingRaw = findMatchingVariantLine(current, variantMatch);
-      const existing = existingRaw && samePriceList(existingRaw) ? existingRaw : null;
+      const existing =
+        findMatchingVariantPriceListLine(
+          current,
+          variantMatch,
+          requestedPriceListId,
+          selectedPriceList?.id ?? null,
+        ) ?? null;
       if (existing) {
         newLineId = existing.id;
         return current.map((line) =>
@@ -4605,7 +4649,11 @@ export function PosTerminal() {
           if (line) addProductOfferApplication(applicationPromotion(application), line.id);
         }
       }
-      setSelectedPriceListId(items[0]?.price_list_id ?? null);
+      setSelectedPriceListId(
+        order.payment_price_list_explicit
+          ? (order.payment_price_list_id ?? null)
+          : (items[0]?.price_list_id ?? null),
+      );
       setWarehouseId(items[0]?.warehouse_id ?? warehouseId);
       setCustomerName(order.customer_name ?? 'Consumidor Final');
       setPanel(null);
@@ -4623,6 +4671,7 @@ export function PosTerminal() {
       cash_register_session_id: sessionId,
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer ? selectedCustomer.name : customerName,
+      payment_price_list_id: selectedPriceListId,
       invoice_promotion_id: selectedInvoicePromotion?.id ?? null,
       combo_applications: comboApplications.map(({ promotion, instance_uuid, sets }) => ({
         promotion_id: promotion.id,
@@ -4642,7 +4691,10 @@ export function PosTerminal() {
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
         product_variant_id: line.product_variant_id ?? null,
-        price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
+        price_list_id:
+          line.price_source === 'base'
+            ? null
+            : (line.price_list_id ?? selectedPriceList?.id ?? null),
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
         quantity: line.quantity,
@@ -4663,6 +4715,7 @@ export function PosTerminal() {
     return {
       customer_id: selectedCustomer?.id ?? null,
       customer_name: selectedCustomer ? selectedCustomer.name : customerName,
+      payment_price_list_id: selectedPriceListId,
       invoice_promotion_id: selectedInvoicePromotion?.id ?? null,
       combo_applications: comboApplications.map(({ promotion, instance_uuid, sets }) => ({
         promotion_id: promotion.id,
@@ -4682,7 +4735,10 @@ export function PosTerminal() {
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
         product_variant_id: line.product_variant_id ?? null,
-        price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
+        price_list_id:
+          line.price_source === 'base'
+            ? null
+            : (line.price_list_id ?? selectedPriceList?.id ?? null),
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
         quantity: line.quantity,
@@ -4824,8 +4880,12 @@ export function PosTerminal() {
   }
 }
 
-function CartLineRow({
+export function CartLineRow({
   line,
+  priceLists,
+  defaultPriceListId,
+  priceListDisabled,
+  onPriceListChange,
   canDiscount,
   onChange,
   onSerials,
@@ -4833,6 +4893,10 @@ function CartLineRow({
   skuColor,
 }: {
   line: PosCartLine;
+  priceLists: PriceList[];
+  defaultPriceListId: number | null;
+  priceListDisabled: boolean;
+  onPriceListChange: (priceListId: number | null) => void;
   canDiscount: boolean;
   onChange: (patch: Partial<PosCartLine>) => void;
   onSerials: () => void;
@@ -4845,6 +4909,8 @@ function CartLineRow({
 
   const unitLabel = formatCartUnitPrice(line.unit_of_measure);
   const unitSuffix = formatUnitSuffix(line.unit_of_measure);
+  const linePriceListId =
+    line.price_source === 'base' ? null : (line.price_list_id ?? defaultPriceListId);
 
   return (
     <div
@@ -4922,11 +4988,31 @@ function CartLineRow({
                 {unitSuffix}
               </Badge>
             )}
-            {line.price_list_name && (
-              <Badge variant="outline" className="text-xs font-semibold text-text-primary border-border px-2 py-0.5">
-                {line.price_list_name}
-              </Badge>
-            )}
+            <label className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-text-secondary">
+              <span>Lista:</span>
+              <Select
+                aria-label={`Lista de precio de ${line.name}`}
+                data-testid={`pos-line-price-list-${line.id}`}
+                value={linePriceListId ?? 'base'}
+                disabled={priceListDisabled}
+                onChange={(event) =>
+                  onPriceListChange(
+                    event.target.value === 'base' ? null : Number(event.target.value),
+                  )
+                }
+                className="h-7 w-36 max-w-[42vw] px-2 py-0 text-xs font-medium"
+                title="Cambiar solo la lista de precio de este producto"
+              >
+                <option value="base">{BASE_PRICE_LIST_LABEL}</option>
+                {priceLists
+                  .filter((priceList) => priceList.is_active !== false)
+                  .map((priceList) => (
+                    <option key={priceList.id} value={priceList.id}>
+                      {priceList.code} - {priceList.name}
+                    </option>
+                  ))}
+              </Select>
+            </label>
             {line.tracking_type === 'serialized' && (
               <button
                 type="button"

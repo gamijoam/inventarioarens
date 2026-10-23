@@ -54,6 +54,14 @@ class StorePosHoldRequest extends FormRequest
                 'integer',
                 Rule::exists('customers', 'id')->where('tenant_id', $tenantId),
             ],
+            'payment_price_list_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                Rule::exists('price_lists', 'id')->where(fn ($query) => $query
+                    ->where('tenant_id', $tenantId)
+                    ->where('is_active', true)),
+            ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.warehouse_id' => [
                 'required',

@@ -16,6 +16,8 @@ class PosOrderResource extends JsonResource
             'sale_id' => $this->sale_id,
             'cash_register_session_id' => $this->cash_register_session_id,
             'customer_id' => $this->customer_id,
+            'payment_price_list_id' => $this->payment_price_list_id,
+            'payment_price_list_explicit' => (bool) $this->payment_price_list_explicit,
             'status' => $this->status,
             'cashier_id' => $this->cashier_id,
             'seller_id' => $this->seller_id,

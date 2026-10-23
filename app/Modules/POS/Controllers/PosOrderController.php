@@ -246,6 +246,8 @@ class PosOrderController extends Controller
             invoicePromotionCode: $request->validated('invoice_promotion_code'),
             comboApplications: $request->validated('combo_applications', []),
             productOfferApplications: $request->validated('product_offer_applications', []),
+            paymentPriceListId: $request->validated('payment_price_list_id'),
+            paymentPriceListExplicit: $request->exists('payment_price_list_id'),
         );
 
         $this->preloadSerialUnits(collect([$order->loadMissing('sale.items')]), $request);
@@ -288,6 +290,8 @@ class PosOrderController extends Controller
             invoicePromotionCode: $request->validated('invoice_promotion_code'),
             comboApplications: $request->validated('combo_applications', []),
             productOfferApplications: $request->validated('product_offer_applications', []),
+            paymentPriceListId: $request->validated('payment_price_list_id'),
+            paymentPriceListExplicit: $request->exists('payment_price_list_id'),
         );
 
         $this->preloadSerialUnits(collect([$order->loadMissing('sale.items')]), $request);

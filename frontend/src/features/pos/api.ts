@@ -346,6 +346,8 @@ export const PosOrderSchema = z
     sale_id: z.number().int().nullable().optional(),
     cash_register_session_id: z.number().int().nullable().optional(),
     customer_id: z.number().int().nullable().optional(),
+    payment_price_list_id: z.number().int().nullable().optional(),
+    payment_price_list_explicit: z.boolean().optional(),
     status: z.string(),
     cashier_id: z.number().int().nullable().optional(),
     seller_id: z.number().int().nullable().optional(),
@@ -386,6 +388,7 @@ export interface CheckoutPayload {
   cash_register_session_id: number;
   customer_id?: number | null;
   customer_name?: string | null;
+  payment_price_list_id?: number | null;
   promotion_id?: number | null;
   promotion_code?: string | null;
   invoice_promotion_id?: number | null;
@@ -425,6 +428,7 @@ export interface CheckoutPayload {
 export interface HoldPayload {
   customer_id?: number | null;
   customer_name?: string | null;
+  payment_price_list_id?: number | null;
   promotion_id?: number | null;
   promotion_code?: string | null;
   invoice_promotion_id?: number | null;
@@ -574,7 +578,7 @@ export function usePosProducts(
 export async function fetchPosProductsDirect(
   search: string,
   warehouseId?: number | null,
-  perPage: number = 25,
+  perPage = 25,
 ): Promise<Product[]> {
   const params = new URLSearchParams({
     search,
