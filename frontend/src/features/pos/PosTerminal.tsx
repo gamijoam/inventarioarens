@@ -153,7 +153,7 @@ import {
   useBootstrapRefsForPos,
   usePaymentMethods,
   usePosBootstrap,
-  usePosProductsDebounced,
+  usePosProductsInfiniteDebounced,
   fetchPosProductsDirect,
   useSessionOrders,
   useWarehousesForPos,
@@ -968,11 +968,14 @@ export function PosTerminal() {
   const activeProductSearch = panel === 'product-search' ? productSearch : query;
   const shouldSearchProducts = activeProductSearch.trim().length >= 2;
   const {
-    data: productPage,
+    data: productPages,
     isLoading: loadingProducts,
+    isFetchingNextPage: fetchingMoreProducts,
+    hasNextPage: hasMoreProducts,
+    fetchNextPage: fetchMoreProducts,
     debouncedSearch,
-  } = usePosProductsDebounced(activeProductSearch, effectiveWarehouseId, {
-    enabled: shouldSearchProducts,
+  } = usePosProductsInfiniteDebounced(activeProductSearch, effectiveWarehouseId, {
+    enabled: shouldSearchProducts && panel === null,
   });
   const configuredPaymentMethods = useMemo(
     () => bootstrap.data?.payment_methods ?? [],
@@ -1165,13 +1168,16 @@ export function PosTerminal() {
   useEffect(() => {
     setSerialSearch('');
   }, [panel, serialLineId]);
-  const products = useMemo(() => productPage?.data ?? [], [productPage?.data]);
+  const products = useMemo(
+    () => productPages?.pages.flatMap((pageData) => pageData.data) ?? [],
+    [productPages],
+  );
   const quickSearchResults = useMemo(
     () =>
       panel === null &&
       query.trim().length >= 2 &&
       debouncedSearch.trim().toLocaleLowerCase() === query.trim().toLocaleLowerCase()
-        ? products.slice(0, 15)
+        ? products
         : [],
     [debouncedSearch, panel, products, query],
   );
@@ -1901,15 +1907,23 @@ export function PosTerminal() {
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown' && quickSearchResults.length > 0) {
                     event.preventDefault();
-                    setQuickSearchIndex((current) => (current + 1) % quickSearchResults.length);
+                    if (quickSearchIndex < quickSearchResults.length - 1) {
+                      setQuickSearchIndex((current) => current + 1);
+                    } else if (hasMoreProducts && !fetchingMoreProducts) {
+                      const currentLength = quickSearchResults.length;
+                      void fetchMoreProducts().then((result) => {
+                        const loadedCount = result.data?.pages.reduce(
+                          (total, pageData) => total + pageData.data.length,
+                          0,
+                        ) ?? currentLength;
+                        if (loadedCount > currentLength) setQuickSearchIndex(currentLength);
+                      });
+                    }
                     return;
                   }
                   if (event.key === 'ArrowUp' && quickSearchResults.length > 0) {
                     event.preventDefault();
-                    setQuickSearchIndex(
-                      (current) =>
-                        (current - 1 + quickSearchResults.length) % quickSearchResults.length,
-                    );
+                    setQuickSearchIndex((current) => Math.max(0, current - 1));
                     return;
                   }
                   if (event.key === 'Enter') {
@@ -1954,7 +1968,7 @@ export function PosTerminal() {
                   <div className="border-border bg-surface absolute top-[calc(100%+8px)] left-0 w-[min(680px,calc(100vw-32px))] z-50 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md flex flex-col max-h-[min(480px,calc(100vh-140px))]">
                     <div className="border-border text-text-muted flex items-center justify-between border-b px-3.5 py-2 text-xs tracking-wide uppercase bg-surface-subtle/50 shrink-0">
                       <span>
-                        Resultados rápidos ({quickSearchResults.length})
+                        Resultados ({productPages?.pages[0]?.meta.total ?? quickSearchResults.length})
                         {selectedPriceList && (
                           <span className="ml-1.5 text-primary font-semibold normal-case">
                             ({selectedPriceList.name})
@@ -1971,7 +1985,20 @@ export function PosTerminal() {
                         Ver todos
                       </TapButton>
                     </div>
-                    <div ref={quickSearchListRef} className="overflow-y-auto p-2 flex-1 min-h-0 overscroll-contain">
+                    <div
+                      ref={quickSearchListRef}
+                      onScroll={(event) => {
+                        const element = event.currentTarget;
+                        if (
+                          hasMoreProducts &&
+                          !fetchingMoreProducts &&
+                          element.scrollTop + element.clientHeight >= element.scrollHeight - 160
+                        ) {
+                          void fetchMoreProducts();
+                        }
+                      }}
+                      className="overflow-y-auto p-2 flex-1 min-h-0 overscroll-contain"
+                    >
                       {loadingProducts && quickSearchResults.length === 0 ? (
                         <div className="text-text-muted px-3 py-4 text-sm text-center">
                           Buscando productos...
@@ -2079,6 +2106,11 @@ export function PosTerminal() {
                             </TapButton>
                           );
                         })
+                      )}
+                      {fetchingMoreProducts && (
+                        <div className="px-3 py-3 text-center text-xs text-text-muted">
+                          Cargando más resultados...
+                        </div>
                       )}
                     </div>
                   </div>

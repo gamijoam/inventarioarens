@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,6 +24,7 @@ import {
   mergePosExchangeRateTypes,
   mergePosExchangeRates,
   mergePosPriceLists,
+  fetchPosProductsDirect,
   lookupProductSerialRequest,
   resolvePosPaymentRate,
   resolvePosOpenSession,
@@ -42,6 +43,7 @@ import {
   usePosBootstrap,
   usePosProducts,
   usePosProductsDebounced,
+  usePosProductsInfiniteDebounced,
 } from '../api';
 import {
   formatPosRateLabel,
@@ -406,6 +408,48 @@ describe('pos api', () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2), { timeout: 500 });
     const lastCall = fetchSpy.mock.calls.at(-1)?.[0] as string;
     expect(lastCall).toContain('search=abcde');
+  });
+
+  it('la búsqueda progresiva del POS solicita la página siguiente solo cuando se necesita', async () => {
+    mockGetPaginated
+      .mockResolvedValueOnce({
+        data: [],
+        meta: { current_page: 1, last_page: 2, per_page: 25, total: 26 },
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        meta: { current_page: 2, last_page: 2, per_page: 25, total: 26 },
+      });
+
+    const { result } = renderHook(
+      () => usePosProductsInfiniteDebounced('aceite', undefined, { debounceMs: 0 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockGetPaginated.mock.calls[0]?.[0]).toContain('page=1');
+    expect(mockGetPaginated.mock.calls[0]?.[0]).toContain('per_page=25');
+    expect(result.current.hasNextPage).toBe(true);
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    expect(mockGetPaginated.mock.calls[1]?.[0]).toContain('page=2');
+    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+  });
+
+  it('la búsqueda directa del POS admite pedir una página concreta para seguir cargando sugerencias', async () => {
+    mockGetPaginated.mockResolvedValue({
+      data: [],
+      meta: { current_page: 2, last_page: 2, per_page: 50, total: 51 },
+    });
+
+    await fetchPosProductsDirect('aceite', 3, 50, 2);
+
+    expect(mockGetPaginated.mock.calls[0]?.[0]).toContain('page=2');
+    expect(mockGetPaginated.mock.calls[0]?.[0]).toContain('per_page=50');
+    expect(mockGetPaginated.mock.calls[0]?.[0]).toContain('warehouse_id=3');
   });
 
   it('lee sucursales desde respuesta paginada', async () => {

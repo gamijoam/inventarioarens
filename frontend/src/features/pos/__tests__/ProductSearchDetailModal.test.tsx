@@ -81,19 +81,25 @@ const mockPriceLists: PriceList[] = [
   { id: 3, name: 'Precio 3 (Especial)', code: 'P3', is_default: false, is_active: true, sort_order: 3 },
 ] as PriceList[];
 
+const { mockFetchNextPage } = vi.hoisted(() => ({
+  mockFetchNextPage: vi.fn(),
+}));
+
 vi.mock('@/features/inventory-center/api', () => ({
-  useProducts: () => ({
+  useInfiniteProducts: () => ({
     data: {
-      data: mockProducts,
-      meta: {
-        current_page: 1,
-        last_page: 2,
-        per_page: 10,
-        total: 15,
-      },
+      pages: [{
+        data: mockProducts,
+        meta: { current_page: 1, last_page: 2, per_page: 50, total: 52 },
+      }],
+      pageParams: [1],
     },
     isLoading: false,
+    isFetchingNextPage: false,
+    hasNextPage: true,
+    fetchNextPage: mockFetchNextPage,
   }),
+  useProduct: () => ({ data: undefined }),
   useProductStockByWarehouse: () => ({
     data: [
       {
@@ -167,6 +173,7 @@ vi.mock('@/features/inventory-center/components/ProductImage', () => ({
 describe('ProductSearchDetailModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchNextPage.mockResolvedValue(undefined);
     window.localStorage.clear();
   });
 
@@ -209,6 +216,28 @@ describe('ProductSearchDetailModal', () => {
     // Categoría visible en cabecera y en lista de productos
     expect(screen.getByText('Categoría: Lubricantes')).toBeInTheDocument();
     expect(screen.getAllByText(/Lubricantes/).length).toBeGreaterThan(0);
+  });
+
+  it('muestra un solo listado sin controles de página y carga más resultados al desplazarse', () => {
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('product-search-virtual-list')).toBeInTheDocument();
+    expect(screen.getByText('52 productos')).toBeInTheDocument();
+    expect(screen.queryByText('Anterior')).not.toBeInTheDocument();
+    expect(screen.queryByText('Siguiente')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Página \d+ de/)).not.toBeInTheDocument();
+
+    fireEvent.scroll(screen.getByTestId('product-search-results-scroll'));
+    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
   });
 
   it('muestra la pestaña de Precios con comparativa Precio 1, 2 y 3 en USD y VES', () => {

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
-import { useProducts } from '@/features/inventory-center/api';
+import { useInfiniteProducts, useProducts } from '@/features/inventory-center/api';
 import { productKeys } from '@/features/inventory-center/queries';
 import {
   BranchSchema,
@@ -579,13 +579,14 @@ export async function fetchPosProductsDirect(
   search: string,
   warehouseId?: number | null,
   perPage = 25,
+  page = 1,
 ): Promise<Product[]> {
   const params = new URLSearchParams({
     search,
     tracking_type: 'all',
     stock_status: 'all',
     active_status: 'active',
-    page: '1',
+    page: String(page),
     per_page: String(perPage),
     with_images: '1',
     with_prices: '1',
@@ -633,6 +634,43 @@ export function usePosProductsDebounced(
   const abortRef = useRef<AbortController | null>(null);
 
   return { ...query, debouncedSearch, abortRef };
+}
+
+/**
+ * Búsqueda rápida del POS con páginas progresivas. Cada respuesta queda
+ * limitada a 25 productos; los siguientes lotes se solicitan al desplazarse.
+ */
+export function usePosProductsInfiniteDebounced(
+  search: string,
+  warehouseId?: number | null,
+  options: { enabled?: boolean; debounceMs?: number } = {},
+) {
+  const debounceMs = options.debounceMs ?? 200;
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const enabled = options.enabled ?? true;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const handle = window.setTimeout(() => setDebouncedSearch(search), debounceMs);
+    return () => window.clearTimeout(handle);
+  }, [search, debounceMs, enabled]);
+
+  const query = useInfiniteProducts(
+    {
+      search: debouncedSearch,
+      tracking_type: 'all',
+      stock_status: 'all',
+      active_status: 'active',
+      page: 1,
+      per_page: 25,
+      with_images: 1,
+      with_prices: 1,
+      warehouse_id: warehouseId ?? undefined,
+    },
+    { enabled },
+  );
+
+  return { ...query, debouncedSearch };
 }
 
 /**

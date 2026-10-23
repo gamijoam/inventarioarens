@@ -9,7 +9,7 @@
  *      * Selector de almacén.
  *      * Tabla de resultados con columnas Código, Descripción y Stock.
  *      * Navegación por teclado (Flechas Arriba/Abajo) y selección con doble clic o Enter/F2.
- *      * Controles de paginación (Anterior, Siguiente, Página X de Y, total).
+ *      * Carga progresiva al desplazarse, con filas virtualizadas y total de resultados.
  *  - Derecha:
  *      * Encabezado del producto seleccionado (Nombre, códigos, stock total).
  *      * Pestañas:
@@ -33,8 +33,6 @@ import {
   Boxes,
   Calendar,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Folder,
   Loader2,
   Lock,
@@ -54,7 +52,8 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import {
-  useProducts,
+  useInfiniteProducts,
+  useProduct,
   useProductSerials,
   useProductStockByWarehouse,
 } from '@/features/inventory-center/api';
@@ -78,7 +77,10 @@ interface ProductSearchDetailModalProps {
 
 type TabKey = 'datos' | 'existencia' | 'precios' | 'seriales';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 50;
+const RESULT_ROW_HEIGHT = 76;
+const RESULT_OVERSCAN = 8;
+const LOAD_AHEAD_ROWS = 12;
 const IVA_RATE = 0.16; // 16% IVA Venezuela
 
 function money(value: number | string | null | undefined): string {
@@ -165,8 +167,8 @@ export function ProductSearchDetailModal({
 }: ProductSearchDetailModalProps) {
   const [search, setSearch] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
-  const [page, setPage] = useState(1);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [listViewport, setListViewport] = useState({ scrollTop: 0, height: 600 });
   const [activeTab, setActiveTab] = useState<TabKey>('precios');
   const [serialFilter, setSerialFilter] = useState('');
   const [detailOpen, setDetailOpen] = useState<boolean>(() => {
@@ -181,44 +183,65 @@ export function ProductSearchDetailModal({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const warehouseSelectRef = useRef<HTMLSelectElement>(null);
-  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const resultsScrollRef = useRef<HTMLDivElement>(null);
+  const loadingNextPageRef = useRef(false);
 
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-      setPage(1);
     }, 180);
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Query paginada de productos
-  const { data: paginatedData, isLoading: loadingProducts } = useProducts(
+  // Lotes progresivos, presentados como un solo catálogo desplazable.
+  const {
+    data: paginatedData,
+    isLoading: loadingProducts,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteProducts(
     {
       search: debouncedSearch.trim(),
       warehouse_id: warehouseId ?? undefined,
-      page,
+      page: 1,
       per_page: PAGE_SIZE,
       active_status: 'active',
       tracking_type: 'all',
       stock_status: 'all',
-      with_images: 1,
-      with_prices: 1,
+      with_images: 0,
+      with_prices: 0,
     },
     { enabled: open },
   );
 
-  const products = useMemo(() => paginatedData?.data ?? [], [paginatedData]);
-  const meta = paginatedData?.meta;
-  const totalPages = meta?.last_page ?? 1;
-  const totalProducts = meta?.total ?? 0;
+  const products = useMemo(() => paginatedData?.pages.flatMap((pageData) => pageData.data) ?? [], [paginatedData]);
+  const totalProducts = paginatedData?.pages[0]?.meta.total ?? 0;
+  const visibleStartIndex = Math.max(
+    0,
+    Math.floor(listViewport.scrollTop / RESULT_ROW_HEIGHT) - RESULT_OVERSCAN,
+  );
+  const visibleEndIndex = Math.min(
+    products.length,
+    Math.ceil((listViewport.scrollTop + listViewport.height) / RESULT_ROW_HEIGHT) + RESULT_OVERSCAN,
+  );
+  const visibleProducts = products.slice(visibleStartIndex, visibleEndIndex);
+  const topSpacerHeight = visibleStartIndex * RESULT_ROW_HEIGHT;
+  const bottomSpacerHeight = Math.max(0, (products.length - visibleEndIndex) * RESULT_ROW_HEIGHT);
 
-  // Producto actualmente seleccionado
-  const selectedProduct = useMemo(() => {
+  // El catálogo trae solo los datos de la fila. El detalle completo se pide
+  // únicamente para el producto seleccionado, evitando cargar imágenes y
+  // precios de todo el inventario al abrir F3.
+  const listSelectedProduct = useMemo(() => {
     if (products.length === 0) return null;
     const safeIdx = Math.min(Math.max(0, selectedIndex), products.length - 1);
     return products[safeIdx] ?? null;
   }, [products, selectedIndex]);
+  const { data: selectedProductDetails } = useProduct(listSelectedProduct?.id ?? 0);
+  const selectedProduct = selectedProductDetails?.id === listSelectedProduct?.id
+    ? selectedProductDetails
+    : listSelectedProduct;
 
   // Categoría formateada del producto seleccionado
   const selectedCategory = useMemo(
@@ -252,10 +275,12 @@ export function ProductSearchDetailModal({
     }
   }, [open]);
 
-  // Reset selected index al cambiar de página o búsqueda
+  // Resetear índice y scroll al cambiar la búsqueda.
   useEffect(() => {
     setSelectedIndex(0);
-  }, [debouncedSearch, page]);
+    setListViewport((viewport) => ({ ...viewport, scrollTop: 0 }));
+    if (resultsScrollRef.current) resultsScrollRef.current.scrollTop = 0;
+  }, [debouncedSearch]);
 
   // Persistir la preferencia del panel de detalle entre aperturas del modal
   useEffect(() => {
@@ -268,16 +293,63 @@ export function ProductSearchDetailModal({
     }
   }, [detailOpen]);
 
-  // Asegurar visibilidad de la fila seleccionada
-  useEffect(() => {
-    if (!tableContainerRef.current) return;
-    const selectedRow = tableContainerRef.current.querySelector(
-      `[data-row-index="${selectedIndex}"]`,
-    ) as HTMLElement | null;
-    if (selectedRow && typeof selectedRow.scrollIntoView === 'function') {
-      selectedRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const loadNextProductsPage = useCallback(async () => {
+    if (!hasNextPage || isFetchingNextPage || loadingNextPageRef.current) return null;
+    loadingNextPageRef.current = true;
+    try {
+      return await fetchNextPage();
+    } finally {
+      loadingNextPageRef.current = false;
     }
-  }, [selectedIndex]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  const moveSelectionBy = useCallback(
+    async (offset: number) => {
+      const targetIndex = Math.max(0, selectedIndex + offset);
+      let loadedProducts = products;
+      let morePages = hasNextPage;
+
+      while (targetIndex >= loadedProducts.length && morePages) {
+        const result = await loadNextProductsPage();
+        if (!result?.data) break;
+        loadedProducts = result.data.pages.flatMap((pageData) => pageData.data);
+        morePages = result.hasNextPage;
+      }
+
+      if (loadedProducts.length > 0) {
+        setSelectedIndex(Math.min(targetIndex, loadedProducts.length - 1));
+      }
+    },
+    [hasNextPage, loadNextProductsPage, products, selectedIndex],
+  );
+
+  const handleResultsScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, clientHeight } = event.currentTarget;
+      const height = clientHeight || 600;
+      setListViewport({ scrollTop, height });
+
+      const loadThreshold = Math.max(0, products.length - LOAD_AHEAD_ROWS) * RESULT_ROW_HEIGHT;
+      if (scrollTop + height >= loadThreshold) {
+        void loadNextProductsPage();
+      }
+    },
+    [loadNextProductsPage, products.length],
+  );
+
+  // Asegurar visibilidad de la fila seleccionada en la ventana virtualizada.
+  useEffect(() => {
+    const scrollContainer = resultsScrollRef.current;
+    if (!scrollContainer || products.length === 0) return;
+
+    const rowTop = selectedIndex * RESULT_ROW_HEIGHT;
+    const rowBottom = rowTop + RESULT_ROW_HEIGHT;
+    if (rowTop < scrollContainer.scrollTop) {
+      scrollContainer.scrollTop = rowTop;
+    } else if (rowBottom > scrollContainer.scrollTop + scrollContainer.clientHeight) {
+      scrollContainer.scrollTop = Math.max(0, rowBottom - scrollContainer.clientHeight);
+    }
+  }, [products.length, selectedIndex]);
 
   // Cálculo de tabla comparativa de precios (Precio 1, 2, 3 c/impuesto en USD, VES y por empaque)
   const priceRows = useMemo<PriceTableRow[]>(() => {
@@ -442,29 +514,25 @@ export function ProductSearchDetailModal({
         case 'ArrowDown': {
           if (products.length > 0) {
             event.preventDefault();
-            setSelectedIndex((curr) => (curr + 1 < products.length ? curr + 1 : curr));
+            void moveSelectionBy(1);
           }
           break;
         }
         case 'ArrowUp': {
           if (products.length > 0) {
             event.preventDefault();
-            setSelectedIndex((curr) => (curr > 0 ? curr - 1 : 0));
+            void moveSelectionBy(-1);
           }
           break;
         }
         case 'PageDown': {
-          if (page < totalPages) {
-            event.preventDefault();
-            setPage((p) => p + 1);
-          }
+          event.preventDefault();
+          void moveSelectionBy(Math.max(1, Math.floor(listViewport.height / RESULT_ROW_HEIGHT) - 1));
           break;
         }
         case 'PageUp': {
-          if (page > 1) {
-            event.preventDefault();
-            setPage((p) => p - 1);
-          }
+          event.preventDefault();
+          void moveSelectionBy(-Math.max(1, Math.floor(listViewport.height / RESULT_ROW_HEIGHT) - 1));
           break;
         }
         case 'Enter': {
@@ -487,7 +555,7 @@ export function ProductSearchDetailModal({
           break;
       }
     },
-    [products.length, page, totalPages, handleConfirmSelect, onClose],
+    [handleConfirmSelect, listViewport.height, moveSelectionBy, onClose, products.length],
   );
 
   // Captura global de teclado mientras el modal esté abierto:
@@ -560,7 +628,7 @@ export function ProductSearchDetailModal({
         if (target?.tagName !== 'SELECT' && products.length > 0) {
           event.preventDefault();
           event.stopPropagation();
-          setSelectedIndex((curr) => (curr + 1 < products.length ? curr + 1 : curr));
+          void moveSelectionBy(1);
         }
         return;
       }
@@ -569,26 +637,22 @@ export function ProductSearchDetailModal({
         if (target?.tagName !== 'SELECT' && products.length > 0) {
           event.preventDefault();
           event.stopPropagation();
-          setSelectedIndex((curr) => (curr > 0 ? curr - 1 : 0));
+          void moveSelectionBy(-1);
         }
         return;
       }
 
       if (event.key === 'PageDown') {
-        if (page < totalPages) {
-          event.preventDefault();
-          event.stopPropagation();
-          setPage((p) => p + 1);
-        }
+        event.preventDefault();
+        event.stopPropagation();
+        void moveSelectionBy(Math.max(1, Math.floor(listViewport.height / RESULT_ROW_HEIGHT) - 1));
         return;
       }
 
       if (event.key === 'PageUp') {
-        if (page > 1) {
-          event.preventDefault();
-          event.stopPropagation();
-          setPage((p) => p - 1);
-        }
+        event.preventDefault();
+        event.stopPropagation();
+        void moveSelectionBy(-Math.max(1, Math.floor(listViewport.height / RESULT_ROW_HEIGHT) - 1));
         return;
       }
 
@@ -618,7 +682,7 @@ export function ProductSearchDetailModal({
     return () => {
       window.removeEventListener('keydown', onGlobalKeyDown, true);
     };
-  }, [open, onClose, handleConfirmSelect, products.length, page, totalPages]);
+  }, [open, onClose, handleConfirmSelect, listViewport.height, moveSelectionBy, products.length]);
 
   // Seriales filtrados
   const filteredSerials = useMemo(() => {
@@ -730,12 +794,11 @@ export function ProductSearchDetailModal({
         {/* Cuerpo Principal: lista de productos + panel de detalle */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
           {/* ============================================================== */}
-          {/* COLUMNA IZQUIERDA: Tabla de Resultados y Paginación */}
+          {/* COLUMNA IZQUIERDA: Tabla virtualizada de resultados */}
           {/* ============================================================== */}
           <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
             {/* Tabla de Resultados */}
             <div
-              ref={tableContainerRef}
               className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface"
             >
               {/* Encabezado fijo de la tabla */}
@@ -746,7 +809,12 @@ export function ProductSearchDetailModal({
               </div>
 
               {/* Contenido scrolleable */}
-              <div className="flex-1 overflow-y-auto p-2">
+              <div
+                ref={resultsScrollRef}
+                data-testid="product-search-results-scroll"
+                onScroll={handleResultsScroll}
+                className="flex-1 overflow-y-auto p-2"
+              >
                 {loadingProducts ? (
                   <div className="flex h-48 flex-col items-center justify-center gap-2 text-text-muted">
                     <Loader2 className="size-6 animate-spin text-primary" />
@@ -758,8 +826,10 @@ export function ProductSearchDetailModal({
                     <p className="text-sm">No se encontraron productos coincidentes.</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-1">
-                    {products.map((p, index) => {
+                  <div className="flex flex-col" data-testid="product-search-virtual-list">
+                    {topSpacerHeight > 0 && <div aria-hidden="true" style={{ height: topSpacerHeight }} />}
+                    {visibleProducts.map((p, visibleIndex) => {
+                      const index = visibleStartIndex + visibleIndex;
                       const isSelected = index === selectedIndex;
                       const stock = Number(p.available_stock ?? 0);
                       const isLowStock =
@@ -775,7 +845,7 @@ export function ProductSearchDetailModal({
                           }}
                           onDoubleClick={handleConfirmSelect}
                           className={cn(
-                            'grid cursor-pointer grid-cols-12 items-center gap-2 rounded-xl px-3 py-3 text-sm transition-colors select-none',
+                            'mb-1 grid h-[72px] shrink-0 cursor-pointer grid-cols-12 items-center gap-2 overflow-hidden rounded-xl px-3 py-2 text-sm transition-colors select-none',
                             isSelected
                               ? 'bg-primary/10 ring-1 ring-primary/40'
                               : 'hover:bg-bg/60',
@@ -785,10 +855,10 @@ export function ProductSearchDetailModal({
                           <div className="col-span-4 truncate font-mono text-xs font-semibold text-text-primary sm:text-sm">
                             {p.sku || p.barcode || 'S/C'}
                           </div>
-                          <div className="col-span-6 min-w-0" title={p.name}>
+                          <div className="col-span-6 min-w-0 overflow-hidden" title={p.name}>
                             <div
                               className={cn(
-                                'text-sm leading-snug break-words whitespace-normal',
+                                'truncate text-sm leading-snug',
                                 isSelected ? 'font-bold text-text-primary' : 'text-text-secondary',
                               )}
                             >
@@ -817,41 +887,34 @@ export function ProductSearchDetailModal({
                         </div>
                       );
                     })}
+                    {bottomSpacerHeight > 0 && <div aria-hidden="true" style={{ height: bottomSpacerHeight }} />}
+                    {isFetchingNextPage && (
+                      <div className="flex h-12 shrink-0 items-center justify-center gap-2 text-xs text-text-muted">
+                        <Loader2 className="size-4 animate-spin text-primary" />
+                        Cargando más productos...
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Controles de Paginación */}
-            <div className="flex shrink-0 items-center justify-between rounded-2xl border border-border/70 bg-bg/30 px-4 py-2.5 text-sm text-text-muted">
-              <span>
-                Pág. <strong className="text-text-primary">{page}</strong> de{' '}
-                <strong className="text-text-primary">{totalPages}</strong> · {totalProducts} items
+            <div
+              className="flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-border/70 bg-bg/30 px-4 py-2.5 text-xs text-text-muted"
+              role="status"
+            >
+              <span className="font-medium text-text-primary">
+                {loadingProducts ? 'Buscando productos...' : `${totalProducts} productos`}
               </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1 || loadingProducts}
-                  className="h-9 gap-1 rounded-xl px-3 text-sm font-medium"
-                  aria-label="Página anterior"
-                >
-                  <ChevronLeft className="size-4" />
-                  <span>Ant.</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages || loadingProducts}
-                  className="h-9 gap-1 rounded-xl px-3 text-sm font-medium"
-                  aria-label="Página siguiente"
-                >
-                  <span>Sig.</span>
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
+              <span className="text-right">
+                {isFetchingNextPage
+                  ? 'Cargando más resultados...'
+                  : hasNextPage
+                    ? 'Desplázate para ver el resto del catálogo'
+                    : products.length > 0
+                      ? 'Todos los resultados están cargados'
+                      : ''}
+              </span>
             </div>
           </div>
 

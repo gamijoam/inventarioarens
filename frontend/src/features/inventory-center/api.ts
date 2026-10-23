@@ -26,7 +26,7 @@
  *   - GET    /api/price-lists?active_only=1
  *   - GET    /api/warehouses
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { api, deleteOne, getMany, getOne, getPaginated, patchOne, postOne } from '@/api/client';
@@ -143,6 +143,30 @@ export function useProducts(filters: InventoryFilters, options: { enabled?: bool
     staleTime: 0,
     refetchOnMount: 'always',
     enabled: options.enabled ?? true,
+  });
+}
+
+/**
+ * Búsqueda de catálogo con carga progresiva. El backend sigue entregando lotes
+ * acotados para no cargar todos los productos en una sola respuesta; el POS
+ * agrega páginas al mismo listado al desplazarse, sin controles de paginación.
+ */
+export function useInfiniteProducts(filters: InventoryFilters, options: { enabled?: boolean } = {}) {
+  return useInfiniteQuery({
+    queryKey: [...productKeys.lists(), 'infinite', filters as Record<string, unknown>],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam, signal }) => {
+      const query = toQueryString({ ...filters, page: pageParam });
+      const response = await getPaginated<unknown>(`/products${query ? `?${query}` : ''}`, { signal });
+      return PaginatedProductsSchema.parse(response);
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.current_page < lastPage.meta.last_page
+        ? lastPage.meta.current_page + 1
+        : undefined,
+    enabled: options.enabled ?? true,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 

@@ -135,11 +135,16 @@ export function ClassicPosView({
   const [isSearching, setIsSearching] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState<number>(0);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [loadingMoreSearch, setLoadingMoreSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownListRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTermRef = useRef('');
+  const searchPageRef = useRef(1);
+  const searchHasMoreRef = useRef(false);
+  const searchLoadingMoreRef = useRef(false);
 
   // Posición del dropdown portal para evitar recortes y desbordamientos en pantalla
   const [dropdownPosition, setDropdownPosition] = useState<{
@@ -274,6 +279,11 @@ export function ClassicPosView({
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchTerm(val);
+    searchTermRef.current = val.trim();
+    searchPageRef.current = 1;
+    searchHasMoreRef.current = false;
+    searchLoadingMoreRef.current = false;
+    setLoadingMoreSearch(false);
 
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
@@ -288,16 +298,43 @@ export function ClassicPosView({
     setIsSearching(true);
     searchDebounceRef.current = setTimeout(async () => {
       try {
-        const results = await fetchPosProductsDirect(val.trim(), warehouseId ?? null, 30);
-        setSearchResults(results.slice(0, 30));
-        setActiveSearchIndex(0);
-        setShowDropdown(results.length > 0);
+        const term = val.trim();
+        const results = await fetchPosProductsDirect(term, warehouseId ?? null, 50, 1);
+        if (searchTermRef.current === term) {
+          searchPageRef.current = 1;
+          searchHasMoreRef.current = results.length === 50;
+          setSearchResults(results);
+          setActiveSearchIndex(0);
+          setShowDropdown(results.length > 0);
+        }
       } catch {
-        setSearchResults([]);
+        if (searchTermRef.current === val.trim()) setSearchResults([]);
       } finally {
-        setIsSearching(false);
+        if (searchTermRef.current === val.trim()) setIsSearching(false);
       }
     }, 180);
+  };
+
+  const loadMoreSearchResults = async () => {
+    const term = searchTermRef.current;
+    if (!term || !searchHasMoreRef.current || searchLoadingMoreRef.current) return;
+
+    const nextPage = searchPageRef.current + 1;
+    searchLoadingMoreRef.current = true;
+    setLoadingMoreSearch(true);
+    try {
+      const results = await fetchPosProductsDirect(term, warehouseId ?? null, 50, nextPage);
+      if (searchTermRef.current === term) {
+        searchPageRef.current = nextPage;
+        searchHasMoreRef.current = results.length === 50;
+        setSearchResults((current) => [...current, ...results]);
+      }
+    } catch {
+      // El usuario puede seguir usando los resultados ya cargados.
+    } finally {
+      searchLoadingMoreRef.current = false;
+      setLoadingMoreSearch(false);
+    }
   };
 
   // Agregar producto seleccionado al ticket (sin toast ruidoso)
@@ -309,6 +346,9 @@ export function ClassicPosView({
         toast.error('No se pudo agregar el producto');
       } finally {
         setSearchTerm('');
+        searchTermRef.current = '';
+        searchPageRef.current = 1;
+        searchHasMoreRef.current = false;
         setSearchResults([]);
         setShowDropdown(false);
         searchInputRef.current?.focus();
@@ -747,6 +787,12 @@ export function ClassicPosView({
 
                     <div
                       ref={dropdownListRef}
+                      onScroll={(event) => {
+                        const element = event.currentTarget;
+                        if (element.scrollTop + element.clientHeight >= element.scrollHeight - 140) {
+                          void loadMoreSearchResults();
+                        }
+                      }}
                       className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 overscroll-contain"
                     >
                       {isSearching ? (
@@ -844,6 +890,11 @@ export function ClassicPosView({
                             </div>
                           );
                         })
+                      )}
+                      {loadingMoreSearch && (
+                        <div className="p-3 text-center text-xs font-medium text-slate-500">
+                          Cargando más resultados...
+                        </div>
                       )}
                     </div>
                   </div>,
