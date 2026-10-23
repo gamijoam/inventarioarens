@@ -70,11 +70,17 @@ jobs:
         run: |
           if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue)) {
             choco install nsis --yes --no-progress
-            $env:Path += ";${env:ProgramFiles(x86)}\NSIS"
+            $candidateDirectory = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
+            if (Test-Path (Join-Path $candidateDirectory 'makensis.exe')) {
+              $env:Path += ";$candidateDirectory"
+            }
           }
-          if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue)) {
+          $makensis = Get-Command makensis.exe -ErrorAction SilentlyContinue
+          if (-not $makensis) {
             throw 'No se encontro makensis.exe despues de instalar NSIS.'
           }
+          $nsisDirectory = Split-Path -Parent $makensis.Source
+          Add-Content -Path $env:GITHUB_PATH -Value $nsisDirectory
 
       - name: Package and hash installers
         shell: pwsh
