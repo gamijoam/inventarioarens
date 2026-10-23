@@ -1,0 +1,94 @@
+name: Release BalanzaPro LAN Printer Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version del agente local de impresion'
+        required: true
+        default: '1.0.0'
+        type: string
+      prerelease:
+        description: 'Publicar como version candidata'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build + publish Windows printer agent
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/printer-agent/go.mod
+          cache-dependency-path: tools/printer-agent/go.sum
+
+      - name: Test printer agent
+        working-directory: tools/printer-agent
+        run: go test ./...
+
+      - name: Build per-user Windows agent
+        working-directory: tools/printer-agent
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          $env:CGO_ENABLED = '0'
+          go build -trimpath -ldflags='-s -w -H=windowsgui' -o bin/BalanzaPro-Printer-Agent.exe ./cmd/printer-agent
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue)) {
+            choco install nsis --yes --no-progress
+            $env:Path += ";${env:ProgramFiles(x86)}\NSIS"
+          }
+          if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue)) {
+            throw 'No se encontro makensis.exe despues de instalar NSIS.'
+          }
+
+      - name: Package and hash installers
+        shell: pwsh
+        env:
+          PRINTER_VERSION: ${{ inputs.version }}
+        run: |
+          $version = $env:PRINTER_VERSION
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Version invalida: $version"
+          }
+          $output = "BalanzaPro-Impresor-Setup-$version.exe"
+          Push-Location tools/printer-agent/installer
+          try {
+            makensis.exe "/DVERSION=$version" "/DOUT_FILE=$output" installer-user.nsi
+          } finally {
+            Pop-Location
+          }
+          New-Item -ItemType Directory -Force -Path build/printer-agent | Out-Null
+          Copy-Item tools/printer-agent/installer/$output build/printer-agent/$output
+          Copy-Item tools/printer-agent/bin/BalanzaPro-Printer-Agent.exe build/printer-agent/
+          Get-ChildItem build/printer-agent -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$($_.Name)" | Set-Content "$($_.FullName).sha256" -Encoding ascii
+          }
+          Get-ChildItem build/printer-agent -File | Select-Object Name, Length
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: printer-v${{ inputs.version }}-balanzapro
+          name: BalanzaPro Impresor Local ${{ inputs.version }}
+          prerelease: ${{ inputs.prerelease }}
+          make_latest: false
+          generate_release_notes: true
+          files: |
+            build/printer-agent/BalanzaPro-Impresor-Setup-${{ inputs.version }}.exe
+            build/printer-agent/BalanzaPro-Impresor-Setup-${{ inputs.version }}.exe.sha256
+            build/printer-agent/BalanzaPro-Printer-Agent.exe
+            build/printer-agent/BalanzaPro-Printer-Agent.exe.sha256

@@ -282,35 +282,27 @@ export function useUpdatePrintJobStatus() {
 
 export async function getPrinterAgentUrl(): Promise<string> {
   if (typeof window !== 'undefined') {
-    // 1. Probar primero si hay un agente local en 127.0.0.1:17777 (Local-First para cada PC)
+    // Cada estación imprime con el agente de la computadora donde se abrió el POS.
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 700);
-      const res = await fetch('http://127.0.0.1:17777/health', {
-        method: 'GET',
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      let res: Response;
+      try {
+        res = await fetch('http://127.0.0.1:17777/health', {
+          method: 'GET',
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (res.ok) {
         return 'http://127.0.0.1:17777/print';
       }
+      throw new Error(`El agente local respondio ${res.status}.`);
     } catch {
-      // Agente no respondiendo en localhost, continuar con respaldo de red
-    }
-
-    // 2. Si no hay agente local en esta máquina física y estamos conectados a un servidor LAN o Motor Local:
-    if (window.location.port === '8787' || window.location.port === '8789') {
-      return `${window.location.origin}/print`;
-    }
-    if (
-      window.location.hostname !== 'localhost' &&
-      window.location.hostname !== '127.0.0.1' &&
-      !window.location.hostname.endsWith('balanzapro.com') &&
-      !window.location.hostname.endsWith('miinventariofacil.com') &&
-      !window.location.hostname.endsWith('tiendasarens.com') &&
-      !window.location.hostname.endsWith('repuestosavilacar.com')
-    ) {
-      return `${window.location.origin}/print`;
+      throw new Error(
+        'No se detecta BalanzaPro Impresor Local en esta PC. Instálalo y permite el acceso a la red local en el navegador.',
+      );
     }
   }
 
@@ -376,7 +368,7 @@ function blobToBase64(blob: Blob): Promise<string> {
       const base64 = result.includes(',') ? result.slice(result.indexOf(',') + 1) : result;
       resolve(base64);
     };
-    reader.onerror = () => reject(reader.error);
+    reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo PDF.'));
     reader.readAsDataURL(blob);
   });
 }
@@ -439,8 +431,8 @@ export function exampleTicketPayload(profile: PrintProfilePayload | PrintProfile
     tenant: { name: 'DEMO CARACAS', slug: 'demo-caracas' },
     profile: {
       ...profile,
-      legal_text: profile.legal_text || 'Documento no fiscal',
-      warranty_policy_text: profile.warranty_policy_text || null,
+      legal_text: profile.legal_text ?? 'Documento no fiscal',
+      warranty_policy_text: profile.warranty_policy_text ?? null,
     },
     copy: false,
     pos_order: {

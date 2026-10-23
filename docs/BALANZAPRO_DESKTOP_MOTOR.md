@@ -154,6 +154,18 @@ $p = Join-Path $env:APPDATA "InventarioArens\storage\app\sync-worker\sync-config
 Notas: cada empresa usa su propio token/nodo/worker. No compartir el SQLite por
 red. El código de vinculación expira y es de un solo uso.
 
+### 4.4 Varias cajas en la red local
+
+El POS de la PC principal se puede servir a las otras cajas desde el navegador;
+instalar el `.exe` POS en cada PC no lo convierte en cliente del Motor central.
+Para imprimir en la térmica local de cada estación, instala el agente separado
+`BalanzaPro Impresor Local` en el perfil del cajero y asigna su nombre de
+impresora a la estación/caja. La guía completa está en
+[`docs/GUIA_IMPRESION_LAN_BALANZAPRO.md`](./GUIA_IMPRESION_LAN_BALANZAPRO.md).
+La versión de los clientes que incluye el mensaje de diagnóstico del agente es
+0.2.68; el agente independiente se publica mediante
+`.github/workflows/release-balanzapro-printer-agent.yml`.
+
 ---
 
 ## 5. Troubleshooting: fallo de instalación del Motor

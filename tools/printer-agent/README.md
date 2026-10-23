@@ -98,3 +98,14 @@ En `scripts/install-local-motor.ps1` o WinSW:
   <logmode>roll</logmode>
 </service>
 ```
+
+## Agente independiente por usuario en BalanzaPro LAN
+
+Las cajas que usan el POS de la PC principal desde un navegador pueden instalar
+el agente independiente publicado como `BalanzaPro-Impresor-Setup-<version>.exe`.
+Se inicia al entrar a Windows y escucha solo en `127.0.0.1:17777`; no instala el
+Motor ni una base de datos. El perfil de impresión del servidor debe guardar el
+nombre exacto de la impresora Windows de esa estación.
+
+El instalador independiente no debe usarse en una PC donde ya corre el agente
+del Motor Local, porque ambos usan el puerto `17777`.

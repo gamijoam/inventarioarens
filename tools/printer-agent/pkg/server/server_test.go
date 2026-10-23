@@ -69,7 +69,7 @@ func TestHealthCheck(t *testing.T) {
 func TestOptionsCorsPreflight(t *testing.T) {
 	s := NewServer(17777, &mockPrinter{})
 	req := httptest.NewRequest("OPTIONS", "/print", nil)
-	req.Header.Set("Origin", "http://192.168.1.25:8787")
+	req.Header.Set("Origin", "http://192.168.1.25:8791")
 	req.Header.Set("Access-Control-Request-Private-Network", "true")
 	w := httptest.NewRecorder()
 
@@ -82,11 +82,33 @@ func TestOptionsCorsPreflight(t *testing.T) {
 		t.Fatalf("Expected 204 No Content, got %d", res.StatusCode)
 	}
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "http://192.168.1.25:8787" {
+	if w.Header().Get("Access-Control-Allow-Origin") != "http://192.168.1.25:8791" {
 		t.Errorf("Unexpected CORS origin header: %q", w.Header().Get("Access-Control-Allow-Origin"))
 	}
 	if w.Header().Get("Access-Control-Allow-Private-Network") != "true" {
 		t.Errorf("Missing private-network preflight header")
+	}
+}
+
+func TestTrustedRendererOriginsAreRestrictedToPrivateNetworksAndAppPorts(t *testing.T) {
+	for _, origin := range []string{
+		"http://192.168.1.25:8791",
+		"http://127.0.0.1:8791",
+		"http://10.0.0.8:8789",
+	} {
+		if !trustedBrowserOrigin(origin) {
+			t.Errorf("trustedBrowserOrigin(%q) = false, want true", origin)
+		}
+	}
+
+	for _, origin := range []string{
+		"http://192.168.1.25:17777",
+		"http://203.0.113.7:8791",
+		"https://192.168.1.25:8791",
+	} {
+		if trustedBrowserOrigin(origin) {
+			t.Errorf("trustedBrowserOrigin(%q) = true, want false", origin)
+		}
 	}
 }
 

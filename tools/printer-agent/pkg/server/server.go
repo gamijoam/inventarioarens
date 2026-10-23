@@ -79,7 +79,7 @@ func trustedBrowserOrigin(origin string) bool {
 		return false
 	}
 	port, err := strconv.Atoi(parsed.Port())
-	if err != nil || (port != 8787 && port != 8789) {
+	if err != nil || !isTrustedRendererPort(port) {
 		return false
 	}
 	host := strings.Trim(parsed.Hostname(), "[]")
@@ -88,6 +88,15 @@ func trustedBrowserOrigin(origin string) bool {
 	}
 	ip := net.ParseIP(host)
 	return parsed.Scheme == "http" && ip != nil && (ip.IsPrivate() || ip.IsLoopback())
+}
+
+func isTrustedRendererPort(port int) bool {
+	switch port {
+	case 8787, 8788, 8789, 8790, 8791, 8792, 8793:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
