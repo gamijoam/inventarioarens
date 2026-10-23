@@ -258,6 +258,10 @@ func (s *Server) printThermal(req PrintRequestPayload) (*printer.PrintResult, er
 	}
 
 	pName, _ := station["printer_name"].(string)
+	useDefaultPrinter, _ := station["use_default_printer"].(bool)
+	if pType == "windows_printer" && useDefaultPrinter {
+		pName = ""
+	}
 	nHost, _ := station["network_host"].(string)
 	nPort := 9100
 	if p, ok := station["network_port"].(float64); ok && p > 0 {
@@ -277,11 +281,12 @@ func (s *Server) printThermal(req PrintRequestPayload) (*printer.PrintResult, er
 	}
 
 	opts := printer.PrintOptions{
-		PrinterType:    pType,
-		NetworkHost:    nHost,
-		NetworkPort:    nPort,
-		CutPaper:       cutPaper,
-		OpenCashDrawer: openDrawer,
+		PrinterType:       pType,
+		NetworkHost:       nHost,
+		NetworkPort:       nPort,
+		UseDefaultPrinter: pType == "windows_printer" && useDefaultPrinter,
+		CutPaper:          cutPaper,
+		OpenCashDrawer:    openDrawer,
 	}
 
 	return s.printer.Print(text, pName, opts)

@@ -280,6 +280,32 @@ export function useUpdatePrintJobStatus() {
   });
 }
 
+/**
+ * In LAN mode the POS is served by the central PC, but this browser's loopback
+ * printer agent belongs to the workstation running the browser. Use that PC's
+ * Windows default printer instead of forwarding the central station's printer
+ * name to the client agent.
+ */
+export function shouldUseWorkstationDefaultPrinter(location: Pick<Location, 'hostname' | 'port'>): boolean {
+  if (!['8787', '8789', '8791'].includes(location.port)) return false;
+
+  const hostname = location.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (hostname === 'localhost' || hostname === '::1' || hostname.startsWith('127.')) return false;
+
+  if (hostname.endsWith('.local')) return true;
+
+  const octets = hostname.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+
+  return (
+    octets[0] === 10 ||
+    (octets[0] === 192 && octets[1] === 168) ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+  );
+}
+
 export async function getPrinterAgentUrl(): Promise<string> {
   if (typeof window !== 'undefined') {
     // Cada estación imprime con el agente de la computadora donde se abrió el POS.
@@ -328,6 +354,12 @@ export async function sendJobToLocalAgent(
   }
 
   const stationToUse = job.station?.printer_name ? job.station : (fallbackStation ?? job.station);
+  const stationForWorkstation =
+    typeof window !== 'undefined' &&
+    shouldUseWorkstationDefaultPrinter(window.location) &&
+    stationToUse?.printer_type === 'windows_printer'
+      ? { ...stationToUse, printer_name: null, use_default_printer: true }
+      : stationToUse;
   const targetUrl = await getPrinterAgentUrl();
 
   const response = await fetch(targetUrl, {
@@ -338,7 +370,7 @@ export async function sendJobToLocalAgent(
       output: job.output,
       ticket_pdf_url: job.ticket_pdf_url,
       ticket_html_url: job.ticket_html_url,
-      station: stationToUse,
+      station: stationForWorkstation,
       payload: job.payload_snapshot,
       pdf_base64: pdfBase64,
     }),

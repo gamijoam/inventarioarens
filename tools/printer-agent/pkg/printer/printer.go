@@ -15,11 +15,12 @@ import (
 )
 
 type PrintOptions struct {
-	PrinterType    string `json:"printer_type"`
-	NetworkHost    string `json:"network_host"`
-	NetworkPort    int    `json:"network_port"`
-	CutPaper       bool   `json:"cut_paper"`
-	OpenCashDrawer bool   `json:"open_cash_drawer"`
+	PrinterType       string `json:"printer_type"`
+	NetworkHost       string `json:"network_host"`
+	NetworkPort       int    `json:"network_port"`
+	UseDefaultPrinter bool  `json:"use_default_printer"`
+	CutPaper          bool   `json:"cut_paper"`
+	OpenCashDrawer    bool   `json:"open_cash_drawer"`
 }
 
 type PrintResult struct {
@@ -114,6 +115,17 @@ func (p *ThermalPrinter) printNetwork(text string, options PrintOptions) (*Print
 }
 
 func (p *ThermalPrinter) printDriver(text string, printerName string, options PrintOptions) (*PrintResult, error) {
+	if options.UseDefaultPrinter {
+		defaultPrinter, err := getDefaultPrinterName()
+		if err != nil {
+			return &PrintResult{
+				Ok:      false,
+				Message: fmt.Sprintf("No se pudo detectar la impresora predeterminada de esta PC: %v", err),
+			}, err
+		}
+		printerName = defaultPrinter
+	}
+
 	if printerName == "" {
 		return &PrintResult{
 			Ok:      false,

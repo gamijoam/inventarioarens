@@ -240,6 +240,27 @@ func TestPrintThermal_Success(t *testing.T) {
 	}
 }
 
+func TestPrintThermal_UsesWorkstationDefaultPrinter(t *testing.T) {
+	mock := &mockPrinter{}
+	s := NewServer(17777, mock)
+	body := strings.NewReader(`{"output":"thermal","station":{"printer_type":"windows_printer","printer_name":"SERVER-USB-PRINTER","use_default_printer":true},"payload":{"profile":{"cut_paper":true},"tenant":{"name":"Tienda Test"},"pos_order":{"id":1001}}}`)
+	req := httptest.NewRequest(http.MethodPost, "/print", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if mock.lastPrinter != "" {
+		t.Fatalf("printer name = %q, want empty so the local agent resolves its own default", mock.lastPrinter)
+	}
+	if !mock.lastOptions.UseDefaultPrinter {
+		t.Fatal("UseDefaultPrinter was not forwarded to the local printer")
+	}
+}
+
 func TestPrint_InvalidJSON(t *testing.T) {
 	s := NewServer(17777, &mockPrinter{})
 	req := httptest.NewRequest("POST", "/print", strings.NewReader("invalid-json{"))

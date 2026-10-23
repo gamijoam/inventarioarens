@@ -11,6 +11,7 @@ import (
 var (
 	winspool             = syscall.NewLazyDLL("winspool.drv")
 	procOpenPrinter      = winspool.NewProc("OpenPrinterW")
+	procGetDefaultPrinter = winspool.NewProc("GetDefaultPrinterW")
 	procStartDocPrinter  = winspool.NewProc("StartDocPrinterW")
 	procStartPagePrinter = winspool.NewProc("StartPagePrinter")
 	procWritePrinter     = winspool.NewProc("WritePrinter")
@@ -23,6 +24,25 @@ type docInfoW struct {
 	pDocName    *uint16
 	pOutputFile *uint16
 	pDatatype   *uint16
+}
+
+func getDefaultPrinterName() (string, error) {
+	var needed uint32
+	procGetDefaultPrinter.Call(0, uintptr(unsafe.Pointer(&needed)))
+	if needed == 0 {
+		return "", fmt.Errorf("Windows no tiene una impresora predeterminada configurada")
+	}
+
+	buffer := make([]uint16, needed)
+	ret, _, callErr := procGetDefaultPrinter.Call(
+		uintptr(unsafe.Pointer(&buffer[0])),
+		uintptr(unsafe.Pointer(&needed)),
+	)
+	if ret == 0 {
+		return "", fmt.Errorf("GetDefaultPrinterW fallo: %v", callErr)
+	}
+
+	return syscall.UTF16ToString(buffer), nil
 }
 
 // printRawToSpooler sends raw bytes directly to the Windows print spooler

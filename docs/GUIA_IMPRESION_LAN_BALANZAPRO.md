@@ -27,13 +27,13 @@ No abras los puertos `8787` ni `17777` al resto de la red. La API y el agente de
 
 ## Preparar cada PC de caja
 
-1. Instala y prueba la impresora térmica en Windows. Anota su nombre exacto en **Configuración → Bluetooth y dispositivos → Impresoras y escáneres**.
+1. Instala y prueba la impresora térmica en Windows y establécela como impresora predeterminada de esa PC en **Configuración → Bluetooth y dispositivos → Impresoras y escáneres**.
 2. Instala `BalanzaPro-Impresor-Setup-<version>.exe` desde el release **BalanzaPro Impresor Local**. Se instala en el perfil del usuario, se inicia al entrar a Windows y no requiere instalar Motor Local.
 3. Desde el navegador abre `http://IP-DE-LA-PC-PRINCIPAL:8791`, inicia sesión y permite el acceso a la red local si el navegador lo solicita.
-4. En la configuración de impresión, asigna una estación a la caja y usa el nombre de impresora que existe en esa PC. Para imprimir en diferentes impresoras, configura una estación por caja. Deja el conector de nube sin asignar a estas estaciones LAN.
+4. En la configuración de impresión, asigna una estación a la caja para elegir su perfil de ticket. El POS LAN envía el trabajo al agente local y usa la impresora predeterminada de cada PC secundaria. Deja el conector de nube sin asignar a estas estaciones LAN.
 5. Haz una venta de prueba y confirma que el ticket salga en la impresora de esa computadora.
 
-El usuario de Windows debe mantener iniciada su sesión para imprimir, porque el agente corre en esa sesión y usa las impresoras instaladas para ese usuario. Cada navegador imprime directamente a `127.0.0.1:17777` de su propia PC; el trabajo de venta y la configuración de las estaciones siguen en el Motor de la PC principal.
+El usuario de Windows debe mantener iniciada su sesión para imprimir, porque el agente corre en esa sesión y usa la impresora predeterminada de ese usuario. Cada navegador imprime directamente a `127.0.0.1:17777` de su propia PC; el trabajo de venta y el perfil de la estación siguen en el Motor de la PC principal.
 
 ## Descargas y compilación
 
