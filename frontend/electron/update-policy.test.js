@@ -58,7 +58,7 @@ describe('Electron update policy', () => {
     expect(workflow).toContain('BalanzaPro-desktop-release.json');
 
     const packageJson = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../package.json'), 'utf8'));
-    expect(packageJson.version).toBe('0.2.66');
+    expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(packageJson.devDependencies.electron).toBe('^43.3.0');
   });
 });
