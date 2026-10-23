@@ -11,8 +11,8 @@ const { execFileSync } = require("node:child_process");
 const ARTIFACT = Object.freeze({
     version: "1.12.7",
     fileName: "frankenphp-windows-x86_64.zip",
-    url: "https://github.com/dunglas/frankenphp/releases/download/v1.12.7/frankenphp-windows-x86_64.zip",
-    sha256: "3fa8e3423691be99e3dda05ba757b20e03f49b0e35c46aca701579e970bcc31d",
+    url: "https://github.com/php/frankenphp/releases/download/v1.12.7/frankenphp-windows-x86_64.zip",
+    sha256: "2702c856da06a49e5b05c0392ac841fd42496d45fff773926fb81db6735cba0f",
 });
 
 const repoRoot = path.resolve(__dirname, "..");
