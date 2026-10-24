@@ -448,22 +448,26 @@ export function ProductForm({
     try {
       setIsSyncingPrices(true);
       if (productId) {
-        // 1. Guardar primero los precios modificados de las listas
-        if (pendingPrices.length > 0) {
-          await putOne(`/products/${productId}/prices`, { prices: pendingPrices });
-          setPendingPrices([]);
-        }
-        // 2. Subir imágenes nuevas seleccionadas si las hay
-        if (stagedImages.length > 0) {
-          for (const item of stagedImages) {
-            const formData = new FormData();
-            formData.append('image', item.file);
-            await api.post(`/products/${productId}/images`, formData);
+        // Actualizar primero los datos base. El backend sincroniza el precio
+        // base con la lista predeterminada cuando cambia base_price, así que
+        // los precios explícitos por lista deben guardarse después para que no
+        // sean reemplazados por esa sincronización automática.
+        await onSubmit(async (updatedProduct: Product) => {
+          if (pendingPrices.length > 0) {
+            await putOne(`/products/${updatedProduct.id}/prices`, { prices: pendingPrices });
+            setPendingPrices([]);
           }
-          setStagedImages([]);
-        }
-        // 3. Guardar datos principales del producto (dispara onSuccess)
-        await onSubmit();
+
+          if (stagedImages.length > 0) {
+            for (const item of stagedImages) {
+              const formData = new FormData();
+              formData.append('image', item.file);
+              await api.post(`/products/${updatedProduct.id}/images`, formData);
+            }
+            setStagedImages([]);
+          }
+        });
+
         void qc.invalidateQueries({ queryKey: productKeys.prices(productId) });
         void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
         void qc.invalidateQueries({ queryKey: productKeys.lists() });

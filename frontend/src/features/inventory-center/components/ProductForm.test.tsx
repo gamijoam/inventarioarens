@@ -3,10 +3,18 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useForm, type UseFormReturn } from 'react-hook-form';
+import type * as ApiClient from '@/api/client';
 
 import { ProductForm } from './ProductForm';
-import { type StoreProductInput, type StoreProductValues } from '../schemas';
+import { type Product, type StoreProductInput, type StoreProductValues } from '../schemas';
 import { CREATE_PRODUCT_FORM_VISIBILITY } from '../productFormConfig';
+
+const { mockPutOne } = vi.hoisted(() => ({ mockPutOne: vi.fn() }));
+
+vi.mock('@/api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof ApiClient>();
+  return { ...actual, putOne: mockPutOne };
+});
 
 vi.mock('@/features/inventory-center/lookups', () => ({
   useBrands: () => ({ data: [] }),
@@ -25,6 +33,35 @@ vi.mock('@/features/inventory-center/lookups', () => ({
   useExchangeRateTypes: () => ({ data: [] }),
   useProductImages: () => ({ data: [] }),
   useWarrantyPolicies: () => ({ data: [] }),
+}));
+
+vi.mock('./PricesEditor', () => ({
+  PricesEditor: ({
+    onPricesChange,
+  }: {
+    onPricesChange?: (
+      prices: {
+        price_list_id: number;
+        price: number | null;
+        margin_percentage?: number | null;
+        currency: 'USD';
+        remove: boolean;
+      }[],
+    ) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onPricesChange?.([
+          { price_list_id: 1, price: 7, margin_percentage: null, currency: 'USD', remove: false },
+          { price_list_id: 2, price: 9, margin_percentage: null, currency: 'USD', remove: false },
+          { price_list_id: 3, price: 9, margin_percentage: null, currency: 'USD', remove: false },
+        ])
+      }
+    >
+      Cambiar precios para prueba
+    </button>
+  ),
 }));
 
 function makeForm(initial?: Partial<StoreProductValues>) {
@@ -258,6 +295,44 @@ describe('<ProductForm>', () => {
     const basePriceInput = screen.getByDisplayValue('11.99');
     expect(basePriceInput).toBeInTheDocument();
     expect(screen.queryByDisplayValue('13.91')).not.toBeInTheDocument();
+  });
+
+  it('guarda los datos del producto antes de sincronizar los precios por lista', async () => {
+    const user = userEvent.setup();
+    const form = makeForm({ base_price: 1 });
+    const requests: string[] = [];
+    mockPutOne.mockReset().mockImplementation((path: string) => {
+      requests.push(`prices:${path}`);
+    });
+    const onSubmit = vi.fn(async (saveExtras?: (product: Product) => Promise<void>) => {
+      requests.push('product');
+      await saveExtras?.({ id: 42 } as Product);
+    });
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductForm
+          form={form}
+          tagOptions={[]}
+          onSubmit={onSubmit}
+          isSubmitting={false}
+          submitLabel="Guardar cambios"
+          productId={42}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Cambiar precios para prueba' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(requests).toEqual(['product', 'prices:/products/42/prices']);
+    expect(mockPutOne).toHaveBeenCalledWith('/products/42/prices', {
+      prices: [
+        { price_list_id: 1, price: 7, margin_percentage: null, currency: 'USD', remove: false },
+        { price_list_id: 2, price: 9, margin_percentage: null, currency: 'USD', remove: false },
+        { price_list_id: 3, price: 9, margin_percentage: null, currency: 'USD', remove: false },
+      ],
+    });
   });
 });
 
