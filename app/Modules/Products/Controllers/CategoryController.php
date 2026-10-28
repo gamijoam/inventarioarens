@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
@@ -23,8 +24,11 @@ class CategoryController extends Controller
             ->with(['parent'])
             ->withCount('products')
             ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.strtolower((string) $request->input('search')).'%';
-                $q->whereRaw('LOWER(name) LIKE ?', [$term]);
+                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+                $term = '%'.(string) $request->input('search').'%';
+                $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$term]);
             })
             ->when($request->filled('parent_id'), function ($q) use ($request) {
                 $q->where('parent_id', $request->integer('parent_id'));

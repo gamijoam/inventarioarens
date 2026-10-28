@@ -35,13 +35,20 @@ class CustomerController extends Controller
                 ->when(! $activeOnly && $activeStatus === 'inactive', fn ($query) => $query->where('is_active', false))
                 ->withSum('creditTransactions as credit_balance_base_amount', 'amount_base')
                 ->when($search !== '', function ($query) use ($search): void {
-                    $query->where(function ($query) use ($search): void {
-                        $like = "%{$search}%";
+                    $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                    $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                    $nameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
+                    $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                    $phoneExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(phone, \'\')))' : 'LOWER(COALESCE(phone, \'\'))';
+                    $emailExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(email, \'\')))' : 'LOWER(COALESCE(email, \'\'))';
+                    $like = "%{$search}%";
+
+                    $query->where(function ($query) use ($like, $termExpr, $nameExpr, $docExpr, $phoneExpr, $emailExpr): void {
                         $query
-                            ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE LOWER(?)', [$like])
-                            ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE LOWER(?)', [$like]);
+                            ->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$docExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$phoneExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$emailExpr} LIKE {$termExpr}", [$like]);
                     });
                 })
                 ->orderByDesc('is_generic')

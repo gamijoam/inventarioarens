@@ -42,3 +42,6 @@ Thumbs.db
 
 /public/downloads/*.exe
 /public/downloads/*.zip
+
+storage/backups/
+DOCUMENTOS/
