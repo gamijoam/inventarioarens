@@ -9,6 +9,7 @@ use App\Modules\Customers\Resources\CustomerResource;
 use App\Modules\Customers\Services\CustomerCreditService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Database\SearchNormalization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,12 +36,11 @@ class CustomerController extends Controller
                 ->when(! $activeOnly && $activeStatus === 'inactive', fn ($query) => $query->where('is_active', false))
                 ->withSum('creditTransactions as credit_balance_base_amount', 'amount_base')
                 ->when($search !== '', function ($query) use ($search): void {
-                    $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                    $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                    $nameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-                    $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-                    $phoneExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(phone, \'\')))' : 'LOWER(COALESCE(phone, \'\'))';
-                    $emailExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(email, \'\')))' : 'LOWER(COALESCE(email, \'\'))';
+                    $termExpr = SearchNormalization::term();
+                    $nameExpr = SearchNormalization::expression("COALESCE(name, '')");
+                    $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+                    $phoneExpr = SearchNormalization::expression("COALESCE(phone, '')");
+                    $emailExpr = SearchNormalization::expression("COALESCE(email, '')");
                     $like = "%{$search}%";
 
                     $query->where(function ($query) use ($like, $termExpr, $nameExpr, $docExpr, $phoneExpr, $emailExpr): void {

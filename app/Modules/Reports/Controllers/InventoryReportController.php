@@ -8,6 +8,7 @@ use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Reports\Requests\MovementReportRequest;
 use App\Modules\Reports\Requests\StockReportRequest;
 use App\Modules\Reports\Resources\MovementReportResource;
+use App\Support\Database\SearchNormalization;
 use App\Modules\Reports\Resources\StockReportResource;
 use App\Support\Tenancy\TenantManager;
 use App\Support\Time\BusinessDateRange;
@@ -25,11 +26,10 @@ class InventoryReportController extends Controller
             ->when($request->filled('product_variant_id'), fn ($query) => $query->where('product_variant_id', $request->integer('product_variant_id')))
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search'));
-                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
-                $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
-                $barcodeExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(barcode, \'\')))' : 'LOWER(COALESCE(barcode, \'\'))';
+                $termExpr = SearchNormalization::term();
+                $nameExpr = SearchNormalization::expression('name');
+                $skuExpr = SearchNormalization::expression('sku');
+                $barcodeExpr = SearchNormalization::expression("COALESCE(barcode, '')");
                 $like = "%{$search}%";
 
                 $query->whereHas('product', function ($q) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
@@ -101,12 +101,11 @@ class InventoryReportController extends Controller
             ->when($request->filled('date_to'), fn ($query) => $query->where('created_at', '<=', BusinessDateRange::endOfDay($request->string('date_to')->toString())))
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search'));
-                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
-                $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
-                $barcodeExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(barcode, \'\')))' : 'LOWER(COALESCE(barcode, \'\'))';
-                $reasonExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reason, \'\')))' : 'LOWER(COALESCE(reason, \'\'))';
+                $termExpr = SearchNormalization::term();
+                $nameExpr = SearchNormalization::expression('name');
+                $skuExpr = SearchNormalization::expression('sku');
+                $barcodeExpr = SearchNormalization::expression("COALESCE(barcode, '')");
+                $reasonExpr = SearchNormalization::expression("COALESCE(reason, '')");
                 $like = "%{$search}%";
 
                 $query->where(function ($sub) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $reasonExpr): void {

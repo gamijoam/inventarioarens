@@ -12,6 +12,7 @@ use App\Modules\AccountsPayable\Services\AccountsPayablePaymentRequestService;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Support\Database\SearchNormalization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -91,11 +92,10 @@ class AccountsPayableController extends Controller
         return AccountsPayable::query()
             ->with(['supplier', 'purchaseOrder', 'paymentRequests'])
             ->when($search !== '', function ($query) use ($search): void {
-                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-                $supNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-                $supDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                $termExpr = SearchNormalization::term();
+                $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+                $supNameExpr = SearchNormalization::expression("COALESCE(name, '')");
+                $supDocExpr = SearchNormalization::expression("COALESCE(document_number, '')");
                 $like = "%{$search}%";
 
                 $query->where(function (Builder $innerQuery) use ($like, $termExpr, $docExpr, $supNameExpr, $supDocExpr): void {

@@ -7,6 +7,7 @@ use App\Modules\Quotations\Requests\StoreQuotationRequest;
 use App\Modules\Quotations\Requests\UpdateQuotationRequest;
 use App\Modules\Quotations\Resources\QuotationResource;
 use App\Modules\Quotations\Services\QuotationService;
+use App\Support\Database\SearchNormalization;
 use App\Support\Tenancy\TenantManager;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
@@ -38,10 +39,9 @@ class QuotationController extends Controller
             ->when($request->query('date_to'),
                 fn ($query, string $to) => $query->where('created_at', '<=', BusinessDateRange::endOfDay($to)))
             ->when($request->query('search'), function ($query, string $search): void {
-                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-                $custExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(customer_name, \'\')))' : 'LOWER(COALESCE(customer_name, \'\'))';
+                $termExpr = SearchNormalization::term();
+                $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+                $custExpr = SearchNormalization::expression("COALESCE(customer_name, '')");
                 $needle = "%{$search}%";
                 $query->where(function ($q) use ($needle, $search, $termExpr, $docExpr, $custExpr): void {
                     $q->whereRaw("{$docExpr} LIKE {$termExpr}", [$needle])

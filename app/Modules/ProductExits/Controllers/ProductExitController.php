@@ -7,6 +7,7 @@ use App\Modules\ProductExits\Models\ProductExit;
 use App\Modules\ProductExits\Requests\StoreProductExitRequest;
 use App\Modules\ProductExits\Resources\ProductExitResource;
 use App\Modules\ProductExits\Services\ProductExitService;
+use App\Support\Database\SearchNormalization;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -28,9 +29,8 @@ class ProductExitController extends Controller
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
         $limit = min(max((int) $request->query('limit', 25), 1), 100);
-        $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-        $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-        $snExpr = $isPgsql ? 'unaccent(LOWER(serial_number))' : 'LOWER(serial_number)';
+        $termExpr = SearchNormalization::term();
+        $snExpr = SearchNormalization::expression('serial_number');
         $matchingUnitIds = $search === ''
             ? collect()
             : ProductUnit::query()
@@ -38,12 +38,12 @@ class ProductExitController extends Controller
                 ->limit(50)
                 ->pluck('id');
 
-        $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-        $reasonExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reason, \'\')))' : 'LOWER(COALESCE(reason, \'\'))';
-        $refExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reference, \'\')))' : 'LOWER(COALESCE(reference, \'\'))';
-        $notesExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(notes, \'\')))' : 'LOWER(COALESCE(notes, \'\'))';
-        $pNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-        $pSkuExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(sku, \'\')))' : 'LOWER(COALESCE(sku, \'\'))';
+        $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+        $reasonExpr = SearchNormalization::expression("COALESCE(reason, '')");
+        $refExpr = SearchNormalization::expression("COALESCE(reference, '')");
+        $notesExpr = SearchNormalization::expression("COALESCE(notes, '')");
+        $pNameExpr = SearchNormalization::expression("COALESCE(name, '')");
+        $pSkuExpr = SearchNormalization::expression("COALESCE(sku, '')");
         $like = "%{$search}%";
 
         $exits = ProductExit::query()

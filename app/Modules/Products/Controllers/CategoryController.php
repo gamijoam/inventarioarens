@@ -8,6 +8,7 @@ use App\Modules\Products\Requests\StoreCategoryRequest;
 use App\Modules\Products\Requests\UpdateCategoryRequest;
 use App\Modules\Products\Resources\CategoryResource;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Database\SearchNormalization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -24,9 +25,8 @@ class CategoryController extends Controller
             ->with(['parent'])
             ->withCount('products')
             ->when($request->filled('search'), function ($q) use ($request) {
-                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+                $termExpr = SearchNormalization::term();
+                $nameExpr = SearchNormalization::expression('name');
                 $term = '%'.(string) $request->input('search').'%';
                 $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$term]);
             })
