@@ -8,6 +8,7 @@ use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Requests\StoreSaleRequest;
 use App\Modules\Sales\Resources\SaleResource;
 use App\Modules\Sales\Services\SaleService;
+use App\Support\Database\SearchNormalization;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -75,7 +76,7 @@ class SaleController extends Controller
             ));
 
             $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-            $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+            $termExpr = SearchNormalization::term();
 
             $query->where(function ($q) use ($search, $tokens, $isPgsql, $termExpr): void {
                 $cleanNumeric = ltrim($search, '#');
@@ -86,17 +87,17 @@ class SaleController extends Controller
                 // Coincidencia exacta/completa de la frase ingresada
                 $like = "%{$search}%";
 
-                $nameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-                $skuExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(sku, \'\')))' : 'LOWER(COALESCE(sku, \'\'))';
-                $barcodeExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(barcode, \'\')))' : 'LOWER(COALESCE(barcode, \'\'))';
+                $nameExpr = SearchNormalization::expression("COALESCE(name, '')");
+                $skuExpr = SearchNormalization::expression("COALESCE(sku, '')");
+                $barcodeExpr = SearchNormalization::expression("COALESCE(barcode, '')");
 
-                $custNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-                $custDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-                $custEmailExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(email, \'\')))' : 'LOWER(COALESCE(email, \'\'))';
-                $custPhoneExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(phone, \'\')))' : 'LOWER(COALESCE(phone, \'\'))';
+                $custNameExpr = SearchNormalization::expression("COALESCE(name, '')");
+                $custDocExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+                $custEmailExpr = SearchNormalization::expression("COALESCE(email, '')");
+                $custPhoneExpr = SearchNormalization::expression("COALESCE(phone, '')");
 
-                $posNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(customer_name, \'\')))' : 'LOWER(COALESCE(customer_name, \'\'))';
-                $recDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                $posNameExpr = SearchNormalization::expression("COALESCE(customer_name, '')");
+                $recDocExpr = SearchNormalization::expression("COALESCE(document_number, '')");
 
                 $q->orWhere(function ($sub) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $custNameExpr, $custDocExpr, $custEmailExpr, $custPhoneExpr, $posNameExpr, $recDocExpr): void {
                     $sub->whereHas('customer', function ($customerQuery) use ($like, $termExpr, $custNameExpr, $custDocExpr, $custEmailExpr, $custPhoneExpr): void {
@@ -164,10 +165,10 @@ class SaleController extends Controller
                         // 5. O coincidencia combinada Cliente + Producto en el MISMO producto (ej. "Carlos Freno")
                         ->orWhere(function ($crossQuery) use ($tokens, $termExpr, $isPgsql): void {
                             $crossQuery->whereHas('items.product', function ($itemProductQuery) use ($tokens, $termExpr, $isPgsql): void {
-                                $pName = $isPgsql ? 'unaccent(LOWER(COALESCE(products.name, \'\')))' : 'LOWER(COALESCE(products.name, \'\'))';
-                                $pSku = $isPgsql ? 'unaccent(LOWER(COALESCE(products.sku, \'\')))' : 'LOWER(COALESCE(products.sku, \'\'))';
-                                $cName = $isPgsql ? 'unaccent(LOWER(COALESCE(c_sub.name, \'\')))' : 'LOWER(COALESCE(c_sub.name, \'\'))';
-                                $poName = $isPgsql ? 'unaccent(LOWER(COALESCE(po_sub.customer_name, \'\')))' : 'LOWER(COALESCE(po_sub.customer_name, \'\'))';
+                                $pName = SearchNormalization::expression("COALESCE(products.name, '')");
+                                $pSku = SearchNormalization::expression("COALESCE(products.sku, '')");
+                                $cName = SearchNormalization::expression("COALESCE(c_sub.name, '')");
+                                $poName = SearchNormalization::expression("COALESCE(po_sub.customer_name, '')");
 
                                 foreach ($tokens as $token) {
                                     $tokenLike = "%{$token}%";

@@ -8,6 +8,7 @@ use App\Modules\AccountsReceivable\Requests\RegisterAccountsReceivablePaymentReq
 use App\Modules\AccountsReceivable\Resources\AccountsReceivablePaymentResource;
 use App\Modules\AccountsReceivable\Resources\AccountsReceivableResource;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
+use App\Support\Database\SearchNormalization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -117,11 +118,10 @@ class AccountsReceivableController extends Controller
         $query = AccountsReceivable::query()
             ->with(['customer', 'sale'])
             ->when($search !== '', function ($query) use ($search): void {
-                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-                $custNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-                $custDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                $termExpr = SearchNormalization::term();
+                $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+                $custNameExpr = SearchNormalization::expression("COALESCE(name, '')");
+                $custDocExpr = SearchNormalization::expression("COALESCE(document_number, '')");
                 $like = "%{$search}%";
 
                 $query->where(function (Builder $innerQuery) use ($like, $termExpr, $docExpr, $custNameExpr, $custDocExpr): void {

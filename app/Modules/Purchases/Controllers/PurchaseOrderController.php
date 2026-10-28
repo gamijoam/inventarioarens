@@ -8,6 +8,7 @@ use App\Modules\Purchases\Requests\StorePurchaseOrderRequest;
 use App\Modules\Purchases\Requests\UpdatePurchaseOrderRequest;
 use App\Modules\Purchases\Resources\PurchaseOrderResource;
 use App\Modules\Purchases\Services\PurchaseOrderService;
+use App\Support\Database\SearchNormalization;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,11 +49,10 @@ class PurchaseOrderController extends Controller
                 ->with(['supplier', 'accountPayable', 'items.warehouse:id,tenant_id,code,name'])
                 ->withCount('items')
                 ->when($search !== '', function ($query) use ($search): void {
-                    $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                    $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                    $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-                    $supNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-                    $supDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                    $termExpr = SearchNormalization::term();
+                    $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+                    $supNameExpr = SearchNormalization::expression("COALESCE(name, '')");
+                    $supDocExpr = SearchNormalization::expression("COALESCE(document_number, '')");
                     $like = "%{$search}%";
 
                     $query->where(function ($query) use ($like, $termExpr, $docExpr, $supNameExpr, $supDocExpr): void {
