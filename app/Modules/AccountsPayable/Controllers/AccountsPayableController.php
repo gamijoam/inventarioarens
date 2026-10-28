@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class AccountsPayableController extends Controller
@@ -90,17 +91,23 @@ class AccountsPayableController extends Controller
         return AccountsPayable::query()
             ->with(['supplier', 'purchaseOrder', 'paymentRequests'])
             ->when($search !== '', function ($query) use ($search): void {
+                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                $supNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
+                $supDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
                 $like = "%{$search}%";
-                $query->where(function (Builder $innerQuery) use ($like): void {
+
+                $query->where(function (Builder $innerQuery) use ($like, $termExpr, $docExpr, $supNameExpr, $supDocExpr): void {
                     $innerQuery
-                        ->where('document_number', 'like', $like)
-                        ->orWhereHas('supplier', function ($supplierQuery) use ($like): void {
+                        ->whereRaw("{$docExpr} LIKE {$termExpr}", [$like])
+                        ->orWhereHas('supplier', function ($supplierQuery) use ($like, $termExpr, $supNameExpr, $supDocExpr): void {
                             $supplierQuery
-                                ->where('name', 'like', $like)
-                                ->orWhere('document_number', 'like', $like);
+                                ->whereRaw("{$supNameExpr} LIKE {$termExpr}", [$like])
+                                ->orWhereRaw("{$supDocExpr} LIKE {$termExpr}", [$like]);
                         })
-                        ->orWhereHas('purchaseOrder', function ($purchaseQuery) use ($like): void {
-                            $purchaseQuery->where('document_number', 'like', $like);
+                        ->orWhereHas('purchaseOrder', function ($purchaseQuery) use ($like, $termExpr, $docExpr): void {
+                            $purchaseQuery->whereRaw("{$docExpr} LIKE {$termExpr}", [$like]);
                         });
                 });
             })

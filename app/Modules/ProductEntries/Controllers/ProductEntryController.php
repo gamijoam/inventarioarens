@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class ProductEntryController extends Controller
@@ -30,20 +31,30 @@ class ProductEntryController extends Controller
         return ProductEntryResource::collection(
             ProductEntry::query()
                 ->with(['creator', 'items.product', 'items.warehouse'])
-                ->when($search !== '', function ($query) use ($normalizedSearch): void {
-                    $query->where(function ($query) use ($normalizedSearch): void {
+                ->when($search !== '', function ($query) use ($search): void {
+                    $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                    $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                    $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                    $reasonExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reason, \'\')))' : 'LOWER(COALESCE(reason, \'\'))';
+                    $refExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reference, \'\')))' : 'LOWER(COALESCE(reference, \'\'))';
+                    $notesExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(notes, \'\')))' : 'LOWER(COALESCE(notes, \'\'))';
+                    $pNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
+                    $pSkuExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(sku, \'\')))' : 'LOWER(COALESCE(sku, \'\'))';
+                    $like = "%{$search}%";
+
+                    $query->where(function ($query) use ($like, $termExpr, $docExpr, $reasonExpr, $refExpr, $notesExpr, $pNameExpr, $pSkuExpr): void {
                         $query
-                            ->whereRaw('LOWER(document_number) LIKE ?', ["%{$normalizedSearch}%"])
-                            ->orWhereRaw('LOWER(reason) LIKE ?', ["%{$normalizedSearch}%"])
-                            ->orWhereRaw('LOWER(COALESCE(reference, \'\')) LIKE ?', ["%{$normalizedSearch}%"])
-                            ->orWhereRaw('LOWER(COALESCE(notes, \'\')) LIKE ?', ["%{$normalizedSearch}%"])
-                            ->orWhereHas('items.product', function ($query) use ($normalizedSearch): void {
+                            ->whereRaw("{$docExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$reasonExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$refExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$notesExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereHas('items.product', function ($query) use ($like, $termExpr, $pNameExpr, $pSkuExpr): void {
                                 $query
-                                    ->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
-                                    ->orWhereRaw('LOWER(sku) LIKE ?', ["%{$normalizedSearch}%"]);
+                                    ->whereRaw("{$pNameExpr} LIKE {$termExpr}", [$like])
+                                    ->orWhereRaw("{$pSkuExpr} LIKE {$termExpr}", [$like]);
                             })
-                            ->orWhereHas('items', function ($query) use ($normalizedSearch): void {
-                                $query->whereRaw('LOWER(CAST(serial_units AS TEXT)) LIKE ?', ["%{$normalizedSearch}%"]);
+                            ->orWhereHas('items', function ($query) use ($like, $termExpr): void {
+                                $query->whereRaw("LOWER(CAST(serial_units AS TEXT)) LIKE {$termExpr}", [$like]);
                             });
                     });
                 })

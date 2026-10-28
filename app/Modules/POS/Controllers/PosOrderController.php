@@ -24,6 +24,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class PosOrderController extends Controller
@@ -59,10 +60,14 @@ class PosOrderController extends Controller
             ->when($request->query('date_to'),
                 fn ($query, string $to) => $query->where('opened_at', '<=', BusinessDateRange::endOfDay($to)))
             ->when($request->query('search'), function ($query, string $search): void {
-                $needle = '%'.strtolower($search).'%';
-                $query->where(function ($q) use ($needle): void {
-                    $q->whereRaw('LOWER(document_number) LIKE ?', [$needle])
-                        ->orWhereRaw('LOWER(customer_name) LIKE ?', [$needle])
+                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                $custExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(customer_name, \'\')))' : 'LOWER(COALESCE(customer_name, \'\'))';
+                $needle = "%{$search}%";
+                $query->where(function ($q) use ($needle, $search, $termExpr, $docExpr, $custExpr): void {
+                    $q->whereRaw("{$docExpr} LIKE {$termExpr}", [$needle])
+                        ->orWhereRaw("{$custExpr} LIKE {$termExpr}", [$needle])
                         ->orWhere('id', is_numeric($search) ? (int) $search : 0);
                 });
             })

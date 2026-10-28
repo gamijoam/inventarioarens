@@ -24,10 +24,17 @@ class InventoryReportController extends Controller
             ->when($request->filled('product_variant_id'), fn ($query) => $query->where('product_variant_id', $request->integer('product_variant_id')))
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search'));
-                $query->whereHas('product', function ($q) use ($search): void {
-                    $q->where(DB::raw('LOWER(name)'), 'like', '%'.mb_strtolower($search).'%')
-                        ->orWhere(DB::raw('LOWER(sku)'), 'like', '%'.mb_strtolower($search).'%')
-                        ->orWhere(DB::raw('LOWER(COALESCE(barcode, \'\'))'), 'like', '%'.mb_strtolower($search).'%');
+                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+                $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
+                $barcodeExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(barcode, \'\')))' : 'LOWER(COALESCE(barcode, \'\'))';
+                $like = "%{$search}%";
+
+                $query->whereHas('product', function ($q) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
+                    $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
+                        ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$like])
+                        ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$like]);
                 });
             });
 
@@ -93,13 +100,21 @@ class InventoryReportController extends Controller
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('created_at', '<=', $request->date('date_to')))
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search'));
-                $query->where(function ($sub) use ($search): void {
-                    $sub->whereHas('product', function ($q) use ($search): void {
-                        $q->where(DB::raw('LOWER(name)'), 'like', '%'.mb_strtolower($search).'%')
-                            ->orWhere(DB::raw('LOWER(sku)'), 'like', '%'.mb_strtolower($search).'%')
-                            ->orWhere(DB::raw('LOWER(COALESCE(barcode, \'\'))'), 'like', '%'.mb_strtolower($search).'%');
+                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+                $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
+                $barcodeExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(barcode, \'\')))' : 'LOWER(COALESCE(barcode, \'\'))';
+                $reasonExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reason, \'\')))' : 'LOWER(COALESCE(reason, \'\'))';
+                $like = "%{$search}%";
+
+                $query->where(function ($sub) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $reasonExpr): void {
+                    $sub->whereHas('product', function ($q) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
+                        $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$like]);
                     })
-                    ->orWhere(DB::raw('LOWER(COALESCE(reason, \'\'))'), 'like', '%'.mb_strtolower($search).'%');
+                    ->orWhereRaw("{$reasonExpr} LIKE {$termExpr}", [$like]);
                 });
             })
             ->latest('id')

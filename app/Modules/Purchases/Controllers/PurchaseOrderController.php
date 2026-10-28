@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -45,14 +46,21 @@ class PurchaseOrderController extends Controller
             PurchaseOrder::query()
                 ->with(['supplier', 'accountPayable', 'items.warehouse:id,tenant_id,code,name'])
                 ->withCount('items')
-                ->when($search !== '', function ($query) use ($normalizedSearch): void {
-                    $query->where(function ($query) use ($normalizedSearch): void {
+                ->when($search !== '', function ($query) use ($search): void {
+                    $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                    $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                    $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                    $supNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
+                    $supDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                    $like = "%{$search}%";
+
+                    $query->where(function ($query) use ($like, $termExpr, $docExpr, $supNameExpr, $supDocExpr): void {
                         $query
-                            ->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE ?', ["%{$normalizedSearch}%"])
-                            ->orWhereHas('supplier', function ($supplier) use ($normalizedSearch): void {
+                            ->whereRaw("{$docExpr} LIKE {$termExpr}", [$like])
+                            ->orWhereHas('supplier', function ($supplier) use ($like, $termExpr, $supNameExpr, $supDocExpr): void {
                                 $supplier
-                                    ->whereRaw('LOWER(name) LIKE ?', ["%{$normalizedSearch}%"])
-                                    ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE ?', ["%{$normalizedSearch}%"]);
+                                    ->whereRaw("{$supNameExpr} LIKE {$termExpr}", [$like])
+                                    ->orWhereRaw("{$supDocExpr} LIKE {$termExpr}", [$like]);
                             });
                     });
                 })

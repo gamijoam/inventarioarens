@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class AccountsReceivableController extends Controller
@@ -116,17 +117,23 @@ class AccountsReceivableController extends Controller
         $query = AccountsReceivable::query()
             ->with(['customer', 'sale'])
             ->when($search !== '', function ($query) use ($search): void {
+                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+                $custNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
+                $custDocExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
                 $like = "%{$search}%";
-                $query->where(function (Builder $innerQuery) use ($like): void {
+
+                $query->where(function (Builder $innerQuery) use ($like, $termExpr, $docExpr, $custNameExpr, $custDocExpr): void {
                     $innerQuery
-                        ->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like])
-                        ->orWhereHas('customer', function ($customerQuery) use ($like): void {
+                        ->whereRaw("{$docExpr} LIKE {$termExpr}", [$like])
+                        ->orWhereHas('customer', function ($customerQuery) use ($like, $termExpr, $custNameExpr, $custDocExpr): void {
                             $customerQuery
-                                ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE LOWER(?)', [$like])
-                                ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
+                                ->whereRaw("{$custNameExpr} LIKE {$termExpr}", [$like])
+                                ->orWhereRaw("{$custDocExpr} LIKE {$termExpr}", [$like]);
                         })
-                        ->orWhereHas('sale', function ($saleQuery) use ($like): void {
-                            $saleQuery->whereRaw('LOWER(COALESCE(document_number, \'\')) LIKE LOWER(?)', [$like]);
+                        ->orWhereHas('sale', function ($saleQuery) use ($like, $termExpr, $docExpr): void {
+                            $saleQuery->whereRaw("{$docExpr} LIKE {$termExpr}", [$like]);
                         });
                 });
             })
