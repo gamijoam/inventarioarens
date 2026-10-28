@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class SupplierController extends Controller
@@ -33,14 +34,20 @@ class SupplierController extends Controller
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $like = '%'.mb_strtolower($search).'%';
+            $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+            $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+            $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+            $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
+            $emailExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(email, \'\')))' : 'LOWER(COALESCE(email, \'\'))';
+            $phoneExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(phone, \'\')))' : 'LOWER(COALESCE(phone, \'\'))';
+            $like = "%{$search}%";
 
-            $query->where(function ($builder) use ($like): void {
+            $query->where(function ($builder) use ($like, $termExpr, $nameExpr, $docExpr, $emailExpr, $phoneExpr): void {
                 $builder
-                    ->whereRaw('LOWER(name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(COALESCE(document_number, \'\')) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(COALESCE(phone, \'\')) LIKE ?', [$like]);
+                    ->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
+                    ->orWhereRaw("{$docExpr} LIKE {$termExpr}", [$like])
+                    ->orWhereRaw("{$emailExpr} LIKE {$termExpr}", [$like])
+                    ->orWhereRaw("{$phoneExpr} LIKE {$termExpr}", [$like]);
             });
         }
 

@@ -11,6 +11,7 @@ use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class BrandController extends Controller
 {
@@ -20,8 +21,11 @@ class BrandController extends Controller
 
         $query = Brand::query()
             ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.strtolower((string) $request->input('search')).'%';
-                $q->whereRaw('LOWER(name) LIKE ?', [$term]);
+                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
+                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+                $term = '%'.(string) $request->input('search').'%';
+                $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$term]);
             })
             ->when($request->filled('is_active'), function ($q) use ($request) {
                 $q->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));

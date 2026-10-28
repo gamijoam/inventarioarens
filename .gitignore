@@ -47,3 +47,6 @@ Thumbs.db
 frontend/dist-backup*
 frontend/dist.backup*
 frontend/dist.bak*
+
+storage/backups/
+DOCUMENTOS/
