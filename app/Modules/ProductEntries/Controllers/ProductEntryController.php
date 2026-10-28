@@ -6,6 +6,7 @@ use App\Modules\ProductEntries\Models\ProductEntry;
 use App\Modules\ProductEntries\Requests\StoreProductEntryRequest;
 use App\Modules\ProductEntries\Resources\ProductEntryResource;
 use App\Modules\ProductEntries\Services\ProductEntryService;
+use App\Support\Database\SearchNormalization;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,14 +33,13 @@ class ProductEntryController extends Controller
             ProductEntry::query()
                 ->with(['creator', 'items.product', 'items.warehouse'])
                 ->when($search !== '', function ($query) use ($search): void {
-                    $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                    $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                    $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-                    $reasonExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reason, \'\')))' : 'LOWER(COALESCE(reason, \'\'))';
-                    $refExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(reference, \'\')))' : 'LOWER(COALESCE(reference, \'\'))';
-                    $notesExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(notes, \'\')))' : 'LOWER(COALESCE(notes, \'\'))';
-                    $pNameExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(name, \'\')))' : 'LOWER(COALESCE(name, \'\'))';
-                    $pSkuExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(sku, \'\')))' : 'LOWER(COALESCE(sku, \'\'))';
+                    $termExpr = SearchNormalization::term();
+                    $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+                    $reasonExpr = SearchNormalization::expression("COALESCE(reason, '')");
+                    $refExpr = SearchNormalization::expression("COALESCE(reference, '')");
+                    $notesExpr = SearchNormalization::expression("COALESCE(notes, '')");
+                    $pNameExpr = SearchNormalization::expression("COALESCE(name, '')");
+                    $pSkuExpr = SearchNormalization::expression("COALESCE(sku, '')");
                     $like = "%{$search}%";
 
                     $query->where(function ($query) use ($like, $termExpr, $docExpr, $reasonExpr, $refExpr, $notesExpr, $pNameExpr, $pSkuExpr): void {

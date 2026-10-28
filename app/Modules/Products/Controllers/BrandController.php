@@ -8,6 +8,7 @@ use App\Modules\Products\Requests\StoreBrandRequest;
 use App\Modules\Products\Requests\UpdateBrandRequest;
 use App\Modules\Products\Resources\BrandResource;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Database\SearchNormalization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -21,9 +22,8 @@ class BrandController extends Controller
 
         $query = Brand::query()
             ->when($request->filled('search'), function ($q) use ($request) {
-                $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-                $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-                $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
+                $termExpr = SearchNormalization::term();
+                $nameExpr = SearchNormalization::expression('name');
                 $term = '%'.(string) $request->input('search').'%';
                 $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$term]);
             })

@@ -15,6 +15,7 @@ use App\Modules\Products\Resources\ProductResource;
 use App\Modules\Products\Services\ProductPriceService;
 use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Database\SearchNormalization;
 use App\Support\Tenancy\Concerns\SharedCatalogWriteGuard;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Http\JsonResponse;
@@ -82,11 +83,11 @@ class ProductController extends Controller
                 fn ($token) => mb_strlen($token) > 0
             ));
 
-            $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
-            $skuExpr = $isPgsql ? 'unaccent(LOWER(sku))' : 'LOWER(sku)';
-            $barcodeExpr = $isPgsql ? 'unaccent(LOWER(barcode))' : 'LOWER(barcode)';
-            $descExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(description, \'\')))' : 'LOWER(COALESCE(description, \'\'))';
-            $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
+            $nameExpr = SearchNormalization::expression('name');
+            $skuExpr = SearchNormalization::expression('sku');
+            $barcodeExpr = SearchNormalization::expression('barcode');
+            $descExpr = SearchNormalization::expression("COALESCE(description, '')");
+            $termExpr = SearchNormalization::term();
 
             $query->where(function ($q) use ($normalizedSearch, $tokens, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
                 $q->where(function ($sub) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $descExpr, $termExpr): void {
