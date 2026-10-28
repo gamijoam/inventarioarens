@@ -7,6 +7,7 @@ use App\Modules\Suppliers\Requests\StoreSupplierRequest;
 use App\Modules\Suppliers\Requests\UpdateSupplierRequest;
 use App\Modules\Suppliers\Resources\SupplierResource;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Database\SearchNormalization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -34,12 +35,11 @@ class SupplierController extends Controller
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $isPgsql = DB::connection()->getDriverName() === 'pgsql';
-            $termExpr = $isPgsql ? 'unaccent(LOWER(?))' : 'LOWER(?)';
-            $nameExpr = $isPgsql ? 'unaccent(LOWER(name))' : 'LOWER(name)';
-            $docExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(document_number, \'\')))' : 'LOWER(COALESCE(document_number, \'\'))';
-            $emailExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(email, \'\')))' : 'LOWER(COALESCE(email, \'\'))';
-            $phoneExpr = $isPgsql ? 'unaccent(LOWER(COALESCE(phone, \'\')))' : 'LOWER(COALESCE(phone, \'\'))';
+            $termExpr = SearchNormalization::term();
+            $nameExpr = SearchNormalization::expression('name');
+            $docExpr = SearchNormalization::expression("COALESCE(document_number, '')");
+            $emailExpr = SearchNormalization::expression("COALESCE(email, '')");
+            $phoneExpr = SearchNormalization::expression("COALESCE(phone, '')");
             $like = "%{$search}%";
 
             $query->where(function ($builder) use ($like, $termExpr, $nameExpr, $docExpr, $emailExpr, $phoneExpr): void {
