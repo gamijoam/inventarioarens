@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, LayoutGrid, Package, Plus, Search, SlidersHorizontal, Sparkles, Store, TrendingUp, X } from 'lucide-react';
+import { ChevronDown, Download, Eye, LayoutGrid, Package, Plus, Search, SlidersHorizontal, Store, TrendingUp, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';

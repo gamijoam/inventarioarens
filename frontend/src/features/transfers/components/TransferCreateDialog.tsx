@@ -440,7 +440,7 @@ export function TransferCreateDialog({ open, onOpenChange, onCreated }: Transfer
                         {Boolean(row.product_id) && (
                           <div className="pt-1">
                             <VariantSelect
-                              productId={row.product_id}
+                              productId={row.product_id!}
                               warehouseId={fromWarehouseId}
                               value={row.product_variant_id}
                               onChange={(variantId) =>

@@ -20,8 +20,6 @@ import { useProductVariants } from '@/features/inventory-center/variantApi';
 import { useCreateManualMovement, useRejectManualMovement, useAvailableSerials } from './api';
 import {
   CreateManualMovementSchema,
-  MANUAL_MOVEMENT_TYPES,
-  MANUAL_MOVEMENT_TYPE_LABELS,
   type ManualMovement,
   type ManualMovementType,
 } from './schemas';

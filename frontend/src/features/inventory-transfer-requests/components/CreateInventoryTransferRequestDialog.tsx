@@ -126,6 +126,7 @@ export function CreateInventoryTransferRequestDialog({
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
+      if (!it) continue;
       if (it.product_id && it.hasVariants && !it.product_variant_id) {
         setFormErrors((prev) => ({
           ...prev,

@@ -6591,35 +6591,6 @@ function EmptyPanelState({
   );
 }
 
-function AmountRow({
-  label,
-  value,
-  muted = false,
-  currency = 'USD',
-  className,
-}: {
-  label: string;
-  value: number;
-  muted?: boolean;
-  currency?: CurrencyCode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-between text-sm',
-        muted ? 'text-text-secondary opacity-90' : 'text-text-primary font-medium',
-        className,
-      )}
-    >
-      <span className="font-medium">{label}</span>
-      <span className="font-bold font-mono">
-        {currency === 'VES' ? `Bs ${formatLocalNumber(value)}` : money(value)}
-      </span>
-    </div>
-  );
-}
-
 function ShortcutText({ label, text }: { label: string; text: string }) {
   return (
     <span className="inline-flex items-center gap-1">
