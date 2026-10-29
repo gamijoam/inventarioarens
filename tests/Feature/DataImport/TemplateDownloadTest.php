@@ -118,6 +118,22 @@ class TemplateDownloadTest extends TestCase
         $this->assertStringContainsString('SKU-CURRENT-1,Producto Actual', $content);
     }
 
+    public function test_simple_product_template_contains_only_fields_for_basic_product_upload(): void
+    {
+        $response = $this
+            ->actingAs($this->admin)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->get('/api/import/templates/products?simple=1');
+
+        $response->assertOk();
+        $this->assertStringStartsWith(
+            'sku,name,barcode,description,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
+            $response->getContent(),
+        );
+        $this->assertStringNotContainsString('category_slugs', $response->getContent());
+        $this->assertStringNotContainsString('stock_inicial', $response->getContent());
+    }
+
     public function test_current_download_rejects_entity_without_current_support(): void
     {
         $response = $this

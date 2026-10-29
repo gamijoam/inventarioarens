@@ -66,6 +66,8 @@ class ProductImporter extends BaseImporter
 
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
+        $providedValues = $payload;
+        $providedFields = array_fill_keys(array_keys($payload), true);
         $payload = $this->fillDefaults($payload);
         $sku = $payload['sku'];
         $name = $payload['name'];
@@ -187,14 +189,14 @@ class ProductImporter extends BaseImporter
             $sku, $name, $barcode, $description, $brandId, $categoryIds, $tagIds,
             $unitOfMeasure, $trackingType, $basePrice, $saleCurrency,
             $minStock, $maxStock, $reorderQty, $isActive,
-            $stockInicial, $warehouseId, $costoUnitario,
+            $stockInicial, $warehouseId, $costoUnitario, $providedFields, $providedValues,
         ) {
             $existing = Product::query()->where('sku', $sku)->first();
             if ($existing) {
                 return $this->updateExistingProduct(
                     $existing,
                     $sku,
-                    [
+                    array_filter([
                         'name' => $name,
                         'barcode' => $barcode,
                         'description' => $description,
@@ -207,9 +209,13 @@ class ProductImporter extends BaseImporter
                         'max_stock' => $maxStock,
                         'reorder_quantity' => $reorderQty,
                         'is_active' => $isActive,
-                    ],
-                    $categoryIds,
-                    $tagIds,
+                    ], function ($value, $field) use ($providedFields, $providedValues): bool {
+                        $payloadField = $field === 'brand_id' ? 'brand_slug' : $field;
+
+                        return isset($providedFields[$payloadField]) && $providedValues[$payloadField] !== null;
+                    }, ARRAY_FILTER_USE_BOTH),
+                    isset($providedFields['category_slugs']) && $providedValues['category_slugs'] !== null ? $categoryIds : null,
+                    isset($providedFields['tag_slugs']) && $providedValues['tag_slugs'] !== null ? $tagIds : null,
                 );
             }
 
@@ -310,8 +316,8 @@ class ProductImporter extends BaseImporter
         Product $product,
         string $sku,
         array $attributes,
-        array $categoryIds,
-        array $tagIds,
+        ?array $categoryIds,
+        ?array $tagIds,
     ): ImportRowResult {
         $dirty = [];
         foreach ($attributes as $field => $value) {
@@ -326,7 +332,7 @@ class ProductImporter extends BaseImporter
             }
         }
 
-        $currentCategoryIds = DB::table('product_category')
+        $currentCategoryIds = $categoryIds === null ? [] : DB::table('product_category')
             ->where('product_id', $product->id)
             ->where('tenant_id', $product->tenant_id)
             ->pluck('category_id')
@@ -334,10 +340,10 @@ class ProductImporter extends BaseImporter
             ->sort()
             ->values()
             ->all();
-        $desiredCategoryIds = collect($categoryIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
-        $categoriesChanged = $currentCategoryIds !== $desiredCategoryIds;
+        $desiredCategoryIds = $categoryIds === null ? [] : collect($categoryIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $categoriesChanged = $categoryIds !== null && $currentCategoryIds !== $desiredCategoryIds;
 
-        $currentTagIds = DB::table('product_tag')
+        $currentTagIds = $tagIds === null ? [] : DB::table('product_tag')
             ->where('product_id', $product->id)
             ->where('tenant_id', $product->tenant_id)
             ->pluck('tag_id')
@@ -345,8 +351,8 @@ class ProductImporter extends BaseImporter
             ->sort()
             ->values()
             ->all();
-        $desiredTagIds = collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
-        $tagsChanged = $currentTagIds !== $desiredTagIds;
+        $desiredTagIds = $tagIds === null ? [] : collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $tagsChanged = $tagIds !== null && $currentTagIds !== $desiredTagIds;
 
         if ($dirty === [] && ! $categoriesChanged && ! $tagsChanged) {
             return ImportRowResult::skipped("Producto {$sku} sin cambios", $sku);

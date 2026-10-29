@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Support;
 
 use Generator;
 use InvalidArgumentException;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 final class CsvParser
 {
@@ -31,6 +32,12 @@ final class CsvParser
                     $maxFileMb,
                 ),
             );
+        }
+
+        if (in_array(strtolower(pathinfo($filePath, PATHINFO_EXTENSION)), ['xls', 'xlsx'], true)) {
+            yield from $this->parseSpreadsheet($filePath);
+
+            return;
         }
 
         $this->detectFormat($filePath);
@@ -72,6 +79,45 @@ final class CsvParser
             }
         } finally {
             fclose($handle);
+        }
+    }
+
+    private function parseSpreadsheet(string $filePath): Generator
+    {
+        try {
+            $sheet = IOFactory::load($filePath)->getActiveSheet();
+            $rows = $sheet->toArray(null, true, true, false);
+        } catch (\Throwable $exception) {
+            throw new InvalidArgumentException('No se pudo leer la hoja de Excel.', previous: $exception);
+        }
+
+        $headers = null;
+        $rowNumber = 0;
+        $maxRows = self::maxRows();
+        foreach ($rows as $rawRow) {
+            if ($headers === null) {
+                $this->encoding = 'UTF-8';
+                $headers = $this->normalizeHeaders($rawRow);
+
+                continue;
+            }
+
+            if (count(array_filter($rawRow, static fn ($value) => $value !== null && trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+
+            $rowNumber++;
+            if ($rowNumber > $maxRows) {
+                throw new InvalidArgumentException(sprintf(
+                    'La hoja excede el maximo de %d filas. Dividi el archivo en lotes mas pequenos.',
+                    $maxRows,
+                ));
+            }
+
+            yield [
+                'row_number' => $rowNumber,
+                'payload' => $this->combineHeaders($headers, $rawRow),
+            ];
         }
     }
 

@@ -74,6 +74,33 @@ class ImportUpsertTest extends TestCase
         ]);
     }
 
+    public function test_product_importer_preserves_fields_omitted_from_simple_upload(): void
+    {
+        Product::create([
+            'sku' => 'SKU-SIMPLE',
+            'name' => 'Producto existente',
+            'description' => 'Descripcion conservada',
+            'tracking_type' => 'quantity',
+            'unit_of_measure' => 'unit',
+            'base_price' => 25,
+            'sale_currency' => 'USD',
+            'is_active' => true,
+        ]);
+        $originalPrice = Product::query()->where('sku', 'SKU-SIMPLE')->value('base_price');
+
+        $this->runImport('products', $this->writeCsv(
+            'simple-update.csv',
+            "sku,name\nSKU-SIMPLE,Producto actualizado\n",
+        ));
+
+        $this->assertDatabaseHas('products', [
+            'sku' => 'SKU-SIMPLE',
+            'name' => 'Producto actualizado',
+            'description' => 'Descripcion conservada',
+        ]);
+        $this->assertSame($originalPrice, Product::query()->where('sku', 'SKU-SIMPLE')->value('base_price'));
+    }
+
     public function test_product_importer_skips_existing_without_changes(): void
     {
         $this->runImport('products', $this->writeCsv('p1.csv', "sku,name,base_price\nSKU-SAME,Igual,10\n"));

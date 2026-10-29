@@ -7589,3 +7589,9 @@ Regla:
 - **Tests**: Inventory/POS 154/154; Sync 169/170 (1 skip); frontend 824/825 (1 skip); TypeScript,
   Pint y builds Admin/POS correctos. La suite backend combinada con `--process-isolation` excede el
   timeout por volumen, por lo que las suites criticas se verifican por modulo.
+# 2026-10-29 — Pantalla de importación simplificada
+
+- La pantalla de importación ahora prioriza “Agregar o actualizar productos” y permite desplegar “Cargar otro tipo de dato”; el historial usa “Cargas anteriores”.
+- Se añadieron plantilla simplificada y descarga de productos actuales para editar, con importación de `.csv`, `.xls` y `.xlsx` en productos.
+- El parser backend procesa la primera hoja del archivo Excel; otros tipos de dato mantienen carga CSV.
+- Se añadieron pruebas para la interfaz, URL de plantilla simple, plantilla backend y lectura de Excel.

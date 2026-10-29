@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface PreviewRow {
   headers: string[];
@@ -8,6 +8,7 @@ interface PreviewRow {
 interface Props {
   fileName: string | null;
   entity: string;
+  file: File | null;
 }
 
 function parseCsvPreview(text: string, maxRows = 10): PreviewRow {
@@ -15,7 +16,7 @@ function parseCsvPreview(text: string, maxRows = 10): PreviewRow {
   if (lines.length === 0) {
     return { headers: [], rows: [] };
   }
-  const firstLine = lines[0] ?? '';
+  const firstLine = (lines[0] ?? '').replace(/^\uFEFF/, '');
   const headers = firstLine.split(',').map((h) => h.trim());
   const rows = lines.slice(1, maxRows + 1).map((line) => {
     const cells = parseCsvLine(line);
@@ -52,30 +53,70 @@ function parseCsvLine(line: string): string[] {
   return out;
 }
 
-export function ImportPreviewTable({ fileName, entity }: Props) {
-  const [preview, setPreview] = useState<PreviewRow | null>(null);
+function readFileAsText(file: File): Promise<string> {
+  if (typeof file.text === 'function') return file.text();
 
-  async function readFile(file: File) {
-    const text = await file.text();
-    setPreview(parseCsvPreview(text));
-  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo.'));
+    reader.readAsText(file);
+  });
+}
+
+export function ImportPreviewTable({ fileName, entity, file }: Props) {
+  const [preview, setPreview] = useState<PreviewRow | null>(null);
+  const [reading, setReading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+
+    if (/\.xlsx?$/i.test(file.name)) {
+      setPreview(null);
+      setReading(false);
+      return;
+    }
+
+    setReading(true);
+    void readFileAsText(file)
+      .then((text) => {
+        if (!cancelled) setPreview(parseCsvPreview(text));
+      })
+      .catch(() => {
+        if (!cancelled) setPreview({ headers: [], rows: [] });
+      })
+      .finally(() => {
+        if (!cancelled) setReading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-gray-700">
-          <strong>{fileName ?? 'archivo'}</strong> listo. Revisa las primeras filas antes de importar.
+          <strong>{fileName ?? 'archivo'}</strong> listo.{' '}
+          {file && /\.xlsx?$/i.test(file.name)
+            ? 'La hoja se comprobará al iniciar la carga.'
+            : 'Revisa las primeras filas antes de importar.'}
         </p>
-        <input
-          type="file"
-          accept=".csv"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void readFile(f);
-          }}
-          className="text-xs"
-        />
       </div>
+
+      {reading && <p className="text-xs text-gray-500">Leyendo las primeras filas…</p>}
+
+      {file && entity === 'products' && /\.xlsx?$/i.test(file.name) && (
+        <p className="rounded-md bg-blue-50 p-2 text-xs text-blue-800">
+          Archivo Excel listo. El sistema revisará los encabezados y los códigos al aplicar los
+          cambios.
+        </p>
+      )}
 
       {preview && (
         <div className="overflow-x-auto rounded-md border">
@@ -106,12 +147,13 @@ export function ImportPreviewTable({ fileName, entity }: Props) {
 
       {!preview && (
         <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-700">
-          Tip: cuando ejecutes la importacion, las filas se procesaran una por una.
-          Los duplicados se omitiran y los errores se reportaran en el CSV final.
+          {entity === 'products'
+            ? 'El código identifica el producto: los códigos existentes se actualizarán y los nuevos se agregarán. Las filas con error aparecerán en el reporte.'
+            : 'Las filas se procesarán una por una y los errores aparecerán en el reporte descargable.'}
         </p>
       )}
 
-      <p className="text-xs text-gray-500">Entidad destino: <code>{entity}</code></p>
+      {entity !== 'products' && <p className="text-xs text-gray-500">Tipo de dato: {entity}</p>}
     </div>
   );
 }

@@ -42,7 +42,7 @@ export const ENTITY_LABELS: Record<SupportedEntity, string> = {
   brands: 'Marcas',
   categories: 'Categorias',
   tags: 'Tags',
-  products: 'Productos',
+  products: 'Productos (agregar o actualizar)',
   price_lists: 'Listas de precios',
   product_prices: 'Precios de productos',
   payment_methods: 'Metodos de pago',
@@ -140,13 +140,17 @@ export interface RunSummary {
   skipped: number;
   failed: number;
   status: string;
-  error_summary?: { row: number; natural_key: string | null; errors: Record<string, unknown> }[] | null;
+  error_summary?:
+    { row: number; natural_key: string | null; errors: Record<string, unknown> }[] | null;
 }
 
 export function useRunImportEntity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { sessionId: number; entity: SupportedEntity }): Promise<{ entity: string; session: DataImport }> => {
+    mutationFn: async (payload: {
+      sessionId: number;
+      entity: SupportedEntity;
+    }): Promise<{ entity: string; session: DataImport }> => {
       const response = await api.post<unknown>(
         `/import/sessions/${payload.sessionId}/entities/${payload.entity}/run`,
         {},
@@ -178,8 +182,13 @@ export function useImportEntityRows(sessionId: number, entity: SupportedEntity) 
   });
 }
 
-export function templateUrl(entity: SupportedEntity, current = false): string {
-  return `/import/templates/${entity}${current ? '?current=1' : ''}`;
+export function templateUrl(entity: SupportedEntity, current = false, simple = false): string {
+  const params = new URLSearchParams();
+  if (current) params.set('current', '1');
+  if (simple) params.set('simple', '1');
+  const query = params.toString();
+
+  return `/import/templates/${entity}${query ? `?${query}` : ''}`;
 }
 
 /**

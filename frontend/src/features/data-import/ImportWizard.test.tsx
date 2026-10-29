@@ -31,27 +31,41 @@ beforeEach(() => {
 });
 
 describe('<ImportWizard>', () => {
-  it('muestra la zona de subida al elegir una entidad', async () => {
+  it('permite subir productos desde CSV o Excel', async () => {
     const { container } = render(<ImportWizard />);
 
-    await userEvent.selectOptions(screen.getByRole('combobox'), 'products');
+    await userEvent.click(screen.getByRole('button', { name: 'Subir productos' }));
 
-    expect(screen.getByText('Sube aqui el CSV ya completado usando la plantilla del tipo elegido.')).toBeInTheDocument();
-    expect(screen.getByText('Arrastra tu CSV aqui o haz click para seleccionar')).toBeInTheDocument();
+    expect(container.querySelector('input[type="file"]')).toHaveAttribute(
+      'accept',
+      expect.stringContaining('.xlsx'),
+    );
+  });
+
+  it('presenta la carga de productos y permite elegir otros datos', async () => {
+    const { container } = render(<ImportWizard />);
+
+    expect(screen.getByRole('heading', { name: 'Agregar o actualizar productos' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Subir productos' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Cargar otro tipo de dato'));
+    await userEvent.selectOptions(screen.getByRole('combobox'), 'branches');
+
+    expect(screen.getByText('Sube aquí el CSV completado con la plantilla descargada.')).toBeInTheDocument();
+    expect(screen.getByText('Selecciona o arrastra aquí tu archivo CSV')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Descargar plantilla' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Descargar datos actuales' })).toBeInTheDocument();
 
     const fileInput = container.querySelector('input[type="file"]');
     expect(fileInput).toBeTruthy();
 
-    await userEvent.upload(fileInput as HTMLInputElement, new File(['sku,name\nP1,Producto 1\n'], 'products.csv', { type: 'text/csv' }));
+    await userEvent.upload(fileInput as HTMLInputElement, new File(['code,name\nB1,Sucursal 1\n'], 'branches.csv', { type: 'text/csv' }));
 
     await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith({ meta: { entity: 'products' } });
+      expect(mockCreateSession).toHaveBeenCalledWith({ meta: { entity: 'branches' } });
       expect(mockUpload).toHaveBeenCalledWith({
         file: expect.any(File),
         sessionId: 1,
-        entity: 'products',
+        entity: 'branches',
       });
     });
   });

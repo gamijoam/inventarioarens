@@ -12,10 +12,10 @@ export function DataImportPage() {
     <div className="space-y-4">
       <div className="flex gap-2 border-b">
         <TabButton active={tab === 'new'} onClick={() => setTab('new')}>
-          Nuevo import
+          Nueva carga
         </TabButton>
         <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
-          Historial
+          Cargas anteriores
         </TabButton>
       </div>
 

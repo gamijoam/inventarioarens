@@ -28,7 +28,11 @@ class DataImportWizardController extends Controller
         }
 
         $request->validate([
-            'file' => ['required', 'file', 'max:'.((int) config('data_import.max_file_mb', 50) * 1024)],
+            'file' => [
+                'required', 'file',
+                $entity === 'products' ? 'mimes:csv,txt,xls,xlsx' : 'mimes:csv,txt',
+                'max:'.((int) config('data_import.max_file_mb', 50) * 1024),
+            ],
         ]);
 
         $entityRow = $this->service->uploadFile($dataImport, $entity, $request->file('file'));
