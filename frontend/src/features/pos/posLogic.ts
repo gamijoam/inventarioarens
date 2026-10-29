@@ -17,6 +17,7 @@ export interface PosCartLine {
    * item original de la venta (POST /pos/orders/{id}/payments items).
    */
   sale_item_id?: number | null;
+  reserved_stock?: number;
   quantity: number;
   available_stock: number;
   unit_price: number;
@@ -386,6 +387,10 @@ export function hasStockIssue(lines: PosCartLine[]): boolean {
   return lines.some((line) => line.track_stock !== false && line.quantity > line.available_stock);
 }
 
+export function refreshedCartAvailableStock(line: PosCartLine, availableStock: number): number {
+  return availableStock + (line.sale_item_id ? (line.reserved_stock ?? 0) : 0);
+}
+
 export function hasPriceIssue(lines: PosCartLine[]): boolean {
   return lines.some((line) => Boolean(line.price_issue));
 }
@@ -480,5 +485,3 @@ export function formatLocalNumber(value: number): string {
     maximumFractionDigits: 2,
   }).format(value);
 }
-
-

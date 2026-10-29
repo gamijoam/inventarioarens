@@ -177,6 +177,7 @@ import {
   requiresPosVariantSelection,
   resolveInitialPosPriceListId,
   resolveLineQuoteListId,
+  refreshedCartAvailableStock,
   posLineQuoteKey,
   promotionLineUnitPrice,
   invoicePromotionPaymentIssue,
@@ -1540,7 +1541,10 @@ export function PosTerminal() {
           const newUom = product.unit_of_measure ?? 'unit';
           const newTrackingType = product.tracking_type ?? null;
           const newTrackStock = product.track_stock !== false;
-          const newAvailableStock = Number(product.available_stock ?? 0);
+          const newAvailableStock = refreshedCartAvailableStock(
+            line,
+            Number(product.available_stock ?? 0),
+          );
           const newBasePrice = Number(product.base_price ?? 0);
           const newImageUrl =
             product.image_url ?? product.primary_image_url ?? line.image_url ?? null;
@@ -4539,8 +4543,9 @@ export function PosTerminal() {
             barcode: product.barcode,
             warehouse_id: item.warehouse_id,
             sale_item_id: item.id,
+            reserved_stock: Number(item.quantity),
             quantity: Number(item.quantity),
-            available_stock: Math.max(Number(product.available_stock ?? 0), Number(item.quantity)),
+            available_stock: Number(product.available_stock ?? 0) + Number(item.quantity),
             unit_price: Number(item.unit_price),
             base_unit_price: Number(item.base_unit_price ?? item.unit_price),
             currency: item.sale_currency ?? product.sale_currency ?? 'USD',

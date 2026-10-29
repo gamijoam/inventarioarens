@@ -49,6 +49,45 @@ class PosHoldOrderApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_reholding_only_available_unit_keeps_its_reservation_without_new_stock(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 1,
+        ]);
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor', ['pos.orders.hold', 'pos.view']);
+        $payload = ['items' => [[
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+        ]]];
+        $held = $this->actingAs($seller)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', $payload)->assertCreated();
+        $orderId = $held->json('data.id');
+        $saleId = $held->json('data.sale_id');
+
+        $this->assertDatabaseHas('stock_balances', [
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+            'quantity_reserved' => '1.0000',
+        ]);
+        $this->postJson('/api/pos/orders', $payload + ['order_id' => $orderId])
+            ->assertOk()
+            ->assertJsonPath('data.id', $orderId)
+            ->assertJsonPath('data.sale_id', $saleId);
+        $this->assertDatabaseCount('pos_orders', 1);
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseHas('stock_balances', [
+            'product_id' => $product->id,
+            'quantity_available' => '0.0000',
+            'quantity_reserved' => '1.0000',
+        ]);
+    }
+
     public function test_reholding_a_recovered_order_updates_its_existing_sale_and_reservation(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

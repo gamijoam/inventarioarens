@@ -16,6 +16,7 @@ import {
   requiresPosVariantSelection,
   resolveInitialPosPriceListId,
   resolveLineQuoteListId,
+  refreshedCartAvailableStock,
   posLineQuoteKey,
   type PosCartLine,
 } from '../posLogic';
@@ -32,6 +33,23 @@ const baseLine: PosCartLine = {
 };
 
 describe('POS cart logic', () => {
+  it('conserva la unidad propia reservada al refrescar una orden recuperada', () => {
+    const pending = {
+      ...baseLine,
+      sale_item_id: 31,
+      reserved_stock: 1,
+      quantity: 1,
+      available_stock: 1,
+    };
+    expect(refreshedCartAvailableStock(pending, 0)).toBe(1);
+    expect(
+      hasStockIssue([{ ...pending, available_stock: refreshedCartAvailableStock(pending, 0) }]),
+    ).toBe(false);
+    expect(refreshedCartAvailableStock(pending, 2)).toBe(3);
+    expect(refreshedCartAvailableStock({ ...pending, quantity: 2 }, 0)).toBe(1);
+    expect(refreshedCartAvailableStock(baseLine, 0)).toBe(0);
+  });
+
   it('calcula descuentos por porcentaje y monto fijo', () => {
     expect(lineTotal({ ...baseLine, discount_type: 'percent', discount_value: 10 })).toBe(36);
     expect(lineTotal({ ...baseLine, discount_type: 'fixed', discount_value: 5 })).toBe(35);
