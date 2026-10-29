@@ -258,6 +258,10 @@ class PosOrderController extends Controller
     public function hold(StorePosHoldRequest $request, PosCheckoutService $checkout): JsonResponse
     {
         Gate::authorize('hold', PosOrder::class);
+        $orderId = $request->validated('order_id');
+        if ($orderId !== null) {
+            Gate::authorize('view', PosOrder::query()->findOrFail($orderId));
+        }
 
         if ($request->filled('promotion_id') || $request->filled('combo_applications') || $request->filled('product_offer_applications')) {
             abort_unless($request->user()?->can('pos.promotions.apply'), Response::HTTP_FORBIDDEN);
@@ -288,13 +292,14 @@ class PosOrderController extends Controller
             invoicePromotionCode: $request->validated('invoice_promotion_code'),
             comboApplications: $request->validated('combo_applications', []),
             productOfferApplications: $request->validated('product_offer_applications', []),
+            orderId: $orderId,
         );
 
         $this->preloadSerialUnits(collect([$order->loadMissing('sale.items')]), $request);
 
         return PosOrderResource::make($order)
             ->response()
-            ->setStatusCode(Response::HTTP_CREATED);
+            ->setStatusCode($orderId === null ? Response::HTTP_CREATED : Response::HTTP_OK);
     }
 
     public function addPayments(AddPosOrderPaymentsRequest $request, PosOrder $posOrder, PosCheckoutService $checkout): PosOrderResource

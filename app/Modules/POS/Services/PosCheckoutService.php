@@ -288,10 +288,23 @@ class PosCheckoutService
         ?string $invoicePromotionCode = null,
         array $comboApplications = [],
         array $productOfferApplications = [],
+        ?int $orderId = null,
     ): PosOrder {
-        return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
-            return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications): PosOrder {
+        return PerformanceProbe::measure('POS armar orden total', function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications, $orderId): PosOrder {
+            return DB::transaction(function () use ($seller, $items, $customerId, $customerName, $promotionId, $promotionCode, $invoicePromotionId, $invoicePromotionCode, $comboApplications, $productOfferApplications, $orderId): PosOrder {
                 $this->assertWarehousesWithinScope($items, $seller);
+
+                $order = $orderId === null ? null : PosOrder::query()
+                    ->with(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse'])
+                    ->lockForUpdate()
+                    ->findOrFail($orderId);
+                if ($order && ($order->status !== PosOrder::STATUS_OPEN
+                    || $order->sale?->status !== Sale::STATUS_DRAFT
+                    || $order->payments()->exists())) {
+                    throw ValidationException::withMessages([
+                        'order_id' => 'Solo se puede actualizar una orden pendiente sin pagos.',
+                    ]);
+                }
 
                 if ($invoicePromotionId !== null || $invoicePromotionCode !== null || $comboApplications !== [] || $productOfferApplications !== []) {
                     if ($promotionId !== null || $promotionCode !== null) {
@@ -312,28 +325,40 @@ class PosCheckoutService
                     $items = $this->promotions->applyToItems($items, $promotionId, $promotionCode);
                 }
 
-                $sale = PerformanceProbe::measure(
-                    'POS armar crear venta borrador',
-                    fn (): Sale => $this->sales->createDraft($seller, $items, $customerId),
-                    500,
-                    ['items' => count($items)]
-                );
+                if ($order) {
+                    $this->releaseOrderReservation($order, $seller);
+                    $sale = $this->sales->replaceDraft($order->sale, $items, $customerId);
+                    $order->update([
+                        'customer_id' => $customerId,
+                        'customer_name' => $customerName,
+                        'total_base_amount' => $sale->total_base_amount,
+                        'total_local_amount' => $sale->total_local_amount,
+                    ]);
+                    $order->unsetRelation('sale');
+                } else {
+                    $sale = PerformanceProbe::measure(
+                        'POS armar crear venta borrador',
+                        fn (): Sale => $this->sales->createDraft($seller, $items, $customerId),
+                        500,
+                        ['items' => count($items)]
+                    );
 
-                $order = PosOrder::create([
-                    'sale_id' => $sale->id,
-                    'cash_register_session_id' => null,
-                    'customer_id' => $customerId,
-                    'status' => PosOrder::STATUS_OPEN,
-                    'seller_id' => $seller->id,
-                    'customer_name' => $customerName,
-                    'total_base_amount' => $sale->total_base_amount,
-                    'total_local_amount' => $sale->total_local_amount,
-                    'opened_at' => now(),
-                ]);
+                    $order = PosOrder::create([
+                        'sale_id' => $sale->id,
+                        'cash_register_session_id' => null,
+                        'customer_id' => $customerId,
+                        'status' => PosOrder::STATUS_OPEN,
+                        'seller_id' => $seller->id,
+                        'customer_name' => $customerName,
+                        'total_base_amount' => $sale->total_base_amount,
+                        'total_local_amount' => $sale->total_local_amount,
+                        'opened_at' => now(),
+                    ]);
+                }
 
                 PerformanceProbe::measure(
                     'POS armar reservar stock',
-                    fn () => $this->reserveOrderInventory($order, $seller, requireSerialUnits: false),
+                    fn () => $this->reserveOrderInventory($order, $seller, requireSerialUnits: false, force: $orderId !== null),
                     500,
                     ['order_id' => $order->id, 'items' => count($items)]
                 );
@@ -1101,9 +1126,9 @@ class PosCheckoutService
         return round($paidBase, 4) + 0.01 >= round($totalBase, 4);
     }
 
-    private function reserveOrderInventory(PosOrder $order, User $cashier, bool $requireSerialUnits = true): void
+    private function reserveOrderInventory(PosOrder $order, User $cashier, bool $requireSerialUnits = true, bool $force = false): void
     {
-        if ($this->orderHasReservation($order)) {
+        if (! $force && $this->orderHasReservation($order)) {
             return;
         }
 

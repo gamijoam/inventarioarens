@@ -32,102 +32,123 @@ class SaleService
                 'created_by' => $user->id,
             ]);
 
-            $totalBase = 0.0;
-            $totalLocal = 0.0;
-            $createdItems = [];
+            return $this->populateDraft($sale, $items);
+        });
+    }
 
-            foreach ($items as $itemIndex => $item) {
-                $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
-                $product = Product::query()->with('warrantyPolicy')->findOrFail($item['product_id']);
-                $quantity = (float) $item['quantity'];
+    public function replaceDraft(Sale $sale, array $items, ?int $customerId = null): Sale
+    {
+        if ($sale->status !== Sale::STATUS_DRAFT) {
+            throw ValidationException::withMessages(['order_id' => 'Solo se puede actualizar una venta pendiente.']);
+        }
 
-                if ($quantity <= 0) {
-                    throw ValidationException::withMessages(['items' => 'La cantidad debe ser mayor que cero.']);
-                }
+        foreach ($sale->promotionApplications as $application) {
+            $application->items()->delete();
+            $application->delete();
+        }
+        $sale->items()->delete();
+        $sale->update(['customer_id' => $customerId]);
 
-                $quote = $this->prices->quote(
-                    $product,
-                    $item['price_list_id'] ?? null,
-                    $item['price_source'] ?? null,
-                );
-                $baseUnitPrice = (float) $quote['base_price_usd'];
-                $normalBaseTotal = round($baseUnitPrice * $quantity, 4);
-                $normalUnitPrice = (float) $quote['sale_price'];
-                $normalTotalAmount = round($normalUnitPrice * $quantity, 4);
-                $normalLocalTotal = $quote['price_ves'] === null ? 0.0 : round((float) $quote['price_ves'] * $quantity, 4);
-                $promotionApplied = array_key_exists('promotion_base_total_amount', $item);
-                $baseTotal = $promotionApplied ? (float) $item['promotion_base_total_amount'] : $normalBaseTotal;
-                $totalAmount = $promotionApplied ? (float) $item['promotion_total_amount'] : $normalTotalAmount;
-                $localTotal = $promotionApplied ? (float) $item['promotion_local_total_amount'] : $normalLocalTotal;
-                $discount = $promotionApplied
-                    ? [
-                        'type' => null,
-                        'value' => 0,
-                        'amount' => 0,
-                        'base_amount' => 0,
-                        'local_amount' => 0,
-                        'reason' => null,
-                    ]
-                    : $this->resolveLineDiscount($item, $quote, $totalAmount, $baseTotal, $localTotal);
-                $netTotalAmount = $promotionApplied ? $totalAmount : round($totalAmount - $discount['amount'], 4);
-                $netBaseTotal = $promotionApplied ? $baseTotal : round($baseTotal - $discount['base_amount'], 4);
-                $netLocalTotal = $promotionApplied ? $localTotal : round($localTotal - $discount['local_amount'], 4);
+        return $this->populateDraft($sale, $items);
+    }
 
-                $unitCost = $product->last_purchase_cost ?? $product->average_cost;
+    private function populateDraft(Sale $sale, array $items): Sale
+    {
+        $totalBase = 0.0;
+        $totalLocal = 0.0;
+        $createdItems = [];
 
-                $createdItems[$itemIndex] = SaleItem::create([
-                    'sale_id' => $sale->id,
-                    'warehouse_id' => $warehouse->id,
-                    'product_id' => $product->id,
-                    'product_variant_id' => $item['product_variant_id'] ?? null,
-                    'price_list_id' => $quote['price_list_id'],
-                    'price_list_name' => $quote['price_list_name'],
-                    'quantity' => $quantity,
-                    'product_unit_ids' => ($item['product_unit_ids'] ?? []) ?: null,
-                    'sale_currency' => $quote['sale_currency'],
-                    'unit_price' => round($netTotalAmount / $quantity, 4),
-                    'total_amount' => $netTotalAmount,
-                    'base_unit_price' => $baseUnitPrice,
-                    'base_total_amount' => $netBaseTotal,
-                    'base_unit_cost' => $unitCost,
-                    'discount_type' => $discount['type'],
-                    'discount_value' => $discount['value'],
-                    'discount_amount' => $discount['amount'],
-                    'discount_base_amount' => $discount['base_amount'],
-                    'discount_local_amount' => $discount['local_amount'],
-                    'discount_reason' => $discount['reason'],
-                    'promotion_id' => $item['promotion_id'] ?? null,
-                    'promotion_code' => $item['promotion_code'] ?? null,
-                    'promotion_name' => $item['promotion_name'] ?? null,
-                    'promotion_benefit_type' => $item['promotion_benefit_type'] ?? null,
-                    'promotion_price_usd' => $item['promotion_price_usd'] ?? null,
-                    'promotion_discount_percent' => $item['promotion_discount_percent'] ?? null,
-                    'promotion_discount_amount_usd' => $item['promotion_discount_amount_usd'] ?? null,
-                    'promotion_adjustment_base_amount' => $item['promotion_adjustment_base_amount'] ?? 0,
-                    'promotion_adjustment_local_amount' => $item['promotion_adjustment_local_amount'] ?? 0,
-                    'exchange_rate_type_id' => $quote['exchange_rate_type_id'],
-                    'exchange_rate_type_code' => $quote['exchange_rate_type_code'],
-                    'exchange_rate' => $quote['exchange_rate'],
-                    'warranty_policy_id' => $product->warrantyPolicy?->id,
-                    'warranty_policy_name' => $product->warrantyPolicy?->name,
-                    'warranty_duration_days' => $product->warrantyPolicy?->duration_days,
-                    'warranty_coverage_type' => $product->warrantyPolicy?->coverage_type,
-                    'warranty_conditions' => $product->warrantyPolicy?->conditions,
-                ]);
+        foreach ($items as $itemIndex => $item) {
+            $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
+            $product = Product::query()->with('warrantyPolicy')->findOrFail($item['product_id']);
+            $quantity = (float) $item['quantity'];
 
-                $totalBase += $netBaseTotal;
-                $totalLocal += $netLocalTotal;
+            if ($quantity <= 0) {
+                throw ValidationException::withMessages(['items' => 'La cantidad debe ser mayor que cero.']);
             }
 
-            $this->persistPromotionApplications($sale, $items, $createdItems);
+            $quote = $this->prices->quote(
+                $product,
+                $item['price_list_id'] ?? null,
+                $item['price_source'] ?? null,
+            );
+            $baseUnitPrice = (float) $quote['base_price_usd'];
+            $normalBaseTotal = round($baseUnitPrice * $quantity, 4);
+            $normalUnitPrice = (float) $quote['sale_price'];
+            $normalTotalAmount = round($normalUnitPrice * $quantity, 4);
+            $normalLocalTotal = $quote['price_ves'] === null ? 0.0 : round((float) $quote['price_ves'] * $quantity, 4);
+            $promotionApplied = array_key_exists('promotion_base_total_amount', $item);
+            $baseTotal = $promotionApplied ? (float) $item['promotion_base_total_amount'] : $normalBaseTotal;
+            $totalAmount = $promotionApplied ? (float) $item['promotion_total_amount'] : $normalTotalAmount;
+            $localTotal = $promotionApplied ? (float) $item['promotion_local_total_amount'] : $normalLocalTotal;
+            $discount = $promotionApplied
+                ? [
+                    'type' => null,
+                    'value' => 0,
+                    'amount' => 0,
+                    'base_amount' => 0,
+                    'local_amount' => 0,
+                    'reason' => null,
+                ]
+                : $this->resolveLineDiscount($item, $quote, $totalAmount, $baseTotal, $localTotal);
+            $netTotalAmount = $promotionApplied ? $totalAmount : round($totalAmount - $discount['amount'], 4);
+            $netBaseTotal = $promotionApplied ? $baseTotal : round($baseTotal - $discount['base_amount'], 4);
+            $netLocalTotal = $promotionApplied ? $localTotal : round($localTotal - $discount['local_amount'], 4);
 
-            $sale->update([
-                'total_base_amount' => $totalBase,
-                'total_local_amount' => $totalLocal,
+            $unitCost = $product->last_purchase_cost ?? $product->average_cost;
+
+            $createdItems[$itemIndex] = SaleItem::create([
+                'sale_id' => $sale->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $item['product_variant_id'] ?? null,
+                'price_list_id' => $quote['price_list_id'],
+                'price_list_name' => $quote['price_list_name'],
+                'quantity' => $quantity,
+                'product_unit_ids' => ($item['product_unit_ids'] ?? []) ?: null,
+                'sale_currency' => $quote['sale_currency'],
+                'unit_price' => round($netTotalAmount / $quantity, 4),
+                'total_amount' => $netTotalAmount,
+                'base_unit_price' => $baseUnitPrice,
+                'base_total_amount' => $netBaseTotal,
+                'base_unit_cost' => $unitCost,
+                'discount_type' => $discount['type'],
+                'discount_value' => $discount['value'],
+                'discount_amount' => $discount['amount'],
+                'discount_base_amount' => $discount['base_amount'],
+                'discount_local_amount' => $discount['local_amount'],
+                'discount_reason' => $discount['reason'],
+                'promotion_id' => $item['promotion_id'] ?? null,
+                'promotion_code' => $item['promotion_code'] ?? null,
+                'promotion_name' => $item['promotion_name'] ?? null,
+                'promotion_benefit_type' => $item['promotion_benefit_type'] ?? null,
+                'promotion_price_usd' => $item['promotion_price_usd'] ?? null,
+                'promotion_discount_percent' => $item['promotion_discount_percent'] ?? null,
+                'promotion_discount_amount_usd' => $item['promotion_discount_amount_usd'] ?? null,
+                'promotion_adjustment_base_amount' => $item['promotion_adjustment_base_amount'] ?? 0,
+                'promotion_adjustment_local_amount' => $item['promotion_adjustment_local_amount'] ?? 0,
+                'exchange_rate_type_id' => $quote['exchange_rate_type_id'],
+                'exchange_rate_type_code' => $quote['exchange_rate_type_code'],
+                'exchange_rate' => $quote['exchange_rate'],
+                'warranty_policy_id' => $product->warrantyPolicy?->id,
+                'warranty_policy_name' => $product->warrantyPolicy?->name,
+                'warranty_duration_days' => $product->warrantyPolicy?->duration_days,
+                'warranty_coverage_type' => $product->warrantyPolicy?->coverage_type,
+                'warranty_conditions' => $product->warrantyPolicy?->conditions,
             ]);
 
-            return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse']);
-        });
+            $totalBase += $netBaseTotal;
+            $totalLocal += $netLocalTotal;
+        }
+
+        $this->persistPromotionApplications($sale, $items, $createdItems);
+
+        $sale->update([
+            'total_base_amount' => $totalBase,
+            'total_local_amount' => $totalLocal,
+        ]);
+
+        return $sale->refresh()->load(['customer', 'items.product', 'items.variant', 'items.warehouse']);
     }
 
     /**

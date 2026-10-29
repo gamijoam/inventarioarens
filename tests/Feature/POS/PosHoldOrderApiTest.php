@@ -49,6 +49,161 @@ class PosHoldOrderApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_reholding_a_recovered_order_updates_its_existing_sale_and_reservation(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor', ['pos.orders.hold', 'pos.view']);
+
+        $held = $this->actingAs($seller)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                ]],
+            ])->assertCreated();
+
+        $orderId = $held->json('data.id');
+        $saleId = $held->json('data.sale_id');
+
+        foreach ([3, 3] as $quantity) {
+            $this->actingAs($seller)->withHeader('X-Tenant', $tenant->slug)
+                ->postJson('/api/pos/orders', [
+                    'order_id' => $orderId,
+                    'items' => [[
+                        'warehouse_id' => $warehouse->id,
+                        'product_id' => $product->id,
+                        'quantity' => $quantity,
+                    ]],
+                ])->assertOk()
+                ->assertJsonPath('data.id', $orderId)
+                ->assertJsonPath('data.sale_id', $saleId)
+                ->assertJsonPath('data.sale.items.0.quantity', $quantity);
+        }
+
+        $this->assertDatabaseCount('pos_orders', 1);
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseCount('sale_items', 1);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'quantity_available' => '2.0000',
+            'quantity_reserved' => '3.0000',
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $tenant->id,
+            'type' => 'released',
+            'reference_id' => $orderId,
+        ]);
+        $this->assertDatabaseCount('pos_payments', 0);
+
+        $this->actingAs($seller)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/orders', [
+                'order_id' => $orderId,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'quantity' => 6,
+                ]],
+            ])->assertUnprocessable();
+        $this->assertDatabaseCount('pos_orders', 1);
+        $this->assertDatabaseCount('sale_items', 1);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'quantity_available' => '2.0000',
+            'quantity_reserved' => '3.0000',
+        ]);
+
+        $cashier = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $cashier, 'Cajera', ['pos.checkout', 'pos.view']);
+        $session = $this->cashRegisterSession($tenant, $cashier, $warehouse->branch_id);
+        $this->actingAs($cashier)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$orderId}/payments", [
+                'cash_register_session_id' => $session->id,
+                'payments' => [[
+                    'method' => PosPayment::METHOD_CASH,
+                    'currency' => Product::CURRENCY_USD,
+                    'amount' => 300,
+                ]],
+            ])->assertOk()
+            ->assertJsonPath('data.id', $orderId)
+            ->assertJsonPath('data.sale_id', $saleId)
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID);
+        $this->assertDatabaseCount('pos_orders', 1);
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'quantity_available' => '2.0000',
+            'quantity_reserved' => '0.0000',
+        ]);
+    }
+
+    public function test_reholding_rejects_an_order_with_a_payment_or_from_another_tenant(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 500);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 5,
+        ]);
+        $seller = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $seller, 'Vendedor', ['pos.orders.hold', 'pos.view']);
+        $orderId = $this->armedOrderId($tenant, $seller, $warehouse, $product, 1);
+
+        $otherTenant = Tenant::create(['name' => 'Empresa B', 'slug' => 'empresa-b']);
+        [$otherWarehouse, $otherProduct] = $this->pricedProduct($otherTenant, Product::CURRENCY_USD, 'BCV', 500);
+        $otherSeller = $this->userInTenant($otherTenant);
+        $this->grantRole($otherTenant, $otherSeller, 'Vendedor B', ['pos.orders.hold', 'pos.view']);
+        $this->actingAs($otherSeller)->withHeader('X-Tenant', $otherTenant->slug)
+            ->postJson('/api/pos/orders', [
+                'order_id' => $orderId,
+                'items' => [['warehouse_id' => $otherWarehouse->id, 'product_id' => $otherProduct->id, 'quantity' => 1]],
+            ])->assertUnprocessable()->assertJsonValidationErrors(['order_id']);
+
+        app(TenantManager::class)->set($tenant);
+        $this->actingAs($seller)->withHeader('X-Tenant', $tenant->slug);
+        PosPayment::create([
+            'pos_order_id' => $orderId,
+            'method' => PosPayment::METHOD_CASH,
+            'currency' => Product::CURRENCY_USD,
+            'amount' => 1,
+            'amount_base' => 1,
+            'amount_local' => 1,
+            'status' => 'captured',
+        ]);
+        $this->postJson('/api/pos/orders', [
+            'order_id' => $orderId,
+            'items' => [['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity' => 2]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['order_id']);
+
+        $this->assertDatabaseCount('pos_orders', 1);
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseHas('stock_balances', [
+            'tenant_id' => $tenant->id,
+            'product_id' => $product->id,
+            'quantity_available' => '4.0000',
+            'quantity_reserved' => '1.0000',
+        ]);
+
+        PosPayment::query()->where('pos_order_id', $orderId)->delete();
+        PosOrder::findOrFail($orderId)->update(['status' => PosOrder::STATUS_CANCELLED]);
+        $this->postJson('/api/pos/orders', [
+            'order_id' => $orderId,
+            'items' => [['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'quantity' => 2]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['order_id']);
+        $this->assertDatabaseCount('pos_orders', 1);
+    }
+
     public function test_seller_with_hold_permission_arms_order_without_cash_session(): void
     {
         $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);

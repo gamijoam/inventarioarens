@@ -415,12 +415,6 @@ export function ClassicPosView({
         searchInputRef.current?.select();
         return;
       }
-      // F6: En Espera (Hold)
-      if (event.key === 'F6') {
-        event.preventDefault();
-        onHoldSale?.();
-        return;
-      }
       // F7: Recuperar pedidos en espera
       if (event.key === 'F7') {
         event.preventDefault();

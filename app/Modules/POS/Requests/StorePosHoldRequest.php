@@ -15,6 +15,7 @@ class StorePosHoldRequest extends FormRequest
         $tenantIds = [$tenantId];
 
         return [
+            'order_id' => ['sometimes', 'integer', Rule::exists('pos_orders', 'id')->where('tenant_id', $tenantId)],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'promotion_id' => [
                 'nullable',
