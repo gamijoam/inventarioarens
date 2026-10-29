@@ -161,6 +161,28 @@ describe('InventoryCatalogWorkspace', () => {
     expect(img).toHaveAttribute('src', 'https://images.example.com/caucho.jpg');
   });
 
+  it('muestra cinco productos por fila en escritorio sin perder fotos, tarifas ni acceso al carrito', () => {
+    const products = Array.from({ length: 5 }, (_, index) =>
+      makeProduct({
+        id: index + 101,
+        name: `Producto ${index + 1}`,
+        sku: `ART-${index + 1}`,
+        primary_image_url: `https://images.example.com/producto-${index + 1}.jpg`,
+      }),
+    );
+    renderWorkspace({ products, totalProducts: 5 });
+
+    const grid = screen.getByTestId('inventory-catalog-grid');
+    expect(grid).toHaveClass('xl:grid-cols-5');
+    expect(grid).toHaveClass('lg:grid-cols-3');
+    expect(grid.children).toHaveLength(5);
+    for (const product of products) {
+      expect(screen.getByAltText(product.name)).toHaveAttribute('src', product.primary_image_url);
+      expect(screen.getByTestId(`catalog-add-price-${product.id}-1`)).toBeInTheDocument();
+      expect(screen.getByTestId(`catalog-add-btn-${product.id}`)).toBeInTheDocument();
+    }
+  });
+
   it('muestra badge Agotado cuando el stock es 0 o nulo', () => {
     renderWorkspace({
       products: [makeProduct({ id: 102, name: 'Batería Gel 12V', available_stock: 0 })],

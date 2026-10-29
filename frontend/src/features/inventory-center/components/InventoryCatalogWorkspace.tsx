@@ -580,13 +580,13 @@ export function InventoryCatalogWorkspace({
 
       {/* 2. Cuadrícula de Productos (Grid Catálogo) */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           {Array.from({ length: 8 }).map((_, idx) => (
             <div
               key={idx}
               className="bg-surface rounded-xl border border-border p-3 flex flex-col gap-2 animate-pulse"
             >
-              <div className="w-full h-48 bg-surface-subtle rounded-lg" />
+              <div className="w-full h-44 bg-surface-subtle rounded-lg" />
               <div className="h-4 bg-surface-subtle rounded w-3/4" />
               <div className="h-3 bg-surface-subtle rounded w-1/2" />
               <div className="h-5 bg-surface-subtle rounded w-2/3 mt-2" />
@@ -617,7 +617,7 @@ export function InventoryCatalogWorkspace({
         </Card>
       ) : (
         <div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4"
           data-testid="inventory-catalog-grid"
         >
           {products.map((product) => {
@@ -649,11 +649,11 @@ export function InventoryCatalogWorkspace({
               <div
                 key={product.id}
                 onClick={() => setSelectedProduct(product)}
-                className="group relative bg-surface border border-border/80 hover:border-primary/50 rounded-xl overflow-hidden shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer"
+                className="group relative min-w-0 bg-surface border border-border/80 hover:border-primary/50 rounded-xl overflow-hidden shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer"
                 data-testid={`catalog-card-${product.id}`}
               >
                 {/* Contenedor de Imagen panorámica de tarjeta */}
-                <div className="relative w-full h-64 sm:h-72 bg-slate-50 dark:bg-zinc-900/60 overflow-hidden flex items-center justify-center border-b border-border/40">
+                <div className="relative w-full h-48 sm:h-52 xl:h-44 2xl:h-52 bg-slate-50 dark:bg-zinc-900/60 overflow-hidden flex items-center justify-center border-b border-border/40">
                   {imageUrl ? (
                     <img
                       src={imageUrl}
@@ -702,7 +702,7 @@ export function InventoryCatalogWorkspace({
                   {/* Badge de Categoría en esquina superior derecha */}
                   {categoryName && (
                     <span
-                      className="absolute top-2.5 right-2.5 bg-surface/90 backdrop-blur-xs text-text-secondary text-xs font-medium px-2.5 py-0.5 rounded-full border border-border/60 shadow-2xs truncate max-w-[120px]"
+                      className="absolute top-9 right-2.5 bg-surface/90 backdrop-blur-xs text-text-secondary text-xs font-medium px-2.5 py-0.5 rounded-full border border-border/60 shadow-2xs truncate max-w-[160px]"
                       title={categoryName}
                     >
                       {categoryName}
@@ -759,7 +759,7 @@ export function InventoryCatalogWorkspace({
                 </div>
 
                 {/* Contenido de la Tarjeta (Nombre + Marca + Precios de Venta + Costo) */}
-                <div className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-3">
+                <div className="p-3 xl:p-2.5 2xl:p-3.5 flex flex-col flex-1 justify-between gap-3">
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between gap-1 text-xs">
                       {product.sku ? (
@@ -800,12 +800,12 @@ export function InventoryCatalogWorkspace({
                             : (effRate ? p.price * effRate : null);
                           const shortName = p.listName.length > 25 ? p.listName.slice(0, 23) + '…' : p.listName;
                           return (
-                            <div key={p.listId} className="flex items-center justify-between gap-1 text-xs leading-tight">
-                              <span className="text-text-muted font-medium truncate max-w-[130px] sm:max-w-[160px]" title={p.listName}>
+                            <div key={p.listId} className="flex items-center justify-between gap-1 text-xs leading-tight xl:flex-col xl:items-stretch">
+                              <span className="text-text-muted font-medium truncate max-w-[130px] sm:max-w-[160px] xl:max-w-full" title={p.listName}>
                                 {shortName}:
                               </span>
-                              <div className="flex items-center gap-1.5">
-                                <div className="flex items-baseline gap-1.5 font-bold text-text-primary tabular-nums">
+                              <div className="flex items-center justify-end gap-1.5 min-w-0">
+                                <div className="flex items-baseline justify-end gap-1 font-bold text-text-primary tabular-nums min-w-0 xl:flex-wrap">
                                   <span className="text-xs sm:text-sm">{p.currency === 'VES' ? `Bs ${p.price.toFixed(2)}` : formatMoney(p.price)}</span>
                                   {pVes != null && p.currency !== 'VES' && (
                                     <span className="text-xs text-text-muted font-normal">
@@ -850,7 +850,7 @@ export function InventoryCatalogWorkspace({
                     </div>
 
                     {/* Fila de Costo y Margen */}
-                    <div className="flex items-center justify-between text-xs px-1 text-text-muted">
+                    <div className="flex items-center justify-between text-xs px-1 text-text-muted xl:flex-col xl:items-start xl:gap-0.5">
                       <span className="font-medium text-text-secondary">Costo de compra:</span>
                       {costVal != null && costVal > 0 ? (
                         <span className="font-semibold text-text-primary tabular-nums">

@@ -1,5 +1,17 @@
 # Registro de implementación — 2026-08-29
 
+## 2026-10-29 - Catálogo visual de cinco productos por fila
+
+- En la vista catálogo del Administrativo, la cuadrícula pasa a cinco tarjetas desde 1280 px;
+  mantiene una, dos o tres columnas en pantallas más estrechas. Las fotos se adaptan al ancho de
+  cada tarjeta y los tres precios se distribuyen en dos líneas para preservar su lectura y los
+  botones de agregar al POS.
+- El `app.asar` 0.2.72 instalado recibió el mismo diseño sin reemplazar los demás módulos;
+  respaldo de `app.asar` y SQLite en
+  `%ProgramData%\InventarioArens\backups\admin-catalog-five-20261029-141812`.
+- Cobertura: prueba del catálogo con cinco fotos y controles de precios; compilación de
+  Administrativo y comprobación de TypeScript.
+
 ## 2026-08-29 - API read-only para integracion CRM e IA
 
 - Se agregaron credenciales dedicadas en `crm_api_tokens`, con secreto hasheado, expiracion,
