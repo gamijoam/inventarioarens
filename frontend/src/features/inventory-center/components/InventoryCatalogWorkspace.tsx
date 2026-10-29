@@ -327,9 +327,9 @@ export function InventoryCatalogWorkspace({
       {/* 1. Barra de Control Superior (Estilo Catálogo Digital Treinta) */}
       <Card className="border-border shadow-2xs">
         <CardContent className="p-3 sm:p-4 flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex flex-col gap-3">
             {/* Buscador de productos */}
-            <div className="relative flex-1">
+            <div className="relative w-full">
               <Search
                 className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
                 aria-hidden="true"

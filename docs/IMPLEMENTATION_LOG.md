@@ -11,6 +11,9 @@
   `%ProgramData%\InventarioArens\backups\admin-catalog-five-20261029-141812`.
 - Cobertura: prueba del catálogo con cinco fotos y controles de precios; compilación de
   Administrativo y comprobación de TypeScript.
+- Ajuste posterior: el buscador ocupa una fila completa sobre los filtros para evitar que estos
+  lo compriman. Aplicado en el Administrativo instalado; respaldo previo en
+  `%ProgramData%\InventarioArens\backups\admin-search-width-20261029-142440`.
 
 ## 2026-08-29 - API read-only para integracion CRM e IA
 

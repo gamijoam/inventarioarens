@@ -183,6 +183,17 @@ describe('InventoryCatalogWorkspace', () => {
     }
   });
 
+  it('mantiene el buscador a todo el ancho en su propia fila por encima de los filtros', () => {
+    renderWorkspace();
+
+    const search = screen.getByTestId('catalog-search-input');
+    expect(search.parentElement).toHaveClass('w-full');
+    expect(search.parentElement?.parentElement).toHaveClass('flex-col');
+    expect(search.parentElement?.parentElement).toContainElement(
+      screen.getByTestId('catalog-warehouse-filter'),
+    );
+  });
+
   it('muestra badge Agotado cuando el stock es 0 o nulo', () => {
     renderWorkspace({
       products: [makeProduct({ id: 102, name: 'Batería Gel 12V', available_stock: 0 })],
