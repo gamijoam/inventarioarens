@@ -33,8 +33,10 @@ interface SingleSelectComboboxProps {
 function cleanStr(str: string): string {
   return str
     .toLowerCase()
+    .replace(/ñ/g, '\u0001')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0001/g, 'ñ')
     .trim();
 }
 

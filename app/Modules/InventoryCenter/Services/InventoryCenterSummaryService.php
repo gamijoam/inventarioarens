@@ -4,6 +4,7 @@ namespace App\Modules\InventoryCenter\Services;
 
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Support\Database\SearchNormalization;
 use App\Support\Performance\PerformanceProbe;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Eloquent\Builder;
@@ -341,15 +342,21 @@ class InventoryCenterSummaryService
         };
 
         if ($search = $filters['search'] ?? null) {
-            $normalizedSearch = mb_strtolower(trim((string) $search));
-            $query->where(function ($query) use ($normalizedSearch): void {
+            $normalizedSearch = trim((string) $search);
+            $nameExpr = SearchNormalization::expression('products.name');
+            $skuExpr = SearchNormalization::expression('products.sku');
+            $barcodeExpr = SearchNormalization::expression("COALESCE(products.barcode, '')");
+            $snExpr = SearchNormalization::expression('product_units.serial_number');
+            $termExpr = SearchNormalization::term();
+
+            $query->where(function ($query) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $snExpr, $termExpr): void {
                 $like = "%{$normalizedSearch}%";
                 $query
-                    ->whereRaw('LOWER(products.name) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(products.sku) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(COALESCE(products.barcode, \'\')) LIKE ?', [$like])
-                    ->orWhereHas('units', function (Builder $unitQuery) use ($like): void {
-                        $unitQuery->whereRaw('LOWER(product_units.serial_number) LIKE ?', [$like]);
+                    ->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
+                    ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$like])
+                    ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$like])
+                    ->orWhereHas('units', function (Builder $unitQuery) use ($like, $snExpr, $termExpr): void {
+                        $unitQuery->whereRaw("{$snExpr} LIKE {$termExpr}", [$like]);
                     });
             });
         }

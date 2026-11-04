@@ -111,23 +111,32 @@ class ProductController extends Controller
                 }
             });
 
+            $likeSearch = "%{$normalizedSearch}%";
+            $prefixSearch = "{$normalizedSearch}%";
+
             $query->orderByRaw(
                 "CASE
                     WHEN {$barcodeExpr} = {$termExpr} THEN 0
                     WHEN {$skuExpr} = {$termExpr} THEN 1
                     WHEN {$nameExpr} = {$termExpr} THEN 2
-                    WHEN {$barcodeExpr} LIKE {$termExpr} THEN 3
+                    WHEN {$nameExpr} LIKE {$termExpr} THEN 3
                     WHEN {$skuExpr} LIKE {$termExpr} THEN 4
-                    WHEN {$nameExpr} LIKE {$termExpr} THEN 5
-                    ELSE 6
-                END",
+                    WHEN {$barcodeExpr} LIKE {$termExpr} THEN 5
+                    WHEN {$nameExpr} LIKE {$termExpr} THEN 6
+                    WHEN {$skuExpr} LIKE {$termExpr} THEN 7
+                    WHEN {$barcodeExpr} LIKE {$termExpr} THEN 8
+                    ELSE 9
+                END, name ASC",
                 [
                     $normalizedSearch,
                     $normalizedSearch,
                     $normalizedSearch,
-                    "%{$normalizedSearch}%",
-                    "%{$normalizedSearch}%",
-                    "%{$normalizedSearch}%",
+                    $prefixSearch,
+                    $prefixSearch,
+                    $prefixSearch,
+                    $likeSearch,
+                    $likeSearch,
+                    $likeSearch,
                 ]
             );
         }

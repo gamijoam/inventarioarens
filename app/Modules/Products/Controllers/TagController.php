@@ -8,6 +8,7 @@ use App\Modules\Products\Requests\StoreTagRequest;
 use App\Modules\Products\Requests\UpdateTagRequest;
 use App\Modules\Products\Resources\TagResource;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
+use App\Support\Database\SearchNormalization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -21,8 +22,10 @@ class TagController extends Controller
         $query = Tag::query()
             ->withCount('products')
             ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.strtolower((string) $request->input('search')).'%';
-                $q->whereRaw('LOWER(name) LIKE ?', [$term]);
+                $term = '%'.(string) $request->input('search').'%';
+                $expr = SearchNormalization::expression('name');
+                $termExpr = SearchNormalization::term();
+                $q->whereRaw("{$expr} LIKE {$termExpr}", [$term]);
             })
             ->orderBy('name');
 

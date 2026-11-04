@@ -46,11 +46,20 @@ export function TransferRequestProductSearch({
 
     if (!query.trim()) return compatibleProducts.slice(0, 20);
 
-    const normalizedQuery = query.toLowerCase().trim();
+    const clean = (val: string) =>
+      val
+        .toLowerCase()
+        .replace(/ñ/g, '\u0001')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\u0001/g, 'ñ')
+        .trim();
+
+    const normalizedQuery = clean(query);
     const filtered = compatibleProducts.filter((product) => {
-      const name = product.name.toLowerCase();
-      const sku = (product.sku ?? '').toLowerCase();
-      const barcode = (product.barcode ?? '').toLowerCase();
+      const name = clean(product.name);
+      const sku = clean(product.sku ?? '');
+      const barcode = clean(product.barcode ?? '');
 
       return (
         name.includes(normalizedQuery) ||

@@ -66,7 +66,13 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
       : '—';
 
   const normalize = (str: string): string =>
-    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    str
+      .toLowerCase()
+      .replace(/ñ/g, '\u0001')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\u0001/g, 'ñ')
+      .trim();
 
   const categories = data?.categories ?? [];
   const customers = data?.customers ?? [];
