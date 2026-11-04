@@ -26,16 +26,25 @@ class InventoryReportController extends Controller
             ->when($request->filled('product_variant_id'), fn ($query) => $query->where('product_variant_id', $request->integer('product_variant_id')))
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search'));
+                $tokens = array_values(array_filter(preg_split('/\s+/', $search), fn ($t) => mb_strlen($t) > 0));
+                if (empty($tokens)) {
+                    return;
+                }
+
                 $termExpr = SearchNormalization::term();
                 $nameExpr = SearchNormalization::expression('name');
                 $skuExpr = SearchNormalization::expression('sku');
                 $barcodeExpr = SearchNormalization::expression("COALESCE(barcode, '')");
-                $like = "%{$search}%";
 
-                $query->whereHas('product', function ($q) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
-                    $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
-                        ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$like])
-                        ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$like]);
+                $query->whereHas('product', function ($q) use ($tokens, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
+                    foreach ($tokens as $token) {
+                        $tokenLike = "%{$token}%";
+                        $q->where(function ($tq) use ($tokenLike, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
+                            $tq->whereRaw("{$nameExpr} LIKE {$termExpr}", [$tokenLike])
+                                ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$tokenLike])
+                                ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$tokenLike]);
+                        });
+                    }
                 });
             });
 
@@ -101,20 +110,29 @@ class InventoryReportController extends Controller
             ->when($request->filled('date_to'), fn ($query) => $query->where('created_at', '<=', BusinessDateRange::endOfDay($request->string('date_to')->toString())))
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search'));
+                $tokens = array_values(array_filter(preg_split('/\s+/', $search), fn ($t) => mb_strlen($t) > 0));
+                if (empty($tokens)) {
+                    return;
+                }
+
                 $termExpr = SearchNormalization::term();
                 $nameExpr = SearchNormalization::expression('name');
                 $skuExpr = SearchNormalization::expression('sku');
                 $barcodeExpr = SearchNormalization::expression("COALESCE(barcode, '')");
                 $reasonExpr = SearchNormalization::expression("COALESCE(reason, '')");
-                $like = "%{$search}%";
 
-                $query->where(function ($sub) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $reasonExpr): void {
-                    $sub->whereHas('product', function ($q) use ($like, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
-                        $q->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
-                            ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$like])
-                            ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$like]);
-                    })
-                    ->orWhereRaw("{$reasonExpr} LIKE {$termExpr}", [$like]);
+                $query->where(function ($sub) use ($tokens, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $reasonExpr): void {
+                    foreach ($tokens as $token) {
+                        $tokenLike = "%{$token}%";
+                        $sub->where(function ($tokenQuery) use ($tokenLike, $termExpr, $nameExpr, $skuExpr, $barcodeExpr, $reasonExpr): void {
+                            $tokenQuery->whereHas('product', function ($pq) use ($tokenLike, $termExpr, $nameExpr, $skuExpr, $barcodeExpr): void {
+                                $pq->whereRaw("{$nameExpr} LIKE {$termExpr}", [$tokenLike])
+                                    ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$tokenLike])
+                                    ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$tokenLike]);
+                            })
+                            ->orWhereRaw("{$reasonExpr} LIKE {$termExpr}", [$tokenLike]);
+                        });
+                    }
                 });
             })
             ->latest('id')

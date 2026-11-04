@@ -342,23 +342,28 @@ class InventoryCenterSummaryService
         };
 
         if ($search = $filters['search'] ?? null) {
-            $normalizedSearch = trim((string) $search);
-            $nameExpr = SearchNormalization::expression('products.name');
-            $skuExpr = SearchNormalization::expression('products.sku');
-            $barcodeExpr = SearchNormalization::expression("COALESCE(products.barcode, '')");
-            $snExpr = SearchNormalization::expression('product_units.serial_number');
-            $termExpr = SearchNormalization::term();
+            $tokens = array_values(array_filter(preg_split('/\s+/', trim((string) $search)), fn ($t) => mb_strlen($t) > 0));
+            if (! empty($tokens)) {
+                $nameExpr = SearchNormalization::expression('products.name');
+                $skuExpr = SearchNormalization::expression('products.sku');
+                $barcodeExpr = SearchNormalization::expression("COALESCE(products.barcode, '')");
+                $snExpr = SearchNormalization::expression('product_units.serial_number');
+                $termExpr = SearchNormalization::term();
 
-            $query->where(function ($query) use ($normalizedSearch, $nameExpr, $skuExpr, $barcodeExpr, $snExpr, $termExpr): void {
-                $like = "%{$normalizedSearch}%";
-                $query
-                    ->whereRaw("{$nameExpr} LIKE {$termExpr}", [$like])
-                    ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$like])
-                    ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$like])
-                    ->orWhereHas('units', function (Builder $unitQuery) use ($like, $snExpr, $termExpr): void {
-                        $unitQuery->whereRaw("{$snExpr} LIKE {$termExpr}", [$like]);
-                    });
-            });
+                $query->where(function (Builder $query) use ($tokens, $nameExpr, $skuExpr, $barcodeExpr, $snExpr, $termExpr): void {
+                    foreach ($tokens as $token) {
+                        $tokenLike = "%{$token}%";
+                        $query->where(function (Builder $tq) use ($tokenLike, $nameExpr, $skuExpr, $barcodeExpr, $snExpr, $termExpr): void {
+                            $tq->whereRaw("{$nameExpr} LIKE {$termExpr}", [$tokenLike])
+                                ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$tokenLike])
+                                ->orWhereRaw("{$barcodeExpr} LIKE {$termExpr}", [$tokenLike])
+                                ->orWhereHas('units', function (Builder $unitQuery) use ($tokenLike, $snExpr, $termExpr): void {
+                                    $unitQuery->whereRaw("{$snExpr} LIKE {$termExpr}", [$tokenLike]);
+                                });
+                        });
+                    }
+                });
+            }
         }
 
         if ($trackingType = $filters['tracking_type'] ?? null) {

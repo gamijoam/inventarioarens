@@ -3,6 +3,7 @@
 namespace App\Modules\InventoryCenter\Services;
 
 use App\Modules\Inventory\Models\StockMovement;
+use App\Support\Database\SearchNormalization;
 use App\Support\Performance\PerformanceProbe;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,18 +21,28 @@ class InventoryCenterMovementService
                 ->with(['product', 'variant', 'warehouse.branch', 'creator']);
 
             if ($search = $filters['search'] ?? null) {
-                $normalizedSearch = mb_strtolower($search);
+                $tokens = array_values(array_filter(preg_split('/\s+/', trim((string) $search)), fn ($t) => mb_strlen($t) > 0));
+                if (! empty($tokens)) {
+                    $termExpr = SearchNormalization::term();
+                    $nameExpr = SearchNormalization::expression('name');
+                    $skuExpr = SearchNormalization::expression('sku');
+                    $reasonExpr = SearchNormalization::expression("COALESCE(reason, '')");
+                    $refExpr = SearchNormalization::expression("COALESCE(reference_type, '')");
 
-                $query->where(function (Builder $query) use ($normalizedSearch): void {
-                    $query
-                        ->whereRaw('LOWER(reason) like ?', ["%{$normalizedSearch}%"])
-                        ->orWhereRaw('LOWER(reference_type) like ?', ["%{$normalizedSearch}%"])
-                        ->orWhereHas('product', function (Builder $query) use ($normalizedSearch): void {
-                            $query
-                                ->whereRaw('LOWER(name) like ?', ["%{$normalizedSearch}%"])
-                                ->orWhereRaw('LOWER(sku) like ?', ["%{$normalizedSearch}%"]);
-                        });
-                });
+                    $query->where(function (Builder $query) use ($tokens, $termExpr, $nameExpr, $skuExpr, $reasonExpr, $refExpr): void {
+                        foreach ($tokens as $token) {
+                            $tokenLike = "%{$token}%";
+                            $query->where(function (Builder $tq) use ($tokenLike, $termExpr, $nameExpr, $skuExpr, $reasonExpr, $refExpr): void {
+                                $tq->whereRaw("{$reasonExpr} LIKE {$termExpr}", [$tokenLike])
+                                    ->orWhereRaw("{$refExpr} LIKE {$termExpr}", [$tokenLike])
+                                    ->orWhereHas('product', function (Builder $pq) use ($tokenLike, $termExpr, $nameExpr, $skuExpr): void {
+                                        $pq->whereRaw("{$nameExpr} LIKE {$termExpr}", [$tokenLike])
+                                            ->orWhereRaw("{$skuExpr} LIKE {$termExpr}", [$tokenLike]);
+                                    });
+                            });
+                        }
+                    });
+                }
             }
 
             if (($filters['type'] ?? null) && $filters['type'] !== 'all') {
