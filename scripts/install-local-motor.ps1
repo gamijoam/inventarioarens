@@ -91,7 +91,25 @@ function Remove-ServiceSafe([string]$Name) {
     if (Get-ServiceObject $Name) { throw "El servicio $Name sigue marcado para eliminacion." }
 }
 
+function Stop-LingeringProcesses {
+    $processNames = @(
+        'MotorLocal',
+        'BalanzaPro-POS',
+        'BalanzaPro-Administrativo',
+        'frankenphp',
+        'php',
+        'printer-agent',
+        'scale-agent',
+        'sync-daemon'
+    )
+    foreach ($pName in $processNames) {
+        Get-Process -Name $pName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 2
+}
+
 function Stop-LegacyRuntime {
+    Stop-LingeringProcesses
     foreach ($name in @($LegacyBackend, $LegacyPrinter)) {
         Stop-ServiceSafe $name
         if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {
