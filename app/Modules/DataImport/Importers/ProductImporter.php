@@ -15,6 +15,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ProductImporter extends BaseImporter
 {
@@ -42,6 +43,15 @@ class ProductImporter extends BaseImporter
             'name',
             'barcode',
             'description',
+            'category',
+            'categoria',
+            'categorias',
+            'category_slugs',
+            'category_slug',
+            'categoria_slug',
+            'rubro',
+            'departamento',
+            'grupo',
             'brand_slug',
             'category_slugs',
             'tag_slugs',
@@ -66,6 +76,8 @@ class ProductImporter extends BaseImporter
 
     protected function processRow(array $payload, int $rowNumber): ImportRowResult
     {
+        $providedValues = $payload;
+        $providedFields = array_fill_keys(array_keys($payload), true);
         $payload = $this->fillDefaults($payload);
         $sku = $payload['sku'];
         $name = $payload['name'];
@@ -139,21 +151,21 @@ class ProductImporter extends BaseImporter
             $brandId = $brand->id;
         }
 
-        $categoryIds = [];
-        if ($categorySlugs) {
-            $slugs = array_filter(array_map('trim', explode('|', $categorySlugs)));
-            foreach ($slugs as $slug) {
-                $normalizedSlug = $this->normalizeSlug($slug);
-                $cat = Category::query()->where('slug', $normalizedSlug)->first();
-                if (! $cat) {
-                    return ImportRowResult::failed(
-                        ['category_slugs' => "Categoria '{$slug}' no existe. Importala primero."],
-                        $sku,
-                    );
+        $categoryFieldProvided = false;
+        $categoryRawValue = null;
+        foreach (['category', 'categoria', 'category_slugs', 'category_slug', 'categoria_slug', 'categorias', 'rubro', 'departamento', 'grupo'] as $k) {
+            if (isset($providedFields[$k])) {
+                $categoryFieldProvided = true;
+                if ($providedValues[$k] !== null && trim((string) $providedValues[$k]) !== '') {
+                    $categoryRawValue = (string) $providedValues[$k];
                 }
-                $categoryIds[] = $cat->id;
+                break;
             }
         }
+
+        $categoryIds = $categoryFieldProvided && $categoryRawValue !== null
+            ? $this->resolveOrCreateCategories($categoryRawValue)
+            : ($categoryFieldProvided ? [] : null);
 
         $tagIds = [];
         if ($tagSlugs) {
@@ -184,17 +196,17 @@ class ProductImporter extends BaseImporter
         }
 
         return DB::transaction(function () use (
-            $sku, $name, $barcode, $description, $brandId, $categoryIds, $tagIds,
+            $sku, $name, $barcode, $description, $brandId, $categoryIds, $categoryFieldProvided, $tagIds,
             $unitOfMeasure, $trackingType, $basePrice, $saleCurrency,
             $minStock, $maxStock, $reorderQty, $isActive,
-            $stockInicial, $warehouseId, $costoUnitario,
+            $stockInicial, $warehouseId, $costoUnitario, $providedFields, $providedValues,
         ) {
             $existing = Product::query()->where('sku', $sku)->first();
             if ($existing) {
                 return $this->updateExistingProduct(
                     $existing,
                     $sku,
-                    [
+                    array_filter([
                         'name' => $name,
                         'barcode' => $barcode,
                         'description' => $description,
@@ -207,9 +219,13 @@ class ProductImporter extends BaseImporter
                         'max_stock' => $maxStock,
                         'reorder_quantity' => $reorderQty,
                         'is_active' => $isActive,
-                    ],
-                    $categoryIds,
-                    $tagIds,
+                    ], function ($value, $field) use ($providedFields, $providedValues): bool {
+                        $payloadField = $field === 'brand_id' ? 'brand_slug' : $field;
+
+                        return isset($providedFields[$payloadField]) && $providedValues[$payloadField] !== null;
+                    }, ARRAY_FILTER_USE_BOTH),
+                    $categoryFieldProvided ? $categoryIds : null,
+                    isset($providedFields['tag_slugs']) && $providedValues['tag_slugs'] !== null ? $tagIds : null,
                 );
             }
 
@@ -310,8 +326,8 @@ class ProductImporter extends BaseImporter
         Product $product,
         string $sku,
         array $attributes,
-        array $categoryIds,
-        array $tagIds,
+        ?array $categoryIds,
+        ?array $tagIds,
     ): ImportRowResult {
         $dirty = [];
         foreach ($attributes as $field => $value) {
@@ -326,7 +342,7 @@ class ProductImporter extends BaseImporter
             }
         }
 
-        $currentCategoryIds = DB::table('product_category')
+        $currentCategoryIds = $categoryIds === null ? [] : DB::table('product_category')
             ->where('product_id', $product->id)
             ->where('tenant_id', $product->tenant_id)
             ->pluck('category_id')
@@ -334,10 +350,10 @@ class ProductImporter extends BaseImporter
             ->sort()
             ->values()
             ->all();
-        $desiredCategoryIds = collect($categoryIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
-        $categoriesChanged = $currentCategoryIds !== $desiredCategoryIds;
+        $desiredCategoryIds = $categoryIds === null ? [] : collect($categoryIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $categoriesChanged = $categoryIds !== null && $currentCategoryIds !== $desiredCategoryIds;
 
-        $currentTagIds = DB::table('product_tag')
+        $currentTagIds = $tagIds === null ? [] : DB::table('product_tag')
             ->where('product_id', $product->id)
             ->where('tenant_id', $product->tenant_id)
             ->pluck('tag_id')
@@ -345,8 +361,8 @@ class ProductImporter extends BaseImporter
             ->sort()
             ->values()
             ->all();
-        $desiredTagIds = collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
-        $tagsChanged = $currentTagIds !== $desiredTagIds;
+        $desiredTagIds = $tagIds === null ? [] : collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $tagsChanged = $tagIds !== null && $currentTagIds !== $desiredTagIds;
 
         if ($dirty === [] && ! $categoriesChanged && ! $tagsChanged) {
             return ImportRowResult::skipped("Producto {$sku} sin cambios", $sku);
@@ -402,6 +418,66 @@ class ProductImporter extends BaseImporter
         return $default;
     }
 
+    /**
+     * Resuelve o crea las categorías a partir de nombres o slugs.
+     * Si una categoría existe (por slug o por nombre), la asocia.
+     * Si no existe, la crea automáticamente.
+     *
+     * @return array<int, int>
+     */
+    private function resolveOrCreateCategories(string $rawCategories): array
+    {
+        $categoryIds = [];
+        $items = array_filter(array_map('trim', preg_split('/[|,]/', $rawCategories)));
+
+        foreach ($items as $item) {
+            if ($item === '') {
+                continue;
+            }
+
+            $normalizedSlug = $this->normalizeSlug($item);
+
+            $cat = null;
+            if ($normalizedSlug !== null) {
+                $cat = Category::query()->where('slug', $normalizedSlug)->first();
+            }
+
+            if (! $cat) {
+                $cat = Category::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($item)])->first();
+            }
+
+            if ($cat) {
+                $categoryIds[] = $cat->id;
+                continue;
+            }
+
+            $slug = $normalizedSlug ?? Str::slug($item);
+            if ($slug === '') {
+                $slug = 'cat-'.Str::random(6);
+            }
+
+            $baseSlug = $slug;
+            $counter = 1;
+            while (Category::query()->where('slug', $slug)->exists()) {
+                $slug = "{$baseSlug}-{$counter}";
+                $counter++;
+            }
+
+            $category = Category::create([
+                'name' => $item,
+                'slug' => $slug,
+                'description' => null,
+                'sort_order' => 0,
+                'is_active' => true,
+            ]);
+
+            app(SyncCatalogOutboxService::class)->categoryCreated($category->refresh());
+            $categoryIds[] = $category->id;
+        }
+
+        return array_values(array_unique($categoryIds));
+    }
+
     private function fillDefaults(array $payload): array
     {
         return [
@@ -409,8 +485,9 @@ class ProductImporter extends BaseImporter
             'name' => $payload['name'] ?? null,
             'barcode' => $payload['barcode'] ?? null,
             'description' => $payload['description'] ?? null,
+            'category' => $payload['category'] ?? $payload['categoria'] ?? null,
             'brand_slug' => $payload['brand_slug'] ?? null,
-            'category_slugs' => $payload['category_slugs'] ?? null,
+            'category_slugs' => $payload['category_slugs'] ?? $payload['category'] ?? $payload['categoria'] ?? null,
             'tag_slugs' => $payload['tag_slugs'] ?? null,
             'unit_of_measure' => strtolower($payload['unit_of_measure'] ?? 'unit'),
             'tracking_type' => strtolower($payload['tracking_type'] ?? 'quantity'),
