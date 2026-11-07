@@ -12,7 +12,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ChevronDown, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Sparkles, Store, TrendingUp, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Eye, LayoutGrid, Package, Search, SlidersHorizontal, Sparkles, Store, TrendingUp, X } from 'lucide-react';
 
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -289,7 +289,7 @@ function InventoryListPage() {
       title="Centro de Inventario"
       description="Listado de productos con stock, precios y estado."
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Selector de modo de vista */}
           <div className="inline-flex items-center rounded-lg border border-border bg-surface p-0.5 shadow-2xs">
             <button
@@ -527,6 +527,41 @@ function InventoryListPage() {
         </CardContent>
       </Card>
 
+      {/* Paginación Superior */}
+      {data && data.meta.last_page > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs sm:text-sm text-text-muted">
+          <p>
+            Mostrando <strong className="text-text-primary">{data.data.length}</strong> de{' '}
+            <strong className="text-text-primary">{data.meta.total}</strong> productos
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={filters.page <= 1}
+              onClick={() => goToPage(Math.max(1, filters.page - 1))}
+              className="gap-1 text-xs"
+            >
+              <ChevronLeft className="size-3.5" />
+              Anterior
+            </Button>
+            <span className="text-xs px-2 font-medium">
+              Página {data.meta.current_page} de {data.meta.last_page}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={filters.page >= data.meta.last_page}
+              onClick={() => goToPage(filters.page + 1)}
+              className="gap-1 text-xs"
+            >
+              Siguiente
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Tabla */}
       <Card>
         <CardContent className="p-0">
@@ -583,31 +618,36 @@ function InventoryListPage() {
         </CardContent>
       </Card>
 
-      {/* Paginacion */}
+      {/* Paginación Inferior */}
       {data && data.meta.last_page > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-text-muted">
-            Mostrando {data.data.length} de {data.meta.total} productos
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs sm:text-sm text-text-muted pt-1">
+          <p>
+            Mostrando <strong className="text-text-primary">{data.data.length}</strong> de{' '}
+            <strong className="text-text-primary">{data.meta.total}</strong> productos
           </p>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               disabled={filters.page <= 1}
               onClick={() => goToPage(Math.max(1, filters.page - 1))}
+              className="gap-1 text-xs"
             >
+              <ChevronLeft className="size-3.5" />
               Anterior
             </Button>
-            <span className="text-text-muted flex items-center px-2">
-              Pagina {data.meta.current_page} / {data.meta.last_page}
+            <span className="text-xs px-2 font-medium">
+              Página {data.meta.current_page} de {data.meta.last_page}
             </span>
             <Button
               variant="outline"
               size="sm"
               disabled={filters.page >= data.meta.last_page}
               onClick={() => goToPage(filters.page + 1)}
+              className="gap-1 text-xs"
             >
               Siguiente
+              <ChevronRight className="size-3.5" />
             </Button>
           </div>
         </div>

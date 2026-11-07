@@ -91,7 +91,7 @@ export function ExportInventoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto" data-testid="export-inventory-dialog">
+      <DialogContent className="w-[95vw] sm:w-full max-h-[85dvh] max-w-2xl overflow-y-auto p-4 sm:p-6" data-testid="export-inventory-dialog">
         <DialogHeader>
           <div className="flex items-center justify-between gap-2 pr-6">
             <div className="flex items-center gap-2">

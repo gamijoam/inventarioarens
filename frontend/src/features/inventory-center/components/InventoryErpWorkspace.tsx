@@ -559,12 +559,47 @@ export function InventoryErpWorkspace({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Paginación Superior */}
+      {totalProducts > 0 && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 p-2.5 rounded-lg bg-surface border border-border text-xs text-text-muted">
+          <div>
+            Mostrando <strong className="text-text-primary">{products.length}</strong> de{' '}
+            <strong className="text-text-primary">{totalProducts}</strong> productos
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage <= 1 || isLoading}
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              className="gap-1 h-7 text-xs"
+            >
+              <ChevronLeft className="size-3.5" />
+              Anterior
+            </Button>
+            <span className="text-xs px-2 font-medium">
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages || isLoading}
+              onClick={() => onPageChange(currentPage + 1)}
+              className="gap-1 h-7 text-xs"
+            >
+              Siguiente
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Contenedor Principal Split View */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[680px]">
         {/* ========================================================= */}
         {/* COLUMNA IZQUIERDA: Buscador, Filtros y Lista de Productos */}
         {/* ========================================================= */}
-        <div className="lg:col-span-5 xl:col-span-5 flex flex-col bg-surface rounded-lg border border-border overflow-hidden shadow-xs h-[720px]">
+        <div className="lg:col-span-5 xl:col-span-5 flex flex-col bg-surface rounded-lg border border-border overflow-hidden shadow-xs h-[480px] sm:h-[540px] lg:h-[720px] xl:h-[760px]">
           {/* Cabecera de Búsqueda y Filtros */}
           <div className="p-3 border-b border-border bg-surface-subtle/40 space-y-2.5">
             <div className="flex items-center gap-2">
@@ -692,8 +727,8 @@ export function InventoryErpWorkspace({
               </select>
             </div>
 
-            {/* Contador de resultados */}
-            <div className="flex items-center justify-between text-xs text-text-muted px-0.5">
+            {/* Contador de resultados y Paginación Superior Compacta */}
+            <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-text-muted px-0.5">
               <span>
                 {isLoading ? (
                   <span className="flex items-center gap-1">
@@ -702,11 +737,40 @@ export function InventoryErpWorkspace({
                 ) : (
                   <span>
                     Mostrando <strong className="text-text-primary">{products.length}</strong> de{' '}
-                    <strong className="text-text-primary">{totalProducts}</strong> productos
+                    <strong className="text-text-primary">{totalProducts}</strong>
                   </span>
                 )}
               </span>
-              <span className="text-xs">Navega con [↑] [↓]</span>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] mr-1">
+                    Pág. <strong className="text-text-primary">{currentPage}</strong>/{totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1 || isLoading}
+                    onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                    className="h-6 px-1.5 text-[11px]"
+                    title="Página anterior"
+                  >
+                    <ChevronLeft className="size-3 mr-0.5" />
+                    Ant.
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages || isLoading}
+                    onClick={() => onPageChange(currentPage + 1)}
+                    className="h-6 px-1.5 text-[11px]"
+                    title="Página siguiente"
+                  >
+                    Sig.
+                    <ChevronRight className="size-3 ml-0.5" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -876,7 +940,7 @@ export function InventoryErpWorkspace({
         {/* ========================================================= */}
         {/* COLUMNA DERECHA: Ficha Detallada ERP con Pestañas y Acciones */}
         {/* ========================================================= */}
-        <div className="lg:col-span-7 xl:col-span-7 flex flex-col bg-surface rounded-lg border border-border overflow-hidden shadow-xs h-[720px]">
+        <div className="lg:col-span-7 xl:col-span-7 flex flex-col bg-surface rounded-lg border border-border overflow-hidden shadow-xs min-h-[500px] h-auto lg:h-[720px] xl:h-[760px]">
           {activeProduct ? (
             <>
               {/* Cabecera del Producto Seleccionado */}

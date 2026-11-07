@@ -110,7 +110,7 @@ export function InlineWarrantyPolicyCreate({ onCreated }: { onCreated: (id: numb
         Nueva politica
       </Button>
       <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); setOpen(o); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nueva politica de garantia</DialogTitle>
             <DialogDescription>

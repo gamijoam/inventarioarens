@@ -62,9 +62,9 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: Ed
 
   return (
     <Dialog key={`edit-${product.id}`} open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[95vh] max-h-[95vh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
-        <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
-          <div className="flex items-start justify-between gap-4 pr-14 sm:pr-16">
+      <DialogContent className="h-[95dvh] max-h-[95dvh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
+        <DialogHeader className="px-4 sm:px-6 py-3 border-b border-border bg-surface-subtle/40 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-10 sm:pr-14">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-mono font-bold uppercase tracking-wider text-primary border border-primary/20">

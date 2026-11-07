@@ -113,7 +113,7 @@ export function InlinePriceListCreate({ onCreated }: { onCreated: (id: number) =
         Nueva lista
       </Button>
       <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); setOpen(o); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nueva lista de precios</DialogTitle>
             <DialogDescription>

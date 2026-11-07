@@ -172,8 +172,8 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
-        <DialogHeader className="flex flex-row items-center justify-between pb-3 border-b border-border">
+      <DialogContent className="w-[96vw] sm:w-full max-w-4xl max-h-[92dvh] flex flex-col p-3.5 sm:p-6 overflow-hidden">
+        <DialogHeader className="flex flex-row items-center justify-between pb-3 border-b border-border pr-8 sm:pr-0">
           <div className="flex items-center gap-2.5">
             <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
               <TrendingUp className="size-5" />
@@ -311,7 +311,7 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
             {/* Resultados de la Simulación */}
             {simulation && (
               <div className="flex-1 flex flex-col min-h-0 space-y-3">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                   <div className="rounded-xl border border-border bg-surface p-3 text-center">
                     <span className="text-xs text-text-muted font-medium block">Productos Afectados</span>
                     <span className="text-xl font-bold font-mono text-text-primary">

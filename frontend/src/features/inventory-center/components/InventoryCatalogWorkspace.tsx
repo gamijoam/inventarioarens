@@ -578,7 +578,42 @@ export function InventoryCatalogWorkspace({
         </CardContent>
       </Card>
 
-      {/* 2. Cuadrícula de Productos (Grid Catálogo) */}
+      {/* 2. Paginación Superior */}
+      {totalProducts > 0 && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-text-muted" data-testid="catalog-top-pagination">
+          <p className="text-xs sm:text-sm">
+            Mostrando <strong className="text-text-primary">{products.length}</strong> de{' '}
+            <strong className="text-text-primary">{totalProducts}</strong> productos
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              className="gap-1 text-xs"
+            >
+              <ChevronLeft className="size-3.5" />
+              Anterior
+            </Button>
+            <span className="text-xs px-2 font-medium">
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => onPageChange(currentPage + 1)}
+              className="gap-1 text-xs"
+            >
+              Siguiente
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Cuadrícula de Productos (Grid Catálogo) */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           {Array.from({ length: 8 }).map((_, idx) => (
@@ -1347,7 +1382,7 @@ function ProductCatalogDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[98vw] max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-2xl shadow-2xl border-border">
+      <DialogContent className="max-w-6xl w-[98vw] sm:w-[95vw] max-h-[94dvh] overflow-hidden p-0 flex flex-col rounded-xl sm:rounded-2xl shadow-2xl border-border">
         {/* Cabecera del Modal */}
         <DialogHeader className="px-4 py-2.5 bg-surface-subtle/50 border-b border-border/80">
           <div className="flex items-start justify-between gap-3">
@@ -1372,7 +1407,7 @@ function ProductCatalogDetailModal({
                 Ficha integral: edita datos, precios y consulta existencias en un solo lugar.
               </DialogDescription>
             </div>
-            <div className="flex items-center gap-2 mr-12 sm:mr-16 pr-4 shrink-0">
+            <div className="flex items-center gap-2 mr-10 sm:mr-14 pr-2 sm:pr-4 shrink-0">
               <Can I={PERMISSIONS.PRODUCTS_DELETE}>
                 <Button
                   type="button"
@@ -1392,7 +1427,7 @@ function ProductCatalogDetailModal({
         </DialogHeader>
 
         {/* Pestañas de Navegación */}
-        <div className="flex items-center gap-2 px-4 border-b border-border bg-surface-subtle/30 shrink-0">
+        <div className="flex items-center gap-2 px-3 sm:px-4 border-b border-border bg-surface-subtle/30 shrink-0 overflow-x-auto scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab('main')}
@@ -1442,7 +1477,7 @@ function ProductCatalogDetailModal({
                   </div>
 
                   {/* Foto Principal Ampliada */}
-                  <div className="w-full h-72 sm:h-80 md:h-96 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-border/80 overflow-hidden flex items-center justify-center p-2 relative group shadow-inner">
+                  <div className="w-full h-56 sm:h-72 md:h-80 bg-slate-50 dark:bg-zinc-900 rounded-lg border border-border/80 overflow-hidden flex items-center justify-center p-2 relative group shadow-inner">
                     {currentPreviewImage ? (
                       <img
                         src={currentPreviewImage}

@@ -314,10 +314,10 @@ export function QuickCreateProductDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[98vw] max-h-[92vh] overflow-hidden p-0 flex flex-col rounded-2xl shadow-2xl border-border">
+      <DialogContent className="max-w-6xl w-[98vw] sm:w-[95vw] max-h-[94dvh] overflow-hidden p-0 flex flex-col rounded-xl sm:rounded-2xl shadow-2xl border-border">
         {/* Cabecera */}
         <DialogHeader className="px-4 py-2.5 bg-surface-subtle/50 border-b border-border/80">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pr-8 sm:pr-10">
             <div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -339,7 +339,7 @@ export function QuickCreateProductDialog({
                   onOpenChange(false);
                   onOpenFullForm();
                 }}
-                className="text-xs text-text-muted hover:text-primary hover:underline inline-flex items-center gap-1"
+                className="text-xs text-text-muted hover:text-primary hover:underline inline-flex items-center gap-1 self-start sm:self-center"
               >
                 <ExternalLink className="size-3" />
                 Formulario ERP completo (F1-F9)
@@ -349,7 +349,7 @@ export function QuickCreateProductDialog({
         </DialogHeader>
 
         {/* Pestañas de Navegación */}
-        <div className="flex items-center gap-2 px-4 border-b border-border bg-surface-subtle/30 shrink-0">
+        <div className="flex items-center gap-2 px-3 sm:px-4 border-b border-border bg-surface-subtle/30 shrink-0 overflow-x-auto scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab('main')}
@@ -920,7 +920,7 @@ export function QuickCreateProductDialog({
         </div>
 
         {/* Footer */}
-        <DialogFooter className="border-t border-border px-4 py-2.5 bg-surface-subtle/40 flex items-center justify-between sm:justify-between w-full shrink-0">
+        <DialogFooter className="border-t border-border px-3 sm:px-4 py-2.5 bg-surface-subtle/40 flex flex-wrap items-center justify-between gap-2 w-full shrink-0">
           <Button
             variant="outline"
             size="sm"

@@ -149,7 +149,7 @@ export function ExchangeRateQuickUpdate({
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Actualizar tasa vigente</DialogTitle>
             <DialogDescription>

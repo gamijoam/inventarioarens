@@ -111,7 +111,7 @@ export function InlineExchangeRateTypeCreate({ onCreated }: InlineExchangeRateTy
         Nuevo tipo de tasa
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nuevo tipo de tasa</DialogTitle>
             <DialogDescription>

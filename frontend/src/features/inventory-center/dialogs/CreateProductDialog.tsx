@@ -125,8 +125,8 @@ export function CreateProductDialog({ open, onOpenChange, onSuccess, initialName
         open={open}
         onOpenChange={onOpenChange}
       >
-        <DialogContent className="h-[95vh] max-h-[95vh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
-          <DialogHeader className="px-6 py-3.5 border-b border-border bg-surface-subtle/40 shrink-0">
+        <DialogContent className="h-[95dvh] max-h-[95dvh] w-[98vw] max-w-[98vw] overflow-hidden p-0 flex flex-col gap-0 rounded-xl border border-border bg-surface shadow-2xl">
+          <DialogHeader className="px-4 sm:px-6 py-3 border-b border-border bg-surface-subtle/40 shrink-0">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-8">
               <div>
                 <div className="flex items-center gap-2">

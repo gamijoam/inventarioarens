@@ -232,7 +232,7 @@ export function InlineCatalogCreate({
         </button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md z-[60]">
+        <DialogContent className="w-[95vw] sm:max-w-md z-[60]">
           <DialogHeader>
             <DialogTitle>{copy.title}</DialogTitle>
             <DialogDescription>{copy.description}</DialogDescription>
