@@ -61,10 +61,31 @@ class DataImportService
             throw new \RuntimeException('No se pudo guardar el archivo: '.$e->getMessage());
         }
 
-        $entityRow = DataImportEntity::query()->updateOrCreate(
-            ['data_import_id' => $session->id, 'entity' => $entity],
-            ['source_path' => $path, 'status' => ImportStatus::ENTITY_PENDING],
-        );
+        $entityRow = DataImportEntity::query()->where([
+            'data_import_id' => $session->id,
+            'entity' => $entity,
+        ])->first();
+
+        if ($entityRow) {
+            DataImportRow::query()->where('data_import_entity_id', $entityRow->id)->delete();
+            $entityRow->update([
+                'source_path' => $path,
+                'status' => ImportStatus::ENTITY_PENDING,
+                'total_rows' => 0,
+                'succeeded_rows' => 0,
+                'skipped_rows' => 0,
+                'failed_rows' => 0,
+                'error_summary' => null,
+            ]);
+        } else {
+            $entityRow = DataImportEntity::query()->create([
+                'data_import_id' => $session->id,
+                'tenant_id' => $session->tenant_id,
+                'entity' => $entity,
+                'source_path' => $path,
+                'status' => ImportStatus::ENTITY_PENDING,
+            ]);
+        }
 
         return $entityRow;
     }

@@ -285,6 +285,21 @@ class SharedCatalogPropagationService
                     ->where('tenant_id', $copy->tenant_id)
                     ->update($updates);
 
+                $masterCategories = $master->categories()->withoutGlobalScopes()->get();
+                if ($masterCategories->isNotEmpty()) {
+                    $this->propagateSpecificCategoriesToSpinoff($master, $spinoff);
+                    $masterCategoryIds = $masterCategories->pluck('id')->all();
+                    $spinoffCategoryIds = $this->translateForeignIdsToLocalIds(
+                        $masterCategoryIds,
+                        'categories',
+                        $master->tenant_id,
+                        $spinoff->id,
+                    );
+                    $copy->categories()->syncWithPivotValues($spinoffCategoryIds, ['tenant_id' => $spinoff->id]);
+                } else {
+                    $copy->categories()->syncWithPivotValues([], ['tenant_id' => $spinoff->id]);
+                }
+
                 $fresh = $copy->fresh();
                 if ($fresh) {
                     $this->recordProductCopyEvent($fresh, $master, $spinoff, false);

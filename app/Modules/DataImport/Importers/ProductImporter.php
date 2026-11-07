@@ -45,6 +45,13 @@ class ProductImporter extends BaseImporter
             'description',
             'category',
             'categoria',
+            'categorias',
+            'category_slugs',
+            'category_slug',
+            'categoria_slug',
+            'rubro',
+            'departamento',
+            'grupo',
             'brand_slug',
             'category_slugs',
             'tag_slugs',
@@ -146,7 +153,7 @@ class ProductImporter extends BaseImporter
 
         $categoryFieldProvided = false;
         $categoryRawValue = null;
-        foreach (['category', 'categoria', 'category_slugs', 'category_slug', 'categoria_slug', 'categorias'] as $k) {
+        foreach (['category', 'categoria', 'category_slugs', 'category_slug', 'categoria_slug', 'categorias', 'rubro', 'departamento', 'grupo'] as $k) {
             if (isset($providedFields[$k])) {
                 $categoryFieldProvided = true;
                 if ($providedValues[$k] !== null && trim((string) $providedValues[$k]) !== '') {
@@ -421,7 +428,7 @@ class ProductImporter extends BaseImporter
     private function resolveOrCreateCategories(string $rawCategories): array
     {
         $categoryIds = [];
-        $items = array_filter(array_map('trim', explode('|', $rawCategories)));
+        $items = array_filter(array_map('trim', preg_split('/[|,]/', $rawCategories)));
 
         foreach ($items as $item) {
             if ($item === '') {
