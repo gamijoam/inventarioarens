@@ -223,6 +223,11 @@ final class CsvParser
             $h = mb_convert_encoding($h, 'UTF-8', 'Windows-1252');
         }
         $h = mb_strtolower($h, 'UTF-8');
+        $h = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ'],
+            ['a', 'e', 'i', 'o', 'u', 'u', 'n'],
+            $h
+        );
         $h = preg_replace('/[^a-z0-9_]+/u', '_', $h) ?? '';
 
         return trim($h, '_');

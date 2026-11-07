@@ -101,6 +101,81 @@ class ImportUpsertTest extends TestCase
         $this->assertSame($originalPrice, Product::query()->where('sku', 'SKU-SIMPLE')->value('base_price'));
     }
 
+    public function test_product_importer_creates_new_category_automatically(): void
+    {
+        $this->assertDatabaseMissing('categories', ['name' => 'Ferreteria']);
+
+        $res = $this->runImport('products', $this->writeCsv(
+            'p-cat-new.csv',
+            "sku,name,category,base_price\nSKU-CAT-1,Tornillo,Ferreteria,1.5\n",
+        ));
+
+        $this->assertSame(ImportRowResult::STATUS_OK, $res[0]->status);
+        $this->assertDatabaseHas('categories', [
+            'name' => 'Ferreteria',
+            'slug' => 'ferreteria',
+        ]);
+        $product = Product::query()->where('sku', 'SKU-CAT-1')->first();
+        $this->assertNotNull($product);
+        $this->assertTrue($product->categories()->where('name', 'Ferreteria')->exists());
+    }
+
+    public function test_product_importer_uses_existing_category_by_name_or_slug(): void
+    {
+        $cat = \App\Modules\Products\Models\Category::create([
+            'name' => 'Papeleria',
+            'slug' => 'papeleria',
+            'is_active' => true,
+        ]);
+
+        $res = $this->runImport('products', $this->writeCsv(
+            'p-cat-exist.csv',
+            "sku,name,categoria,base_price\nSKU-CAT-2,Cuaderno,Papeleria,3.0\n",
+        ));
+
+        $this->assertSame(ImportRowResult::STATUS_OK, $res[0]->status);
+        $this->assertSame(1, \App\Modules\Products\Models\Category::query()->where('slug', 'papeleria')->count());
+        $product = Product::query()->where('sku', 'SKU-CAT-2')->first();
+        $this->assertNotNull($product);
+        $this->assertTrue($product->categories()->where('categories.id', $cat->id)->exists());
+    }
+
+    public function test_product_importer_updates_category_on_existing_product_and_preserves_when_omitted(): void
+    {
+        $cat1 = \App\Modules\Products\Models\Category::create([
+            'name' => 'Cat Uno',
+            'slug' => 'cat-uno',
+            'is_active' => true,
+        ]);
+
+        $this->runImport('products', $this->writeCsv(
+            'p-init.csv',
+            "sku,name,category,base_price\nSKU-CAT-3,Item 3,Cat Uno,5.0\n",
+        ));
+
+        $product = Product::query()->where('sku', 'SKU-CAT-3')->first();
+        $this->assertTrue($product->categories()->where('categories.id', $cat1->id)->exists());
+
+        // Update with omitted category column: preserves Cat Uno
+        $this->runImport('products', $this->writeCsv(
+            'p-upd-nocat.csv',
+            "sku,name,base_price\nSKU-CAT-3,Item 3 Renombrado,6.0\n",
+        ));
+        $product->refresh();
+        $this->assertSame('Item 3 Renombrado', $product->name);
+        $this->assertTrue($product->categories()->where('categories.id', $cat1->id)->exists());
+
+        // Update with new category: creates Cat Dos and links it
+        $this->runImport('products', $this->writeCsv(
+            'p-upd-newcat.csv',
+            "sku,name,category,base_price\nSKU-CAT-3,Item 3 Renombrado,Cat Dos,6.0\n",
+        ));
+        $product->refresh();
+        $this->assertDatabaseHas('categories', ['name' => 'Cat Dos', 'slug' => 'cat-dos']);
+        $this->assertTrue($product->categories()->where('name', 'Cat Dos')->exists());
+        $this->assertFalse($product->categories()->where('categories.id', $cat1->id)->exists());
+    }
+
     public function test_product_importer_skips_existing_without_changes(): void
     {
         $this->runImport('products', $this->writeCsv('p1.csv', "sku,name,base_price\nSKU-SAME,Igual,10\n"));

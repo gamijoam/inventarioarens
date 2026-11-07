@@ -13,8 +13,8 @@ class SpreadsheetCsvParserTest extends TestCase
     {
         $spreadsheet = new Spreadsheet;
         $spreadsheet->getActiveSheet()->fromArray([
-            ['SKU', 'Name'],
-            ['SKU-001', 'Producto uno'],
+            ['SKU', 'Name', 'Categoría'],
+            ['SKU-001', 'Producto uno', 'Herramientas'],
         ]);
         $path = tempnam(sys_get_temp_dir(), 'data-import-').'.xlsx';
 
@@ -26,6 +26,7 @@ class SpreadsheetCsvParserTest extends TestCase
             $this->assertSame([
                 'sku' => 'SKU-001',
                 'name' => 'Producto uno',
+                'categoria' => 'Herramientas',
             ], $rows[0]['payload']);
         } finally {
             @unlink($path);

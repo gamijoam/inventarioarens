@@ -14,7 +14,7 @@ use App\Support\Tenancy\TenantManager;
 class TemplateBuilder
 {
     private const SIMPLE_PRODUCT_HEADERS = [
-        'sku', 'name', 'barcode', 'description', 'unit_of_measure', 'tracking_type',
+        'sku', 'name', 'barcode', 'description', 'category', 'unit_of_measure', 'tracking_type',
         'base_price', 'sale_currency', 'is_active',
     ];
 
@@ -140,6 +140,8 @@ class TemplateBuilder
             'name' => 'Producto de ejemplo',
             'barcode' => '',
             'description' => '',
+            'category' => 'General',
+            'categoria' => 'General',
             'unit_of_measure' => 'unit',
             'tracking_type' => 'quantity',
             'base_price' => '10.00',
@@ -199,6 +201,8 @@ class TemplateBuilder
                 'name' => $product->name,
                 'barcode' => $product->barcode,
                 'description' => $product->description,
+                'category' => $product->categories->pluck('name')->implode('|'),
+                'categoria' => $product->categories->pluck('name')->implode('|'),
                 'brand_slug' => $product->brand?->slug ?? '',
                 'category_slugs' => $product->categories->pluck('slug')->implode('|'),
                 'tag_slugs' => $product->tags->pluck('slug')->implode('|'),

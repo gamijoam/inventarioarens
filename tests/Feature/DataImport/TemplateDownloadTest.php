@@ -127,11 +127,44 @@ class TemplateDownloadTest extends TestCase
 
         $response->assertOk();
         $this->assertStringStartsWith(
-            'sku,name,barcode,description,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
+            'sku,name,barcode,description,category,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
             $response->getContent(),
         );
         $this->assertStringNotContainsString('category_slugs', $response->getContent());
         $this->assertStringNotContainsString('stock_inicial', $response->getContent());
+    }
+
+    public function test_simple_current_products_download_includes_category(): void
+    {
+        $category = \App\Modules\Products\Models\Category::create([
+            'name' => 'Balanza',
+            'slug' => 'balanza',
+            'is_active' => true,
+        ]);
+
+        $product = Product::create([
+            'sku' => 'SKU-BAL-1',
+            'name' => 'Balanza Digital',
+            'tracking_type' => 'quantity',
+            'base_price' => 50,
+            'sale_currency' => 'USD',
+            'unit_of_measure' => 'unit',
+            'is_active' => true,
+        ]);
+        $product->categories()->attach($category->id, ['tenant_id' => $this->tenant->id]);
+
+        $response = $this
+            ->actingAs($this->admin)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->get('/api/import/templates/products?current=1&simple=1');
+
+        $response->assertOk();
+        $content = $response->getContent();
+        $this->assertStringStartsWith(
+            'sku,name,barcode,description,category,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
+            $content,
+        );
+        $this->assertStringContainsString('SKU-BAL-1,Balanza Digital,,,Balanza,unit,quantity,50', $content);
     }
 
     public function test_current_download_rejects_entity_without_current_support(): void
