@@ -429,9 +429,23 @@ class ProductController extends Controller
                     $productPrice->update($attributes);
                 } else {
                     $productPrice = ProductPrice::create([
+                        'tenant_id' => $product->tenant_id,
                         'product_id' => $product->id,
                         'price_list_id' => $price['price_list_id'],
                         ...$attributes,
+                    ]);
+                }
+
+                // Si la lista de precio modificada es la predeterminada (is_default), mantener base_price del producto sincronizado
+                $isDefaultPriceList = PriceList::query()
+                    ->where('id', $price['price_list_id'])
+                    ->where('is_default', true)
+                    ->exists();
+
+                if ($isDefaultPriceList && isset($price['price']) && (float) $price['price'] >= 0) {
+                    $product->update([
+                        'base_price' => $price['price'],
+                        'sale_currency' => $price['currency'] ?? $product->sale_currency ?? 'USD',
                     ]);
                 }
 
@@ -493,18 +507,19 @@ class ProductController extends Controller
                     ->first();
 
                 if ($defaultPriceList) {
-                    $defaultProductPrice = ProductPrice::query()
-                        ->where('product_id', $product->id)
-                        ->where('price_list_id', $defaultPriceList->id)
-                        ->first();
-
-                    if ($defaultProductPrice) {
-                        $defaultProductPrice->update([
+                    $defaultProductPrice = ProductPrice::updateOrCreate(
+                        [
+                            'product_id' => $product->id,
+                            'price_list_id' => $defaultPriceList->id,
+                        ],
+                        [
+                            'tenant_id' => $product->tenant_id,
                             'price' => $product->base_price,
                             'currency' => $data['sale_currency'] ?? $product->sale_currency ?? 'USD',
-                        ]);
-                        $syncCatalog->productPriceUpdated($defaultProductPrice);
-                    }
+                            'is_active' => true,
+                        ]
+                    );
+                    $syncCatalog->productPriceUpdated($defaultProductPrice);
                 }
             }
 
@@ -550,7 +565,15 @@ class ProductController extends Controller
             }
 
             return $product->refresh()
-                ->load(['saleExchangeRateType', 'warrantyPolicy', 'brand', 'categories.parent', 'tags'])
+                ->load([
+                    'saleExchangeRateType',
+                    'warrantyPolicy',
+                    'brand',
+                    'categories.parent',
+                    'tags',
+                    'prices.priceList',
+                    'prices.exchangeRateType',
+                ])
                 ->loadCount('units');
         });
 

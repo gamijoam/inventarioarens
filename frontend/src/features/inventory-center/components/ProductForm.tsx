@@ -65,6 +65,7 @@ import {
   useProductImages,
   useWarrantyPolicies,
 } from '@/features/inventory-center/lookups';
+import { usePriceLists } from '@/features/inventory-center/api';
 import {
   type ProductFormVisibility,
   FULL_PRODUCT_FORM_VISIBILITY,
@@ -129,6 +130,7 @@ export function ProductForm({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isSyncingPrices, setIsSyncingPrices] = useState(false);
   const qc = useQueryClient();
+  const { data: priceLists = [] } = usePriceLists(false);
 
   // Precios pendientes modificados en el editor de listas
   const [pendingPrices, setPendingPrices] = useState<
@@ -152,8 +154,17 @@ export function ProductForm({
       }>,
     ) => {
       setPendingPrices(prices);
+      // Sincronizar el campo base_price del formulario si se modifica la lista predeterminada
+      const defaultModified = prices.find((p) => {
+        const pl = priceLists.find((l) => l.id === p.price_list_id);
+        return pl?.is_default && p.price !== null && !p.remove;
+      });
+      if (defaultModified && defaultModified.price !== null && defaultModified.price >= 0) {
+        form.setValue('base_price', defaultModified.price, { shouldValidate: true, shouldDirty: true });
+        form.setValue('pricing_mode', 'manual', { shouldValidate: true, shouldDirty: true });
+      }
     },
-    [],
+    [priceLists, form],
   );
 
   // Variantes pendientes para producto nuevo
@@ -450,6 +461,14 @@ export function ProductForm({
       if (productId) {
         // 1. Guardar primero los precios modificados de las listas
         if (pendingPrices.length > 0) {
+          const defaultModified = pendingPrices.find((p) => {
+            const pl = priceLists.find((l) => l.id === p.price_list_id);
+            return pl?.is_default && p.price !== null && !p.remove;
+          });
+          if (defaultModified && defaultModified.price !== null && defaultModified.price >= 0) {
+            form.setValue('base_price', defaultModified.price, { shouldValidate: true, shouldDirty: true });
+            form.setValue('pricing_mode', 'manual', { shouldValidate: true, shouldDirty: true });
+          }
           await putOne(`/products/${productId}/prices`, { prices: pendingPrices });
           setPendingPrices([]);
         }
@@ -464,9 +483,8 @@ export function ProductForm({
         }
         // 3. Guardar datos principales del producto (dispara onSuccess)
         await onSubmit();
-        void qc.invalidateQueries({ queryKey: productKeys.prices(productId) });
-        void qc.invalidateQueries({ queryKey: productKeys.detail(productId) });
-        void qc.invalidateQueries({ queryKey: productKeys.lists() });
+        await qc.invalidateQueries({ queryKey: productKeys.all, refetchType: 'all' });
+        void qc.refetchQueries({ queryKey: productKeys.lists() });
       } else {
         // En modo creación, guardar producto y sus extras asociados
         await onSubmit(async (newProduct: Product) => {

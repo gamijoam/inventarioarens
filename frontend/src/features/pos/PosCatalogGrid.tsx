@@ -43,7 +43,9 @@ export function computeProductPrices(product: Product, priceLists: PriceList[] =
     seen.add(list.id);
 
     const manual = manualById.get(list.id);
-    if (manual) return Number(manual.price);
+    if (manual && manual.price !== null && Number(manual.price) > 0) {
+      return Number(manual.price);
+    }
 
     let base: number | null = product.base_price != null ? Number(product.base_price) : null;
     if (list.base_price_list_id) {
@@ -51,7 +53,10 @@ export function computeProductPrices(product: Product, priceLists: PriceList[] =
       if (baseList) base = effectivePrice(baseList, seen);
     }
 
-    if (base == null) return null;
+    if (base == null) {
+      if (manual && manual.price !== null) return Number(manual.price);
+      return null;
+    }
     const markup = Number(list.markup_percentage ?? 0);
     return Number((base * (1 + markup / 100)).toFixed(2));
   };

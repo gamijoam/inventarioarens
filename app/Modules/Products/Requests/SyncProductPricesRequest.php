@@ -11,8 +11,20 @@ class SyncProductPricesRequest extends FormRequest
 {
     public function rules(): array
     {
-        $tenantId = app(TenantManager::class)->current()?->id ?? app(TenantManager::class)->require()->id;
+        $tenant = app(TenantManager::class)->current();
+        $tenantId = $tenant?->id ?? app(TenantManager::class)->require()->id;
         $tenantIds = [$tenantId];
+
+        if ($tenant?->parent_id) {
+            $tenantIds[] = $tenant->parent_id;
+        }
+
+        $product = $this->route('product');
+        if ($product?->tenant_id) {
+            $tenantIds[] = $product->tenant_id;
+        }
+
+        $tenantIds = array_values(array_unique(array_filter($tenantIds)));
 
         return [
             'prices' => ['required', 'array'],

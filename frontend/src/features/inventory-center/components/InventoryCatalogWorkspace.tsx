@@ -143,7 +143,9 @@ function computeProductPrices(product: Product, priceLists: PriceList[]): Comput
     seen.add(list.id);
 
     const manual = manualById.get(list.id);
-    if (manual) return Number(manual.price);
+    if (manual && manual.price !== null && Number(manual.price) > 0) {
+      return Number(manual.price);
+    }
 
     let base: number | null =
       product.base_price != null && Number(product.base_price) > 0
@@ -165,7 +167,10 @@ function computeProductPrices(product: Product, priceLists: PriceList[]): Comput
       }
     }
 
-    if (base == null) return null;
+    if (base == null) {
+      if (manual && manual.price !== null) return Number(manual.price);
+      return null;
+    }
     const markup = Number(list.markup_percentage ?? 0);
     return Number((base * (1 + markup / 100)).toFixed(2));
   };
@@ -970,6 +975,10 @@ export function InventoryCatalogWorkspace({
           onOpenChange={(open) => {
             if (!open) setEditingProduct(null);
           }}
+          onSuccess={() => {
+            void qc.invalidateQueries({ queryKey: productKeys.all, refetchType: 'all' });
+            void qc.refetchQueries({ queryKey: productKeys.lists() });
+          }}
         />
       )}
 
@@ -1302,7 +1311,28 @@ function ProductCatalogDetailModal({
         marginNum = Number((((basePriceNum - costNum) / costNum) * 100).toFixed(2));
       }
 
-      // 1. Guardar atributos del producto
+      // 1. Recopilar precios modificados
+      const dirtyPrices = Object.entries(priceMap)
+        .filter(([, v]) => v.isDirty && v.amount.trim() !== '')
+        .map(([listIdStr, v]) => ({
+          price_list_id: Number(listIdStr),
+          price: parseFloat(v.amount),
+          currency: 'USD' as const,
+        }));
+
+      // Determinar precio base: si se modificó la lista predeterminada o si no había base_price
+      const defaultDirty = dirtyPrices.find((p) => {
+        const pl = priceLists.find((l) => l.id === p.price_list_id);
+        return pl?.is_default;
+      });
+      const finalBasePrice = defaultDirty ? defaultDirty.price : basePriceNum;
+
+      // 2. Guardar precios PRIMERO para evitar race-conditions de invalidación de caché
+      if (dirtyPrices.length > 0) {
+        await putOne(`/products/${product.id}/prices`, { prices: dirtyPrices });
+      }
+
+      // 3. Guardar atributos del producto (con base_price actualizado y modo manual para persistir el precio)
       await updateProduct.mutateAsync({
         id: product.id,
         name: name.trim(),
@@ -1314,8 +1344,9 @@ function ProductCatalogDetailModal({
         is_active: isActive,
         image_url: imageUrl.trim() || null,
         last_purchase_cost: costNum,
-        base_price: basePriceNum,
+        base_price: finalBasePrice,
         profit_margin: marginNum,
+        pricing_mode: 'manual',
         min_stock: minStock.trim() !== '' ? parseFloat(minStock) : null,
         max_stock: maxStock.trim() !== '' ? parseFloat(maxStock) : null,
         reorder_quantity: reorderQuantity.trim() !== '' ? parseFloat(reorderQuantity) : null,
@@ -1326,20 +1357,7 @@ function ProductCatalogDetailModal({
         warranty_policy_id: warrantyPolicyId || null,
       });
 
-      // 2. Guardar precios si fueron modificados
-      const dirtyPrices = Object.entries(priceMap)
-        .filter(([, v]) => v.isDirty && v.amount.trim() !== '')
-        .map(([listIdStr, v]) => ({
-          price_list_id: Number(listIdStr),
-          price: parseFloat(v.amount),
-          currency: 'USD' as const,
-        }));
-
-      if (dirtyPrices.length > 0) {
-        await putOne(`/products/${product.id}/prices`, { prices: dirtyPrices });
-      }
-
-      // 3. Guardar stock si la opcion esta activa y hubo cambios
+      // 4. Guardar stock si la opcion esta activa y hubo cambios
       if (allowStockEdit) {
         const dirtyStocks = Object.entries(stockMap)
           .filter(([, v]) => v.isDirty && v.amount.trim() !== '')
@@ -1366,12 +1384,46 @@ function ProductCatalogDetailModal({
         }
       }
 
+      // 5. Actualizar de forma inmediata la caché visual de React Query
+      qc.setQueriesData({ queryKey: productKeys.lists() }, (oldData: any) => {
+        if (!oldData || !Array.isArray(oldData.data)) return oldData;
+        return {
+          ...oldData,
+          data: oldData.data.map((p: Product) => {
+            if (p.id !== product.id) return p;
+            const updatedPrices = [...(p.prices ?? [])];
+            for (const dp of dirtyPrices) {
+              const idx = updatedPrices.findIndex((item) => item.price_list_id === dp.price_list_id);
+              const existingItem = updatedPrices[idx];
+              if (idx >= 0 && existingItem) {
+                updatedPrices[idx] = { ...existingItem, price: dp.price };
+              } else {
+                const pl = priceLists.find((l) => l.id === dp.price_list_id);
+                updatedPrices.push({
+                  id: Date.now() + dp.price_list_id,
+                  price_list_id: dp.price_list_id,
+                  price_list: pl ? { id: pl.id, name: pl.name, code: pl.code, is_default: pl.is_default, is_active: pl.is_active } : null,
+                  price: dp.price,
+                  currency: dp.currency,
+                  is_active: true,
+                });
+              }
+            }
+            return {
+              ...p,
+              name: name.trim(),
+              base_price: finalBasePrice ?? p.base_price,
+              last_purchase_cost: costNum ?? p.last_purchase_cost,
+              profit_margin: marginNum ?? p.profit_margin,
+              prices: updatedPrices,
+            };
+          }),
+        };
+      });
+
       toast.success('Producto, tarifas y existencias guardados correctamente.');
-      void qc.invalidateQueries({ queryKey: productKeys.all });
-      void qc.invalidateQueries({ queryKey: productKeys.lists() });
-      void qc.invalidateQueries({ queryKey: productKeys.detail(product.id) });
-      void qc.invalidateQueries({ queryKey: productKeys.prices(product.id) });
-      void qc.invalidateQueries({ queryKey: productKeys.stockByWarehouse(product.id) });
+      await qc.invalidateQueries({ queryKey: productKeys.all, refetchType: 'all' });
+      void qc.refetchQueries({ queryKey: productKeys.lists() });
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar los cambios.');
