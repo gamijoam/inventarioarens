@@ -84,6 +84,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
+import { InlineCatalogCreate } from './InlineCatalogCreate';
 import {
   STANDARD_UNITS_OF_MEASURE,
   type PriceList,
@@ -1212,6 +1213,8 @@ function ProductCatalogDetailModal({
   const [categoryId, setCategoryId] = useState<number | undefined>(
     product.categories?.[0]?.id ?? undefined,
   );
+  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
+  const [isCreateBrandOpen, setIsCreateBrandOpen] = useState(false);
   const [unitOfMeasure, setUnitOfMeasure] = useState(product.unit_of_measure ?? 'unit');
   const [isActive, setIsActive] = useState(product.is_active ?? true);
   const [imageUrl, setImageUrl] = useState(product.image_url || '');
@@ -1822,37 +1825,83 @@ function ProductCatalogDetailModal({
                   {/* Categoría y Marca */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-xs text-text-secondary">Categoría</Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-text-secondary">Categoría</Label>
+                        <InlineCatalogCreate
+                          kind="category"
+                          compact
+                          open={isCreateCategoryOpen}
+                          onOpenChange={setIsCreateCategoryOpen}
+                          onCreated={(id) => {
+                            setCategoryId(id);
+                            setIsCreateCategoryOpen(false);
+                          }}
+                        />
+                      </div>
                       <Select
                         value={categoryId ? String(categoryId) : ''}
-                        onChange={(e) =>
-                          setCategoryId(e.target.value ? Number(e.target.value) : undefined)
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__create__') {
+                            setIsCreateCategoryOpen(true);
+                            return;
+                          }
+                          setCategoryId(val ? Number(val) : undefined);
+                        }}
                         className="mt-0.5 text-xs h-7.5"
                       >
                         <option value="">(Sin categoría)</option>
+                        <option value="__create__" className="font-semibold text-primary">
+                          + Nueva categoría...
+                        </option>
                         {categories.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}
                           </option>
                         ))}
+                        {categoryId && !categories.some((c) => c.id === categoryId) && (
+                          <option value={categoryId}>Categoría #{categoryId}</option>
+                        )}
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs text-text-secondary">Marca</Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-text-secondary">Marca</Label>
+                        <InlineCatalogCreate
+                          kind="brand"
+                          compact
+                          open={isCreateBrandOpen}
+                          onOpenChange={setIsCreateBrandOpen}
+                          onCreated={(id) => {
+                            setBrandId(id);
+                            setIsCreateBrandOpen(false);
+                          }}
+                        />
+                      </div>
                       <Select
                         value={brandId ? String(brandId) : ''}
-                        onChange={(e) =>
-                          setBrandId(e.target.value ? Number(e.target.value) : undefined)
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__create__') {
+                            setIsCreateBrandOpen(true);
+                            return;
+                          }
+                          setBrandId(val ? Number(val) : undefined);
+                        }}
                         className="mt-0.5 text-xs h-7.5"
                       >
                         <option value="">(Sin marca)</option>
+                        <option value="__create__" className="font-semibold text-primary">
+                          + Nueva marca...
+                        </option>
                         {brands.map((b) => (
                           <option key={b.id} value={b.id}>
                             {b.name}
                           </option>
                         ))}
+                        {brandId && !brands.some((b) => b.id === brandId) && (
+                          <option value={brandId}>Marca #{brandId}</option>
+                        )}
                       </Select>
                     </div>
                   </div>
