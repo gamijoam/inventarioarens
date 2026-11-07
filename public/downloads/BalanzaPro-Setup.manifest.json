@@ -2,7 +2,7 @@
   "format": "balanzapro-windows-installer",
   "format_version": 1,
   "name": "BalanzaPro-Setup.exe",
-  "version": "0.2.75",
+  "version": "0.2.76",
   "build_version": "1.0.1107.1234",
   "built_at": "20261107T203440Z",
   "source_commit": "f7f2c44a20a7e764e56c3dc4c0ff451031810199",
