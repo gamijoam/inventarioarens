@@ -82,10 +82,29 @@ function slugify(input: string): string {
 interface InlineCatalogCreateProps {
   kind: Kind;
   onCreated: (id: number) => void;
+  compact?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function InlineCatalogCreate({ kind, onCreated }: InlineCatalogCreateProps) {
-  const [open, setOpen] = useState(false);
+export function InlineCatalogCreate({
+  kind,
+  onCreated,
+  compact = false,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: InlineCatalogCreateProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
+  const setOpen = (next: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(next);
+    }
+    controlledOnOpenChange?.(next);
+  };
+
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
@@ -190,18 +209,30 @@ export function InlineCatalogCreate({ kind, onCreated }: InlineCatalogCreateProp
 
   return (
     <>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => setOpen(true)}
-        data-testid={`inline-create-${kind}`}
-      >
-        <Plus className="size-3.5" aria-hidden="true" />
-        {copy.title}
-      </Button>
+      {!compact ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setOpen(true)}
+          data-testid={`inline-create-${kind}`}
+        >
+          <Plus className="size-3.5" aria-hidden="true" />
+          {copy.title}
+        </Button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-primary hover:text-primary-hover hover:underline transition-colors focus:outline-none"
+          data-testid={`inline-create-${kind}`}
+        >
+          <Plus className="size-3" aria-hidden="true" />
+          {kind === 'category' ? '+ Nueva categoría' : kind === 'brand' ? '+ Nueva marca' : '+ Nuevo tag'}
+        </button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md z-[60]">
           <DialogHeader>
             <DialogTitle>{copy.title}</DialogTitle>
             <DialogDescription>{copy.description}</DialogDescription>
