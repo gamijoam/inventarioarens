@@ -152,7 +152,9 @@ function computeProductPrices(product: Product, priceLists: PriceList[]): Comput
         ? Number(product.base_price)
         : null;
 
-    const rawCost = product.average_cost ?? product.last_purchase_cost;
+    const rawCost = product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0
+      ? product.last_purchase_cost
+      : product.average_cost;
     const costVal = rawCost != null && Number(rawCost) > 0 ? Number(rawCost) : null;
     if (base == null && costVal != null) {
       const margin = Number(product.profit_margin ?? 0);
@@ -195,7 +197,9 @@ function computeProductPrices(product: Product, priceLists: PriceList[]): Comput
 
   // Si no hubo listas calculadas pero tiene base_price o costo con margen
   if (results.length === 0) {
-    const rawCost = product.average_cost ?? product.last_purchase_cost;
+    const rawCost = product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0
+      ? product.last_purchase_cost
+      : product.average_cost;
     const costVal = rawCost != null && Number(rawCost) > 0 ? Number(rawCost) : null;
     const fallbackBase =
       product.base_price != null && Number(product.base_price) > 0
@@ -665,10 +669,10 @@ export function InventoryCatalogWorkspace({
             const defaultPrice = prices.find((p) => p.isDefault) ?? prices[0];
             const priceVal = defaultPrice?.price ?? (product.base_price != null ? Number(product.base_price) : 0);
 
-            // Costo promedio / última compra
-            const rawCost = product.average_cost != null && Number(product.average_cost) > 0
-              ? product.average_cost
-              : (product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0 ? product.last_purchase_cost : null);
+            // Costo de compra (última compra / reposición o promedio)
+            const rawCost = product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0
+              ? product.last_purchase_cost
+              : (product.average_cost != null && Number(product.average_cost) > 0 ? product.average_cost : null);
             const costVal = rawCost != null ? Number(rawCost) : null;
 
             // Stock numérico
@@ -1214,15 +1218,29 @@ function ProductCatalogDetailModal({
 
   // Costo y Precios
   const initialCost =
-    product.average_cost != null && Number(product.average_cost) > 0
-      ? String(product.average_cost)
-      : product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0
-        ? String(product.last_purchase_cost)
+    product.last_purchase_cost != null && Number(product.last_purchase_cost) > 0
+      ? String(product.last_purchase_cost)
+      : product.average_cost != null && Number(product.average_cost) > 0
+        ? String(product.average_cost)
         : '';
   const [cost, setCost] = useState(initialCost);
   const [basePrice, setBasePrice] = useState(
     product.base_price != null ? String(product.base_price) : '',
   );
+
+  // Margen de ganancia inicial (calculado o guardado)
+  const initialMargin = useMemo(() => {
+    if (product.profit_margin != null && Number(product.profit_margin) > 0) {
+      return String(product.profit_margin);
+    }
+    const cNum = parseFloat(initialCost) || 0;
+    const bNum = product.base_price != null ? Number(product.base_price) : 0;
+    if (cNum > 0 && bNum > cNum) {
+      return (((bNum - cNum) / cNum) * 100).toFixed(2);
+    }
+    return '';
+  }, [product.profit_margin, initialCost, product.base_price]);
+  const [margin, setMargin] = useState(initialMargin);
 
   // Precios computados y mapa editable
   const computedPrices = useMemo(
@@ -1283,6 +1301,51 @@ function ProductCatalogDetailModal({
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const currentPreviewImage = allImages[activeImageIndex] || imageUrl || null;
 
+  // Manejo reactivo de cambio en costo de compra: recalcula precio base y tarifas
+  const handleCostChange = (newCost: string) => {
+    setCost(newCost);
+    const cNum = parseFloat(newCost);
+    const mNum = parseFloat(margin);
+
+    if (!isNaN(cNum) && cNum > 0) {
+      const effMargin = !isNaN(mNum) && mNum > 0 ? mNum : 0;
+      const newBase = Number((cNum * (1 + effMargin / 100)).toFixed(2));
+      setBasePrice(String(newBase));
+
+      setPriceMap((prev) => {
+        const next = { ...prev };
+        for (const pl of priceLists) {
+          const markup = Number(pl.markup_percentage ?? 0);
+          const listPrice = Number((newBase * (1 + markup / 100)).toFixed(2));
+          next[pl.id] = { amount: String(listPrice), isDirty: true };
+        }
+        return next;
+      });
+    }
+  };
+
+  // Manejo reactivo de cambio en margen: recalcula precio base y tarifas según el costo
+  const handleMarginChange = (newMargin: string) => {
+    setMargin(newMargin);
+    const cNum = parseFloat(cost);
+    const mNum = parseFloat(newMargin);
+
+    if (!isNaN(cNum) && cNum > 0 && !isNaN(mNum) && mNum >= 0) {
+      const newBase = Number((cNum * (1 + mNum / 100)).toFixed(2));
+      setBasePrice(String(newBase));
+
+      setPriceMap((prev) => {
+        const next = { ...prev };
+        for (const pl of priceLists) {
+          const markup = Number(pl.markup_percentage ?? 0);
+          const listPrice = Number((newBase * (1 + markup / 100)).toFixed(2));
+          next[pl.id] = { amount: String(listPrice), isDirty: true };
+        }
+        return next;
+      });
+    }
+  };
+
   // Manejo de cambio de precio en una lista específica
   const handlePriceChange = (listId: number, newAmount: string, isDefault: boolean) => {
     setPriceMap((prev) => ({
@@ -1291,6 +1354,12 @@ function ProductCatalogDetailModal({
     }));
     if (isDefault) {
       setBasePrice(newAmount);
+      const cNum = parseFloat(cost);
+      const pNum = parseFloat(newAmount);
+      if (!isNaN(cNum) && cNum > 0 && !isNaN(pNum) && pNum > 0) {
+        const calcMargin = (((pNum - cNum) / cNum) * 100).toFixed(2);
+        setMargin(calcMargin);
+      }
     }
   };
 
@@ -1304,11 +1373,12 @@ function ProductCatalogDetailModal({
     setIsSaving(true);
     try {
       const costNum = cost.trim() !== '' ? parseFloat(cost) : null;
-      const basePriceNum = basePrice.trim() !== '' ? parseFloat(basePrice) : null;
+      const marginNum = margin.trim() !== '' ? parseFloat(margin) : null;
+      let basePriceNum = basePrice.trim() !== '' ? parseFloat(basePrice) : null;
 
-      let marginNum: number | null = null;
-      if (costNum != null && costNum > 0 && basePriceNum != null && basePriceNum > 0) {
-        marginNum = Number((((basePriceNum - costNum) / costNum) * 100).toFixed(2));
+      // Si se ingresó costo y margen pero no basePrice
+      if (costNum != null && costNum > 0 && marginNum != null && marginNum >= 0 && (basePriceNum == null || basePriceNum <= 0)) {
+        basePriceNum = Number((costNum * (1 + marginNum / 100)).toFixed(2));
       }
 
       // 1. Recopilar precios modificados
@@ -1414,6 +1484,7 @@ function ProductCatalogDetailModal({
               name: name.trim(),
               base_price: finalBasePrice ?? p.base_price,
               last_purchase_cost: costNum ?? p.last_purchase_cost,
+              average_cost: costNum ?? p.average_cost,
               profit_margin: marginNum ?? p.profit_margin,
               prices: updatedPrices,
             };
@@ -1827,26 +1898,50 @@ function ProductCatalogDetailModal({
                     )}
                   </div>
 
-                  {/* Fila de Costo de Compra */}
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
-                    <div className="flex flex-col">
-                      <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                        Costo de compra (USD)
-                      </Label>
-                      <span className="text-xs text-text-muted leading-none">
-                        Base para calcular margen y ganancia
-                      </span>
+                  {/* Fila de Costo de Compra y Margen */}
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col">
+                        <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                          Costo de compra (USD)
+                        </Label>
+                        <span className="text-[11px] text-text-muted leading-none">
+                          Reposición base del producto
+                        </span>
+                      </div>
+                      <div className="w-24">
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0"
+                          placeholder="0.00"
+                          value={cost}
+                          onChange={(e) => handleCostChange(e.target.value)}
+                          className="text-right font-bold h-7 text-xs bg-surface"
+                        />
+                      </div>
                     </div>
-                    <div className="w-24">
-                      <Input
-                        type="number"
-                        step="any"
-                        min="0"
-                        placeholder="0.00"
-                        value={cost}
-                        onChange={(e) => setCost(e.target.value)}
-                        className="text-right font-bold h-7 text-xs"
-                      />
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-500/20">
+                      <div className="flex flex-col">
+                        <Label className="text-xs font-medium text-text-secondary">
+                          Margen de Ganancia (%)
+                        </Label>
+                        <span className="text-[11px] text-text-muted leading-none">
+                          Aplica sobre costo para calcular PVP
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 w-24">
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0"
+                          placeholder="0.0"
+                          value={margin}
+                          onChange={(e) => handleMarginChange(e.target.value)}
+                          className="text-right font-bold h-7 text-xs bg-surface"
+                        />
+                        <span className="text-xs font-bold text-text-muted">%</span>
+                      </div>
                     </div>
                   </div>
 

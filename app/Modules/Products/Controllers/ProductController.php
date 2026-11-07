@@ -482,6 +482,10 @@ class ProductController extends Controller
         $data = $request->validated();
         $userId = $request->user()?->id;
 
+        if (array_key_exists('last_purchase_cost', $data) && $data['last_purchase_cost'] !== null) {
+            $data['average_cost'] = $data['last_purchase_cost'];
+        }
+
         $this->applyAutomaticPrice($data, $product);
 
         if (
