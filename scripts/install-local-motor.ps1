@@ -396,7 +396,8 @@ extension=gd
 extension=intl
 extension=sodium
 opcache.enable=1
-opcache.enable_cli=1
+opcache.enable_cli=0
+opcache.file_cache_fallback=1
 memory_limit=512M
 "@
         [IO.File]::WriteAllText((Join-Path $frankenPhpDir 'php.ini'), $frankenPhpIni, [Text.UTF8Encoding]::new($false))
@@ -437,7 +438,7 @@ memory_limit=512M
         Set-LaravelEnvironment $Php $Backend $appKey $bootstrapToken
         Push-Location $Backend
         try {
-            $migrationOutput = @(& $Php artisan local:install-sqlite "--database=$database" 2>&1)
+            $migrationOutput = @(& $Php -d opcache.enable=0 -d opcache.enable_cli=0 artisan local:install-sqlite "--database=$database" 2>&1)
             if ($LASTEXITCODE -ne 0) { throw "La migracion SQLite fallo: $($migrationOutput -join ' ')" }
         } finally { Pop-Location }
 
