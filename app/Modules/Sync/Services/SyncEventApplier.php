@@ -4204,6 +4204,21 @@ class SyncEventApplier
                 'updated_at' => now(),
             ]);
             $priceList = DB::table('price_lists')->where('id', $id)->first();
+
+            $activeMethodIds = DB::table('payment_methods')
+                ->where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->pluck('id')
+                ->all();
+            foreach ($activeMethodIds as $pmId) {
+                DB::table('price_list_payment_method')->insert([
+                    'tenant_id' => $tenant->id,
+                    'price_list_id' => $id,
+                    'payment_method_id' => $pmId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
         }
 
         return $priceList;

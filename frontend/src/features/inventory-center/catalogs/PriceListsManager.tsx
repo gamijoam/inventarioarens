@@ -299,7 +299,9 @@ function FormDialog({
       is_default: priceList?.is_default ?? false,
       is_active: priceList?.is_active ?? true,
       sort_order: priceList?.sort_order ?? 0,
-      payment_method_ids: priceList?.payment_method_ids ?? [],
+      payment_method_ids: priceList
+        ? (priceList.payment_method_ids ?? [])
+        : paymentMethods.map((m) => m.id),
     },
   });
 

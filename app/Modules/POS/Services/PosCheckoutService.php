@@ -746,9 +746,27 @@ class PosCheckoutService
 
     private function validatePaymentMethods(Collection $priceLists, array $payments, ?int $customerId = null): array
     {
+        // Auto-reparar: si una lista de precios no tiene métodos de pago asignados en base de datos,
+        // pero la empresa tiene métodos activos, se auto-asocian para que no quede bloqueada para cobro en POS.
         $priceListsWithoutMethods = $priceLists->filter(fn (PriceList $priceList): bool => $priceList->paymentMethods->isEmpty());
         if ($priceListsWithoutMethods->isNotEmpty()) {
-            $priceList = $priceListsWithoutMethods->first();
+            foreach ($priceListsWithoutMethods as $unconfiguredList) {
+                $tenantPaymentMethods = PaymentMethod::query()
+                    ->where('tenant_id', $unconfiguredList->tenant_id)
+                    ->where('is_active', true)
+                    ->get();
+                if ($tenantPaymentMethods->isNotEmpty()) {
+                    $unconfiguredList->paymentMethods()->syncWithoutDetaching(
+                        $tenantPaymentMethods->mapWithKeys(fn ($pm) => [$pm->id => ['tenant_id' => $unconfiguredList->tenant_id]])->all()
+                    );
+                    $unconfiguredList->load('paymentMethods');
+                }
+            }
+        }
+
+        $stillEmpty = $priceLists->filter(fn (PriceList $priceList): bool => $priceList->paymentMethods->isEmpty());
+        if ($stillEmpty->isNotEmpty()) {
+            $priceList = $stillEmpty->first();
             throw ValidationException::withMessages([
                 'payments' => "La lista de precio {$priceList->name} no tiene metodos de pago configurados para POS.",
             ]);

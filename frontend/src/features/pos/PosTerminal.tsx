@@ -2538,7 +2538,7 @@ export function PosTerminal() {
               ? 'flex flex-col p-0'
               : posViewMode === 'catalog'
                 ? 'flex flex-col p-3'
-                : 'grid grid-rows-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(680px,1fr)_430px] p-3',
+                : 'grid grid-rows-[minmax(0,1fr)] gap-2.5 xl:grid-cols-[minmax(640px,1fr)_380px] p-2.5',
           )}
         >
           {posViewMode === 'classic' ? (
@@ -2979,62 +2979,62 @@ export function PosTerminal() {
             </div>
           </section>
 
-          <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-2xl border shadow-sm">
-            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-4 text-white">
-              <div className="flex items-start justify-between gap-3">
+          <aside className="border-border/80 bg-surface flex min-h-0 flex-col overflow-hidden rounded-xl border shadow-sm">
+            <div className="border-border border-b bg-gradient-to-br from-[#17112f] to-[#2f238f] p-3 text-white">
+              <div className="flex items-start justify-between gap-2.5">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-white/70 uppercase">Total</p>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold text-white tracking-wide">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-semibold text-white/70 uppercase">Total</p>
+                    <span className="rounded-full bg-white/20 px-2 py-0.2 text-[10px] font-bold text-white tracking-wide">
                       {totalCartUnits} {totalCartUnits === 1 ? 'artículo' : 'artículos'}
                     </span>
                   </div>
-                  <p className="mt-1 text-4xl font-bold tracking-normal text-white">
+                  <p className="mt-0.5 text-3xl font-bold tracking-normal text-white">
                     {money(cartTotals.total)}
                   </p>
                 </div>
-                <div className="min-w-32 space-y-1.5 text-right text-xs text-white/80">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-white/70">Total artículos:</span>
-                    <span className="font-bold font-mono text-white text-sm">{totalCartUnits}</span>
+                <div className="min-w-28 space-y-1 text-right text-xs text-white/80">
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-white/70">Artículos:</span>
+                    <span className="font-bold font-mono text-white">{totalCartUnits}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-white/70">Líneas de ticket:</span>
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-white/70">Líneas:</span>
                     <span className="font-bold font-mono text-white">{cart.length}</span>
                   </div>
-                  <div className="border-t border-white/20 pt-1">
-                    <AmountRow label="Subtotal" value={cartTotals.subtotal} className="text-white" />
+                  <div className="border-t border-white/20 pt-0.5 text-xs">
+                    <AmountRow label="Subtotal" value={cartTotals.subtotal} className="text-white text-xs" />
                     {cartTotals.discount > 0 && (
-                      <AmountRow label="Desc." value={cartTotals.discount} muted className="text-white/70" />
+                      <AmountRow label="Desc." value={cartTotals.discount} muted className="text-white/70 text-xs" />
                     )}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
               {activePaymentMethods.length === 0 ? (
-                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                <div className="border-warning bg-warning/10 text-warning mb-2 rounded border p-2 text-xs">
                   Configura metodos de pago para cobrar rapido.
-                  <Button asChild className="mt-3 w-full" variant="outline">
+                  <Button asChild className="mt-2 w-full h-8 text-xs" variant="outline">
                     <Link to="/payment-methods">Configurar metodos</Link>
                   </Button>
                 </div>
               ) : null}
               {priceListNotice ? (
-                <p className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                <p className="border-warning bg-warning/10 text-warning mb-2 rounded border p-2 text-xs">
                   {priceListNotice}
                 </p>
               ) : null}
               {priceListPaymentIssue && activePaymentMethods.length > 0 ? (
-                <div className="border-warning bg-warning/10 text-warning mb-3 rounded border p-3 text-sm">
+                <div className="border-warning bg-warning/10 text-warning mb-2 rounded border p-2 text-xs">
                   {priceListPaymentIssue}
-                  <Button asChild className="mt-3 w-full" variant="outline">
+                  <Button asChild className="mt-2 w-full h-8 text-xs" variant="outline">
                     <Link to="/inventory/admin">Configurar lista</Link>
                   </Button>
                 </div>
               ) : null}
-              <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
                 {pendingInvoicePromotion && (
                   <InvoicePromotionDecisionPanel
                     promotionName={pendingInvoicePromotion.promotion_name ?? 'Descuento de factura'}
@@ -3042,15 +3042,15 @@ export function PosTerminal() {
                     onDecision={setInvoicePromotionAction}
                   />
                 )}
-                <AmountRow label="Pagado" value={paymentTotals.paid} />
+                <AmountRow label="Pagado" value={paymentTotals.paid} className="text-xs" />
                 {payments.length > 0 && (
-                  <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-xs font-semibold tracking-wide uppercase">
+                  <div className="text-text-muted flex shrink-0 items-center justify-between px-1 text-[11px] font-semibold tracking-wide uppercase">
                     <span>Pagos aplicados</span>
                     <span>{payments.length}</span>
                   </div>
                 )}
                 {payments.length > 0 && (
-                  <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain rounded-lg border p-2 pr-1">
+                  <div className="border-border/70 bg-bg/30 min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain rounded-lg border p-1.5 pr-1">
                     {payments.map((payment) => (
                       <PaymentChip
                         key={payment.id}
@@ -3072,7 +3072,7 @@ export function PosTerminal() {
                   paymentTotals.remaining > 0 &&
                   !payments.some((payment) => payment.method === 'customer_credit') && (
                     <Button
-                      className="w-full"
+                      className="w-full h-8 text-xs"
                       variant="outline"
                       onClick={() => applyCustomerCredit()}
                     >
@@ -3090,30 +3090,31 @@ export function PosTerminal() {
                     type="button"
                     onClick={() => setPanel('pay')}
                     disabled={allowedPaymentMethods.length === 0 || Boolean(priceListPaymentIssue)}
-                    className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    className="border-border text-text-muted hover:border-primary hover:text-primary w-full rounded border border-dashed px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Agregar pago con F2
                   </button>
                 )}
               </div>
-              <div className="border-border bg-bg/50 mt-4 shrink-0 space-y-2 rounded border p-3">
-                <AmountRow label="Restante USD" value={paymentTotals.remaining} />
+              <div className="border-border bg-bg/50 mt-2 shrink-0 space-y-1 rounded-lg border p-2.5">
+                <AmountRow label="Restante USD" value={paymentTotals.remaining} className="text-xs" />
                 {activeRate && (
                   <AmountRow
-                    label={`Restante en bolivares · ${activeRate.name}`}
+                    label={`Restante VES · ${activeRate.name}`}
                     value={paymentAmountForCurrency(
                       paymentTotals.remaining,
                       'VES',
                       activeRate.rate,
                     )}
                     currency="VES"
+                    className="text-xs"
                   />
                 )}
-                <div className="bg-success/10 mt-2 rounded p-3">
-                  <p className="text-text-muted text-xs">Vuelto</p>
-                  <p className="text-success text-3xl font-bold">{money(paymentTotals.change)}</p>
+                <div className="bg-success/10 mt-1 rounded-md p-1.5">
+                  <p className="text-text-muted text-[10px] uppercase font-bold tracking-wide">Vuelto</p>
+                  <p className="text-success text-2xl font-black">{money(paymentTotals.change)}</p>
                   {paymentTotals.change > 0 && paymentTotals.change_currency === 'VES' && (
-                    <p className="text-success mt-1 text-sm font-semibold">
+                    <p className="text-success mt-0.5 text-xs font-semibold">
                       Bs {formatLocalNumber(paymentTotals.change_amount ?? 0)}
                       {paymentTotals.change_rate
                         ? ` · ${exchangeRateTypes.find((type) => type.id === paymentTotals.change_rate_type_id)?.code ?? 'Tasa'} @ ${formatLocalNumber(paymentTotals.change_rate)}`
@@ -3124,28 +3125,28 @@ export function PosTerminal() {
               </div>
             </div>
 
-            <div className="border-border shrink-0 space-y-2 border-t p-3">
+            <div className="border-border shrink-0 space-y-1.5 border-t p-2.5">
               {checkoutBlockReason && (
-                <p className="border-warning bg-warning/10 text-warning rounded border px-3 py-2 text-xs">
+                <p className="border-warning bg-warning/10 text-warning rounded border px-2.5 py-1 text-[11px]">
                   {checkoutBlockReason}
                 </p>
               )}
               {sellerOnlyMode ? (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-10 w-full text-sm font-bold"
                   disabled={cart.length === 0 || holdOrder.isPending}
                   onClick={() => void holdSale()}
                 >
                   {holdOrder.isPending ? (
-                    <Loader2 className="size-5 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <PauseCircle className="size-5" />
+                    <PauseCircle className="size-4" />
                   )}
                   Armar orden
                 </Button>
               ) : (
                 <Button
-                  className="h-12 w-full text-base"
+                  className="h-10 w-full text-sm font-extrabold shadow-sm"
                   disabled={
                     cart.length === 0 ||
                     (!allowNegativeStock && hasStockIssue(cart)) ||
@@ -3166,14 +3167,14 @@ export function PosTerminal() {
                   {checkout.isPending ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <CreditCard className="size-5" />
+                    <CreditCard className="size-4" />
                   )}
                   <ShortcutText label="F10" text="Cobrar" />
                 </Button>
               )}
               {!sellerOnlyMode && (
                 <Button
-                  className="h-10 w-full"
+                  className="h-8.5 w-full text-xs font-semibold"
                   variant="secondary"
                   disabled={
                     !canCheckout ||
@@ -3186,7 +3187,7 @@ export function PosTerminal() {
                   }
                   onClick={() => setPanel('credit')}
                 >
-                  <Wallet className="size-4" />
+                  <Wallet className="size-3.5" />
                   Enviar a CxC
                 </Button>
               )}
@@ -6767,7 +6768,8 @@ function filterPaymentMethodsForPriceList<T extends { id: number; is_active?: bo
   if (!priceList) return methods.filter((method) => method.is_active !== false);
 
   const allowed = new Set(priceList?.payment_method_ids ?? []);
-  if (allowed.size === 0) return [];
+  // Si la lista de precios no tiene restricciones explícitas de métodos, permite todos los métodos activos
+  if (allowed.size === 0) return methods.filter((method) => method.is_active !== false);
 
   return methods.filter((method) => method.is_active !== false && allowed.has(method.id));
 }
@@ -6778,10 +6780,8 @@ function getPriceListPaymentIssue(
 ): string | null {
   if (!priceList) return null;
   const configuredIds = priceList.payment_method_ids ?? [];
-  if (configuredIds.length === 0) {
-    return `La lista ${priceList.name} no tiene metodos de pago configurados para POS.`;
-  }
-  if (allowedPaymentMethods.length === 0) {
+  // Solo se reporta problema si la lista tenía IDs explícitamente configurados pero ninguno está activo
+  if (configuredIds.length > 0 && allowedPaymentMethods.length === 0) {
     return `Los metodos asignados a ${priceList.name} no estan activos.`;
   }
 

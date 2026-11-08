@@ -571,6 +571,16 @@ class ProductImporter extends BaseImporter
                     'is_active' => true,
                     'sort_order' => $def['sort_order'],
                 ]);
+                $activeMethodIds = DB::table('payment_methods')
+                    ->where('tenant_id', $tenantId)
+                    ->where('is_active', true)
+                    ->pluck('id')
+                    ->all();
+                if (! empty($activeMethodIds)) {
+                    $created->paymentMethods()->sync(
+                        collect($activeMethodIds)->mapWithKeys(fn ($id) => [$id => ['tenant_id' => $tenantId]])->all()
+                    );
+                }
                 app(SyncCatalogOutboxService::class)->priceListCreated($created);
                 $map[$key] = $created;
             }
