@@ -443,4 +443,38 @@ describe('ProductSearchDetailModal', () => {
     expect(screen.getByText('PVP USD')).toBeInTheDocument();
     expect(screen.getByText(/PVP VES/)).toBeInTheDocument();
   });
+
+  it('permite seleccionar un producto con una lista de precios especifica desde la tabla de precios', () => {
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <ProductSearchDetailModal
+        open={true}
+        onClose={onClose}
+        onSelect={onSelect}
+        warehouses={mockWarehouses}
+        warehouseId={1}
+        onWarehouseChange={vi.fn()}
+        priceLists={mockPriceLists}
+        activeRate={{ rate: 70, name: 'BCV' }}
+      />,
+    );
+
+    // Cambiar a la pestaña de precios
+    fireEvent.click(screen.getByText('[F5] Precios'));
+
+    // Debe mostrar la fila de Precio 2 (Mayor)
+    expect(screen.getByText('Precio 2 (Mayor)')).toBeInTheDocument();
+
+    // Hacer clic en la fila de Precio 2
+    fireEvent.click(screen.getByText('Precio 2 (Mayor)'));
+
+    // Debe llamar a onSelect con el producto y la tarifa forzada
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, name: 'ACEITE 20W50 MINERAL MOTUL 1L' }),
+      expect.objectContaining({ id: 2, name: 'Precio 2 (Mayor)', price: 8.5 }),
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
 });

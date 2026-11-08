@@ -66,7 +66,10 @@ import { cn } from '@/lib/cn';
 interface ProductSearchDetailModalProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (product: Product) => void | Promise<void>;
+  onSelect: (
+    product: Product,
+    forcedPriceList?: { id: number; name: string | null; price: number } | null,
+  ) => void | Promise<void>;
   warehouses: { id: number; code: string; name: string }[];
   warehouseId: number | null;
   onWarehouseChange: (warehouseId: number | null) => void;
@@ -955,14 +958,23 @@ export function ProductSearchDetailModal({
                           {priceRows.map((row, idx) => (
                             <tr
                               key={row.id}
+                              onClick={() => {
+                                const listId = typeof row.id === 'number' ? row.id : null;
+                                void onSelect(
+                                  selectedProduct,
+                                  listId ? { id: listId, name: row.label, price: row.totalUsd } : null,
+                                );
+                                onClose();
+                              }}
                               className={cn(
-                                'transition-colors hover:bg-bg/40',
+                                'transition-colors hover:bg-primary/10 cursor-pointer group',
                                 idx === 0 && 'bg-primary/5',
                               )}
+                              title="Haga clic para agregar este producto al ticket con este precio"
                             >
                               <td className="px-5 py-4 font-medium text-sm">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-text-primary font-semibold">{row.label}</span>
+                                  <span className="text-text-primary font-semibold group-hover:text-primary transition-colors">{row.label}</span>
                                   {row.isDefault && (
                                     <Badge
                                       variant="primary"
@@ -971,6 +983,9 @@ export function ProductSearchDetailModal({
                                       Principal
                                     </Badge>
                                   )}
+                                  <span className="opacity-0 group-hover:opacity-100 text-xs text-primary font-bold transition-opacity ml-auto">
+                                    + Agregar
+                                  </span>
                                 </div>
                               </td>
                               <td className="px-5 py-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">

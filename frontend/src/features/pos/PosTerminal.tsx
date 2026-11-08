@@ -2483,6 +2483,8 @@ export function PosTerminal() {
               canDiscount={canDiscount}
               allowNegativeStock={allowNegativeStock}
               warehouseId={effectiveWarehouseId}
+              priceLists={priceLists}
+              onPriceListChange={(line, listId) => void handleLinePriceListChange(line, listId)}
               selectedPriceList={selectedPriceList}
               orderNumber={String(
                 bootstrap.data?.next_order_number ??
@@ -2710,6 +2712,8 @@ export function PosTerminal() {
                           line={line}
                           canDiscount={canDiscount}
                           skuColor={posColorTheme.to}
+                          priceLists={priceLists}
+                          onPriceListChange={(listId) => void handleLinePriceListChange(line, listId)}
                           onChange={(patch) => updateLine(line.id, patch)}
                           onSerials={() => {
                             setSerialLineId(line.id);
@@ -2878,6 +2882,8 @@ export function PosTerminal() {
                       line={line}
                       canDiscount={canDiscount}
                       skuColor={posColorTheme.to}
+                      priceLists={priceLists}
+                      onPriceListChange={(listId) => void handleLinePriceListChange(line, listId)}
                       onChange={(patch) => updateLine(line.id, patch)}
                       onSerials={() => {
                         setSerialLineId(line.id);
@@ -3421,8 +3427,17 @@ export function PosTerminal() {
           selectedPriceList={selectedPriceList}
           activeRate={activeRate}
           initialSearch={productSearch}
-          onSelect={async (product) => {
-            const added = await requestAddProduct(product);
+          onSelect={async (product, forcedPriceList) => {
+            const added = await addProduct(
+              product,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              forcedPriceList,
+            );
             if (added) setPanel(null);
           }}
         />
@@ -3628,6 +3643,47 @@ export function PosTerminal() {
       toast.error(message);
     } finally {
       setRepricing(false);
+    }
+  }
+
+  async function handleLinePriceListChange(
+    line: PosCartLine,
+    nextListId: number | null,
+  ): Promise<void> {
+    if (nextListId === (line.price_list_id ?? null)) return;
+
+    if (nextListId === null) {
+      const basePrice = Number(line.base_unit_price ?? line.unit_price);
+      updateLine(line.id, {
+        unit_price: basePrice,
+        currency: line.base_currency ?? line.currency ?? 'USD',
+        price_list_id: null,
+        price_source: 'base',
+        price_list_name: BASE_PRICE_LIST_LABEL,
+        price_issue: null,
+      });
+      toast.success(`${line.name}: tarifa cambiada a ${BASE_PRICE_LIST_LABEL} ($${basePrice.toFixed(2)})`);
+      return;
+    }
+
+    const targetList = priceLists.find((list) => list.id === nextListId);
+    if (!targetList) return;
+
+    try {
+      const quote = await quoteProductForPos(line.product_id, targetList.id);
+      updateLine(line.id, {
+        unit_price: quote.base_price_usd,
+        currency: quote.sale_currency,
+        price_list_id: targetList.id,
+        price_source: 'price_list',
+        price_list_name: quote.price_list_name ?? targetList.name,
+        price_issue: null,
+      });
+      toast.success(
+        `${line.name}: tarifa cambiada a ${targetList.name} ($${quote.base_price_usd.toFixed(2)})`,
+      );
+    } catch {
+      toast.error(`${line.name} no tiene precio asignado en la lista ${targetList.name}.`);
     }
   }
 
@@ -4836,6 +4892,8 @@ function CartLineRow({
   onSerials,
   onRemove,
   skuColor,
+  priceLists = [],
+  onPriceListChange,
 }: {
   line: PosCartLine;
   canDiscount: boolean;
@@ -4843,6 +4901,8 @@ function CartLineRow({
   onSerials: () => void;
   onRemove: () => void;
   skuColor?: string;
+  priceLists?: PriceList[];
+  onPriceListChange?: (priceListId: number | null) => void;
 }) {
   const stockIssue = line.quantity > line.available_stock;
   const serialCount = line.selected_serials?.length ?? 0;
@@ -4927,11 +4987,32 @@ function CartLineRow({
                 {unitSuffix}
               </Badge>
             )}
-            {line.price_list_name && (
+            {priceLists.length > 0 ? (
+              <div className="inline-flex items-center gap-1">
+                <Tag className="size-3 text-text-muted shrink-0" />
+                <select
+                  aria-label={`Tarifa para ${line.name}`}
+                  value={line.price_list_id ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onPriceListChange?.(val ? Number(val) : null);
+                  }}
+                  className="text-xs font-bold rounded-md border border-border bg-surface px-2 py-0.5 text-text-primary hover:border-primary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs"
+                  title="Cambiar lista de precios para este producto"
+                >
+                  <option value="">Precio Base</option>
+                  {priceLists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : line.price_list_name ? (
               <Badge variant="outline" className="text-xs font-semibold text-text-primary border-border px-2 py-0.5">
                 {line.price_list_name}
               </Badge>
-            )}
+            ) : null}
             {line.tracking_type === 'serialized' && (
               <button
                 type="button"

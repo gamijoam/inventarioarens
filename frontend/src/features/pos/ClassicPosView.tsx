@@ -20,6 +20,7 @@ import {
   FileText,
   Settings2,
   ClipboardList,
+  Tag,
 } from 'lucide-react';
 import type { PosCartLine, CartTotals, PosPaymentLine, PaymentTotals } from './posLogic';
 import type { Customer } from './api';
@@ -43,6 +44,8 @@ export interface ClassicPosViewProps {
   allowNegativeStock?: boolean;
   warehouseId?: number | null;
   selectedPriceList?: PriceList | null;
+  priceLists?: PriceList[];
+  onPriceListChange?: (line: PosCartLine, priceListId: number | null) => void;
   orderNumber?: string;
   pendingCount?: number;
   allowRateEdit?: boolean;
@@ -103,6 +106,8 @@ export function ClassicPosView({
   sellerName,
   allowNegativeStock = false,
   warehouseId,
+  priceLists = [],
+  onPriceListChange,
   orderNumber,
   pendingCount = 0,
   allowRateEdit = false,
@@ -1019,20 +1024,51 @@ export function ClassicPosView({
                             isSelected ? 'border-blue-500 text-white' : 'border-slate-200 text-slate-900',
                           )}
                         >
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-black text-base sm:text-lg lg:text-xl leading-snug tracking-tight truncate max-w-xl">
-                              {line.name}
-                            </span>
-                            {stockIssue && (
-                              <span
-                                className={cn(
-                                  'text-xs px-2 py-0.5 rounded font-mono shrink-0 font-black',
-                                  isSelected ? 'bg-amber-400 text-slate-900' : 'bg-red-100 text-red-700 border border-red-200',
-                                )}
-                                title={`Stock disponible: ${line.available_stock}`}
-                              >
-                                ⚠️ Stock ({line.available_stock})
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-black text-base sm:text-lg lg:text-xl leading-snug tracking-tight truncate max-w-xl">
+                                {line.name}
                               </span>
+                              {stockIssue && (
+                                <span
+                                  className={cn(
+                                    'text-xs px-2 py-0.5 rounded font-mono shrink-0 font-black',
+                                    isSelected ? 'bg-amber-400 text-slate-900' : 'bg-red-100 text-red-700 border border-red-200',
+                                  )}
+                                  title={`Stock disponible: ${line.available_stock}`}
+                                >
+                                  ⚠️ Stock ({line.available_stock})
+                                </span>
+                              )}
+                            </div>
+                            {priceLists.length > 0 && (
+                              <div
+                                className="flex items-center gap-1.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Tag className={cn('size-3 shrink-0', isSelected ? 'text-blue-200' : 'text-slate-400')} />
+                                <select
+                                  aria-label={`Tarifa para ${line.name}`}
+                                  value={line.price_list_id ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    onPriceListChange?.(line, val ? Number(val) : null);
+                                  }}
+                                  className={cn(
+                                    'text-xs font-bold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-colors shadow-2xs',
+                                    isSelected
+                                      ? 'bg-blue-900 text-white border-blue-400 focus:ring-1 focus:ring-white'
+                                      : 'bg-white text-slate-800 border-slate-300 hover:border-blue-500 focus:ring-1 focus:ring-blue-500',
+                                  )}
+                                >
+                                  <option value="">Precio Base</option>
+                                  {priceLists.map((list) => (
+                                    <option key={list.id} value={list.id}>
+                                      {list.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                             )}
                           </div>
                         </td>
@@ -1383,6 +1419,32 @@ export function ClassicPosView({
               <span className="font-black text-purple-300 text-base">*</span>
               <span className="text-slate-300">Cantidad</span>
             </button>
+
+            {priceLists.length > 0 && activeLine && (
+              <div
+                className="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors"
+                title="Cambiar tarifa / lista de precios del producto seleccionado"
+              >
+                <Tag className="size-3.5 text-amber-400 shrink-0" />
+                <span className="text-xs text-slate-300 font-bold hidden lg:inline">Tarifa:</span>
+                <select
+                  aria-label="Tarifa para producto seleccionado"
+                  value={activeLine.price_list_id ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onPriceListChange?.(activeLine, val ? Number(val) : null);
+                  }}
+                  className="bg-slate-900 text-white text-xs font-bold rounded border border-slate-600 px-2 py-0.5 cursor-pointer hover:border-amber-400 focus:outline-none"
+                >
+                  <option value="">Precio Base</option>
+                  {priceLists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* GRUPO 3: OPERACIONES ADICIONALES (Caja, Recibo, Cotización, Tasa) */}
