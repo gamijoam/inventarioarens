@@ -100,8 +100,10 @@ jobs:
           # Borra cualquier release/tag previo con el mismo nombre para re-publicar limpio.
           gh release delete "$TAG" --repo gamijoam/inventarioarens --yes --cleanup-tag 2>/dev/null || true
 
+          TARGET_REF="${GITHUB_SHA:-${GITHUB_REF:-client/balanzapro}}"
           gh release create "$TAG" \
             --repo gamijoam/inventarioarens \
+            --target "$TARGET_REF" \
             --title "$VERSION" \
             --generate-notes \
             release/${CLIENT}/*.exe \

@@ -1142,17 +1142,35 @@ interface PosRateTypeLike {
   is_active?: boolean;
 }
 
+export interface PosResolvedPaymentRate {
+  exchange_rate_type_id: number;
+  code: string;
+  name: string;
+  rate: number;
+  base_rate?: number;
+  markup_percentage?: number;
+}
+
 export function resolvePosPaymentRate(
   rates: PosRateLike[],
   rateTypes: PosRateTypeLike[],
   paymentExchangeRateTypeId?: number | null,
-): { exchange_rate_type_id: number; code: string; name: string; rate: number } | null {
+  paymentExchangeRateMarkupPercentage?: number | null,
+): PosResolvedPaymentRate | null {
   const validRates = rates.filter(
     (rate) =>
       Number(rate.rate) > 0 &&
       (!rate.base_currency || rate.base_currency === 'USD') &&
       (!rate.quote_currency || rate.quote_currency === 'VES'),
   );
+
+  const markup = Number(paymentExchangeRateMarkupPercentage ?? 0);
+  const applyMarkup = (baseRate: number, baseName: string) => {
+    if (!markup || isNaN(markup)) return { rate: baseRate, name: baseName, baseRate, markup: 0 };
+    const effective = Math.round(baseRate * (1 + markup / 100) * 10000) / 10000;
+    const nameWithMarkup = `${baseName} (${markup > 0 ? `+${markup}%` : `${markup}%`})`;
+    return { rate: effective, name: nameWithMarkup, baseRate, markup };
+  };
 
   if (paymentExchangeRateTypeId) {
     const configuredType = rateTypes.find(
@@ -1163,11 +1181,16 @@ export function resolvePosPaymentRate(
     );
     if (!configuredType || !configuredRate) return null;
 
+    const baseName = configuredType.name ?? configuredType.code;
+    const { rate, name, baseRate } = applyMarkup(Number(configuredRate.rate), baseName);
+
     return {
       exchange_rate_type_id: configuredType.id,
       code: configuredType.code,
-      name: configuredType.name ?? configuredType.code,
-      rate: Number(configuredRate.rate),
+      name,
+      rate,
+      base_rate: baseRate,
+      markup_percentage: markup,
     };
   }
 
@@ -1186,12 +1209,16 @@ export function resolvePosPaymentRate(
   if (!selectedRate) return null;
 
   const selectedType = rateTypes.find((type) => type.id === selectedRate.exchange_rate_type_id);
+  const baseName = selectedType?.name ?? selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa';
+  const { rate, name, baseRate } = applyMarkup(Number(selectedRate.rate), baseName);
+
   return {
     exchange_rate_type_id: selectedRate.exchange_rate_type_id,
     code: selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa',
-    name:
-      selectedType?.name ?? selectedType?.code ?? selectedRate.exchange_rate_type_code ?? 'Tasa',
-    rate: Number(selectedRate.rate),
+    name,
+    rate,
+    base_rate: baseRate,
+    markup_percentage: markup,
   };
 }
 

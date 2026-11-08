@@ -139,6 +139,7 @@ import {
   mergePosExchangeRateTypes,
   mergePosPriceLists,
   resolvePosPaymentRate,
+  type PosResolvedPaymentRate,
   resolvePosOpenSession,
   useBranchesForPos,
   useCashSessions,
@@ -388,9 +389,20 @@ export function buildPosShellActions(
 }
 
 export function formatPosRateLabel(
-  rate: { code: string; name?: string; rate: number } | null,
+  rate: {
+    code: string;
+    name?: string;
+    rate: number;
+    base_rate?: number;
+    markup_percentage?: number;
+  } | null,
 ): string {
   if (!rate) return 'Sin tasa activa';
+  if (rate.markup_percentage && rate.markup_percentage !== 0 && rate.base_rate) {
+    const typeLabel =
+      rate.name && rate.name !== rate.code ? `${rate.name} (${rate.code})` : (rate.name ?? rate.code);
+    return `${typeLabel} @ ${formatLocalNumber(rate.base_rate)} (+${rate.markup_percentage}% en VES)`;
+  }
   const typeLabel =
     rate.name && rate.name !== rate.code ? `${rate.name} (${rate.code})` : (rate.name ?? rate.code);
   return `${typeLabel} @ ${formatLocalNumber(rate.rate)}`;
@@ -1016,8 +1028,14 @@ export function PosTerminal() {
         currentRates,
         exchangeRateTypes,
         selectedPriceList?.payment_exchange_rate_type_id,
+        selectedPriceList?.payment_exchange_rate_markup_percentage,
       ),
-    [currentRates, exchangeRateTypes, selectedPriceList?.payment_exchange_rate_type_id],
+    [
+      currentRates,
+      exchangeRateTypes,
+      selectedPriceList?.payment_exchange_rate_type_id,
+      selectedPriceList?.payment_exchange_rate_markup_percentage,
+    ],
   );
   const allowedPaymentMethods = useMemo(
     () => filterPaymentMethodsForPriceList(activePaymentMethods, selectedPriceList),
@@ -1879,9 +1897,9 @@ export function PosTerminal() {
     >
       <div className={`text-text-primary ${POS_LAYOUT_CLASS_NAME} bg-[#f4f6fb]`}>
         {posViewMode !== 'classic' && (
-          <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b px-3.5 py-2 shadow-sm backdrop-blur">
-          {/* Navegación y Búsqueda */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <header className="border-border/80 bg-surface/95 relative z-40 flex shrink-0 flex-col items-stretch gap-2 border-b px-3.5 py-2 shadow-sm backdrop-blur">
+          {/* Fila 1: Botón Volver + Buscador amplio */}
+          <div className="flex w-full min-w-0 items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -1893,7 +1911,7 @@ export function PosTerminal() {
               <span className="hidden sm:inline">Volver</span>
             </Button>
 
-            <div className="relative flex-1 min-w-[240px] sm:min-w-[300px] max-w-xl">
+            <div className="relative flex-1 min-w-0">
                 <Search className="text-text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                 <Input
                 ref={searchRef}
@@ -2123,77 +2141,93 @@ export function PosTerminal() {
                   </div>
                 )}
               </div>
-
-            {/* Selector de Almacén */}
-            <div className="hidden lg:block w-36 shrink-0">
-              <Select
-                value={warehouseId ?? ''}
-                onChange={(event) =>
-                  setWarehouseId(event.target.value ? Number(event.target.value) : null)
-                }
-                className="h-9 text-xs"
-                title="Almacén de despacho"
-              >
-                {warehouses.map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.id}>
-                    📦 {warehouse.code} - {warehouse.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            {/* Selector de Lista de Precio */}
-            <div className="hidden md:block w-44 shrink-0">
-              <Select
-                value={selectedPriceListId ?? 'base'}
-                onChange={(event) =>
-                  void changePriceList(
-                    event.target.value === 'base' ? null : Number(event.target.value),
-                  )
-                }
-                disabled={repricing || selectedPending !== null}
-                className="h-9 text-xs"
-                title="Tarifa / Lista de precios"
-                data-testid="pos-price-list"
-              >
-                <option value="base">🏷️ {BASE_PRICE_LIST_LABEL}</option>
-                {priceLists.map((list) => (
-                  <option key={list.id} value={list.id}>
-                    🏷️ {list.code} - {list.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
           </div>
 
-          {/* Contexto, Cliente y Acciones */}
-          <div className="flex items-center gap-2 shrink-0">
-            {activeRate &&
-              (allowRateEdit ? (
-                <button
-                  type="button"
-                  onClick={() => setRateModalOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-xs font-mono font-medium text-text-secondary shrink-0 hover:border-primary/60 hover:text-text-primary cursor-pointer"
-                  title="Tasa activa. Clic para cambiarla"
-                  data-testid="pos-rate-edit-trigger"
+          {/* Fila 2: Selectores + Tasa a la izquierda, y Botones a la derecha */}
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Selector de Almacén */}
+              <div className="w-36 shrink-0">
+                <Select
+                  value={warehouseId ?? ''}
+                  onChange={(event) =>
+                    setWarehouseId(event.target.value ? Number(event.target.value) : null)
+                  }
+                  className="h-8 text-xs"
+                  title="Almacén de despacho"
                 >
-                  <span className="text-text-muted font-normal">{activeRate.code}:</span>
-                  <span className="font-bold text-text-primary">
-                    {formatLocalNumber(activeRate.rate)} VES
-                  </span>
-                  <Settings2 className="size-3 opacity-70" />
-                </button>
-              ) : (
-                <div
-                  className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-xs font-mono font-medium text-text-secondary shrink-0"
-                  title={`Tasa activa: ${activeRate.name ?? activeRate.code}`}
+                  {warehouses.map((warehouse) => (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      📦 {warehouse.code} - {warehouse.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              {/* Selector de Lista de Precio */}
+              <div className="w-48 shrink-0">
+                <Select
+                  value={selectedPriceListId ?? 'base'}
+                  onChange={(event) =>
+                    void changePriceList(
+                      event.target.value === 'base' ? null : Number(event.target.value),
+                    )
+                  }
+                  disabled={repricing || selectedPending !== null}
+                  className="h-8 text-xs font-semibold"
+                  title="Tarifa / Lista de precios"
+                  data-testid="pos-price-list"
                 >
-                  <span className="text-text-muted font-normal">{activeRate.code}:</span>
-                  <span className="font-bold text-text-primary">
-                    {formatLocalNumber(activeRate.rate)} VES
-                  </span>
-                </div>
-              ))}
+                  <option value="base">🏷️ {BASE_PRICE_LIST_LABEL}</option>
+                  {priceLists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      🏷️ {list.code} - {list.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              {/* Tasa activa con soporte de recargo */}
+              {activeRate &&
+                (allowRateEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => setRateModalOpen(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-xs font-mono font-medium text-text-secondary shrink-0 hover:border-primary/60 hover:text-text-primary cursor-pointer h-8"
+                    title="Tasa activa. Clic para cambiarla"
+                    data-testid="pos-rate-edit-trigger"
+                  >
+                    <span className="text-text-muted font-normal">{activeRate.code}:</span>
+                    <span className="font-bold text-text-primary">
+                      {formatLocalNumber(activeRate.base_rate ?? activeRate.rate)} VES
+                    </span>
+                    {activeRate.markup_percentage && activeRate.markup_percentage !== 0 && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                        (+{activeRate.markup_percentage}%)
+                      </span>
+                    )}
+                    <Settings2 className="size-3 opacity-70" />
+                  </button>
+                ) : (
+                  <div
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-subtle border border-border text-xs font-mono font-medium text-text-secondary shrink-0 h-8"
+                    title={`Tasa activa: ${activeRate.name ?? activeRate.code}`}
+                  >
+                    <span className="text-text-muted font-normal">{activeRate.code}:</span>
+                    <span className="font-bold text-text-primary">
+                      {formatLocalNumber(activeRate.base_rate ?? activeRate.rate)} VES
+                    </span>
+                    {activeRate.markup_percentage && activeRate.markup_percentage !== 0 && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                        (+{activeRate.markup_percentage}%)
+                      </span>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            {/* Contexto, Cliente y Acciones (derecha) */}
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
 
             {/* Botón Cliente [F4] */}
             <Button
@@ -2492,6 +2526,7 @@ export function PosTerminal() {
                     ? 'Balanza conectada'
                     : 'Balanza desconectada'}
               </div>
+            </div>
           </div>
         </header>
       )}
@@ -6777,7 +6812,7 @@ function previewQuickPayment(
   method: { currency_mode?: 'USD' | 'VES' | 'flexible'; method?: string | null },
   total: number,
   payments: PosPaymentLine[],
-  rate: { exchange_rate_type_id: number; code: string; name: string; rate: number } | null,
+  rate: PosResolvedPaymentRate | null,
 ): { amountLabel: string; detail: string } {
   const remaining = Math.max(0, total - calculatePaymentTotals(payments, total).paid);
   const currency = method.currency_mode === 'VES' ? 'VES' : 'USD';
@@ -6785,7 +6820,9 @@ function previewQuickPayment(
   const amountLabel = currency === 'VES' ? `Bs ${formatLocalNumber(amount)}` : money(amount);
   const detail =
     currency === 'VES'
-      ? `${rate?.name ?? rate?.code ?? 'Tasa'}${rate?.rate ? ` @ ${formatLocalNumber(rate.rate)}` : ' sin valor activo'}`
+      ? (rate?.markup_percentage && rate.markup_percentage !== 0 && rate.base_rate
+          ? `${rate.code} (${formatLocalNumber(rate.base_rate)} Bs) +${rate.markup_percentage}%`
+          : `${rate?.name ?? rate?.code ?? 'Tasa'}${rate?.rate ? ` @ ${formatLocalNumber(rate.rate)}` : ' sin valor activo'}`)
       : methodLabel(method.method);
 
   return { amountLabel, detail };

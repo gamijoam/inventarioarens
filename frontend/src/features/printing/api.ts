@@ -317,6 +317,34 @@ export async function getPrinterAgentUrl(): Promise<string> {
   return 'http://127.0.0.1:17777/print';
 }
 
+/**
+ * In LAN mode the POS is served by the central PC, but this browser's loopback
+ * printer agent belongs to the workstation running the browser. Use that PC's
+ * Windows default printer instead of forwarding the central station's printer
+ * name to the client agent.
+ */
+export function shouldUseWorkstationDefaultPrinter(location: Pick<Location, 'hostname' | 'port'>): boolean {
+  if (!['8787', '8789', '8791'].includes(location.port)) return false;
+
+  const hostname = location.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (hostname === 'localhost' || hostname === '::1' || hostname.startsWith('127.')) return false;
+
+  if (hostname.endsWith('.local')) return true;
+
+  const octets = hostname.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+  const [firstOctet, secondOctet] = octets;
+  if (firstOctet === undefined || secondOctet === undefined) return false;
+
+  return (
+    firstOctet === 10 ||
+    (firstOctet === 192 && secondOctet === 168) ||
+    (firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31)
+  );
+}
+
 export async function sendJobToLocalAgent(
   job: PrintJob,
   fallbackStation?: PrinterStation | null,
@@ -336,6 +364,12 @@ export async function sendJobToLocalAgent(
   }
 
   const stationToUse = job.station?.printer_name ? job.station : (fallbackStation ?? job.station);
+  const stationForWorkstation =
+    typeof window !== 'undefined' &&
+    shouldUseWorkstationDefaultPrinter(window.location) &&
+    stationToUse?.printer_type === 'windows_printer'
+      ? { ...stationToUse, printer_name: null, use_default_printer: true }
+      : stationToUse;
   const targetUrl = await getPrinterAgentUrl();
 
   const response = await fetch(targetUrl, {
@@ -346,7 +380,7 @@ export async function sendJobToLocalAgent(
       output: job.output,
       ticket_pdf_url: job.ticket_pdf_url,
       ticket_html_url: job.ticket_html_url,
-      station: stationToUse,
+      station: stationForWorkstation,
       payload: job.payload_snapshot,
       pdf_base64: pdfBase64,
     }),
@@ -417,6 +451,74 @@ export async function fetchTicketPreview(
   );
 
   return { html: data.html, paperWidthMm: data.paper_width_mm };
+}
+
+export interface WarrantyCertificateResponse {
+  has_warranty: boolean;
+  is_enabled: boolean;
+  html: string;
+  certificate: {
+    tenant: {
+      name: string;
+      rif?: string;
+      phone?: string;
+      address?: string;
+      subtitle?: string;
+    };
+    warranty: {
+      title: string;
+      number: string;
+      order_id: number;
+      issued_at: string;
+      is_enabled: boolean;
+    };
+    sale: {
+      invoice_number: string;
+      date: string;
+      total: string;
+    };
+    customer: {
+      name: string;
+      document: string;
+      phone: string;
+      email: string;
+    };
+    equipments: Array<{
+      product_name: string;
+      quantity: number;
+      imei_serial: string;
+      policy_name: string;
+      duration_text: string;
+      conditions: string;
+      expires_at: string;
+    }>;
+    has_equipments: boolean;
+    terms: {
+      covers: string[];
+      not_covers: string[];
+      claim_steps: string[];
+      important_notes: string[];
+    };
+  };
+}
+
+export async function fetchWarrantyCertificate(orderId: number): Promise<WarrantyCertificateResponse> {
+  return await getOne<WarrantyCertificateResponse>(`/pos/orders/${orderId}/warranty-certificate`);
+}
+
+export async function downloadWarrantyCertificatePdf(orderId: number): Promise<void> {
+  const response = await api.get<Blob>(`/pos/orders/${orderId}/warranty-certificate.pdf`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `certificado-garantia-${orderId}.pdf`;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function downloadVirtualTicket(profile: PrintProfilePayload | PrintProfile): Promise<void> {
