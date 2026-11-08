@@ -22,7 +22,13 @@ import {
   ClipboardList,
   Tag,
 } from 'lucide-react';
-import type { PosCartLine, CartTotals, PosPaymentLine, PaymentTotals } from './posLogic';
+import {
+  resolveAvailablePriceListOptions,
+  type PosCartLine,
+  type CartTotals,
+  type PosPaymentLine,
+  type PaymentTotals,
+} from './posLogic';
 import type { Customer } from './api';
 import type { Product, PriceList } from '@/features/inventory-center/schemas';
 import { fetchPosProductsDirect } from './api';
@@ -57,7 +63,10 @@ export interface ClassicPosViewProps {
   onClearCart: () => void;
   onUpdateLine: (lineId: string, patch: Partial<PosCartLine>) => void;
   onRemoveLine: (lineId: string) => void;
-  onAddProduct: (product: Product) => Promise<boolean | void>;
+  onAddProduct: (
+    product: Product,
+    forcedPriceList?: { id: number; name: string | null; price: number } | null,
+  ) => Promise<boolean | void>;
   onOpenProductSearch: () => void;
   onHoldSale?: () => void;
   onOpenHoldOrders?: () => void;
@@ -821,6 +830,34 @@ export function ClassicPosView({
                                     Stock: {stock}
                                   </span>
                                 </div>
+                                {product.prices && product.prices.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
+                                    {product.prices.slice(0, 3).map((p) => (
+                                      <button
+                                        key={p.price_list_id}
+                                        type="button"
+                                        onClick={() => {
+                                          void onAddProduct(product, {
+                                            id: p.price_list_id,
+                                            name: p.price_list?.name ?? `P${p.price_list_id}`,
+                                            price: Number(p.price),
+                                          });
+                                          setShowDropdown(false);
+                                          setSearchTerm('');
+                                        }}
+                                        className={cn(
+                                          'px-2 py-0.5 rounded text-xs font-bold border transition-colors cursor-pointer shadow-2xs',
+                                          isSelected
+                                            ? 'bg-blue-800 text-white border-blue-400 hover:bg-blue-900'
+                                            : 'bg-white text-slate-800 border-slate-300 hover:border-blue-500 hover:text-blue-600',
+                                        )}
+                                        title={`Agregar con ${p.price_list?.name ?? `Precio ${p.price_list_id}`}: $${Number(p.price).toFixed(2)}`}
+                                      >
+                                        {p.price_list?.code || `P${p.price_list_id}`}: ${Number(p.price).toFixed(2)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                               <div className="text-right shrink-0 pl-2">
                                 <p
@@ -1041,35 +1078,38 @@ export function ClassicPosView({
                                 </span>
                               )}
                             </div>
-                            {priceLists.length > 0 && (
-                              <div
-                                className="flex items-center gap-1.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Tag className={cn('size-3 shrink-0', isSelected ? 'text-blue-200' : 'text-slate-400')} />
-                                <select
-                                  aria-label={`Tarifa para ${line.name}`}
-                                  value={line.price_list_id ?? ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    onPriceListChange?.(line, val ? Number(val) : null);
-                                  }}
-                                  className={cn(
-                                    'text-xs font-bold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-colors shadow-2xs',
-                                    isSelected
-                                      ? 'bg-blue-900 text-white border-blue-400 focus:ring-1 focus:ring-white'
-                                      : 'bg-white text-slate-800 border-slate-300 hover:border-blue-500 focus:ring-1 focus:ring-blue-500',
-                                  )}
+                            {(() => {
+                              const availableLists = resolveAvailablePriceListOptions(line, priceLists);
+                              return (
+                                <div
+                                  className="flex items-center gap-1.5"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <option value="">Precio Base</option>
-                                  {priceLists.map((list) => (
-                                    <option key={list.id} value={list.id}>
-                                      {list.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
+                                  <Tag className={cn('size-3 shrink-0', isSelected ? 'text-blue-200' : 'text-slate-400')} />
+                                  <select
+                                    aria-label={`Tarifa para ${line.name}`}
+                                    value={line.price_list_id ?? ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      onPriceListChange?.(line, val ? Number(val) : null);
+                                    }}
+                                    className={cn(
+                                      'text-xs font-bold rounded px-1.5 py-0.5 border cursor-pointer focus:outline-none transition-colors shadow-2xs',
+                                      isSelected
+                                        ? 'bg-blue-900 text-white border-blue-400 focus:ring-1 focus:ring-white'
+                                        : 'bg-white text-slate-800 border-slate-300 hover:border-blue-500 focus:ring-1 focus:ring-blue-500',
+                                    )}
+                                  >
+                                    <option value="">Precio Base</option>
+                                    {availableLists.map((list) => (
+                                      <option key={list.id} value={list.id}>
+                                        {list.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </td>
 
@@ -1420,7 +1460,7 @@ export function ClassicPosView({
               <span className="text-slate-300">Cantidad</span>
             </button>
 
-            {priceLists.length > 0 && activeLine && (
+            {activeLine && (
               <div
                 className="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors"
                 title="Cambiar tarifa / lista de precios del producto seleccionado"
@@ -1437,7 +1477,7 @@ export function ClassicPosView({
                   className="bg-slate-900 text-white text-xs font-bold rounded border border-slate-600 px-2 py-0.5 cursor-pointer hover:border-amber-400 focus:outline-none"
                 >
                   <option value="">Precio Base</option>
-                  {priceLists.map((list) => (
+                  {resolveAvailablePriceListOptions(activeLine, priceLists).map((list) => (
                     <option key={list.id} value={list.id}>
                       {list.name}
                     </option>

@@ -188,6 +188,7 @@ import {
   roundMoney,
   resolvePendingPromotionTotal,
   shouldApplyInvoicePromotion,
+  resolveAvailablePriceListOptions,
 } from './posLogic';
 import { countPendingOrders, newPendingOrderIds } from './pendingBadge';
 import { TapButton } from './TapButton';
@@ -2053,6 +2054,41 @@ export function PosTerminal() {
                                       : '⚠️ Agotado'}
                                   </span>
                                 </div>
+                                {product.prices && product.prices.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                                    {product.prices.slice(0, 3).map((p) => (
+                                      <button
+                                        key={p.price_list_id}
+                                        type="button"
+                                        onClick={() => {
+                                          void addProduct(
+                                            product,
+                                            undefined,
+                                            undefined,
+                                            undefined,
+                                            undefined,
+                                            undefined,
+                                            undefined,
+                                            {
+                                              id: p.price_list_id,
+                                              name: p.price_list?.name ?? `P${p.price_list_id}`,
+                                              price: Number(p.price),
+                                            },
+                                          ).then((added) => {
+                                            if (added) {
+                                              setQuery('');
+                                              setQuickSearchIndex(0);
+                                            }
+                                          });
+                                        }}
+                                        className="px-2 py-0.5 rounded text-xs font-bold bg-surface border border-border hover:border-primary hover:text-primary transition-colors cursor-pointer shadow-2xs"
+                                        title={`Agregar con ${p.price_list?.name ?? `Precio ${p.price_list_id}`}: ${money(Number(p.price))}`}
+                                      >
+                                        {p.price_list?.code || `P${p.price_list_id}`}: {money(Number(p.price))}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
 
                               {/* Columna derecha: Precios USD y Bs */}
@@ -2514,7 +2550,18 @@ export function PosTerminal() {
               onClearCart={clearPos}
               onUpdateLine={(id, patch) => updateLine(id, patch)}
               onRemoveLine={(id) => removeLine(id)}
-              onAddProduct={(prod) => requestAddProduct(prod)}
+              onAddProduct={(prod, forcedPriceList) =>
+                addProduct(
+                  prod,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  forcedPriceList,
+                )
+              }
               onOpenProductSearch={() => {
                 setProductSearch(query || '');
                 setPanel('product-search');
@@ -3666,24 +3713,40 @@ export function PosTerminal() {
       return;
     }
 
+    // 1. Intentar resolver el precio localmente desde line.prices
+    const localPrice = line.prices?.find((p) => p.price_list_id === nextListId);
     const targetList = priceLists.find((list) => list.id === nextListId);
-    if (!targetList) return;
+    const listName = localPrice?.price_list?.name ?? targetList?.name ?? `Precio ${nextListId}`;
 
+    if (localPrice && Number(localPrice.price) > 0) {
+      updateLine(line.id, {
+        unit_price: Number(localPrice.price),
+        currency: (localPrice.currency as CurrencyCode) ?? line.currency,
+        price_list_id: nextListId,
+        price_source: 'price_list',
+        price_list_name: listName,
+        price_issue: null,
+      });
+      toast.success(`${line.name}: tarifa cambiada a ${listName} ($${Number(localPrice.price).toFixed(2)})`);
+      return;
+    }
+
+    // 2. Si no esta en localPrice, consultar quote en backend
     try {
-      const quote = await quoteProductForPos(line.product_id, targetList.id);
+      const quote = await quoteProductForPos(line.product_id, nextListId);
       updateLine(line.id, {
         unit_price: quote.base_price_usd,
         currency: quote.sale_currency,
-        price_list_id: targetList.id,
+        price_list_id: nextListId,
         price_source: 'price_list',
-        price_list_name: quote.price_list_name ?? targetList.name,
+        price_list_name: quote.price_list_name ?? listName,
         price_issue: null,
       });
       toast.success(
-        `${line.name}: tarifa cambiada a ${targetList.name} ($${quote.base_price_usd.toFixed(2)})`,
+        `${line.name}: tarifa cambiada a ${listName} ($${quote.base_price_usd.toFixed(2)})`,
       );
     } catch {
-      toast.error(`${line.name} no tiene precio asignado en la lista ${targetList.name}.`);
+      toast.error(`${line.name} no tiene precio asignado en la lista ${listName}.`);
     }
   }
 
@@ -3814,6 +3877,7 @@ export function PosTerminal() {
                   price_list_id: forced ? forced.id : line.price_list_id,
                   price_source: forced ? 'price_list' : line.price_source,
                   price_list_name: forced ? forced.name : line.price_list_name,
+                  prices: product.prices ?? line.prices ?? [],
                 selected_serials: scannedSerial
                   ? [
                       ...(line.selected_serials ?? []),
@@ -3865,6 +3929,7 @@ export function PosTerminal() {
           image_url: productImageSrc(product),
           tracking_type: product.tracking_type,
           unit_of_measure: product.unit_of_measure ?? 'unit',
+          prices: product.prices ?? [],
           // `track_stock` por defecto es true en el backend; si el producto
           // es un servicio o concepto facturable, el listado lo trae en
           // false y el POS no exige stock ni genera movimiento (QW10).
@@ -4987,32 +5052,31 @@ function CartLineRow({
                 {unitSuffix}
               </Badge>
             )}
-            {priceLists.length > 0 ? (
-              <div className="inline-flex items-center gap-1">
-                <Tag className="size-3 text-text-muted shrink-0" />
-                <select
-                  aria-label={`Tarifa para ${line.name}`}
-                  value={line.price_list_id ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    onPriceListChange?.(val ? Number(val) : null);
-                  }}
-                  className="text-xs font-bold rounded-md border border-border bg-surface px-2 py-0.5 text-text-primary hover:border-primary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs"
-                  title="Cambiar lista de precios para este producto"
-                >
-                  <option value="">Precio Base</option>
-                  {priceLists.map((list) => (
-                    <option key={list.id} value={list.id}>
-                      {list.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : line.price_list_name ? (
-              <Badge variant="outline" className="text-xs font-semibold text-text-primary border-border px-2 py-0.5">
-                {line.price_list_name}
-              </Badge>
-            ) : null}
+            {(() => {
+              const availableLists = resolveAvailablePriceListOptions(line, priceLists);
+              return (
+                <div className="inline-flex items-center gap-1">
+                  <Tag className="size-3 text-text-muted shrink-0" />
+                  <select
+                    aria-label={`Tarifa para ${line.name}`}
+                    value={line.price_list_id ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      onPriceListChange?.(val ? Number(val) : null);
+                    }}
+                    className="text-xs font-bold rounded-md border border-border bg-surface px-2 py-0.5 text-text-primary hover:border-primary/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs"
+                    title="Cambiar lista de precios para este producto"
+                  >
+                    <option value="">Precio Base</option>
+                    {availableLists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
             {line.tracking_type === 'serialized' && (
               <button
                 type="button"

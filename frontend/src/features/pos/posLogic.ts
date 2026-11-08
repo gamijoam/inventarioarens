@@ -61,6 +61,13 @@ export interface PosCartLine {
    * stock y se descuenta del warehouse al confirmar la venta.
    */
   track_stock?: boolean;
+  prices?: Array<{
+    id?: number;
+    price_list_id: number;
+    price: number;
+    currency?: string;
+    price_list?: { id: number; name: string; code?: string } | null;
+  }>;
   selected_serials?: {
     id: number;
     serial_type?: string | null;
@@ -484,4 +491,24 @@ export function formatLocalNumber(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+export function resolveAvailablePriceListOptions(
+  line: PosCartLine,
+  globalPriceLists: Array<{ id: number; name: string }> = [],
+): Array<{ id: number; name: string }> {
+  if (globalPriceLists.length > 0) {
+    return globalPriceLists.map((l) => ({ id: l.id, name: l.name }));
+  }
+  if (line.prices && line.prices.length > 0) {
+    return line.prices.map((p) => ({
+      id: p.price_list_id,
+      name: p.price_list?.name ?? `Precio ${p.price_list_id} ($${Number(p.price).toFixed(2)})`,
+    }));
+  }
+  return [
+    { id: 1, name: 'Precio 1 (Detal)' },
+    { id: 2, name: 'Precio 2 (Mayor)' },
+    { id: 3, name: 'Precio 3 (Especial)' },
+  ];
 }
