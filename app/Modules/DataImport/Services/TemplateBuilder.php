@@ -14,7 +14,7 @@ use App\Support\Tenancy\TenantManager;
 class TemplateBuilder
 {
     private const SIMPLE_PRODUCT_HEADERS = [
-        'sku', 'name', 'barcode', 'description', 'category', 'unit_of_measure', 'tracking_type',
+        'sku', 'name', 'barcode', 'description', 'category', 'precio_1', 'precio_2', 'precio_3', 'unit_of_measure', 'tracking_type',
         'base_price', 'sale_currency', 'is_active',
     ];
 
@@ -58,9 +58,9 @@ class TemplateBuilder
             'tenant_values' => null,
         ],
         'products' => [
-            'headers' => ['sku', 'name', 'barcode', 'description', 'brand_slug', 'category_slugs', 'tag_slugs', 'unit_of_measure', 'tracking_type', 'base_price', 'sale_currency', 'min_stock', 'max_stock', 'reorder_quantity', 'is_active', 'stock_inicial', 'almacen_codigo', 'costo_unitario'],
+            'headers' => ['sku', 'name', 'barcode', 'description', 'category', 'precio_1', 'precio_2', 'precio_3', 'brand_slug', 'category_slugs', 'tag_slugs', 'unit_of_measure', 'tracking_type', 'base_price', 'sale_currency', 'min_stock', 'max_stock', 'reorder_quantity', 'is_active', 'stock_inicial', 'almacen_codigo', 'costo_unitario'],
             'examples' => [
-                ['SKU-001', 'Camisa Negra', '7501234567890', 'Camisa algodon talla M', 'samsung', 'electronica', 'nuevo', 'unit', 'quantity', '15.50', 'USD', '5', '100', '20', 'true', '', '', ''],
+                ['SKU-001', 'Camisa Negra', '7501234567890', 'Camisa algodon talla M', 'Ropa', '15.50', '14.50', '13.50', 'samsung', 'electronica', 'nuevo', 'unit', 'quantity', '15.50', 'USD', '5', '100', '20', 'true', '', '', ''],
             ],
             'tenant_values' => ['brands', 'warehouses'],
         ],
@@ -142,6 +142,9 @@ class TemplateBuilder
             'description' => '',
             'category' => 'General',
             'categoria' => 'General',
+            'precio_1' => '10.00',
+            'precio_2' => '9.50',
+            'precio_3' => '9.00',
             'unit_of_measure' => 'unit',
             'tracking_type' => 'quantity',
             'base_price' => '10.00',
@@ -193,32 +196,56 @@ class TemplateBuilder
     private function currentProductRecords(): array
     {
         return Product::query()
-            ->with(['brand', 'categories', 'tags'])
+            ->with(['brand', 'categories', 'tags', 'prices.priceList'])
             ->orderBy('id')
             ->get()
-            ->map(fn (Product $product): array => [
-                'sku' => $product->sku,
-                'name' => $product->name,
-                'barcode' => $product->barcode,
-                'description' => $product->description,
-                'category' => $product->categories->pluck('name')->implode('|'),
-                'categoria' => $product->categories->pluck('name')->implode('|'),
-                'brand_slug' => $product->brand?->slug ?? '',
-                'category_slugs' => $product->categories->pluck('slug')->implode('|'),
-                'tag_slugs' => $product->tags->pluck('slug')->implode('|'),
-                'unit_of_measure' => $product->unit_of_measure,
-                'tracking_type' => $product->tracking_type,
-                'base_price' => $product->base_price,
-                'sale_currency' => $product->sale_currency,
-                'min_stock' => $product->min_stock,
-                'max_stock' => $product->max_stock,
-                'reorder_quantity' => $product->reorder_quantity,
-                'is_active' => $product->is_active ? 'true' : 'false',
-                // El stock no se importa en re-subidas: se maneja con movimientos.
-                'stock_inicial' => '',
-                'almacen_codigo' => '',
-                'costo_unitario' => '',
-            ])
+            ->map(function (Product $product): array {
+                $p1 = null;
+                $p2 = null;
+                $p3 = null;
+                foreach ($product->prices as $price) {
+                    $code = strtoupper(trim((string) $price->priceList?->code));
+                    $name = strtoupper(trim((string) $price->priceList?->name));
+                    if ($code === 'P1' || str_contains($name, 'PRECIO 1') || str_contains($name, 'MAYOR 1')) {
+                        $p1 = $price->price;
+                    } elseif ($code === 'P2' || str_contains($name, 'PRECIO 2') || str_contains($name, 'MAYOR 2')) {
+                        $p2 = $price->price;
+                    } elseif ($code === 'P3' || str_contains($name, 'PRECIO 3') || str_contains($name, 'DETAL')) {
+                        $p3 = $price->price;
+                    }
+                }
+
+                $p1Val = $p1 !== null ? (string) $p1 : ($product->base_price !== null ? (string) $product->base_price : '');
+                $p2Val = $p2 !== null ? (string) $p2 : ($product->base_price !== null ? (string) $product->base_price : '');
+                $p3Val = $p3 !== null ? (string) $p3 : ($product->base_price !== null ? (string) $product->base_price : '');
+
+                return [
+                    'sku' => $product->sku,
+                    'name' => $product->name,
+                    'barcode' => $product->barcode,
+                    'description' => $product->description,
+                    'category' => $product->categories->pluck('name')->implode('|'),
+                    'categoria' => $product->categories->pluck('name')->implode('|'),
+                    'precio_1' => $p1Val,
+                    'precio_2' => $p2Val,
+                    'precio_3' => $p3Val,
+                    'brand_slug' => $product->brand?->slug ?? '',
+                    'category_slugs' => $product->categories->pluck('slug')->implode('|'),
+                    'tag_slugs' => $product->tags->pluck('slug')->implode('|'),
+                    'unit_of_measure' => $product->unit_of_measure,
+                    'tracking_type' => $product->tracking_type,
+                    'base_price' => $product->base_price,
+                    'sale_currency' => $product->sale_currency,
+                    'min_stock' => $product->min_stock,
+                    'max_stock' => $product->max_stock,
+                    'reorder_quantity' => $product->reorder_quantity,
+                    'is_active' => $product->is_active ? 'true' : 'false',
+                    // El stock no se importa en re-subidas: se maneja con movimientos.
+                    'stock_inicial' => '',
+                    'almacen_codigo' => '',
+                    'costo_unitario' => '',
+                ];
+            })
             ->all();
     }
 

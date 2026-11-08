@@ -203,15 +203,15 @@ export function ImportWizard() {
               {state.entity === 'products' ? (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
                   <p className="font-semibold">
-                    Agrega o actualiza productos desde una hoja sencilla.
+                    Agrega o actualiza productos, categorías y precios (Precio 1, Precio 2, Precio 3).
                   </p>
                   <p className="mt-1">
-                    Usa el código del producto para identificarlo. Si ya existe, se actualiza; si es
-                    nuevo, se agrega. Deja vacíos los campos que no quieras cambiar. Esta hoja no
-                    modifica existencias.
+                    Usa el código del producto para identificarlo. Si ya existe, se actualiza su información,
+                    su categoría y sus precios (Precio 1, Precio 2 y Precio 3); si no existe la categoría,
+                    se crea automáticamente. Deja vacíos los campos que no quieras cambiar.
                   </p>
                   <p className="mt-1 text-xs">
-                    Puedes subir el archivo Excel tal como lo guardaste (.xlsx o .xls).
+                    Puedes subir el archivo Excel tal como lo guardaste (.xlsx o .xls) o en formato CSV.
                   </p>
                 </div>
               ) : (
