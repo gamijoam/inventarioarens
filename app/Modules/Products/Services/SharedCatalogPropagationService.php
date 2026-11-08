@@ -300,6 +300,11 @@ class SharedCatalogPropagationService
                     $copy->categories()->syncWithPivotValues([], ['tenant_id' => $spinoff->id]);
                 }
 
+                // Sincronizar precios de las listas a la copia
+                foreach ($master->prices()->withoutGlobalScopes()->get() as $masterPrice) {
+                    $this->syncProductPriceCopyFor($masterPrice, $spinoff);
+                }
+
                 $fresh = $copy->fresh();
                 if ($fresh) {
                     $this->recordProductCopyEvent($fresh, $master, $spinoff, false);

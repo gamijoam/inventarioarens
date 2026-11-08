@@ -7,7 +7,9 @@ use App\Modules\DataImport\Support\ImportRowResult;
 use App\Modules\ProductEntries\Services\ProductEntryService;
 use App\Modules\Products\Models\Brand;
 use App\Modules\Products\Models\Category;
+use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\Tag;
 use App\Modules\Products\Services\SharedCatalogPropagationService;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
@@ -52,6 +54,29 @@ class ProductImporter extends BaseImporter
             'rubro',
             'departamento',
             'grupo',
+            'precio_1',
+            'precio 1',
+            'precio1',
+            'p1',
+            'mayor_1',
+            'mayor 1',
+            'precio_mayor_1',
+            'precio_2',
+            'precio 2',
+            'precio2',
+            'p2',
+            'mayor_2',
+            'mayor 2',
+            'precio_mayor_2',
+            'precio_3',
+            'precio 3',
+            'precio3',
+            'p3',
+            'detal',
+            'pvp',
+            'pvp_detal',
+            'precio_detal',
+            'precio_3_detal',
             'brand_slug',
             'category_slugs',
             'tag_slugs',
@@ -89,6 +114,9 @@ class ProductImporter extends BaseImporter
         $unitOfMeasure = $payload['unit_of_measure'];
         $trackingType = $payload['tracking_type'];
         $basePrice = $payload['base_price'];
+        $p1 = $payload['precio_1'];
+        $p2 = $payload['precio_2'];
+        $p3 = $payload['precio_3'];
         $saleCurrency = $payload['sale_currency'];
         $minStock = $payload['min_stock'];
         $maxStock = $payload['max_stock'];
@@ -197,7 +225,7 @@ class ProductImporter extends BaseImporter
 
         return DB::transaction(function () use (
             $sku, $name, $barcode, $description, $brandId, $categoryIds, $categoryFieldProvided, $tagIds,
-            $unitOfMeasure, $trackingType, $basePrice, $saleCurrency,
+            $unitOfMeasure, $trackingType, $basePrice, $saleCurrency, $p1, $p2, $p3,
             $minStock, $maxStock, $reorderQty, $isActive,
             $stockInicial, $warehouseId, $costoUnitario, $providedFields, $providedValues,
         ) {
@@ -226,6 +254,10 @@ class ProductImporter extends BaseImporter
                     }, ARRAY_FILTER_USE_BOTH),
                     $categoryFieldProvided ? $categoryIds : null,
                     isset($providedFields['tag_slugs']) && $providedValues['tag_slugs'] !== null ? $tagIds : null,
+                    $p1,
+                    $p2,
+                    $p3,
+                    $saleCurrency,
                 );
             }
 
@@ -253,6 +285,8 @@ class ProductImporter extends BaseImporter
             if (! empty($tagIds)) {
                 $product->tags()->syncWithPivotValues($tagIds, ['tenant_id' => $product->tenant_id]);
             }
+
+            $this->syncProductPrices($product, $p1, $p2, $p3, $saleCurrency);
 
             app(SyncCatalogOutboxService::class)->productCreated($product->refresh()->load(['brand', 'categories', 'tags']));
 
@@ -328,6 +362,10 @@ class ProductImporter extends BaseImporter
         array $attributes,
         ?array $categoryIds,
         ?array $tagIds,
+        ?float $p1 = null,
+        ?float $p2 = null,
+        ?float $p3 = null,
+        string $saleCurrency = 'USD',
     ): ImportRowResult {
         $dirty = [];
         foreach ($attributes as $field => $value) {
@@ -364,7 +402,9 @@ class ProductImporter extends BaseImporter
         $desiredTagIds = $tagIds === null ? [] : collect($tagIds)->map(fn ($id) => (int) $id)->sort()->values()->all();
         $tagsChanged = $tagIds !== null && $currentTagIds !== $desiredTagIds;
 
-        if ($dirty === [] && ! $categoriesChanged && ! $tagsChanged) {
+        $pricesChanged = $this->syncProductPrices($product, $p1, $p2, $p3, $saleCurrency);
+
+        if ($dirty === [] && ! $categoriesChanged && ! $tagsChanged && ! $pricesChanged) {
             return ImportRowResult::skipped("Producto {$sku} sin cambios", $sku);
         }
 
@@ -478,8 +518,154 @@ class ProductImporter extends BaseImporter
         return array_values(array_unique($categoryIds));
     }
 
+    /**
+     * @var array<int, array<string, PriceList>>
+     */
+    private array $priceListsCache = [];
+
+    private function resolveTenantPriceLists(int $tenantId): array
+    {
+        if (isset($this->priceListsCache[$tenantId])) {
+            return $this->priceListsCache[$tenantId];
+        }
+
+        $lists = PriceList::query()->withoutGlobalScopes()->where('tenant_id', $tenantId)->get();
+        $map = [];
+
+        // 1. Mapeo directo por código exacto (P1, P2, P3)
+        foreach ($lists as $list) {
+            $codeUpper = strtoupper(trim((string) $list->code));
+            if (in_array($codeUpper, ['P1', 'P2', 'P3'], true)) {
+                $map[$codeUpper] = $list;
+            }
+        }
+
+        // 2. Mapeo por nombre si no se encontró por código
+        foreach ($lists as $list) {
+            $nameUpper = strtoupper(trim((string) $list->name));
+            if (! isset($map['P1']) && (str_contains($nameUpper, 'PRECIO 1') || str_contains($nameUpper, 'MAYOR 1') || str_ends_with($nameUpper, ' 1'))) {
+                $map['P1'] = $list;
+            }
+            if (! isset($map['P2']) && (str_contains($nameUpper, 'PRECIO 2') || str_contains($nameUpper, 'MAYOR 2') || str_ends_with($nameUpper, ' 2'))) {
+                $map['P2'] = $list;
+            }
+            if (! isset($map['P3']) && (str_contains($nameUpper, 'PRECIO 3') || str_contains($nameUpper, 'DETAL') || str_ends_with($nameUpper, ' 3') || $list->is_default)) {
+                $map['P3'] = $list;
+            }
+        }
+
+        // 3. Si no existen, crearlas para que los precios siempre tengan donde guardarse
+        $defaultDefs = [
+            'P1' => ['name' => 'PRECIO 1', 'is_default' => false, 'sort_order' => 1],
+            'P2' => ['name' => 'PRECIO 2', 'is_default' => false, 'sort_order' => 2],
+            'P3' => ['name' => 'PRECIO 3', 'is_default' => true, 'sort_order' => 3],
+        ];
+
+        foreach ($defaultDefs as $key => $def) {
+            if (! isset($map[$key])) {
+                $created = PriceList::create([
+                    'tenant_id' => $tenantId,
+                    'code' => $key,
+                    'name' => $def['name'],
+                    'is_default' => $def['is_default'],
+                    'is_active' => true,
+                    'sort_order' => $def['sort_order'],
+                ]);
+                app(SyncCatalogOutboxService::class)->priceListCreated($created);
+                $map[$key] = $created;
+            }
+        }
+
+        return $this->priceListsCache[$tenantId] = $map;
+    }
+
+    private function extractPriceValue(array $payload, array $keys): ?float
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $payload) && $payload[$key] !== null && trim((string) $payload[$key]) !== '') {
+                return $this->normalizeDecimal($payload[$key]);
+            }
+        }
+
+        return null;
+    }
+
+    private function syncProductPrices(
+        Product $product,
+        ?float $p1,
+        ?float $p2,
+        ?float $p3,
+        string $saleCurrency,
+    ): bool {
+        if ($p1 === null && $p2 === null && $p3 === null) {
+            return false;
+        }
+
+        $priceMap = [
+            'P1' => $p1,
+            'P2' => $p2,
+            'P3' => $p3,
+        ];
+
+        $lists = $this->resolveTenantPriceLists($product->tenant_id);
+        $changed = false;
+
+        foreach ($priceMap as $key => $priceValue) {
+            if ($priceValue === null) {
+                continue;
+            }
+
+            $priceList = $lists[$key] ?? null;
+            if (! $priceList) {
+                continue;
+            }
+
+            $existing = ProductPrice::query()
+                ->withoutGlobalScopes()
+                ->where('tenant_id', $product->tenant_id)
+                ->where('product_id', $product->id)
+                ->where('price_list_id', $priceList->id)
+                ->first();
+
+            if ($existing) {
+                if ((float) $existing->price !== (float) $priceValue || $existing->currency !== $saleCurrency) {
+                    $existing->update([
+                        'price' => $priceValue,
+                        'currency' => $saleCurrency,
+                        'is_active' => true,
+                        'updated_at' => now(),
+                    ]);
+                    app(SyncCatalogOutboxService::class)->productPriceUpdated($existing->fresh());
+                    $changed = true;
+                }
+            } else {
+                $newPrice = ProductPrice::create([
+                    'tenant_id' => $product->tenant_id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'price' => $priceValue,
+                    'currency' => $saleCurrency,
+                    'is_active' => true,
+                ]);
+                app(SyncCatalogOutboxService::class)->productPriceCreated($newPrice);
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
     private function fillDefaults(array $payload): array
     {
+        $p1 = $this->extractPriceValue($payload, ['precio_1', 'precio1', 'p1', 'precio_mayor_1', 'mayor_1', 'precio 1', 'mayor 1']);
+        $p2 = $this->extractPriceValue($payload, ['precio_2', 'precio2', 'p2', 'precio_mayor_2', 'mayor_2', 'precio 2', 'mayor 2']);
+        $p3 = $this->extractPriceValue($payload, ['precio_3', 'precio3', 'p3', 'precio_detal', 'pvp', 'detal', 'pvp_detal', 'precio 3', 'precio 3 detal']);
+
+        $basePrice = $this->normalizeDecimal($payload['base_price'] ?? null);
+        if ($basePrice === null) {
+            $basePrice = $p1 ?? $p3 ?? $p2 ?? 0.0;
+        }
+
         return [
             'sku' => $payload['sku'] ?? null,
             'name' => $payload['name'] ?? null,
@@ -491,7 +677,10 @@ class ProductImporter extends BaseImporter
             'tag_slugs' => $payload['tag_slugs'] ?? null,
             'unit_of_measure' => strtolower($payload['unit_of_measure'] ?? 'unit'),
             'tracking_type' => strtolower($payload['tracking_type'] ?? 'quantity'),
-            'base_price' => $this->normalizeDecimal($payload['base_price'] ?? null) ?? 0.0,
+            'base_price' => $basePrice,
+            'precio_1' => $p1,
+            'precio_2' => $p2,
+            'precio_3' => $p3,
             'sale_currency' => strtoupper($payload['sale_currency'] ?? 'USD'),
             'min_stock' => $this->normalizeDecimal($payload['min_stock'] ?? null),
             'max_stock' => $this->normalizeDecimal($payload['max_stock'] ?? null),

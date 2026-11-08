@@ -485,7 +485,22 @@ class SyncEventApplier
         if (array_key_exists('category_slugs', $payload)) {
             DB::table('product_category')->where('tenant_id', $tenant->id)->where('product_id', $productId)->delete();
             foreach ((array) $payload['category_slugs'] as $slug) {
+                if (empty($slug)) {
+                    continue;
+                }
                 $categoryId = DB::table('categories')->where('tenant_id', $tenant->id)->where('slug', $slug)->value('id');
+                if (! $categoryId) {
+                    $catName = ucwords(str_replace(['-', '_'], ' ', (string) $slug));
+                    $categoryId = DB::table('categories')->insertGetId([
+                        'tenant_id' => $tenant->id,
+                        'slug' => (string) $slug,
+                        'name' => $catName,
+                        'is_active' => true,
+                        'sort_order' => 0,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
                 if ($categoryId) {
                     DB::table('product_category')->insert([
                         'tenant_id' => $tenant->id,
@@ -4160,10 +4175,35 @@ class SyncEventApplier
 
     private function priceListByCode(Tenant $tenant, string $code): object
     {
-        $priceList = DB::table('price_lists')->where('tenant_id', $tenant->id)->where('code', mb_strtoupper($code))->first();
+        $codeUpper = mb_strtoupper(trim($code));
+        $priceList = DB::table('price_lists')->where('tenant_id', $tenant->id)->where('code', $codeUpper)->first();
 
         if (! $priceList) {
-            throw new RuntimeException("No se encontro la lista de precio {$code} para aplicar el evento.");
+            $query = DB::table('price_lists')->where('tenant_id', $tenant->id);
+            if (str_contains($codeUpper, '1')) {
+                $query->where(fn ($q) => $q->where('code', 'P1')->orWhere('name', 'like', '%1%'));
+            } elseif (str_contains($codeUpper, '2')) {
+                $query->where(fn ($q) => $q->where('code', 'P2')->orWhere('name', 'like', '%2%'));
+            } elseif (str_contains($codeUpper, '3')) {
+                $query->where(fn ($q) => $q->where('code', 'P3')->orWhere('name', 'like', '%3%')->orWhere('name', 'like', '%DETAL%'));
+            } else {
+                $query->where('name', 'like', "%{$codeUpper}%");
+            }
+            $priceList = $query->first();
+        }
+
+        if (! $priceList) {
+            $id = DB::table('price_lists')->insertGetId([
+                'tenant_id' => $tenant->id,
+                'code' => $codeUpper,
+                'name' => $codeUpper,
+                'is_default' => false,
+                'is_active' => true,
+                'sort_order' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $priceList = DB::table('price_lists')->where('id', $id)->first();
         }
 
         return $priceList;
