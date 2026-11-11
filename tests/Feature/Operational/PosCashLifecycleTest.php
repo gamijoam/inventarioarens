@@ -178,7 +178,9 @@ class PosCashLifecycleTest extends TestCase
             ->assertJsonPath('data.status', CashRegisterSession::STATUS_CLOSED)
             ->assertJsonPath('data.expected_base_amount', '230.0000')
             ->assertJsonPath('data.counted_base_amount', '80.0000')
-            ->assertJsonPath('data.difference_base_amount', '-150.0000')
+            // El efectivo cuadra en USD y Bs: los 150 cobrados por otros metodos no son
+            // faltante de gaveta (auditoria de caja 2026-11-11).
+            ->assertJsonPath('data.difference_base_amount', '0.0000')
             ->assertJsonPath('data.difference_cash_usd', '0.0000')
             ->assertJsonPath('data.difference_cash_ves', '0.0000');
     }
