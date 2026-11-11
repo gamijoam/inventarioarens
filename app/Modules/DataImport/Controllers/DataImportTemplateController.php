@@ -26,27 +26,48 @@ class DataImportTemplateController extends Controller
 
         $current = $request->boolean('current');
         $simple = $request->boolean('simple');
+        $format = strtolower((string) $request->input('format', 'csv'));
 
         if ($simple && $entity !== 'products') {
             return response()->json(['message' => 'La plantilla sencilla solo esta disponible para productos.'], 422);
         }
 
         try {
-            $csv = $simple
-                ? $this->builder->buildSimpleProducts($current)
-                : ($current
-                ? $this->builder->buildCurrent($entity)
-                : $this->builder->build($entity));
+            if ($format === 'xlsx') {
+                $content = $simple
+                    ? $this->builder->buildSimpleProductsXlsx($current)
+                    : ($current
+                    ? $this->builder->buildCurrentXlsx($entity)
+                    : $this->builder->buildXlsx($entity));
+            } else {
+                $content = $simple
+                    ? $this->builder->buildSimpleProducts($current)
+                    : ($current
+                    ? $this->builder->buildCurrent($entity)
+                    : $this->builder->build($entity));
+            }
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
         $prefix = $simple ? ($current ? 'productos_para_actualizar' : 'plantilla_productos_sencilla') : ($current ? 'datos' : 'plantilla');
+
+        if ($format === 'xlsx') {
+            $filename = "{$prefix}_{$entity}.xlsx";
+
+            return response($content, 200, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+                'Cache-Control' => 'no-cache, private',
+            ]);
+        }
+
         $filename = "{$prefix}_{$entity}.csv";
 
-        return response($csv, 200, [
+        return response($content, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Cache-Control' => 'no-cache, private',
         ]);
     }
 }

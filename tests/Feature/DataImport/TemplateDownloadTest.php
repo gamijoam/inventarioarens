@@ -127,7 +127,7 @@ class TemplateDownloadTest extends TestCase
 
         $response->assertOk();
         $this->assertStringStartsWith(
-            'sku,name,barcode,description,category,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
+            'sku,name,barcode,description,category,precio_1,precio_2,precio_3,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
             $response->getContent(),
         );
         $this->assertStringNotContainsString('category_slugs', $response->getContent());
@@ -161,10 +161,24 @@ class TemplateDownloadTest extends TestCase
         $response->assertOk();
         $content = $response->getContent();
         $this->assertStringStartsWith(
-            'sku,name,barcode,description,category,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
+            'sku,name,barcode,description,category,precio_1,precio_2,precio_3,unit_of_measure,tracking_type,base_price,sale_currency,is_active',
             $content,
         );
-        $this->assertStringContainsString('SKU-BAL-1,Balanza Digital,,,Balanza,unit,quantity,50', $content);
+        $this->assertStringContainsString('SKU-BAL-1,Balanza Digital,,,Balanza,50,50,50,unit,quantity,50', $content);
+    }
+
+    public function test_template_download_as_xlsx(): void
+    {
+        $response = $this
+            ->actingAs($this->admin)
+            ->withHeader('X-Tenant', $this->tenant->slug)
+            ->get('/api/import/templates/products?current=1&simple=1&format=xlsx');
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $this->assertStringContainsString('attachment; filename="productos_para_actualizar_products.xlsx"', (string) $response->headers->get('Content-Disposition'));
+        // XLSX files are zip archives starting with 'PK\x03\x04'
+        $this->assertStringStartsWith("PK\x03\x04", $response->getContent());
     }
 
     public function test_current_download_rejects_entity_without_current_support(): void

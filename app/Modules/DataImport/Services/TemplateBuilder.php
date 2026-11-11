@@ -10,6 +10,11 @@ use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TemplateBuilder
 {
@@ -104,15 +109,13 @@ class TemplateBuilder
         ],
     ];
 
-    public function build(string $entity): string
+    public function getRows(string $entity): array
     {
         if (! ImportStatus::isValidEntity($entity)) {
             throw new \InvalidArgumentException("Entidad invalida: {$entity}");
         }
 
         $cfg = self::ENTITIES[$entity];
-        $tenantId = app(TenantManager::class)->require()->id;
-
         $rows = [];
         $rows[] = $cfg['headers'];
 
@@ -127,12 +130,10 @@ class TemplateBuilder
             }
         }
 
-        $separator = $entity === 'price_lists' ? ';' : ',';
-
-        return $this->toCsv($rows, $separator);
+        return $rows;
     }
 
-    public function buildSimpleProducts(bool $current = false): string
+    public function getSimpleProductsRows(bool $current = false): array
     {
         $headers = self::SIMPLE_PRODUCT_HEADERS;
         $records = $current ? $this->currentProductRecords() : [[
@@ -157,21 +158,16 @@ class TemplateBuilder
             $rows[] = array_map(fn (string $header) => $record[$header] ?? '', $headers);
         }
 
-        return $this->toCsv($rows, ',');
+        return $rows;
     }
 
-    /**
-     * Descarga los datos ACTUALES de la empresa en el mismo formato/columnas
-     * del importador, para editar el archivo y volver a subirlo (upsert).
-     */
-    public function buildCurrent(string $entity): string
+    public function getCurrentRows(string $entity): array
     {
         if (! ImportStatus::isValidEntity($entity)) {
             throw new \InvalidArgumentException("Entidad invalida: {$entity}");
         }
 
         $headers = self::ENTITIES[$entity]['headers'];
-        $separator = $entity === 'price_lists' ? ';' : ',';
 
         $records = match ($entity) {
             'products' => $this->currentProductRecords(),
@@ -187,7 +183,51 @@ class TemplateBuilder
             $rows[] = array_map(fn (string $header) => $record[$header] ?? '', $headers);
         }
 
-        return $this->toCsv($rows, $separator);
+        return $rows;
+    }
+
+    public function build(string $entity): string
+    {
+        $separator = $entity === 'price_lists' ? ';' : ',';
+
+        return $this->toCsv($this->getRows($entity), $separator);
+    }
+
+    public function buildSimpleProducts(bool $current = false): string
+    {
+        return $this->toCsv($this->getSimpleProductsRows($current), ',');
+    }
+
+    /**
+     * Descarga los datos ACTUALES de la empresa en el mismo formato/columnas
+     * del importador, para editar el archivo y volver a subirlo (upsert).
+     */
+    public function buildCurrent(string $entity): string
+    {
+        $separator = $entity === 'price_lists' ? ';' : ',';
+
+        return $this->toCsv($this->getCurrentRows($entity), $separator);
+    }
+
+    public function buildXlsx(string $entity): string
+    {
+        return $this->toXlsx($this->getRows($entity), ucfirst($entity));
+    }
+
+    public function buildSimpleProductsXlsx(bool $current = false): string
+    {
+        return $this->toXlsx(
+            $this->getSimpleProductsRows($current),
+            $current ? 'Productos_Actuales' : 'Plantilla_Productos',
+        );
+    }
+
+    public function buildCurrentXlsx(string $entity): string
+    {
+        return $this->toXlsx(
+            $this->getCurrentRows($entity),
+            $entity === 'products' ? 'Productos_Actuales' : ucfirst($entity),
+        );
     }
 
     /**
@@ -206,39 +246,49 @@ class TemplateBuilder
                 foreach ($product->prices as $price) {
                     $code = strtoupper(trim((string) $price->priceList?->code));
                     $name = strtoupper(trim((string) $price->priceList?->name));
-                    if ($code === 'P1' || str_contains($name, 'PRECIO 1') || str_contains($name, 'MAYOR 1')) {
+                    if ($code === 'P1' || str_contains($name, 'PRECIO 1') || str_contains($name, 'MAYOR 1') || str_ends_with($name, ' 1')) {
                         $p1 = $price->price;
-                    } elseif ($code === 'P2' || str_contains($name, 'PRECIO 2') || str_contains($name, 'MAYOR 2')) {
+                    } elseif ($code === 'P2' || str_contains($name, 'PRECIO 2') || str_contains($name, 'MAYOR 2') || str_ends_with($name, ' 2')) {
                         $p2 = $price->price;
-                    } elseif ($code === 'P3' || str_contains($name, 'PRECIO 3') || str_contains($name, 'DETAL')) {
+                    } elseif ($code === 'P3' || str_contains($name, 'PRECIO 3') || str_contains($name, 'DETAL') || str_ends_with($name, ' 3') || ($price->priceList?->is_default && $p3 === null)) {
                         $p3 = $price->price;
                     }
                 }
 
-                $p1Val = $p1 !== null ? (string) $p1 : ($product->base_price !== null ? (string) $product->base_price : '');
-                $p2Val = $p2 !== null ? (string) $p2 : ($product->base_price !== null ? (string) $product->base_price : '');
-                $p3Val = $p3 !== null ? (string) $p3 : ($product->base_price !== null ? (string) $product->base_price : '');
+                $formatNumber = static function ($val): string {
+                    if ($val === null || $val === '') {
+                        return '';
+                    }
+                    $f = (float) $val;
+
+                    return rtrim(rtrim(number_format($f, 4, '.', ''), '0'), '.');
+                };
+
+                $p1Val = $p1 !== null ? $formatNumber($p1) : ($product->base_price !== null ? $formatNumber($product->base_price) : '');
+                $p2Val = $p2 !== null ? $formatNumber($p2) : ($product->base_price !== null ? $formatNumber($product->base_price) : '');
+                $p3Val = $p3 !== null ? $formatNumber($p3) : ($product->base_price !== null ? $formatNumber($product->base_price) : '');
+                $basePriceVal = $product->base_price !== null ? $formatNumber($product->base_price) : '';
 
                 return [
-                    'sku' => $product->sku,
-                    'name' => $product->name,
-                    'barcode' => $product->barcode,
-                    'description' => $product->description,
-                    'category' => $product->categories->pluck('name')->implode('|'),
-                    'categoria' => $product->categories->pluck('name')->implode('|'),
+                    'sku' => (string) $product->sku,
+                    'name' => (string) $product->name,
+                    'barcode' => (string) ($product->barcode ?? ''),
+                    'description' => (string) ($product->description ?? ''),
+                    'category' => (string) $product->categories->pluck('name')->implode('|'),
+                    'categoria' => (string) $product->categories->pluck('name')->implode('|'),
                     'precio_1' => $p1Val,
                     'precio_2' => $p2Val,
                     'precio_3' => $p3Val,
-                    'brand_slug' => $product->brand?->slug ?? '',
-                    'category_slugs' => $product->categories->pluck('slug')->implode('|'),
-                    'tag_slugs' => $product->tags->pluck('slug')->implode('|'),
-                    'unit_of_measure' => $product->unit_of_measure,
-                    'tracking_type' => $product->tracking_type,
-                    'base_price' => $product->base_price,
-                    'sale_currency' => $product->sale_currency,
-                    'min_stock' => $product->min_stock,
-                    'max_stock' => $product->max_stock,
-                    'reorder_quantity' => $product->reorder_quantity,
+                    'brand_slug' => (string) ($product->brand?->slug ?? ''),
+                    'category_slugs' => (string) $product->categories->pluck('slug')->implode('|'),
+                    'tag_slugs' => (string) $product->tags->pluck('slug')->implode('|'),
+                    'unit_of_measure' => (string) ($product->unit_of_measure ?? 'unit'),
+                    'tracking_type' => (string) ($product->tracking_type ?? 'quantity'),
+                    'base_price' => $basePriceVal,
+                    'sale_currency' => (string) ($product->sale_currency ?? 'USD'),
+                    'min_stock' => $product->min_stock !== null ? $formatNumber($product->min_stock) : '',
+                    'max_stock' => $product->max_stock !== null ? $formatNumber($product->max_stock) : '',
+                    'reorder_quantity' => $product->reorder_quantity !== null ? $formatNumber($product->reorder_quantity) : '',
                     'is_active' => $product->is_active ? 'true' : 'false',
                     // El stock no se importa en re-subidas: se maneja con movimientos.
                     'stock_inicial' => '',
@@ -287,7 +337,6 @@ class TemplateBuilder
                 'is_active' => $list->is_active ? 'true' : 'false',
                 'sort_order' => $list->sort_order,
                 'payment_method_codes' => $list->paymentMethods->pluck('code')->implode('|'),
-                // Los precios por producto se descargan con la entidad product_prices.
                 'prices' => '',
             ])
             ->all();
@@ -345,13 +394,13 @@ class TemplateBuilder
             $line = [];
             foreach ($row as $cell) {
                 $str = (string) $cell;
-                if (str_contains($str, $separator) || str_contains($str, '"') || str_contains($str, "\n")) {
+                if (str_contains($str, $separator) || str_contains($str, '"') || str_contains($str, "\n") || str_contains($str, "\r")) {
                     $line[] = '"'.str_replace('"', '""', $str).'"';
                 } else {
                     $line[] = $str;
                 }
             }
-            fwrite($buffer, implode($separator, $line)."\n");
+            fwrite($buffer, implode($separator, $line)."\r\n");
         }
 
         rewind($buffer);
@@ -359,5 +408,43 @@ class TemplateBuilder
         fclose($buffer);
 
         return $content === false ? '' : $content;
+    }
+
+    private function toXlsx(array $rows, string $sheetTitle = 'Datos'): string
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle(substr(preg_replace('/[^a-zA-Z0-9_]/', '_', $sheetTitle), 0, 30));
+
+        $sheet->fromArray($rows, null, 'A1');
+
+        if (! empty($rows)) {
+            $colCount = count($rows[0]);
+            $lastColLetter = Coordinate::stringFromColumnIndex($colCount);
+            $headerRange = "A1:{$lastColLetter}1";
+
+            $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+            $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1E3A8A');
+            $sheet->getStyle($headerRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getRowDimension(1)->setRowHeight(26);
+            $sheet->freezePane('A2');
+
+            for ($col = 1; $col <= $colCount; $col++) {
+                $colLetter = Coordinate::stringFromColumnIndex($col);
+                $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+            }
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->setPreCalculateFormulas(false);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_');
+        $writer->save($tempFile);
+        $content = file_get_contents($tempFile);
+        @unlink($tempFile);
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        return $content ?: '';
     }
 }

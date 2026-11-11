@@ -182,10 +182,16 @@ export function useImportEntityRows(sessionId: number, entity: SupportedEntity) 
   });
 }
 
-export function templateUrl(entity: SupportedEntity, current = false, simple = false): string {
+export function templateUrl(
+  entity: SupportedEntity,
+  current = false,
+  simple = false,
+  format = 'xlsx',
+): string {
   const params = new URLSearchParams();
   if (current) params.set('current', '1');
   if (simple) params.set('simple', '1');
+  if (format) params.set('format', format);
   const query = params.toString();
 
   return `/import/templates/${entity}${query ? `?${query}` : ''}`;
@@ -216,7 +222,12 @@ export function reportUrl(sessionId: number): string {
  */
 export async function downloadImportFile(url: string, filename: string): Promise<void> {
   const response = await api.get<Blob>(url, { responseType: 'blob' });
-  const contentType = String(response.headers['content-type'] ?? 'text/csv');
+  const contentType = String(
+    response.headers['content-type'] ??
+      (filename.endsWith('.xlsx')
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'text/csv'),
+  );
   const blob = new Blob([response.data], { type: contentType });
   const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement('a');

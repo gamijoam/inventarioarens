@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FileSpreadsheet } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
@@ -69,28 +70,30 @@ export function ImportWizard() {
     setState({ ...initial, entity, step: 'upload' });
   }
 
-  async function downloadTemplate() {
+  async function downloadTemplate(format: 'xlsx' | 'csv' = 'xlsx') {
     if (!state.entity) return;
     try {
       const simpleProducts = state.entity === 'products';
+      const ext = format === 'xlsx' ? 'xlsx' : 'csv';
       await downloadImportFile(
-        templateUrl(state.entity, false, simpleProducts),
-        simpleProducts ? 'plantilla_productos_sencilla.csv' : `plantilla_${state.entity}.csv`,
+        templateUrl(state.entity, false, simpleProducts, format),
+        simpleProducts ? `plantilla_productos_sencilla.${ext}` : `plantilla_${state.entity}.${ext}`,
       );
     } catch {
       toast.error('No se pudo descargar la plantilla.');
     }
   }
 
-  async function downloadCurrentData() {
+  async function downloadCurrentData(format: 'xlsx' | 'csv' = 'xlsx') {
     if (!state.entity || !supportsCurrentData(state.entity)) return;
     try {
       const simpleProducts = state.entity === 'products';
+      const ext = format === 'xlsx' ? 'xlsx' : 'csv';
       await downloadImportFile(
-        templateUrl(state.entity, true, simpleProducts),
-        simpleProducts ? 'productos_para_actualizar.csv' : `datos_${state.entity}.csv`,
+        templateUrl(state.entity, true, simpleProducts, format),
+        simpleProducts ? `productos_para_actualizar.${ext}` : `datos_${state.entity}.${ext}`,
       );
-      toast.success('Descargado. Edita el archivo y vuelve a subirlo.');
+      toast.success('Descargado en formato Excel (.xlsx). Edita el archivo y vuelve a subirlo.');
     } catch {
       toast.error('No se pudieron descargar los datos actuales.');
     }
@@ -181,12 +184,14 @@ export function ImportWizard() {
             <div>
               <strong>{ENTITY_LABELS[state.entity]}</strong>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={downloadTemplate} variant="secondary" size="sm">
-                {state.entity === 'products' ? 'Plantilla sencilla' : 'Descargar plantilla'}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => downloadTemplate('xlsx')} variant="secondary" size="sm">
+                <FileSpreadsheet className="mr-1.5 h-4 w-4 text-emerald-600" />
+                {state.entity === 'products' ? 'Plantilla Excel' : 'Descargar plantilla'}
               </Button>
               {supportsCurrentData(state.entity) && (
-                <Button onClick={downloadCurrentData} variant="secondary" size="sm">
+                <Button onClick={() => downloadCurrentData('xlsx')} variant="secondary" size="sm">
+                  <FileSpreadsheet className="mr-1.5 h-4 w-4 text-emerald-600" />
                   {state.entity === 'products'
                     ? 'Productos actuales para editar'
                     : 'Descargar datos actuales'}
