@@ -1237,7 +1237,7 @@ class SyncCatalogOutboxService
 
     private function recordAccountsReceivable(string $eventType, AccountsReceivable $receivable): void
     {
-        $receivable->loadMissing('customer');
+        $receivable->loadMissing(['customer', 'sale']);
 
         $this->outbox->record(
             eventType: $eventType,
@@ -1246,6 +1246,9 @@ class SyncCatalogOutboxService
             payload: [
                 'document_number' => $receivable->document_number,
                 'sale_id' => $receivable->sale_id,
+                // Identidad de sync de la venta: el id local no es valido en otro nodo.
+                'sale_source_node_code' => $receivable->sale?->sync_source_node_code,
+                'sale_source_id' => $receivable->sale?->sync_source_id ?? $receivable->sale_id,
                 'customer_document' => $receivable->customer?->document_number,
                 'customer_name' => $receivable->customer?->name,
                 'status' => $receivable->status,

@@ -3389,7 +3389,8 @@ class SyncEventApplier
     private function applyReceivablePayment(Tenant $tenant, array $payload, array $event): string
     {
         $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
-        $sourceSaleId = (int) ($payload['sale_id'] ?? 0);
+        $saleNodeCode = mb_strtoupper($this->nullableString($payload['sale_source_node_code'] ?? null) ?? $sourceNodeCode);
+        $sourceSaleId = (int) ($payload['sale_source_id'] ?? $payload['sale_id'] ?? 0);
         $receivable = $payload['receivable'] ?? null;
         $payment = $payload['payment'] ?? null;
 
@@ -3399,7 +3400,7 @@ class SyncEventApplier
 
         $saleId = DB::table('sales')
             ->where('tenant_id', $tenant->id)
-            ->where('sync_source_node_code', $sourceNodeCode)
+            ->where('sync_source_node_code', $saleNodeCode)
             ->where('sync_source_id', $sourceSaleId)
             ->value('id');
 
@@ -3707,28 +3708,33 @@ class SyncEventApplier
     }
 
     /**
-     * Aplica `accounts_receivable.created` / `accounts_receivable.updated` en la nube.
-     * Upsert por (tenant_id, document_number). El customer se resuelve por documento.
+     * Aplica `accounts_receivable.created` / `accounts_receivable.updated`.
+     * La venta se resuelve por su identidad de sync (nodo de origen + id de
+     * origen): el sale_id del payload es el id local del emisor y colisiona con
+     * ventas de este nodo. Una CxC por venta (unique tenant_id + sale_id).
      */
     private function applyAccountsReceivable(Tenant $tenant, array $payload, array $event): string
     {
         $documentNumber = $this->nullableString($payload['document_number'] ?? null);
-        $saleId = $payload['sale_id'] ?? null;
+        $saleNodeCode = $this->nullableString($payload['sale_source_node_code'] ?? null)
+            ?? $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceSaleId = (int) ($payload['sale_source_id'] ?? $payload['sale_id'] ?? 0);
 
-        // Si el evento trae un sale_id que no existe localmente (por ejemplo
-        // una venta pura que nunca se replico, o IDs remotos desalineados),
-        // NO intentar insertar: romperia la FK y quedaria en failed
-        // reintentandose en cada sync. Marcarlo como ignorado para no
-        // bloquear el resto del sync; la CxC se reconciliara por otros medios
-        // (document_number) o por un reintento manual si la venta llega.
-        if ($saleId !== null) {
-            $saleExists = DB::table('sales')
-                ->where('tenant_id', $tenant->id)
-                ->where('id', (int) $saleId)
-                ->exists();
-            if (! $saleExists) {
-                return 'ignored';
-            }
+        if ($sourceSaleId <= 0) {
+            return 'ignored';
+        }
+
+        $saleId = DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', mb_strtoupper($saleNodeCode))
+            ->where('sync_source_id', $sourceSaleId)
+            ->value('id');
+
+        // Sin la venta replicada no hay a que CxC aplicar: nunca se cae al id
+        // numerico (tocaria la CxC de otra venta). La CxC llega con la venta
+        // (pos.order.*) o con el siguiente evento de la cuenta.
+        if (! $saleId) {
+            return 'ignored';
         }
 
         $customerDocument = $this->nullableString($payload['customer_document'] ?? null);
@@ -3739,20 +3745,10 @@ class SyncEventApplier
                 ->value('id')
             : null;
 
-        $existing = null;
-        if ($saleId !== null && (int) $saleId > 0) {
-            $existing = DB::table('accounts_receivables')
-                ->where('tenant_id', $tenant->id)
-                ->where('sale_id', (int) $saleId)
-                ->first();
-        }
-
-        if (! $existing && $documentNumber !== null && $documentNumber !== '') {
-            $existing = DB::table('accounts_receivables')
-                ->where('tenant_id', $tenant->id)
-                ->where('document_number', $documentNumber)
-                ->first();
-        }
+        $existing = DB::table('accounts_receivables')
+            ->where('tenant_id', $tenant->id)
+            ->where('sale_id', (int) $saleId)
+            ->first();
 
         $values = [
             'customer_id' => $customerId,
@@ -3775,26 +3771,12 @@ class SyncEventApplier
         ];
 
         if ($existing) {
-            if ($saleId !== null && (int) $saleId > 0) {
-                // Si existe otro registro con este sale_id, actualizar ese para no violar el indice unico
-                $conflict = DB::table('accounts_receivables')
-                    ->where('tenant_id', $tenant->id)
-                    ->where('sale_id', (int) $saleId)
-                    ->where('id', '!=', $existing->id)
-                    ->first();
-                if ($conflict) {
-                    $existing = $conflict;
-                } else {
-                    $values['sale_id'] = (int) $saleId;
-                }
-            }
-
             DB::table('accounts_receivables')
                 ->where('id', $existing->id)
                 ->update($values);
         } else {
             $values['tenant_id'] = $tenant->id;
-            $values['sale_id'] = (int) ($saleId ?? 0);
+            $values['sale_id'] = (int) $saleId;
             $values['document_number'] = $documentNumber;
             $values['created_at'] = now();
             $values['updated_at'] = now();
