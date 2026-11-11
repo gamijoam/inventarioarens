@@ -15,11 +15,14 @@ use App\Modules\Tenancy\Services\CompanySettings;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use DateTimeInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InventoryMovementService
 {
+    public const EXPIRED_RESERVATION_REFERENCE_TYPE = 'inventory_reservation_expired';
+
     public function __construct(private readonly AuditLogger $audit) {}
 
     public function purchase(
@@ -298,8 +301,9 @@ class InventoryMovementService
         ?int $referenceId = null,
         ?int $productVariantId = null,
         ?DateTimeInterface $expiresAt = null,
+        bool $expires = true,
     ): StockMovement {
-        $expiresAt ??= now()->addMinutes(30);
+        $expiresAt = $expires ? ($expiresAt ?? now()->addMinutes(30)) : null;
 
         return DB::transaction(function () use ($warehouse, $product, $quantity, $createdBy, $reason, $referenceType, $referenceId, $productVariantId, $expiresAt): StockMovement {
             $this->validateOperation($warehouse, $product, $quantity);
@@ -315,6 +319,80 @@ class InventoryMovementService
 
             return $this->recordMovement('reserved', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId, $expiresAt);
         });
+    }
+
+    /**
+     * Cantidad todavia reservada para una referencia (orden, traslado...):
+     * reservado menos lo liberado, despachado o vencido contra esa misma
+     * referencia.
+     */
+    public function openReservedQuantity(string $referenceType, int $referenceId, int $warehouseId, int $productId, ?int $productVariantId): float
+    {
+        [$reserved, $consumed] = $this->reservationLedger($referenceType, $referenceId, $warehouseId, $productId, $productVariantId);
+
+        return round(max(0.0, (float) $reserved->sum('quantity') - $consumed), 4);
+    }
+
+    /**
+     * Cantidad abierta de un movimiento de reserva concreto. Lo consumido se
+     * imputa primero a las reservas mas antiguas de la misma referencia (FIFO).
+     */
+    public function openQuantityForReservation(StockMovement $reservation): float
+    {
+        [$reserved, $consumed] = $this->reservationLedger(
+            (string) $reservation->reference_type,
+            (int) $reservation->reference_id,
+            (int) $reservation->warehouse_id,
+            (int) $reservation->product_id,
+            $reservation->product_variant_id === null ? null : (int) $reservation->product_variant_id,
+            (int) $reservation->tenant_id,
+        );
+        $quantity = (float) $reservation->quantity;
+        $previous = (float) $reserved->where('id', '<', $reservation->id)->sum('quantity');
+        $attributed = min($quantity, max(0.0, $consumed - $previous));
+
+        return round($quantity - $attributed, 4);
+    }
+
+    /**
+     * @return array{0: Collection<int, StockMovement>, 1: float}
+     */
+    private function reservationLedger(string $referenceType, int $referenceId, int $warehouseId, int $productId, ?int $productVariantId, ?int $tenantId = null): array
+    {
+        $tenantId ??= app(TenantManager::class)->require()->id;
+        $scope = fn () => StockMovement::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->when(
+                $productVariantId === null,
+                fn ($query) => $query->whereNull('product_variant_id'),
+                fn ($query) => $query->where('product_variant_id', $productVariantId),
+            );
+
+        $reserved = $scope()
+            ->where('type', 'reserved')
+            ->where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->orderBy('id')
+            ->get(['id', 'quantity']);
+
+        if ($reserved->isEmpty()) {
+            return [$reserved, 0.0];
+        }
+
+        $consumed = (float) $scope()
+            ->whereIn('type', ['released', 'transfer_out'])
+            ->where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->sum('quantity');
+        $consumed += (float) $scope()
+            ->where('type', 'released')
+            ->where('reference_type', self::EXPIRED_RESERVATION_REFERENCE_TYPE)
+            ->whereIn('reference_id', $reserved->pluck('id'))
+            ->sum('quantity');
+
+        return [$reserved, round($consumed, 4)];
     }
 
     public function release(

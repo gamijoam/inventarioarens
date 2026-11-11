@@ -527,6 +527,10 @@ subject_type, subject_id) en 24h no se duplica.
 - El Reporte Z se construye desde `cash_register_movements` del turno, no desde las ordenes.
 - Todo movimiento de caja se crea via `CashRegisterService` (emite `cash.movement.recorded`).
 - Detalle en `docs/AUDITORIA_CAJA_ARQUEO_2026-11-11.md`.
+- (2026-11-12) Devoluciones: lo devuelto primero cancela la deuda pendiente de la venta; solo el
+  excedente cobrado se reembolsa (efectivo o saldo a favor). Un reverso se rechaza si la venta tiene
+  devoluciones y anula la CxC (`status=voided`), reembolsando tambien los cobros de CxC (no los
+  pagos espejo `POS-PAYMENT-*`). La CxC replicada se resuelve por la identidad de sync de la venta.
 
 ### 8.7 Estilo
 - Pint 1.27 (`vendor/bin/pint` antes de commit).
@@ -1283,6 +1287,11 @@ pnpm run electron:build:pos
 - Las reservas de inventario guardan `stock_movements.reservation_expires_at` (TTL por defecto de
   30 minutos). `php artisan inventory:expire-reservations` libera saldo y ProductUnits reservadas
   cuyo movimiento vencio; la tarea corre cada 5 minutos y es idempotente por movimiento original.
+- (2026-11-12) El vencimiento solo libera la **cantidad abierta** de cada reserva
+  (`InventoryMovementService::openQuantityForReservation`/`openReservedQuantity`: reservado menos
+  liberado, despachado `transfer_out` o vencido contra la misma referencia, imputado FIFO). Las
+  reservas de traslados (`InventoryTransfer`) no vencen por tiempo; el POS y la cancelacion de
+  traslados liberan solo lo abierto. Un error en una reserva no aborta el job (sale con FAILURE).
 - `php artisan inventory:reconcile` ahora detecta tambien drift entre `stock_balances` y
   ProductUnits serializadas/IMEI. `--fix-serials` corrige esos saldos explicitamente; no usarlo sin
   revisar el reporte cuando el ledger y las unidades difieren.

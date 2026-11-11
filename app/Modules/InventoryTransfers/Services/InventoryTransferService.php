@@ -312,6 +312,7 @@ class InventoryTransferService
                             referenceType: InventoryTransfer::class,
                             referenceId: $transfer->id,
                             productVariantId: $item->product_variant_id,
+                            expires: false,
                         );
 
                         $this->syncCatalog->stockMovementCreated($movement);
@@ -729,11 +730,20 @@ class InventoryTransferService
                 $preparedQuantity = (float) ($item->prepared_quantity ?? 0);
                 $preparedUnitIds = $item->prepared_product_unit_ids ?? [];
 
-                if ($preparedQuantity > 0) {
+                // Reservas antiguas pudieron vencer y liberarse: solo se libera lo abierto.
+                $releaseQuantity = min($preparedQuantity, $this->inventory->openReservedQuantity(
+                    InventoryTransfer::class,
+                    (int) $transfer->id,
+                    (int) $transfer->from_warehouse_id,
+                    (int) $item->product_id,
+                    $item->product_variant_id === null ? null : (int) $item->product_variant_id,
+                ));
+
+                if ($releaseQuantity > 0) {
                     $movement = $this->inventory->release(
                         warehouse: $transfer->fromWarehouse,
                         product: $item->product,
-                        quantity: $preparedQuantity,
+                        quantity: $releaseQuantity,
                         createdBy: $user,
                         reason: "Cancelacion {$transfer->guide_number}: {$reason}",
                         referenceType: InventoryTransfer::class,
@@ -1313,6 +1323,7 @@ class InventoryTransferService
                     referenceType: InventoryTransfer::class,
                     referenceId: $transfer->id,
                     productVariantId: $item->product_variant_id,
+                    expires: false,
                 );
                 $this->syncCatalog->stockMovementCreated($movement);
 

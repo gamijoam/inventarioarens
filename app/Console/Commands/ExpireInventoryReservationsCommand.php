@@ -32,13 +32,19 @@ class ExpireInventoryReservationsCommand extends Command
 
         $limit = max(1, (int) $this->option('limit'));
         $total = 0;
+        $errors = [];
         foreach ($tenants as $tenant) {
             $expired = $service->expireTenant($tenant, $limit);
             $total += $expired;
+            $errors = [...$errors, ...$service->pullErrors()];
             $this->line("Tenant {$tenant->slug}: {$expired} expired reservation(s).");
         }
         $this->info("Reservation expiration complete: {$total} expired.");
 
-        return self::SUCCESS;
+        foreach ($errors as $error) {
+            $this->error($error);
+        }
+
+        return $errors === [] ? self::SUCCESS : self::FAILURE;
     }
 }
