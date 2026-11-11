@@ -85,13 +85,27 @@ class InventoryReconciliationService
         $expected = [];
         $movements = StockMovement::withoutGlobalScopes()
             ->where('tenant_id', $tenantId)
-            ->select(['warehouse_id', 'product_id', 'product_variant_id', 'type', 'quantity'])
+            ->select(['warehouse_id', 'product_id', 'product_variant_id', 'type', 'quantity', 'reference_type', 'reference_id'])
             ->get();
+        $reservedReferences = [];
+        foreach ($movements as $movement) {
+            if ($movement->type === 'reserved' && $movement->reference_type !== null) {
+                $reservedReferences[$this->referenceKey($movement)] = true;
+            }
+        }
 
         foreach ($movements as $movement) {
             $key = $this->key($movement->warehouse_id, $movement->product_id, $movement->product_variant_id);
             $expected[$key] ??= $this->zeroBalance();
             $quantity = (float) $movement->quantity;
+
+            // El despacho de un traslado reservado sale del reservado, no del disponible.
+            if ($movement->type === 'transfer_out' && isset($reservedReferences[$this->referenceKey($movement)])) {
+                $expected[$key]['reserved'] -= $quantity;
+
+                continue;
+            }
+
             $expected[$key]['available'] += $quantity * (self::AVAILABLE_DELTAS[$movement->type] ?? 0);
 
             if ($movement->type === 'reserved') {
@@ -111,6 +125,15 @@ class InventoryReconciliationService
         unset($balance);
 
         return $expected;
+    }
+
+    private function referenceKey(StockMovement $movement): string
+    {
+        return implode('|', [
+            $movement->reference_type,
+            $movement->reference_id,
+            $this->key($movement->warehouse_id, $movement->product_id, $movement->product_variant_id),
+        ]);
     }
 
     /**

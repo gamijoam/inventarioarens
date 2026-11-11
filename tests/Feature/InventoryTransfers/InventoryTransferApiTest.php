@@ -6,11 +6,13 @@ use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\InventoryTransfers\Models\InventoryTransferChecklist;
 use App\Modules\InventoryTransfers\Models\InventoryTransferGuide;
 use App\Modules\InventoryTransfers\Models\InventoryTransferItem;
+use App\Modules\POS\Models\PosOrder;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -1153,6 +1155,47 @@ class InventoryTransferApiTest extends TestCase
             'type' => 'released',
             'quantity' => '5.0000',
         ]);
+    }
+
+    public function test_prepared_transfer_reservation_does_not_expire_and_cancel_releases_only_open_quantity(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$fromWarehouse, $toWarehouse, $product] = $this->warehousesAndProduct($tenant, 'TRF-CXL-OPEN', Product::TRACKING_QUANTITY);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Almacen A', [
+            'inventory_transfers.create',
+            'inventory_transfers.prepare',
+            'inventory_transfers.cancel',
+            'inventory_transfers.view',
+        ]);
+        $this->stock($tenant, $fromWarehouse, $product, $user, 10);
+        $transferId = $this->createPreparedTransfer($tenant, $user, $fromWarehouse, $toWarehouse, $product, 5);
+
+        $reservation = StockMovement::query()
+            ->where('reference_type', InventoryTransfer::class)
+            ->where('reference_id', $transferId)
+            ->where('type', 'reserved')
+            ->firstOrFail();
+        $this->assertNull($reservation->reservation_expires_at, 'Un traslado en preparacion no debe vencer por tiempo.');
+
+        app(TenantManager::class)->set($tenant);
+        // Simula una liberacion por vencimiento hecha antes de esta correccion y
+        // una reserva vigente de otra orden en el mismo almacen.
+        $inventory = app(InventoryMovementService::class);
+        $inventory->release($fromWarehouse, $product, 2, referenceType: InventoryMovementService::EXPIRED_RESERVATION_REFERENCE_TYPE, referenceId: $reservation->id);
+        $inventory->reserve($fromWarehouse, $product, 3, referenceType: PosOrder::class, referenceId: 77);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/inventory-transfers/{$transferId}/cancel", [
+                'cancellation_reason' => 'Reprogramamos la entrega para la proxima semana.',
+            ])
+            ->assertOk();
+
+        $balance = $this->balance($fromWarehouse, $product);
+        $this->assertSame(7.0, (float) $balance->quantity_available, 'Se liberan solo las 3 unidades que seguian abiertas.');
+        $this->assertSame(3.0, (float) $balance->quantity_reserved, 'La cancelacion no toma la reserva de otra orden.');
     }
 
     public function test_user_can_cancel_prepared_with_differences_logistic_transfer(): void

@@ -4,16 +4,30 @@ namespace App\Modules\Inventory\Services;
 
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\InventoryTransfers\Models\InventoryTransfer;
 use App\Modules\Products\Models\Product;
 use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class InventoryReservationExpirationService
 {
-    public const EXPIRATION_REFERENCE_TYPE = 'inventory_reservation_expired';
+    public const EXPIRATION_REFERENCE_TYPE = InventoryMovementService::EXPIRED_RESERVATION_REFERENCE_TYPE;
+
+    /**
+     * Documentos de vida larga: su reserva se libera al despachar o cancelar,
+     * no por tiempo.
+     */
+    private const NON_EXPIRING_REFERENCE_TYPES = [
+        InventoryTransfer::class,
+    ];
+
+    /** @var array<int, string> */
+    private array $errors = [];
 
     public function __construct(
         private readonly InventoryMovementService $inventory,
@@ -30,15 +44,39 @@ class InventoryReservationExpirationService
             ->where('type', 'reserved')
             ->whereNotNull('reservation_expires_at')
             ->where('reservation_expires_at', '<', now())
+            ->where(fn ($query) => $query
+                ->whereNull('reference_type')
+                ->orWhereNotIn('reference_type', self::NON_EXPIRING_REFERENCE_TYPES))
             ->orderBy('id')
             ->limit($limit)
             ->get();
 
         foreach ($reservations as $reservation) {
-            $expired += $this->expireReservation($tenant, $reservation) ? 1 : 0;
+            try {
+                $expired += $this->expireReservation($tenant, $reservation) ? 1 : 0;
+            } catch (Throwable $exception) {
+                // Una reserva inconsistente no detiene las demas ni otros tenants.
+                $this->errors[] = "Tenant {$tenant->slug}, reserva #{$reservation->id}: {$exception->getMessage()}";
+                Log::warning('No se pudo vencer la reserva de inventario.', [
+                    'tenant_id' => $tenant->id,
+                    'stock_movement_id' => $reservation->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
 
         return $expired;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function pullErrors(): array
+    {
+        $errors = $this->errors;
+        $this->errors = [];
+
+        return $errors;
     }
 
     private function expireReservation(Tenant $tenant, StockMovement $reservation): bool
@@ -52,8 +90,12 @@ class InventoryReservationExpirationService
 
             if ($reservation->type !== 'reserved'
                 || $reservation->reservation_expires_at === null
-                || $reservation->reservation_expires_at->isFuture()
-                || $this->hasReleaseForReservation($reservation)) {
+                || $reservation->reservation_expires_at->isFuture()) {
+                return false;
+            }
+
+            $openQuantity = $this->inventory->openQuantityForReservation($reservation);
+            if ($openQuantity <= 0.0001) {
                 return false;
             }
 
@@ -68,7 +110,7 @@ class InventoryReservationExpirationService
             $released = $this->inventory->release(
                 warehouse: $warehouse,
                 product: $product,
-                quantity: (float) $reservation->quantity,
+                quantity: $openQuantity,
                 reason: 'Reserva vencida',
                 referenceType: self::EXPIRATION_REFERENCE_TYPE,
                 referenceId: $reservation->id,
@@ -92,57 +134,5 @@ class InventoryReservationExpirationService
 
             return true;
         });
-    }
-
-    private function hasReleaseForReservation(StockMovement $reservation): bool
-    {
-        $hasExpirationRelease = StockMovement::withoutGlobalScopes()
-            ->where('tenant_id', $reservation->tenant_id)
-            ->where('type', 'released')
-            ->where('reference_type', self::EXPIRATION_REFERENCE_TYPE)
-            ->where('reference_id', $reservation->id)
-            ->where('warehouse_id', $reservation->warehouse_id)
-            ->where('product_id', $reservation->product_id)
-            ->when(
-                $reservation->product_variant_id === null,
-                fn ($query) => $query->whereNull('product_variant_id'),
-                fn ($query) => $query->where('product_variant_id', $reservation->product_variant_id),
-            )
-            ->exists();
-
-        if ($hasExpirationRelease) {
-            return true;
-        }
-
-        $releasedQuantity = StockMovement::withoutGlobalScopes()
-            ->where('tenant_id', $reservation->tenant_id)
-            ->where('type', 'released')
-            ->where('reference_type', $reservation->reference_type)
-            ->where('reference_id', $reservation->reference_id)
-            ->where('warehouse_id', $reservation->warehouse_id)
-            ->where('product_id', $reservation->product_id)
-            ->when(
-                $reservation->product_variant_id === null,
-                fn ($query) => $query->whereNull('product_variant_id'),
-                fn ($query) => $query->where('product_variant_id', $reservation->product_variant_id),
-            )
-            ->sum('quantity');
-        $releasedForPreviousReservations = StockMovement::withoutGlobalScopes()
-            ->where('tenant_id', $reservation->tenant_id)
-            ->where('type', 'reserved')
-            ->where('id', '<', $reservation->id)
-            ->where('reference_type', $reservation->reference_type)
-            ->where('reference_id', $reservation->reference_id)
-            ->where('warehouse_id', $reservation->warehouse_id)
-            ->where('product_id', $reservation->product_id)
-            ->when(
-                $reservation->product_variant_id === null,
-                fn ($query) => $query->whereNull('product_variant_id'),
-                fn ($query) => $query->where('product_variant_id', $reservation->product_variant_id),
-            )
-            ->sum('quantity');
-
-        return max(0.0, (float) $releasedQuantity - (float) $releasedForPreviousReservations)
-            >= (float) $reservation->quantity;
     }
 }

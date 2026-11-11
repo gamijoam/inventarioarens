@@ -1,5 +1,21 @@
 # Registro de implementación — 2026-08-29
 
+## 2026-11-12 - Criticos contables C1-C5 (auditoria 2026-11-11)
+
+- C1: saldo a favor y reembolsos de devoluciones topados a lo efectivamente cobrado; lo devuelto
+  primero cancela la deuda de la venta.
+- C2: reverso bloqueado si la venta tiene devoluciones; devoluciones no se aprueban ni procesan sobre
+  ventas anuladas.
+- C3: el reverso anula la CxC y reembolsa los cobros de CxC; ventas a credito sin abono se pueden
+  reversar.
+- C4: el sync de CxC empareja por la identidad de sync de la venta, nunca por el id local.
+- C5: el vencimiento de reservas solo libera la cantidad abierta; reservas de traslados no vencen;
+  el POS y la cancelacion de traslados no liberan dos veces; `inventory:reconcile` trata el despacho
+  reservado como salida del reservado.
+- Tests: `SalesReturnAccountingIntegrityTest` (18), `AccountsReceivableSyncIdentityTest` (7),
+  `InventoryReservationIntegrityTest` (9) y un caso nuevo en `InventoryTransferApiTest`, todos con
+  pruebas de mutacion.
+
 ## 2026-11-11 - Auditoria contable de arqueo y cierre de caja
 
 - Cobros por encima del total rechazados en checkout y abonos; el POS lo bloquea antes de enviar y

@@ -1206,16 +1206,34 @@ class PosCheckoutService
         }
 
         $order->loadMissing(['sale.items.product', 'sale.items.variant', 'sale.items.warehouse']);
+        $openByKey = [];
 
         foreach ($order->sale->items as $item) {
             if (! $item->product->track_stock) {
                 continue;
             }
 
+            // Si la reserva vencio y ya fue liberada, no se vuelve a liberar:
+            // se tomaria el reservado de otra orden.
+            $key = "{$item->warehouse_id}|{$item->product_id}|{$item->product_variant_id}";
+            $openByKey[$key] ??= $this->inventory->openReservedQuantity(
+                PosOrder::class,
+                (int) $order->id,
+                (int) $item->warehouse_id,
+                (int) $item->product_id,
+                $item->product_variant_id === null ? null : (int) $item->product_variant_id,
+            );
+            $quantity = min((float) $item->quantity, $openByKey[$key]);
+            $openByKey[$key] = round($openByKey[$key] - $quantity, 4);
+
+            if ($quantity <= 0.0001) {
+                continue;
+            }
+
             $this->inventory->release(
                 warehouse: $item->warehouse,
                 product: $item->product,
-                quantity: (float) $item->quantity,
+                quantity: $quantity,
                 createdBy: $cashier,
                 reason: "Liberacion reserva POS #{$order->id}",
                 referenceType: PosOrder::class,
