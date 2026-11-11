@@ -188,15 +188,19 @@ class FinancialSyncTest extends TestCase
     public function test_applier_applies_receivable_created_to_cloud(): void
     {
         [$tenant] = $this->setupTenant();
+        // Venta replicada desde el nodo POS-LOCAL-1 (id 300 en su origen): la CxC
+        // se empareja por esa identidad, no por el id local de la nube.
         $sale = Sale::create([
             'status' => Sale::STATUS_CONFIRMED,
             'total_base_amount' => 50,
             'total_local_amount' => 50,
         ]);
+        DB::table('sales')->where('id', $sale->id)->update(['sync_source_node_code' => 'POS-LOCAL-1', 'sync_source_id' => 300]);
 
         $this->enqueueEvent($tenant->id, 'accounts_receivable.created', [
+            'source_node_code' => 'POS-LOCAL-1',
             'document_number' => 'VENTA-SYNC-001',
-            'sale_id' => $sale->id,
+            'sale_id' => 300,
             'status' => 'pending',
             'currency' => 'USD',
             'original_base_amount' => '50.0000',

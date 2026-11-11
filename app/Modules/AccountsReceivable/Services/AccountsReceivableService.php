@@ -277,6 +277,8 @@ class AccountsReceivableService
             aggregateId: $account->id,
             payload: [
                 'sale_id' => $account->sale_id,
+                'sale_source_node_code' => $account->sale?->sync_source_node_code,
+                'sale_source_id' => $account->sale?->sync_source_id ?? $account->sale_id,
                 'receivable' => [
                     'status' => $account->status,
                     'document_number' => $account->document_number,
