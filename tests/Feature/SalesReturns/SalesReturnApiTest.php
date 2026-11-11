@@ -3,6 +3,7 @@
 namespace Tests\Feature\SalesReturns;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
@@ -534,6 +535,8 @@ class SalesReturnApiTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Gerente', ['sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process', 'sales_returns.refund', 'customers.view']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [], $customer->id);
+        // Desde la auditoria 2026-11-11 solo lo cobrado se convierte en saldo a favor.
+        $this->collectSale($sale, $user);
 
         $created = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/sales-returns', [
             'sale_id' => $sale->id,
@@ -571,6 +574,8 @@ class SalesReturnApiTest extends TestCase
         $user = $this->userInTenant($tenant);
         $this->grantRole($tenant, $user, 'Gerente', ['pos.checkout', 'sales.create', 'sales_returns.create', 'sales_returns.review', 'sales_returns.process', 'sales_returns.refund', 'cash_register.move']);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [], $customer->id);
+        // Desde la auditoria 2026-11-11 solo lo cobrado se convierte en saldo a favor.
+        $this->collectSale($sale, $user);
         $cashRegister = CashRegister::create(['branch_id' => $exchangeWarehouse->branch_id, 'name' => 'Caja Canje', 'code' => 'CANJE-1', 'status' => CashRegister::STATUS_ACTIVE]);
         $session = CashRegisterSession::create([
             'branch_id' => $exchangeWarehouse->branch_id,
@@ -641,6 +646,8 @@ class SalesReturnApiTest extends TestCase
             'cash_register.move',
         ]);
         $sale = $this->confirmedSale($tenant, $user, $warehouse, $product, 1, [], $customer->id);
+        // Desde la auditoria 2026-11-11 solo lo cobrado se convierte en saldo a favor.
+        $this->collectSale($sale, $user);
         $cashRegister = CashRegister::create(['branch_id' => $exchangeWarehouse->branch_id, 'name' => 'Caja Legacy', 'code' => 'LEGACY-1', 'status' => CashRegister::STATUS_ACTIVE]);
         $session = CashRegisterSession::create([
             'branch_id' => $exchangeWarehouse->branch_id,
@@ -706,6 +713,16 @@ class SalesReturnApiTest extends TestCase
         ]], $customerId);
 
         return app(SaleService::class)->confirm($sale, $user);
+    }
+
+    private function collectSale(Sale $sale, User $user): void
+    {
+        $account = AccountsReceivable::query()->where('sale_id', $sale->id)->firstOrFail();
+        app(AccountsReceivableService::class)->registerPayment($account, $user, [
+            'payment_currency' => Product::CURRENCY_USD,
+            'amount' => (float) $account->balance_base_amount,
+            'method' => 'transfer',
+        ]);
     }
 
     private function product(Tenant $tenant, string $trackingType, string $sku): array

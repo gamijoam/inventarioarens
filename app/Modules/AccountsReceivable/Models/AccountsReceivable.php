@@ -43,6 +43,8 @@ class AccountsReceivable extends Model
 
     public const STATUS_OVERDUE = 'overdue';
 
+    public const STATUS_VOIDED = 'voided';
+
     protected $table = 'accounts_receivables';
 
     protected function syncOutboxMethod(string $action): ?string

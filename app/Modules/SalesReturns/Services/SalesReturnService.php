@@ -3,6 +3,7 @@
 namespace App\Modules\SalesReturns\Services;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
@@ -96,69 +97,83 @@ class SalesReturnService
 
     public function approve(SalesReturn $salesReturn, User $user): SalesReturn
     {
-        if ($salesReturn->status !== SalesReturn::STATUS_REQUESTED) {
-            throw ValidationException::withMessages([
-                'status' => 'Solo se pueden aprobar devoluciones solicitadas.',
+        return DB::transaction(function () use ($salesReturn, $user): SalesReturn {
+            $this->lockConfirmedSale((int) $salesReturn->sale_id);
+            $salesReturn = SalesReturn::query()->lockForUpdate()->findOrFail($salesReturn->id);
+
+            if ($salesReturn->status !== SalesReturn::STATUS_REQUESTED) {
+                throw ValidationException::withMessages([
+                    'status' => 'Solo se pueden aprobar devoluciones solicitadas.',
+                ]);
+            }
+
+            $salesReturn->update([
+                'status' => SalesReturn::STATUS_APPROVED,
+                'reviewed_by' => $user->id,
+                'reviewed_at' => now(),
             ]);
-        }
 
-        $salesReturn->update([
-            'status' => SalesReturn::STATUS_APPROVED,
-            'reviewed_by' => $user->id,
-            'reviewed_at' => now(),
-        ]);
+            $salesReturn = $this->loadReturn($salesReturn);
+            $this->recordReturnSyncEvent($salesReturn);
 
-        $salesReturn = $this->loadReturn($salesReturn);
-        $this->recordReturnSyncEvent($salesReturn);
-
-        return $salesReturn;
+            return $salesReturn;
+        });
     }
 
     public function reject(SalesReturn $salesReturn, User $user, string $reason): SalesReturn
     {
-        if (! in_array($salesReturn->status, [SalesReturn::STATUS_REQUESTED, SalesReturn::STATUS_APPROVED], true)) {
-            throw ValidationException::withMessages([
-                'status' => 'Solo se pueden rechazar devoluciones solicitadas o aprobadas.',
+        return DB::transaction(function () use ($salesReturn, $user, $reason): SalesReturn {
+            $salesReturn = SalesReturn::query()->lockForUpdate()->findOrFail($salesReturn->id);
+
+            if (! in_array($salesReturn->status, [SalesReturn::STATUS_REQUESTED, SalesReturn::STATUS_APPROVED], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Solo se pueden rechazar devoluciones solicitadas o aprobadas.',
+                ]);
+            }
+
+            $salesReturn->update([
+                'status' => SalesReturn::STATUS_REJECTED,
+                'reviewed_by' => $user->id,
+                'reviewed_at' => now(),
+                'rejection_reason' => $reason,
             ]);
-        }
 
-        $salesReturn->update([
-            'status' => SalesReturn::STATUS_REJECTED,
-            'reviewed_by' => $user->id,
-            'reviewed_at' => now(),
-            'rejection_reason' => $reason,
-        ]);
+            $salesReturn = $this->loadReturn($salesReturn);
+            $this->recordReturnSyncEvent($salesReturn);
 
-        $salesReturn = $this->loadReturn($salesReturn);
-        $this->recordReturnSyncEvent($salesReturn);
-
-        return $salesReturn;
+            return $salesReturn;
+        });
     }
 
     public function cancel(SalesReturn $salesReturn, User $user, string $reason): SalesReturn
     {
-        if (in_array($salesReturn->status, [SalesReturn::STATUS_PROCESSED, SalesReturn::STATUS_REJECTED, SalesReturn::STATUS_CANCELLED], true)) {
-            throw ValidationException::withMessages([
-                'status' => 'Solo se pueden cancelar devoluciones no procesadas.',
+        return DB::transaction(function () use ($salesReturn, $user, $reason): SalesReturn {
+            $salesReturn = SalesReturn::query()->lockForUpdate()->findOrFail($salesReturn->id);
+
+            if (in_array($salesReturn->status, [SalesReturn::STATUS_PROCESSED, SalesReturn::STATUS_REJECTED, SalesReturn::STATUS_CANCELLED], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Solo se pueden cancelar devoluciones no procesadas.',
+                ]);
+            }
+
+            $salesReturn->update([
+                'status' => SalesReturn::STATUS_CANCELLED,
+                'cancelled_by' => $user->id,
+                'cancelled_at' => now(),
+                'cancellation_reason' => $reason,
             ]);
-        }
 
-        $salesReturn->update([
-            'status' => SalesReturn::STATUS_CANCELLED,
-            'cancelled_by' => $user->id,
-            'cancelled_at' => now(),
-            'cancellation_reason' => $reason,
-        ]);
+            $salesReturn = $this->loadReturn($salesReturn);
+            $this->recordReturnSyncEvent($salesReturn);
 
-        $salesReturn = $this->loadReturn($salesReturn);
-        $this->recordReturnSyncEvent($salesReturn);
-
-        return $salesReturn;
+            return $salesReturn;
+        });
     }
 
     public function process(SalesReturn $salesReturn, User $user, array $data): SalesReturn
     {
         return DB::transaction(function () use ($salesReturn, $user, $data): SalesReturn {
+            $this->lockConfirmedSale((int) $salesReturn->sale_id);
             $salesReturn = SalesReturn::query()
                 ->with(['sale.receivable', 'items.saleItem.product', 'items.saleItem.warehouse', 'items.product', 'items.warehouse'])
                 ->lockForUpdate()
@@ -201,17 +216,18 @@ class SalesReturnService
                 'process_notes' => $data['process_notes'] ?? null,
             ]);
 
-            app(AccountsReceivableService::class)->applySalesReturn($salesReturn->refresh());
             $salesReturn = $salesReturn->refresh()->load(['sale.receivable', 'items.saleItem']);
+            $refundableBase = $this->refundableBase($salesReturn);
             $adjustment = $this->createCreditNote($salesReturn, $user);
-            $this->applyRefund($salesReturn, $user, $data);
+            $this->applyRefund($salesReturn, $user, $data, $refundableBase);
             $customerCredit = ($data['refund_mode'] ?? 'none') === 'customer_credit'
-                ? $this->issueCustomerCredit($salesReturn, $user)
+                ? $this->issueCustomerCredit($salesReturn, $user, $refundableBase)
                 : null;
             $salesReturn->update([
                 'refund_financial_adjustment_id' => $adjustment->id,
                 'customer_credit_transaction_id' => $customerCredit?->id,
             ]);
+            app(AccountsReceivableService::class)->applySalesReturn($salesReturn->refresh());
 
             $salesReturn = $this->loadReturn($salesReturn);
             $this->recordReturnSyncEvent($salesReturn);
@@ -544,7 +560,7 @@ class SalesReturnService
             ]);
     }
 
-    private function applyRefund(SalesReturn $salesReturn, User $user, array $data): void
+    private function applyRefund(SalesReturn $salesReturn, User $user, array $data, float $refundableBase): void
     {
         $mode = $data['refund_mode'] ?? 'none';
 
@@ -582,7 +598,7 @@ class SalesReturnService
                 'notes' => $data['process_notes'] ?? "Reembolso devolucion #{$salesReturn->id}",
             ], $user);
 
-            $this->assertRefundAmountWithinReturn($salesReturn, (float) $movement->amount_base);
+            $this->assertRefundAmountWithinReturn((float) $movement->amount_base, $refundableBase);
 
             $salesReturn->update([
                 'refund_currency' => $data['refund_currency'],
@@ -618,7 +634,7 @@ class SalesReturnService
         ]);
     }
 
-    private function issueCustomerCredit(SalesReturn $salesReturn, User $user)
+    private function issueCustomerCredit(SalesReturn $salesReturn, User $user, float $refundableBase)
     {
         if (! $salesReturn->sale->customer) {
             throw ValidationException::withMessages([
@@ -627,6 +643,19 @@ class SalesReturnService
         }
 
         [$firstSaleItem, $currency, $baseAmount, $localAmount] = $this->returnAmounts($salesReturn);
+
+        if ($refundableBase <= 0.0) {
+            throw ValidationException::withMessages([
+                'refund_mode' => 'La devolucion se aplico a la deuda pendiente de la venta: no hay monto cobrado para emitir saldo a favor. Procesala sin reembolso.',
+            ]);
+        }
+
+        // Solo lo ya cobrado al cliente se convierte en saldo a favor; el resto
+        // de la devolucion reduce la deuda pendiente de la venta.
+        if ($refundableBase < $baseAmount) {
+            $localAmount = $baseAmount > 0.0 ? round($localAmount * $refundableBase / $baseAmount, 4) : 0.0;
+            $baseAmount = $refundableBase;
+        }
 
         return $this->customerCredits->issue($salesReturn->sale->customer, $user, [
             'currency' => $currency,
@@ -682,33 +711,59 @@ class SalesReturnService
         }
     }
 
-    private function assertRefundAmountWithinReturn(SalesReturn $salesReturn, float $amountBase): void
+    private function assertRefundAmountWithinReturn(float $amountBase, float $refundableBase): void
     {
-        $maxRefundBase = 0.0;
+        if ($amountBase > round($refundableBase, 4)) {
+            $available = number_format($refundableBase, 2, '.', ',');
 
-        foreach ($salesReturn->items as $returnItem) {
-            $saleItem = $returnItem->saleItem;
-            $quantity = (float) $saleItem->quantity;
+            throw ValidationException::withMessages([
+                'refund_amount' => "El reembolso supera lo cobrado disponible para esta devolucion (\${$available}). La parte de la devolucion que cubre deuda pendiente de la venta no se reembolsa.",
+            ]);
+        }
+    }
 
-            if ($quantity <= 0.0) {
-                continue;
-            }
+    /**
+     * Monto reembolsable (USD) de una devolucion: lo devuelto primero cancela la
+     * deuda pendiente de la venta; solo el excedente fue cobrado al cliente. Nunca
+     * supera lo cobrado menos lo ya reembolsado por devoluciones anteriores.
+     */
+    private function refundableBase(SalesReturn $salesReturn): float
+    {
+        $account = AccountsReceivable::query()
+            ->where('sale_id', $salesReturn->sale_id)
+            ->lockForUpdate()
+            ->first();
 
-            $maxRefundBase += round(((float) $saleItem->base_total_amount / $quantity) * (float) $returnItem->quantity, 4);
+        if (! $account || $account->status === AccountsReceivable::STATUS_VOIDED) {
+            return 0.0;
         }
 
-        $collectedBase = (float) ($salesReturn->sale->receivable?->collected_base_amount ?? 0);
-        $previousRefundedBase = (float) SalesReturn::query()
+        [, , $returnBase] = $this->returnAmounts($salesReturn);
+        $outstanding = max(0.0, (float) $account->balance_base_amount);
+        $excess = max(0.0, $returnBase - min($returnBase, $outstanding));
+
+        $previousReturnIds = SalesReturn::query()
             ->where('sale_id', $salesReturn->sale_id)
             ->where('status', SalesReturn::STATUS_PROCESSED)
             ->where('id', '!=', $salesReturn->id)
-            ->sum('refund_amount_base');
-        $maxRefundBase = min($maxRefundBase, max(0, round($collectedBase - $previousRefundedBase, 4)));
+            ->pluck('id')
+            ->all();
+        [$previousRefunded] = app(AccountsReceivableService::class)->refundedTotalsForReturns($previousReturnIds);
+        $collectedAvailable = max(0.0, (float) $account->collected_base_amount - $previousRefunded);
 
-        if ($amountBase > round($maxRefundBase, 4)) {
+        return round(min($excess, $collectedAvailable), 4);
+    }
+
+    private function lockConfirmedSale(int $saleId): Sale
+    {
+        $sale = Sale::query()->lockForUpdate()->findOrFail($saleId);
+
+        if ($sale->status !== Sale::STATUS_CONFIRMED) {
             throw ValidationException::withMessages([
-                'refund_amount' => 'El reembolso supera el monto cobrado disponible para esta venta o el monto devuelto aprobado.',
+                'sale_id' => 'La venta ya no esta confirmada (fue anulada o reversada): la devolucion no se puede aprobar ni procesar.',
             ]);
         }
+
+        return $sale;
     }
 }

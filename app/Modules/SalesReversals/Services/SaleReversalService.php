@@ -3,6 +3,9 @@
 namespace App\Modules\SalesReversals\Services;
 
 use App\Models\User;
+use App\Modules\AccountsReceivable\Models\AccountsReceivable;
+use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
+use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Commissions\Services\CommissionLedgerService;
@@ -12,6 +15,7 @@ use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReversals\Models\SaleReversal;
 use App\Modules\Sync\Services\SyncOutboxService;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +46,9 @@ class SaleReversalService
                 ->lockForUpdate()
                 ->findOrFail($posOrder->id);
 
+            // Bloquea la venta: serializa el reverso con devoluciones y cobros de CxC.
+            Sale::query()->lockForUpdate()->find($order->sale_id);
+
             if ($order->status !== PosOrder::STATUS_PAID || ! $order->sale || $order->sale->status !== Sale::STATUS_CONFIRMED) {
                 throw ValidationException::withMessages([
                     'pos_order_id' => 'Solo se pueden revertir ventas POS pagadas y confirmadas.',
@@ -51,6 +58,16 @@ class SaleReversalService
             if (SaleReversal::query()->where('pos_order_id', $order->id)->exists()) {
                 throw ValidationException::withMessages([
                     'pos_order_id' => 'La venta ya tiene una reversión registrada.',
+                ]);
+            }
+
+            $hasReturns = SalesReturn::query()
+                ->where('sale_id', $order->sale_id)
+                ->whereIn('status', [SalesReturn::STATUS_REQUESTED, SalesReturn::STATUS_APPROVED, SalesReturn::STATUS_PROCESSED])
+                ->exists();
+            if ($hasReturns) {
+                throw ValidationException::withMessages([
+                    'pos_order_id' => 'La venta tiene devoluciones registradas. Gestiona la mercancía restante con una devolución; un reverso duplicaría el reembolso y el stock.',
                 ]);
             }
 
@@ -74,7 +91,20 @@ class SaleReversalService
             $capturedPayments = $order->payments
                 ->where('status', PosPayment::STATUS_CAPTURED)
                 ->values();
-            if ($capturedPayments->isEmpty()) {
+            $receivable = AccountsReceivable::query()
+                ->where('sale_id', $order->sale_id)
+                ->lockForUpdate()
+                ->first();
+            // Los cobros POS se reflejan en la CxC como pagos espejo POS-PAYMENT-*:
+            // ya se reembolsan como pagos POS, solo se agregan los cobros posteriores.
+            $receivableCollections = $receivable
+                ? AccountsReceivablePayment::query()
+                    ->where('accounts_receivable_id', $receivable->id)
+                    ->where(fn ($query) => $query->whereNull('reference')->orWhere('reference', 'not like', 'POS-PAYMENT-%'))
+                    ->get()
+                : collect();
+
+            if ($capturedPayments->isEmpty() && ! $receivable) {
                 throw ValidationException::withMessages([
                     'payments' => 'La venta no tiene pagos capturados para revertir.',
                 ]);
@@ -86,6 +116,8 @@ class SaleReversalService
                     [PosPayment::METHOD_CASH, PosPayment::METHOD_CUSTOMER_CREDIT],
                     true,
                 )
+            ) || $receivableCollections->contains(
+                fn (AccountsReceivablePayment $payment): bool => $payment->method !== PosPayment::METHOD_CASH
             );
             $refundReference = trim((string) ($data['refund_reference'] ?? ''));
             if ($hasExternalPayment && $refundReference === '') {
@@ -104,8 +136,16 @@ class SaleReversalService
                 'refund_reference' => $hasExternalPayment ? $refundReference : null,
                 'original_paid_at' => $paidAt,
                 'effective_at' => now(),
-                'reversed_base_amount' => $capturedPayments->sum(fn (PosPayment $payment): float => (float) $payment->amount_base),
-                'reversed_local_amount' => $capturedPayments->sum(fn (PosPayment $payment): float => (float) $payment->amount_local),
+                'reversed_base_amount' => round(
+                    $capturedPayments->sum(fn (PosPayment $payment): float => (float) $payment->amount_base)
+                    + $receivableCollections->sum(fn (AccountsReceivablePayment $payment): float => (float) $payment->amount_base),
+                    4
+                ),
+                'reversed_local_amount' => round(
+                    $capturedPayments->sum(fn (PosPayment $payment): float => (float) $payment->amount_local)
+                    + $receivableCollections->sum(fn (AccountsReceivablePayment $payment): float => (float) $payment->amount_local),
+                    4
+                ),
             ]);
 
             foreach ($order->sale->items as $item) {
@@ -176,8 +216,19 @@ class SaleReversalService
                 );
             }
 
+            foreach ($receivableCollections as $payment) {
+                $this->cashRegister->recordReceivablePaymentReversal(
+                    $session,
+                    $payment,
+                    $reversal,
+                    $user,
+                    $payment->method === PosPayment::METHOD_CASH ? null : $refundReference,
+                );
+            }
+
             $order->update(['status' => PosOrder::STATUS_VOIDED]);
             $order->sale->update(['status' => Sale::STATUS_VOIDED]);
+            app(AccountsReceivableService::class)->voidForReversedSale($order->sale);
             $this->commissions->reversePosOrder($order, $reversal->id);
             $this->recordSyncEvent($reversal->refresh()->load('sale', 'posOrder'));
 

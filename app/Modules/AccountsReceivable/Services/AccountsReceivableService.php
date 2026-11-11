@@ -10,6 +10,7 @@ use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Commissions\Services\CommissionLedgerService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Customers\Models\CustomerCreditTransaction;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
@@ -84,12 +85,41 @@ class AccountsReceivableService
         });
     }
 
+    /**
+     * La venta reversada ya no genera deuda: la cuenta queda anulada con saldo
+     * cero. Los cobros previos se reembolsan en el reverso.
+     */
+    public function voidForReversedSale(Sale $sale): ?AccountsReceivable
+    {
+        $account = AccountsReceivable::query()
+            ->where('sale_id', $sale->id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $account) {
+            return null;
+        }
+
+        $account->status = AccountsReceivable::STATUS_VOIDED;
+        $account->balance_base_amount = 0;
+        $account->balance_local_amount = 0;
+        $account->save();
+
+        return $account->refresh();
+    }
+
     public function registerPayment(AccountsReceivable $account, User $user, array $data): AccountsReceivablePayment
     {
         return DB::transaction(function () use ($account, $user, $data): AccountsReceivablePayment {
             $account = AccountsReceivable::query()
                 ->lockForUpdate()
                 ->findOrFail($account->id);
+
+            if ($account->status === AccountsReceivable::STATUS_VOIDED) {
+                throw ValidationException::withMessages([
+                    'amount' => 'La cuenta por cobrar esta anulada porque la venta fue reversada.',
+                ]);
+            }
 
             if ((float) $account->balance_base_amount <= 0.0) {
                 throw ValidationException::withMessages([
@@ -303,7 +333,41 @@ class AccountsReceivableService
             }
         }
 
-        return [round($returnedBase, 4), round($returnedLocal, 4)];
+        // Lo reembolsado (efectivo o saldo a favor) ya salio de lo cobrado: solo
+        // el resto de la devolucion reduce la deuda de la venta.
+        [$refundedBase, $refundedLocal] = $this->refundedTotalsForReturns($returns->pluck('id')->all());
+
+        return [
+            round(max(0.0, $returnedBase - $refundedBase), 4),
+            round(max(0.0, $returnedLocal - $refundedLocal), 4),
+        ];
+    }
+
+    /**
+     * @param  array<int, int>  $returnIds
+     * @return array{0: float, 1: float}
+     */
+    public function refundedTotalsForReturns(array $returnIds): array
+    {
+        if ($returnIds === []) {
+            return [0.0, 0.0];
+        }
+
+        $cash = SalesReturn::query()
+            ->whereIn('id', $returnIds)
+            ->selectRaw('COALESCE(SUM(refund_amount_base), 0) as base, COALESCE(SUM(refund_amount_local), 0) as local')
+            ->first();
+        $credit = CustomerCreditTransaction::query()
+            ->where('type', CustomerCreditTransaction::TYPE_ISSUED)
+            ->where('source_type', SalesReturn::class)
+            ->whereIn('source_id', $returnIds)
+            ->selectRaw('COALESCE(SUM(amount_base), 0) as base, COALESCE(SUM(amount_local), 0) as local')
+            ->first();
+
+        return [
+            round((float) $cash->base + (float) $credit->base, 4),
+            round((float) $cash->local + (float) $credit->local, 4),
+        ];
     }
 
     private function returnBaseAmount($saleItem, float $quantity): float
@@ -340,6 +404,13 @@ class AccountsReceivableService
 
     private function recalculate(AccountsReceivable $account): void
     {
+        if ($account->status === AccountsReceivable::STATUS_VOIDED) {
+            $account->balance_base_amount = 0;
+            $account->balance_local_amount = 0;
+
+            return;
+        }
+
         // Si el saldo queda por debajo de un centavo (redondeo del POS vs el
         // total exacto con mas decimales), se considera saldado.
         $baseBalance = round(
