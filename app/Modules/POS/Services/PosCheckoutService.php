@@ -199,6 +199,8 @@ class PosCheckoutService
                     }
                 }
 
+                $this->assertNotOverpaid($paidBase, (float) $sale->total_base_amount);
+
                 $order->update([
                     'paid_base_amount' => round($paidBase, 4),
                     'paid_local_amount' => round($paidLocal, 4),
@@ -492,6 +494,8 @@ class PosCheckoutService
                 $paidLocal = (float) $order->payments
                     ->where('status', PosPayment::STATUS_CAPTURED)
                     ->sum(fn (PosPayment $payment) => (float) ($payment->amount_local ?? 0));
+
+                $this->assertNotOverpaid($paidBase, (float) $order->total_base_amount);
 
                 $order->update([
                     'paid_base_amount' => round($paidBase, 4),
@@ -1090,6 +1094,27 @@ class PosCheckoutService
             ->where('is_active', true)
             ->latest('effective_at')
             ->first();
+    }
+
+    /**
+     * La caja solo registra lo aplicado a la venta: un cobro por encima del
+     * total inflaria el efectivo esperado (el vuelto se contaba como ingreso)
+     * o duplicaria cobros electronicos.
+     */
+    private function assertNotOverpaid(float $paidBase, float $totalBase): void
+    {
+        if (round($paidBase, 4) <= round($totalBase, 4) + 0.01) {
+            return;
+        }
+
+        $paid = number_format($paidBase, 2, '.', ',');
+        $total = number_format($totalBase, 2, '.', ',');
+
+        throw ValidationException::withMessages([
+            'payments' => "El monto cobrado (\${$paid}) supera el total de la venta (\${$total}). "
+                .'Registra en cada pago solo lo que se aplica a la venta. Si el cliente entregó más efectivo, '
+                ."anótalo en 'Recibido' y el sistema calcula el vuelto.",
+        ]);
     }
 
     private function coversTotal(float $paidBase, float $totalBase): bool

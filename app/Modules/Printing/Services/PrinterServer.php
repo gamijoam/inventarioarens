@@ -540,9 +540,30 @@ class PrinterServer
             $lines[] = 'Sin pagos registrados.';
         }
 
+        if (! empty($ticket['refunds'])) {
+            $lines[] = str_repeat('-', $max);
+            $lines[] = 'Reembolsos';
+            foreach ($ticket['refunds'] as $refund) {
+                $currency = (string) ($refund['currency'] ?? 'USD');
+                $amount = $currency === 'VES'
+                    ? $bs((float) ($refund['amount_local'] ?? 0))
+                    : $money((float) ($refund['amount_base'] ?? 0));
+                $lines[] = ($refund['name'] ?? $refund['method'] ?? 'Reembolso').': -'.$amount;
+            }
+        }
+
         $lines[] = str_repeat('-', $max);
+        if (array_key_exists('expected_cash_usd', $totals)) {
+            $lines[] = 'Esperado ef. USD: '.$money((float) $totals['expected_cash_usd']);
+            $lines[] = 'Contado ef. USD: '.$money((float) ($totals['counted_cash_usd'] ?? 0));
+            $lines[] = 'Esperado ef. Bs: '.$bs((float) ($totals['expected_cash_ves'] ?? 0));
+            $lines[] = 'Contado ef. Bs: '.$bs((float) ($totals['counted_cash_ves'] ?? 0));
+        }
         $lines[] = 'Dif efectivo USD: '.$money((float) ($totals['difference_cash_usd'] ?? 0));
         $lines[] = 'Dif efectivo VES: '.$bs((float) ($totals['difference_cash_ves'] ?? 0));
+        if (array_key_exists('non_cash_collected_base_amount', $totals)) {
+            $lines[] = 'No efectivo: '.$money((float) $totals['non_cash_collected_base_amount']);
+        }
 
         $footer = (string) ($profile['footer_text'] ?? '');
         if ($footer !== '') {

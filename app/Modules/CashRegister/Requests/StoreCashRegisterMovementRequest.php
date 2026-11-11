@@ -40,7 +40,9 @@ class StoreCashRegisterMovementRequest extends FormRequest
                 'size:3',
                 Rule::in([Product::CURRENCY_USD, Product::CURRENCY_VES]),
             ],
-            'amount' => ['required', 'numeric', 'gt:0'],
+            'amount' => $this->input('type') === CashRegisterMovement::TYPE_ADJUSTMENT
+                ? ['required', 'numeric', 'not_in:0']
+                : ['required', 'numeric', 'gt:0'],
             'exchange_rate_type_id' => [
                 'nullable',
                 'integer',

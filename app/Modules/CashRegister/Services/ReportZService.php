@@ -2,14 +2,19 @@
 
 namespace App\Modules\CashRegister\Services;
 
+use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
+use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\CashRegister\Models\CashRegister;
+use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Printing\Models\PrintProfile;
+use App\Modules\SalesReturns\Models\SalesReturn;
 use App\Modules\SalesReversals\Models\SaleReversal;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Tenancy\Services\CompanySettings;
+use App\Modules\Warranties\Models\WarrantyClaim;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
@@ -18,6 +23,16 @@ use Barryvdh\DomPDF\Facade\Pdf;
  */
 class ReportZService
 {
+    private const METHOD_LABELS = [
+        CashRegisterMovement::METHOD_CASH => 'Efectivo',
+        CashRegisterMovement::METHOD_CARD => 'Tarjeta',
+        CashRegisterMovement::METHOD_MOBILE_PAYMENT => 'Pago movil',
+        CashRegisterMovement::METHOD_TRANSFER => 'Transferencia',
+        CashRegisterMovement::METHOD_ZELLE => 'Zelle',
+        CashRegisterMovement::METHOD_EXTERNAL_FINANCING => 'Financiamiento',
+        CashRegisterMovement::METHOD_OTHER => 'Otro',
+    ];
+
     public function assignZNumber(CashRegisterSession $session): void
     {
         if ($session->z_number !== null) {
@@ -56,13 +71,14 @@ class ReportZService
             'cashRegister',
             'cashier',
             'counts',
+            'movements',
             'posOrders.payments.paymentMethod',
             'posOrders.customer',
             'posOrders.sale.items.product.categories',
         ]);
 
         $paidOrders = $session->posOrders->whereIn('status', [PosOrder::STATUS_PAID, PosOrder::STATUS_VOIDED]);
-        $payments = $paidOrders->flatMap->payments->where('status', PosPayment::STATUS_CAPTURED);
+        $cashFlow = $this->cashFlow($session);
         $reversals = SaleReversal::query()
             ->where('cash_register_session_id', $session->id)
             ->get();
@@ -233,20 +249,17 @@ class ReportZService
                 'difference_local_amount' => round((float) ($session->difference_local_amount ?? 0), 4),
                 'difference_cash_usd' => round((float) ($session->difference_cash_usd ?? 0), 4),
                 'difference_cash_ves' => round((float) ($session->difference_cash_ves ?? 0), 4),
+                'expected_cash_usd' => round((float) ($session->expected_cash_usd ?? 0), 4),
+                'expected_cash_ves' => round((float) ($session->expected_cash_ves ?? 0), 4),
+                'counted_cash_usd' => round((float) ($session->counted_cash_usd ?? 0), 4),
+                'counted_cash_ves' => round((float) ($session->counted_cash_ves ?? 0), 4),
+                'collected_base_amount' => $cashFlow['collected_base_amount'],
+                'collected_local_amount' => $cashFlow['collected_local_amount'],
+                'non_cash_collected_base_amount' => $cashFlow['non_cash_collected_base_amount'],
             ],
-            'payments' => $payments
-                ->groupBy(fn (PosPayment $payment): string => ($payment->paymentMethod?->name ?? $payment->method).'|'.$payment->currency)
-                ->map(fn ($group) => [
-                    'name' => $group->first()->paymentMethod?->name ?? $group->first()->method,
-                    'method' => $group->first()->method,
-                    'currency' => $group->first()->currency,
-                    'payments_count' => $group->count(),
-                    'amount_base' => round((float) $group->sum('amount_base'), 4),
-                    'amount_local' => round((float) $group->sum('amount_local'), 4),
-                    'exchange_rate' => $group->first()->exchange_rate ? round((float) $group->first()->exchange_rate, 6) : null,
-                ])
-                ->values()
-                ->all(),
+            'payments' => $cashFlow['payments'],
+            'refunds' => $cashFlow['refunds'],
+            'other_movements' => $cashFlow['other_movements'],
             'counts' => $session->counts->map(fn ($count) => [
                 'currency' => $count->currency,
                 'denomination' => $count->denomination,
@@ -256,6 +269,108 @@ class ReportZService
             'categories' => $categories,
             'customers' => $customers,
         ];
+    }
+
+    /**
+     * Cobros, reembolsos y demas movimientos tomados de la gaveta de ESTE turno.
+     * Un abono cobrado en otro turno pertenece al Z de ese otro turno aunque la
+     * venta se haya completado aqui.
+     *
+     * @return array{payments: array<int, array<string, mixed>>, refunds: array<int, array<string, mixed>>, other_movements: array<int, array<string, mixed>>, collected_base_amount: float, collected_local_amount: float, non_cash_collected_base_amount: float}
+     */
+    private function cashFlow(CashRegisterSession $session): array
+    {
+        $movements = $session->movements;
+        $posPaymentIds = $movements
+            ->where('type', CashRegisterMovement::TYPE_POS_PAYMENT)
+            ->where('source_type', PosPayment::class)
+            ->pluck('source_id')
+            ->filter()
+            ->all();
+        $methodNames = PosPayment::query()
+            ->with('paymentMethod:id,name')
+            ->whereIn('id', $posPaymentIds)
+            ->get()
+            ->mapWithKeys(fn (PosPayment $payment): array => [$payment->id => $payment->paymentMethod?->name])
+            ->all();
+
+        $collections = $movements->where('type', CashRegisterMovement::TYPE_POS_PAYMENT);
+        $refunds = $movements->filter(fn (CashRegisterMovement $movement): bool => $this->isRefund($movement));
+        $others = $movements->reject(
+            fn (CashRegisterMovement $movement): bool => $movement->type === CashRegisterMovement::TYPE_POS_PAYMENT || $this->isRefund($movement)
+        );
+
+        $group = fn ($items, callable $name) => $items
+            ->groupBy(fn (CashRegisterMovement $movement): string => $name($movement).'|'.$movement->currency)
+            ->map(fn ($rows) => [
+                'name' => $name($rows->first()),
+                'method' => $rows->first()->method,
+                'currency' => $rows->first()->currency,
+                'payments_count' => $rows->count(),
+                'amount' => round((float) $rows->sum('amount'), 4),
+                'amount_base' => round((float) $rows->sum('amount_base'), 4),
+                'amount_local' => round((float) $rows->sum(fn ($row) => (float) ($row->amount_local ?? 0)), 4),
+                'exchange_rate' => $rows->first()->exchange_rate ? round((float) $rows->first()->exchange_rate, 6) : null,
+            ])
+            ->values()
+            ->all();
+
+        $methodName = fn (CashRegisterMovement $movement): string => ($movement->source_type === PosPayment::class
+            ? ($methodNames[$movement->source_id] ?? null)
+            : null) ?? self::METHOD_LABELS[$movement->method] ?? (string) $movement->method;
+
+        $otherMovements = $others
+            ->groupBy(fn (CashRegisterMovement $movement): string => $this->movementLabel($movement).'|'.$movement->method.'|'.$movement->currency)
+            ->map(function ($rows): array {
+                $first = $rows->first();
+                $sign = $first->type === CashRegisterMovement::TYPE_OUTFLOW ? -1 : 1;
+
+                return [
+                    'type' => $first->type,
+                    'label' => $this->movementLabel($first),
+                    'method' => $first->method,
+                    'currency' => $first->currency,
+                    'count' => $rows->count(),
+                    'amount' => round($sign * (float) $rows->sum('amount'), 4),
+                    'amount_base' => round($sign * (float) $rows->sum('amount_base'), 4),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $nonCash = fn ($items) => (float) $items->where('method', '!=', CashRegisterMovement::METHOD_CASH)->sum('amount_base');
+
+        return [
+            'payments' => $group($collections, $methodName),
+            'refunds' => $group($refunds, $methodName),
+            'other_movements' => $otherMovements,
+            'collected_base_amount' => round((float) $collections->sum('amount_base') - (float) $refunds->sum('amount_base'), 4),
+            'collected_local_amount' => round(
+                (float) $collections->sum(fn ($row) => (float) ($row->amount_local ?? 0))
+                - (float) $refunds->sum(fn ($row) => (float) ($row->amount_local ?? 0)),
+                4
+            ),
+            'non_cash_collected_base_amount' => round($nonCash($collections) - $nonCash($refunds), 4),
+        ];
+    }
+
+    private function isRefund(CashRegisterMovement $movement): bool
+    {
+        return $movement->type === CashRegisterMovement::TYPE_OUTFLOW
+            && in_array($movement->source_type, ['sale_reversal', SalesReturn::class, WarrantyClaim::class], true);
+    }
+
+    private function movementLabel(CashRegisterMovement $movement): string
+    {
+        return match (true) {
+            $movement->type === CashRegisterMovement::TYPE_OPENING => 'Fondo de apertura',
+            $movement->source_type === AccountsReceivablePayment::class => 'Cobros de cuentas por cobrar',
+            $movement->source_type === AccountsPayablePayment::class => 'Pagos a proveedores',
+            $movement->type === CashRegisterMovement::TYPE_ADJUSTMENT => 'Ajustes',
+            $movement->type === CashRegisterMovement::TYPE_INFLOW => 'Entradas manuales',
+            $movement->type === CashRegisterMovement::TYPE_OUTFLOW => 'Salidas manuales',
+            default => (string) $movement->type,
+        };
     }
 
     public function renderHtml(CashRegisterSession $session): string

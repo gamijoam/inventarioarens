@@ -35,6 +35,8 @@ class CloseCashRegisterSessionRequest extends FormRequest
             ],
             'closing_notes' => ['nullable', 'string', 'min:3'],
             'counting_mode' => ['nullable', 'string', Rule::in([CashRegisterSession::COUNTING_STANDARD, CashRegisterSession::COUNTING_BLIND])],
+            'confirm_zero_count' => ['sometimes', 'boolean'],
+            'confirm_open_orders' => ['sometimes', 'boolean'],
         ];
     }
 

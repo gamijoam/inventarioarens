@@ -147,4 +147,68 @@ class CashSessionSyncTest extends TestCase
             'difference_base_amount' => 2.0,
         ]);
     }
+
+    public function test_applier_replicates_cash_movement_into_replicated_session_once(): void
+    {
+        [$tenant, $cashier, $branch] = $this->setupTenant();
+        $sessionPayload = [
+            'session_id' => 77,
+            'source_node_code' => 'POS-LOCAL-1',
+            'branch_code' => 'SUC-1',
+            'cashier_email' => 'cajero.caja@test.test',
+            'opened_by_email' => 'cajero.caja@test.test',
+            'status' => 'open',
+            'opening_base_amount' => '0.0000',
+            'opening_local_amount' => '0.0000',
+            'expected_base_amount' => '0.0000',
+            'expected_local_amount' => '0.0000',
+            'opened_at' => now()->toJSON(),
+        ];
+        $movementPayload = [
+            'movement_id' => 501,
+            'session_id' => 77,
+            'source_node_code' => 'POS-LOCAL-1',
+            'type' => 'pos_payment',
+            'method' => 'cash',
+            'currency' => 'USD',
+            'amount' => '25.0000',
+            'amount_base' => '25.0000',
+            'amount_local' => null,
+            'source_type' => 'App\\Modules\\POS\\Models\\PosPayment',
+            'reference' => null,
+            'notes' => 'Pago POS #9',
+            'created_by_email' => 'cajero.caja@test.test',
+            'created_at' => now()->subMinutes(5)->toJSON(),
+        ];
+
+        // El movimiento llega antes que la sesion: falla y queda para reproceso.
+        $this->enqueueEvent($tenant->id, 'cash.movement.recorded', $movementPayload, 501);
+        $first = app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, $first['failed']);
+        $this->assertDatabaseCount('cash_register_movements', 0);
+
+        $this->enqueueEvent($tenant->id, 'cash.session.opened', $sessionPayload, 77);
+        app(SyncEventApplier::class)->applyPending($tenant, 10);
+        app(SyncEventApplier::class)->applyPending($tenant, 10);
+
+        $sessionId = DB::table('cash_register_sessions')->where('sync_source_id', 77)->value('id');
+        $this->assertDatabaseHas('cash_register_movements', [
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $sessionId,
+            'sync_source_node_code' => 'POS-LOCAL-1',
+            'sync_source_id' => 501,
+            'type' => 'pos_payment',
+            'method' => 'cash',
+            'amount' => 25.0,
+            'created_by' => $cashier->id,
+        ]);
+        $movement = DB::table('cash_register_movements')->where('sync_source_id', 501)->first();
+        $this->assertNotNull($movement->created_at);
+        $this->assertNotNull($movement->updated_at);
+
+        // Reenvio del mismo movimiento (otro event_uuid): no se duplica.
+        $this->enqueueEvent($tenant->id, 'cash.movement.recorded', $movementPayload, 501);
+        app(SyncEventApplier::class)->applyPending($tenant, 10);
+        $this->assertSame(1, DB::table('cash_register_movements')->where('sync_source_id', 501)->count());
+    }
 }

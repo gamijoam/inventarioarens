@@ -90,6 +90,7 @@ class SyncEventApplier
         'purchase_return.created',
         'cash.session.opened',
         'cash.session.closed',
+        'cash.movement.recorded',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -170,6 +171,7 @@ class SyncEventApplier
         'purchase_return.created',
         'cash.session.opened',
         'cash.session.closed',
+        'cash.movement.recorded',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -312,6 +314,7 @@ class SyncEventApplier
                 'purchase_order.received' => $this->applyPurchaseOrderReceived($tenant, $payload),
                 'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
                 'cash.session.opened', 'cash.session.closed' => $this->applyCashSession($tenant, $payload, $event),
+                'cash.movement.recorded' => $this->applyCashMovement($tenant, $payload, $event),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
                 'tenant_settings.updated' => $this->applyTenantSettings($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
@@ -2884,6 +2887,75 @@ class SyncEventApplier
                 'updated_at' => $now,
             ]
         );
+
+        return 'applied';
+    }
+
+    /**
+     * Aplica `cash.movement.recorded`: replica el movimiento en la sesion ya
+     * replicada del mismo nodo. Si la sesion aun no llego, falla para que el
+     * evento se reprocese en el siguiente ciclo.
+     */
+    private function applyCashMovement(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceMovementId = (int) ($payload['movement_id'] ?? $event['aggregate_id'] ?? 0);
+        $sourceSessionId = (int) ($payload['session_id'] ?? 0);
+
+        if ($sourceMovementId <= 0 || $sourceSessionId <= 0) {
+            return 'ignored';
+        }
+
+        $sessionId = DB::table('cash_register_sessions')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->where('sync_source_id', $sourceSessionId)
+            ->value('id');
+
+        if (! $sessionId) {
+            throw new RuntimeException("La sesion de caja {$sourceSessionId} del nodo {$sourceNodeCode} aun no se ha replicado.");
+        }
+
+        $rateTypeCode = $this->nullableString($payload['exchange_rate_type_code'] ?? null);
+        $rateTypeId = $rateTypeCode === null ? null : DB::table('exchange_rate_types')
+            ->where('tenant_id', $tenant->id)
+            ->where('code', $rateTypeCode)
+            ->value('id');
+        $now = now();
+
+        $keys = [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => $sourceNodeCode,
+            'sync_source_id' => $sourceMovementId,
+        ];
+
+        if (DB::table('cash_register_movements')->where($keys)->exists()) {
+            return 'applied';
+        }
+
+        // Append-only: el movimiento se inserta una sola vez con su fecha original.
+        DB::table('cash_register_movements')->insert(array_merge(
+            $keys,
+            [
+                'cash_register_session_id' => $sessionId,
+                'type' => $this->requiredString($payload, 'type'),
+                'method' => $this->nullableString($payload['method'] ?? null),
+                'currency' => $this->requiredString($payload, 'currency'),
+                'amount' => $payload['amount'] ?? 0,
+                'amount_base' => $payload['amount_base'] ?? 0,
+                'amount_local' => $this->nullableString($payload['amount_local'] ?? null),
+                'exchange_rate_type_id' => $rateTypeId,
+                'exchange_rate_type_code' => $rateTypeCode,
+                'exchange_rate' => $this->nullableString($payload['exchange_rate'] ?? null),
+                'source_type' => $this->nullableString($payload['source_type'] ?? null),
+                'source_id' => null,
+                'reference' => $this->nullableString($payload['reference'] ?? null),
+                'notes' => $this->nullableString($payload['notes'] ?? null),
+                'created_by' => $this->userIdByEmail($tenant, $payload['created_by_email'] ?? null),
+                'created_at' => $this->nullableDate($payload['created_at'] ?? null) ?? $now,
+                'updated_at' => $now,
+            ]
+        ));
 
         return 'applied';
     }

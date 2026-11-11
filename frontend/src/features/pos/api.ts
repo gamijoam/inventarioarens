@@ -487,6 +487,8 @@ export interface CloseCashSessionPayload {
   exchange_rate_type_id?: number | null;
   closing_notes?: string | null;
   counting_mode?: 'standard' | 'blind';
+  confirm_zero_count?: boolean;
+  confirm_open_orders?: boolean;
 }
 
 export interface CreateBranchPayload {

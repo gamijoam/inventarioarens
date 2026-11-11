@@ -365,6 +365,22 @@ export function calculatePaymentTotals(payments: PosPaymentLine[], total: number
   };
 }
 
+/**
+ * El backend rechaza cobros por encima del total: la caja solo registra lo
+ * aplicado a la venta. El vuelto en efectivo se calcula con "Recibido".
+ */
+export function overpaymentIssue(payments: PosPaymentLine[], total: number): string | null {
+  const { paid } = calculatePaymentTotals(payments, total);
+  if (paid <= roundMoney(total) + 0.01) return null;
+
+  return (
+    `Los pagos suman $${paid.toFixed(2)} y el total es $${roundMoney(total).toFixed(2)}. ` +
+    'El sistema no registra cobros por encima del total. En efectivo, escribe en "Monto" solo ' +
+    'lo que se aplica a la venta y lo que entregó el cliente en "Recibido" para calcular el vuelto. ' +
+    'En otros métodos, corrige el monto o elimina el pago repetido.'
+  );
+}
+
 export function paymentBaseAmount(payment: PosPaymentLine): number {
   const amount = Math.max(0, Number(payment.amount ?? 0));
   if (payment.currency === 'VES') {

@@ -25,6 +25,7 @@ import { useUsers } from '@/features/users/api';
 import { CashRegisterCommandCenter } from './CashRegisterCommandCenter';
 import {
   type CashRegisterSession,
+  type CloseCashSessionPayload,
   useAddCashMovement,
   useBranchesForPos,
   useCashRegisters,
@@ -36,6 +37,11 @@ import {
   useExchangeRateTypesForPos,
   useOpenCashSession,
 } from './api';
+import {
+  CASH_MOVEMENT_TYPE_OPTIONS,
+  closeConfirmationRequired,
+  toCashMovementRequest,
+} from './cashRegisterControls';
 
 export interface CloseForm { sessionId: number | null; usd: string; ves: string; notes: string; blind: boolean }
 
@@ -175,10 +181,9 @@ export function CashRegisterSetup() {
       {
         sessionId: activeSession.id,
         payload: {
-          type: movementForm.type as 'inflow' | 'outflow' | 'adjustment',
+          ...toCashMovementRequest(movementForm.type, Number(movementForm.amount)),
           method: 'cash',
           currency: 'USD',
-          amount: Number(movementForm.amount),
           notes: movementForm.notes || null,
         },
       },
@@ -204,21 +209,32 @@ export function CashRegisterSetup() {
       return;
     }
 
-    closeSession.mutate(
-      {
-        sessionId: session.id,
-        payload: {
-          counted_base_amount: usd,
-          counted_local_amount: ves,
-          counted_cash_usd: usd,
-          counted_cash_ves: ves,
-          exchange_rate_type_id: ves > 0 ? activeRate?.exchange_rate_type_id : null,
-          counting_mode: closeForm.blind ? 'blind' : 'standard',
-          closing_notes: closeForm.notes.trim() || null,
+    const send = (payload: CloseCashSessionPayload): void => {
+      closeSession.mutate(
+        { sessionId: session.id, payload },
+        {
+          onSuccess: () => setCloseForm(emptyCloseForm),
+          onError: (error) => {
+            const confirmation = closeConfirmationRequired(error);
+            if (confirmation && window.confirm(`${confirmation.message}\n\n¿Cerrar el turno de todas formas?`)) {
+              send({ ...payload, [confirmation.field]: true });
+              return;
+            }
+            toast.error(errorMessage(error));
+          },
         },
-      },
-      { onSuccess: () => setCloseForm(emptyCloseForm), onError: (error) => toast.error(errorMessage(error)) },
-    );
+      );
+    };
+
+    send({
+      counted_base_amount: usd,
+      counted_local_amount: ves,
+      counted_cash_usd: usd,
+      counted_cash_ves: ves,
+      exchange_rate_type_id: ves > 0 ? activeRate?.exchange_rate_type_id : null,
+      counting_mode: closeForm.blind ? 'blind' : 'standard',
+      closing_notes: closeForm.notes.trim() || null,
+    });
   }
 
   function submitBranch(): void {
@@ -688,9 +704,11 @@ function MovementPanel({
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Tipo de movimiento">
           <Select className="min-h-11" value={form.type} onChange={(event) => onForm({ ...form, type: event.target.value })}>
-            <option value="inflow">Entrada</option>
-            <option value="outflow">Salida</option>
-            <option value="adjustment">Ajuste</option>
+            {CASH_MOVEMENT_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </Select>
         </Field>
         <Field label="Monto USD">

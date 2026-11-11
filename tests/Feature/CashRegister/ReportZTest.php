@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
@@ -229,7 +230,7 @@ class ReportZTest extends TestCase
             'paid_at' => now(),
         ]);
 
-        PosPayment::create([
+        $payment = PosPayment::create([
             'pos_order_id' => $order->id,
             'method' => PosPayment::METHOD_CASH,
             'currency' => Product::CURRENCY_USD,
@@ -238,6 +239,10 @@ class ReportZTest extends TestCase
             'amount_local' => 0,
             'status' => PosPayment::STATUS_CAPTURED,
         ]);
+
+        // En produccion todo pago POS capturado entra a la gaveta como movimiento;
+        // el Reporte Z se construye desde esos movimientos.
+        app(CashRegisterService::class)->recordPosPayment($session, $payment, $user);
     }
 
     private function branch(Tenant $tenant, string $suffix = 'MAIN'): Branch

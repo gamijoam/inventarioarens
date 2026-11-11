@@ -45,17 +45,17 @@ func TestBuildPlainTicket(t *testing.T) {
 			"slug": "arenas-principal",
 		},
 		"profile": map[string]interface{}{
-			"paper_width_mm":        80,
-			"logo_text":             "ARENAS TIENDA",
-			"header_text":           "RIF: J-12345678-9",
-			"show_tenant_slug":      true,
-			"show_sale_number":      true,
-			"show_paid_at":          true,
-			"show_cashier":          true,
-			"show_customer":         true,
-			"show_total_local":      true,
-			"show_non_fiscal_text":  true,
-			"legal_text":            "DOCUMENTO NO FISCAL",
+			"paper_width_mm":       80,
+			"logo_text":            "ARENAS TIENDA",
+			"header_text":          "RIF: J-12345678-9",
+			"show_tenant_slug":     true,
+			"show_sale_number":     true,
+			"show_paid_at":         true,
+			"show_cashier":         true,
+			"show_customer":        true,
+			"show_total_local":     true,
+			"show_non_fiscal_text": true,
+			"legal_text":           "DOCUMENTO NO FISCAL",
 		},
 		"pos_order": map[string]interface{}{
 			"id":                1001,
@@ -124,11 +124,11 @@ func TestBuildPlainReportZ(t *testing.T) {
 			"logo_text":      "MI NEGOCIO",
 		},
 		"totals": map[string]interface{}{
-			"orders_count":         15,
-			"paid_base_amount":     150.50,
-			"paid_local_amount":    6020.00,
-			"difference_cash_usd":  0.0,
-			"difference_cash_ves":  0.0,
+			"orders_count":        15,
+			"paid_base_amount":    150.50,
+			"paid_local_amount":   6020.00,
+			"difference_cash_usd": 0.0,
+			"difference_cash_ves": 0.0,
 		},
 		"payments": []interface{}{
 			map[string]interface{}{
@@ -156,6 +156,50 @@ func TestBuildPlainReportZ(t *testing.T) {
 	}
 
 	for _, str := range mustContain {
+		if !strings.Contains(result, str) {
+			t.Errorf("BuildPlainReportZ() missing substring %q\nFull output:\n%s", str, result)
+		}
+	}
+
+	if strings.Contains(result, "Esperado ef. USD") {
+		t.Errorf("payload viejo sin expected_cash_usd no debe imprimir arqueo detallado:\n%s", result)
+	}
+}
+
+func TestBuildPlainReportZCashReconciliationAndRefunds(t *testing.T) {
+	ticket := map[string]interface{}{
+		"z_number": 7,
+		"profile":  map[string]interface{}{"paper_width_mm": 80},
+		"totals": map[string]interface{}{
+			"orders_count":                   2,
+			"paid_base_amount":               200.0,
+			"paid_local_amount":              0.0,
+			"expected_cash_usd":              95.0,
+			"counted_cash_usd":               90.0,
+			"expected_cash_ves":              1000.0,
+			"counted_cash_ves":               1000.0,
+			"difference_cash_usd":            -5.0,
+			"difference_cash_ves":            0.0,
+			"non_cash_collected_base_amount": 100.0,
+		},
+		"payments": []interface{}{},
+		"refunds": []interface{}{
+			map[string]interface{}{"name": "Punto de venta", "currency": "USD", "amount_base": 30.0},
+		},
+	}
+
+	result := BuildPlainReportZ(ticket)
+
+	for _, str := range []string{
+		"Reembolsos",
+		"Punto de venta:",
+		"-$30.00",
+		"Esperado ef. USD: $95.00",
+		"Contado ef. USD: $90.00",
+		"Esperado ef. Bs: Bs 1.000,00",
+		"Dif efectivo USD: $-5.00",
+		"No efectivo: $100.00",
+	} {
 		if !strings.Contains(result, str) {
 			t.Errorf("BuildPlainReportZ() missing substring %q\nFull output:\n%s", str, result)
 		}

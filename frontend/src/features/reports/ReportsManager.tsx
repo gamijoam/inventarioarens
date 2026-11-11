@@ -608,12 +608,14 @@ function CashSessionsPanel({
             <MiniTotal label="Abiertas" value={String(data.summary.open_count)} />
             <MiniTotal label="Cerradas" value={String(data.summary.closed_count)} />
             <MiniTotal
-              label="Esperado USD"
-              value={formatMoney(data.summary.expected_base_amount)}
+              label="Efectivo USD esperado"
+              value={formatMoney(data.summary.expected_cash_usd ?? 0)}
             />
             <MiniTotal
-              label="Diferencia cerrada"
-              value={formatMoney(data.summary.difference_base_amount)}
+              label="Diferencia efectivo USD / Bs"
+              value={`${formatMoney(data.summary.difference_cash_usd ?? 0)} / Bs ${Number(
+                data.summary.difference_cash_ves ?? 0,
+              ).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             />
           </div>
           <CashSessionsTable rows={rows} />
@@ -1192,7 +1194,7 @@ function CashSessionsTable({ rows }: { rows: CashSessions['rows'] }) {
             <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div><dt className="text-xs text-text-muted">Esperado</dt><dd className="font-medium tabular-nums">{formatMoney(row.expected_base_amount)}</dd></div>
               <div><dt className="text-xs text-text-muted">Contado</dt><dd className="font-medium tabular-nums">{row.counted_base_amount == null ? 'Pendiente de cierre' : formatMoney(row.counted_base_amount)}</dd></div>
-              <div><dt className="text-xs text-text-muted">Diferencia</dt><dd className="font-medium tabular-nums">{row.difference_base_amount == null ? '—' : formatMoney(row.difference_base_amount)}</dd></div>
+              <div><dt className="text-xs text-text-muted">Diferencia</dt><dd className="font-medium tabular-nums">{cashRowDifference(row) == null ? '—' : formatMoney(cashRowDifference(row) ?? 0)}</dd></div>
               <div><dt className="text-xs text-text-muted">Apertura</dt><dd>{formatDate(row.opened_at)}</dd></div>
             </dl>
           </article>
@@ -1235,9 +1237,9 @@ function CashSessionsTable({ rows }: { rows: CashSessions['rows'] }) {
                   : formatMoney(row.counted_base_amount)}
               </td>
               <td className="px-2 py-1.5 text-right">
-                {row.difference_base_amount === null || row.difference_base_amount === undefined
+                {cashRowDifference(row) === null
                   ? 'Pendiente de cierre'
-                  : formatMoney(row.difference_base_amount)}
+                  : formatMoney(cashRowDifference(row) ?? 0)}
               </td>
               <td className="text-text-muted px-2 py-1.5">{formatDate(row.opened_at)}</td>
             </tr>
@@ -1760,4 +1762,16 @@ function flattenDaily(data: DailyOperations): Array<Record<string, unknown>> {
     },
     { indicador: 'Devoluciones solicitadas', valor: '', cantidad: data.returns.requested_count },
   ];
+}
+
+/**
+ * Diferencia fisica de efectivo USD del turno. Los cierres anteriores a la
+ * auditoria de caja guardaban en difference_base_amount una resta contra todos
+ * los metodos de pago, por eso se prioriza difference_cash_usd.
+ */
+function cashRowDifference(row: {
+  difference_cash_usd?: number | null;
+  difference_base_amount?: number | null;
+}): number | null {
+  return row.difference_cash_usd ?? row.difference_base_amount ?? null;
 }

@@ -17,6 +17,10 @@ import {
   useCashSessionsPage,
   useReviewCashSession,
 } from './api';
+import {
+  openSessionAgeWarning,
+  sessionHasCashDifference,
+} from './cashRegisterControls';
 
 type SessionStatusFilter = 'all' | 'open' | 'closed' | 'cancelled';
 
@@ -122,7 +126,8 @@ export function CashRegisterCommandCenter({
           setReviewNotes('');
           void sessionsQuery.refetch();
         },
-        onError: () => toast.error('No se pudo actualizar la revisión.'),
+        onError: (error) =>
+          toast.error(error instanceof Error && error.message ? error.message : 'No se pudo actualizar la revisión.'),
       },
     );
   }
@@ -367,6 +372,8 @@ function SessionCard({
   const expectedUsd = session.expected_cash_usd ?? session.expected_base_amount;
   const open = session.status === 'open';
   const canceled = session.status === 'cancelled';
+  const reviewNotesRequired = sessionHasCashDifference(session);
+  const ageWarning = open ? openSessionAgeWarning(session.opened_at) : null;
 
   return (
     <article className="overflow-hidden rounded-lg border border-border bg-surface">
@@ -480,7 +487,13 @@ function SessionCard({
                   Nota de revisión: {session.review_notes}
                 </p>
               )}
-              {Math.abs(Number(differenceUsd ?? 0)) >= 0.01 && (
+              {ageWarning && (
+                <p className="flex items-center gap-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs text-warning" role="status">
+                  <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+                  {ageWarning}
+                </p>
+              )}
+              {(Math.abs(Number(differenceUsd ?? 0)) >= 0.01 || Math.abs(Number(differenceVes ?? 0)) >= 0.01) && (
                 <p className="flex items-center gap-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
                   <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
                   El cierre presenta una diferencia que requiere revisión.
@@ -495,11 +508,24 @@ function SessionCard({
                       className="min-h-11"
                       value={reviewNotes}
                       onChange={(event) => onReviewNotes(event.target.value)}
-                      placeholder="Obligatoria al rechazar"
+                      placeholder={
+                        reviewNotesRequired
+                          ? 'Obligatoria: explica cómo se resolvió la diferencia'
+                          : 'Obligatoria al rechazar'
+                      }
                     />
                   </label>
+                  {reviewNotesRequired && !reviewNotes.trim() && (
+                    <p className="text-xs text-warning" role="status">
+                      Para aprobar un turno con diferencia de efectivo indica cómo se resolvió (descontado al cajero, error de conteo, depósito pendiente...).
+                    </p>
+                  )}
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button className="min-h-11 flex-1" disabled={reviewPending} onClick={() => onReview('approved')}>
+                    <Button
+                      className="min-h-11 flex-1"
+                      disabled={reviewPending || (reviewNotesRequired && !reviewNotes.trim())}
+                      onClick={() => onReview('approved')}
+                    >
                       Aprobar cierre
                     </Button>
                     <Button className="min-h-11 flex-1" variant="danger" disabled={reviewPending || !reviewNotes.trim()} onClick={() => onReview('rejected')}>

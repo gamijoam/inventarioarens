@@ -101,9 +101,44 @@ describe('ReportZDialog', () => {
     expect(screen.queryByText('Conteo')).not.toBeInTheDocument();
     expect(screen.getByText('Reporte Z #3')).toBeInTheDocument();
     expect(screen.getByText('Tickets')).toBeInTheDocument();
-    expect(screen.getByText('Total USD')).toBeInTheDocument();
+    expect(screen.getByText('Ventas USD')).toBeInTheDocument();
     expect(screen.getByText('Efectivo (USD) · 8')).toBeInTheDocument();
     expect(screen.getByText('Pago Móvil (VES) · 4')).toBeInTheDocument();
+  });
+
+  it('muestra el arqueo de efectivo por moneda, reembolsos y otros movimientos', () => {
+    mockUseReportZ.mockReturnValue({
+      data: {
+        ...zFixture,
+        totals: {
+          ...zFixture.totals,
+          expected_cash_usd: 95,
+          counted_cash_usd: 90,
+          expected_cash_ves: 1000,
+          counted_cash_ves: 1000,
+          difference_cash_usd: -5,
+          collected_base_amount: 170,
+          non_cash_collected_base_amount: 100,
+        },
+        refunds: [
+          { name: 'Punto de venta', method: 'card', currency: 'USD', payments_count: 1, amount_base: 30, amount_local: 0 },
+        ],
+        other_movements: [
+          { type: 'outflow', label: 'Salidas manuales', method: 'cash', currency: 'USD', count: 1, amount: -15, amount_base: -15 },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<ReportZDialog sessionId={5} open onOpenChange={() => undefined} />);
+
+    const reconciliation = screen.getByTestId('report-z-cash-reconciliation');
+    expect(reconciliation).toHaveTextContent('Arqueo de efectivo');
+    expect(reconciliation).toHaveTextContent('Cobros no efectivo (no se cuentan)');
+    expect(screen.getByText('Punto de venta (USD) · 1')).toBeInTheDocument();
+    expect(screen.getByText('Salidas manuales (USD) · 1')).toBeInTheDocument();
+    expect(screen.getByText('Cobrado en esta caja')).toBeInTheDocument();
   });
 
   it('muestra los botones de impresion y descarga', () => {

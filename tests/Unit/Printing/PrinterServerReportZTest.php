@@ -73,4 +73,37 @@ class PrinterServerReportZTest extends TestCase
 
         $this->assertStringContainsString('Sin pagos registrados.', $text);
     }
+
+    public function test_build_plain_report_z_prints_cash_reconciliation_and_refunds(): void
+    {
+        $z = $this->sampleZ();
+        $z['profile']['paper_width_mm'] = 80;
+        $z['totals'] = array_merge($z['totals'], [
+            'expected_cash_usd' => 95,
+            'counted_cash_usd' => 90,
+            'expected_cash_ves' => 1000,
+            'counted_cash_ves' => 1000,
+            'difference_cash_usd' => -5,
+            'difference_cash_ves' => 0,
+            'non_cash_collected_base_amount' => 100,
+        ]);
+        $z['refunds'] = [['name' => 'Punto de venta', 'currency' => 'USD', 'amount_base' => 30]];
+
+        $text = $this->server->buildPlainReportZ($z);
+
+        $this->assertStringContainsString('Reembolsos', $text);
+        $this->assertStringContainsString('Punto de venta: -$30.00', $text);
+        $this->assertStringContainsString('Esperado ef. USD: $95.00', $text);
+        $this->assertStringContainsString('Contado ef. USD: $90.00', $text);
+        $this->assertStringContainsString('Esperado ef. Bs: Bs 1.000,00', $text);
+        $this->assertStringContainsString('No efectivo: $100.00', $text);
+    }
+
+    public function test_build_plain_report_z_keeps_legacy_payload_without_reconciliation(): void
+    {
+        $text = $this->server->buildPlainReportZ($this->sampleZ());
+
+        $this->assertStringNotContainsString('Esperado ef. USD', $text);
+        $this->assertStringContainsString('Dif efectivo USD', $text);
+    }
 }

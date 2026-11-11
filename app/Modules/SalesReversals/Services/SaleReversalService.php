@@ -165,11 +165,15 @@ class SaleReversalService
                     continue;
                 }
 
-                if ($payment->method !== PosPayment::METHOD_CASH) {
-                    continue;
-                }
-
-                $this->cashRegister->recordSaleReversal($session, $payment, $reversal, $user);
+                // Los reembolsos externos (punto, pago movil, transferencia...) no salen
+                // de la gaveta, pero si deben descontarse del total movido del turno.
+                $this->cashRegister->recordSaleReversal(
+                    $session,
+                    $payment,
+                    $reversal,
+                    $user,
+                    $payment->method === PosPayment::METHOD_CASH ? null : $refundReference,
+                );
             }
 
             $order->update(['status' => PosOrder::STATUS_VOIDED]);

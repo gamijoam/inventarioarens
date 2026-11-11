@@ -520,6 +520,14 @@ subject_type, subject_id) en 24h no se duplica.
 - El equivalente USD de una venta VES usa el snapshot almacenado en la linea/pago. Nunca consultar la tasa actual para modificar historicos.
 - Contrato inicial: `GET /api/commissions/control`; detalle y reglas en `docs/COMISIONES_V2_CONTROL_DINAMICO.md`.
 
+### 8.6.2 Caja: arqueo y cierre (auditoria 2026-11-11)
+- Un cobro POS nunca supera el total de la venta; el vuelto no se registra como ingreso.
+- El arqueo es efectivo contra efectivo por moneda (`difference_cash_usd`, `difference_cash_ves`);
+  `difference_base_amount` es solo la equivalencia USD de esas diferencias a la tasa del cierre.
+- El Reporte Z se construye desde `cash_register_movements` del turno, no desde las ordenes.
+- Todo movimiento de caja se crea via `CashRegisterService` (emite `cash.movement.recorded`).
+- Detalle en `docs/AUDITORIA_CAJA_ARQUEO_2026-11-11.md`.
+
 ### 8.7 Estilo
 - Pint 1.27 (`vendor/bin/pint` antes de commit).
 - No emojis en código a menos que el usuario lo pida.
