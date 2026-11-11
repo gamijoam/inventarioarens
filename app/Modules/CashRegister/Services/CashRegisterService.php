@@ -445,6 +445,45 @@ class CashRegisterService
         });
     }
 
+    /**
+     * Reembolso de un cobro hecho por cuentas por cobrar cuando la venta se
+     * reversa. Conserva la moneda, el metodo y la tasa del cobro original.
+     */
+    public function recordReceivablePaymentReversal(
+        CashRegisterSession $session,
+        AccountsReceivablePayment $payment,
+        SaleReversal $reversal,
+        User $operator,
+        ?string $reference = null,
+    ): CashRegisterMovement {
+        return DB::transaction(function () use ($session, $payment, $reversal, $operator, $reference): CashRegisterMovement {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+            $this->assertOpen($session);
+            $this->assertOperatorCanOperate($session, $operator);
+
+            $movement = $this->persistMovement([
+                'cash_register_session_id' => $session->id,
+                'type' => CashRegisterMovement::TYPE_OUTFLOW,
+                'method' => $payment->method ?: CashRegisterMovement::METHOD_OTHER,
+                'currency' => $payment->payment_currency,
+                'amount' => $payment->amount,
+                'amount_base' => $payment->amount_base,
+                'amount_local' => $payment->amount_local,
+                'exchange_rate_type_id' => $payment->exchange_rate_type_id,
+                'exchange_rate_type_code' => $payment->exchange_rate_type_code,
+                'exchange_rate' => $payment->exchange_rate,
+                'source_type' => 'sale_reversal',
+                'source_id' => $reversal->id,
+                'reference' => $reference ?: "REV-{$reversal->id}",
+                'notes' => "Reembolso de cobro CxC #{$payment->id} por reversion de venta #{$reversal->sale_id}",
+                'created_by' => $operator->id,
+            ]);
+            $this->recalculateExpectedTotals($session);
+
+            return $movement->refresh();
+        });
+    }
+
     public function previewAmount(array $data): array
     {
         return $this->resolveAmount($data);
