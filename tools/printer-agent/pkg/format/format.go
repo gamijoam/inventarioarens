@@ -525,9 +525,39 @@ func BuildPlainReportZ(ticket map[string]interface{}) string {
 		}
 	}
 
+	refunds := getSlice(ticket, "refunds")
+	if len(refunds) > 0 {
+		lines = append(lines, strings.Repeat("-", max))
+		lines = append(lines, "Reembolsos")
+		for _, rRaw := range refunds {
+			if r, ok := rRaw.(map[string]interface{}); ok {
+				rName := getString(r, "name")
+				if rName == "" {
+					rName = "Reembolso"
+				}
+				var amtStr string
+				if getString(r, "currency") == "VES" {
+					amtStr = formatVES(getFloat(r, "amount_local"))
+				} else {
+					amtStr = formatUSD(getFloat(r, "amount_base"))
+				}
+				lines = append(lines, justify(rName+":", "-"+amtStr, max))
+			}
+		}
+	}
+
 	lines = append(lines, strings.Repeat("-", max))
+	if _, ok := totals["expected_cash_usd"]; ok {
+		lines = append(lines, fmt.Sprintf("Esperado ef. USD: %s", formatUSD(getFloat(totals, "expected_cash_usd"))))
+		lines = append(lines, fmt.Sprintf("Contado ef. USD: %s", formatUSD(getFloat(totals, "counted_cash_usd"))))
+		lines = append(lines, fmt.Sprintf("Esperado ef. Bs: %s", formatVES(getFloat(totals, "expected_cash_ves"))))
+		lines = append(lines, fmt.Sprintf("Contado ef. Bs: %s", formatVES(getFloat(totals, "counted_cash_ves"))))
+	}
 	lines = append(lines, fmt.Sprintf("Dif efectivo USD: %s", formatUSD(getFloat(totals, "difference_cash_usd"))))
 	lines = append(lines, fmt.Sprintf("Dif efectivo VES: %s", formatVES(getFloat(totals, "difference_cash_ves"))))
+	if _, ok := totals["non_cash_collected_base_amount"]; ok {
+		lines = append(lines, fmt.Sprintf("No efectivo: %s", formatUSD(getFloat(totals, "non_cash_collected_base_amount"))))
+	}
 
 	footer := getString(profile, "footer_text")
 	if footer != "" {

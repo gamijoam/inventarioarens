@@ -10,7 +10,6 @@ use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Inventory\Models\StockBalance;
-use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -68,7 +67,7 @@ class CashRegisterPosReconciliationTest extends TestCase
 
         $this->assertSame('100.0000', $close['expected_cash_usd'], 'Solo la venta en efectivo debe contar como efectivo esperado.');
         $this->assertSame('-100.0000', $close['difference_cash_usd'], 'La venta por transferencia NO debe sumar faltante fisico.');
-        $this->assertSame('-200.0000', $close['difference_base_amount'], 'La diferencia base acumula efectivo + electronico (total, no fisico).');
+        $this->assertSame('-100.0000', $close['difference_base_amount'], 'La diferencia base solo valora el efectivo fisico; la transferencia no es faltante.');
     }
 
     public function test_electronic_only_session_has_no_physical_cash_shortage(): void
@@ -85,7 +84,7 @@ class CashRegisterPosReconciliationTest extends TestCase
         $this->assertSame('0.0000', $close['expected_cash_ves'], 'Un turno solo electronico no espera efectivo VES.');
         $this->assertSame('0.0000', $close['difference_cash_usd'], 'No hay faltante fisico USD si todo fue electronico.');
         $this->assertSame('0.0000', $close['difference_cash_ves'], 'No hay faltante fisico VES si todo fue electronico.');
-        $this->assertSame('-200.0000', $close['difference_base_amount'], 'La diferencia base si refleja el total no contado en efectivo.');
+        $this->assertSame('0.0000', $close['difference_base_amount'], 'Sin efectivo esperado no hay diferencia: lo electronico no se cuenta en gaveta.');
     }
 
     public function test_physical_cash_shortage_matches_sales_even_when_money_is_counted_correctly(): void
@@ -219,6 +218,8 @@ class CashRegisterPosReconciliationTest extends TestCase
                 'exchange_rate_type_id' => $ctx['rateType']->id,
                 'closing_notes' => 'Arqueo de auditoria',
                 'counting_mode' => CashRegisterSession::COUNTING_STANDARD,
+                // Estos escenarios cierran a proposito con conteo cero para medir el faltante.
+                'confirm_zero_count' => true,
             ])
             ->assertOk()
             ->json('data');

@@ -1,5 +1,19 @@
 # Registro de implementación — 2026-08-29
 
+## 2026-11-11 - Auditoria contable de arqueo y cierre de caja
+
+- Cobros por encima del total rechazados en checkout y abonos; el POS lo bloquea antes de enviar y
+  explica como registrar el vuelto con "Recibido".
+- `difference_base_amount` ahora valora solo el efectivo fisico (USD + diferencia en Bs a tasa de
+  cierre); el Reporte Z se arma desde los movimientos del turno con cobros, reembolsos, otros
+  movimientos y arqueo por moneda (web, PDF, termico PHP y Go).
+- Reversos no efectivo registran salida con la referencia del reembolso; ajustes negativos;
+  confirmacion al cerrar con conteo cero u ordenes con abonos; nota obligatoria para aprobar con
+  diferencia; aviso de turnos abiertos mas de 24 h.
+- Nuevo evento de sync `cash.movement.recorded` y migracion
+  `2026_11_11_120000_add_sync_source_to_cash_register_movements.php`.
+- Detalle: `docs/AUDITORIA_CAJA_ARQUEO_2026-11-11.md`. Tests:
+  `tests/Feature/CashRegister/CashRegisterAccountingIntegrityTest.php` (19).
 ## 2026-10-29 - Catálogo visual de cinco productos por fila
 
 - En la vista catálogo del Administrativo, la cuadrícula pasa a cinco tarjetas desde 1280 px;

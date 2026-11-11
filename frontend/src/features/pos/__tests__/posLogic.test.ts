@@ -10,6 +10,7 @@ import {
   hasStockIssue,
   lineTotal,
   missingSerialIssue,
+  overpaymentIssue,
   shouldApplyInvoicePromotion,
   resolvePendingPromotionTotal,
   invoicePromotionPaymentIssue,
@@ -282,5 +283,50 @@ describe('resolveLineQuoteListId', () => {
     expect(posLineQuoteKey({ product_id: 2884, warehouse_id: 4, price_source: 'base' }, 5)).toBe(
       '2884_4_base',
     );
+  });
+});
+
+describe('overpaymentIssue', () => {
+  it('permite cobrar exacto aunque el efectivo recibido genere vuelto', () => {
+    expect(
+      overpaymentIssue(
+        [{ id: 'c', method: 'cash', currency: 'USD', amount: 100, received_amount: 120, status: 'captured' }],
+        100,
+      ),
+    ).toBeNull();
+  });
+
+  it('bloquea cuando el monto aplicado supera el total y explica como registrar el vuelto', () => {
+    const issue = overpaymentIssue(
+      [{ id: 'c', method: 'cash', currency: 'USD', amount: 120, status: 'captured' }],
+      100,
+    );
+    expect(issue).toContain('$120.00');
+    expect(issue).toContain('$100.00');
+    expect(issue).toContain('Recibido');
+  });
+
+  it('bloquea un pago no efectivo repetido', () => {
+    expect(
+      overpaymentIssue(
+        [
+          { id: 'a', method: 'other', currency: 'USD', amount: 332.37, status: 'captured' },
+          { id: 'b', method: 'other', currency: 'USD', amount: 332.37, status: 'captured' },
+        ],
+        332.37,
+      ),
+    ).not.toBeNull();
+  });
+
+  it('tolera un centavo de redondeo en bolivares y ignora pagos fallidos', () => {
+    expect(
+      overpaymentIssue(
+        [
+          { id: 'v', method: 'cash', currency: 'VES', amount: 3650.2, exchange_rate: 36.5, status: 'captured' },
+          { id: 'f', method: 'card', currency: 'USD', amount: 100, status: 'failed' },
+        ],
+        100,
+      ),
+    ).toBeNull();
   });
 });

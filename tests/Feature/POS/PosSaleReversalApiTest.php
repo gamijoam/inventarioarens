@@ -252,9 +252,18 @@ class PosSaleReversalApiTest extends TestCase
             'product_id' => $product->id,
             'quantity_available' => '1.0000',
         ]);
+        // El reembolso externo no sale de la gaveta, pero se registra como salida
+        // del metodo original para descontarlo del total movido del turno.
         $this->assertDatabaseMissing('cash_register_movements', [
             'source_type' => 'sale_reversal',
             'source_id' => $reversalId,
+            'method' => PosPayment::METHOD_CASH,
+        ]);
+        $this->assertDatabaseHas('cash_register_movements', [
+            'source_type' => 'sale_reversal',
+            'source_id' => $reversalId,
+            'method' => PosPayment::METHOD_CARD,
+            'reference' => 'REF-PM-0001',
         ]);
     }
 

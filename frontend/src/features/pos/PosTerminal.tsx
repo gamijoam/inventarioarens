@@ -158,12 +158,20 @@ import {
   fetchPosProductsDirect,
   useSessionOrders,
   useWarehousesForPos,
+  type CloseCashSessionPayload,
 } from './api';
+import {
+  CASH_MOVEMENT_TYPE_OPTIONS,
+  closeConfirmationRequired,
+  openSessionAgeWarning,
+  toCashMovementRequest,
+} from './cashRegisterControls';
 import { useCustomerCredit } from '@/features/customers/api';
 import { useCompleteSalesReturnExchange } from '@/features/sales-returns/api';
 import {
   calculateCartTotals,
   calculatePaymentTotals,
+  overpaymentIssue,
   formatCartUnitPrice,
   formatUnitSuffix,
   clampQuantity,
@@ -1311,6 +1319,7 @@ export function PosTerminal() {
     paymentSetupIssue,
     promotionPaymentIssue,
     priceListPaymentIssue,
+    overpaymentIssue: overpaymentIssue(payments, cartTotals.total),
   });
   const openingRate = activeRate;
   holdSaleRef.current = holdSale;
@@ -3338,10 +3347,9 @@ export function PosTerminal() {
                   addCashMovement.mutate({
                     sessionId: activeSession.id,
                     payload: {
-                      type: cashMovement.type as 'inflow' | 'outflow' | 'adjustment',
+                      ...toCashMovementRequest(cashMovement.type, Number(cashMovement.amount)),
                       method: 'cash',
                       currency: 'USD',
-                      amount: Number(cashMovement.amount),
                       notes: cashMovement.notes,
                     },
                   });
@@ -3371,35 +3379,46 @@ export function PosTerminal() {
                   }
 
                   setCashSessionClosed(true);
-                  closeCash.mutate(
-                    {
-                      sessionId: activeSession.id,
-                      payload: {
-                        counted_base_amount: usd,
-                        counted_local_amount: ves,
-                        counted_cash_usd: usd,
-                        counted_cash_ves: ves,
-                        exchange_rate_type_id:
-                          ves > 0 ? (activeRate?.exchange_rate_type_id ?? null) : null,
-                        counting_mode: cashCloseForm.blind ? 'blind' : 'standard',
-                        closing_notes: cashCloseForm.notes.trim() || null,
+                  const sessionId = activeSession.id;
+                  const send = (payload: CloseCashSessionPayload): void => {
+                    closeCash.mutate(
+                      { sessionId, payload },
+                      {
+                        onSuccess: () =>
+                          setCashCloseForm({
+                            sessionId: null,
+                            usd: '',
+                            ves: '',
+                            notes: '',
+                            blind: true,
+                          }),
+                        onError: (error) => {
+                          const confirmation = closeConfirmationRequired(error);
+                          if (
+                            confirmation &&
+                            window.confirm(
+                              `${confirmation.message}\n\n¿Cerrar el turno de todas formas?`,
+                            )
+                          ) {
+                            send({ ...payload, [confirmation.field]: true });
+                            return;
+                          }
+                          setCashSessionClosed(false);
+                          toast.error(errorMessage(error));
+                        },
                       },
-                    },
-                    {
-                      onSuccess: () =>
-                        setCashCloseForm({
-                          sessionId: null,
-                          usd: '',
-                          ves: '',
-                          notes: '',
-                          blind: true,
-                        }),
-                      onError: (error) => {
-                        setCashSessionClosed(false);
-                        toast.error(errorMessage(error));
-                      },
-                    },
-                  );
+                    );
+                  };
+                  send({
+                    counted_base_amount: usd,
+                    counted_local_amount: ves,
+                    counted_cash_usd: usd,
+                    counted_cash_ves: ves,
+                    exchange_rate_type_id:
+                      ves > 0 ? (activeRate?.exchange_rate_type_id ?? null) : null,
+                    counting_mode: cashCloseForm.blind ? 'blind' : 'standard',
+                    closing_notes: cashCloseForm.notes.trim() || null,
+                  });
                 }}
               />
             )}
@@ -4475,6 +4494,7 @@ export function PosTerminal() {
         paymentSetupIssue,
         promotionPaymentIssue,
         priceListPaymentIssue,
+        overpaymentIssue: overpaymentIssue(payments, cartTotals.total),
       });
       if (freshReason) {
         toast.error(freshReason);
@@ -6069,8 +6089,19 @@ export function CashPanel(props: {
   // cajero que hay descuadre). Solo en standard se exige para justificar.
   const canSubmitClose = !props.closing && (blind || !needsNote || props.closeForm.notes.trim().length > 0);
 
+  const ageWarning = isOpen ? openSessionAgeWarning(session.opened_at) : null;
+
   return (
     <div className="space-y-4">
+      {ageWarning && (
+        <p
+          className="border-warning/40 bg-warning/10 text-warning rounded border p-2 text-xs"
+          role="status"
+          data-testid="pos-cash-session-age-warning"
+        >
+          {ageWarning}
+        </p>
+      )}
       {/* Hero: turno activo */}
       <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#17112f] via-[#241761] to-[#4338ca] p-5 text-white shadow-lg">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.22),transparent_45%)]" />
@@ -6151,9 +6182,11 @@ export function CashPanel(props: {
                     props.onMovementChange({ ...props.movement, type: event.target.value })
                   }
                 >
-                  <option value="inflow">Entrada</option>
-                  <option value="outflow">Salida</option>
-                  <option value="adjustment">Ajuste</option>
+                  {CASH_MOVEMENT_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </Select>
               </LabeledControl>
               <LabeledControl label="Monto USD">
@@ -6743,6 +6776,7 @@ function getCheckoutBlockReason(input: {
   paymentSetupIssue: string | null;
   promotionPaymentIssue: string | null;
   priceListPaymentIssue: string | null;
+  overpaymentIssue?: string | null;
 }): string | null {
   if (!input.canCheckout) return 'No tienes permiso pos.checkout para cobrar ventas.';
   if (!input.hasSession) return 'No hay caja abierta para cobrar.';
@@ -6757,6 +6791,7 @@ function getCheckoutBlockReason(input: {
   if (input.paymentSetupIssue) return input.paymentSetupIssue;
   if (input.remaining > 0)
     return `Falta capturar ${money(input.remaining)} para completar el pago.`;
+  if (input.overpaymentIssue) return input.overpaymentIssue;
 
   return null;
 }

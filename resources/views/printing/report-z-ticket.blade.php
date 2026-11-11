@@ -78,13 +78,17 @@
     <div>Cierre: {{ $dt($z['closed_at'] ?? null) }}</div>
 
     <div class="line"></div>
-    <div class="bold">Totales del turno</div>
+    <div class="bold">Ventas del turno</div>
     <div class="row"><span>Tickets</span><span>{{ $z['totals']['orders_count'] ?? 0 }}</span></div>
     <div class="row bold"><span>Total USD</span><span>{{ $money($z['totals']['paid_base_amount'] ?? 0) }}</span></div>
     <div class="row"><span>Total VES</span><span>{{ $bs($z['totals']['paid_local_amount'] ?? 0) }}</span></div>
+    @if(($z['totals']['reversals_count'] ?? 0) > 0)
+        <div class="row"><span>Reversos ({{ $z['totals']['reversals_count'] }})</span><span>-{{ $money($z['totals']['reversed_base_amount'] ?? 0) }}</span></div>
+        <div class="row bold"><span>Neto ventas</span><span>{{ $money($z['totals']['net_paid_base_amount'] ?? 0) }}</span></div>
+    @endif
 
     <div class="line"></div>
-    <div class="bold">Pagos</div>
+    <div class="bold">Cobros por metodo (en esta caja)</div>
     @foreach(($z['payments'] ?? []) as $payment)
         <div class="row">
             <span>{{ $payment['name'] }} ({{ $payment['currency'] }})</span>
@@ -95,16 +99,41 @@
         @endif
     @endforeach
     @if(empty($z['payments']))
-        <div class="small muted">Sin pagos registrados.</div>
+        <div class="small muted">Sin cobros registrados.</div>
+    @endif
+
+    @if(!empty($z['refunds']))
+        <div class="line"></div>
+        <div class="bold">Reembolsos</div>
+        @foreach($z['refunds'] as $refund)
+            <div class="row">
+                <span>{{ $refund['name'] }} ({{ $refund['currency'] }})</span>
+                <span>-{{ $refund['currency'] === 'VES' ? $bs($refund['amount_local']) : $money($refund['amount_base']) }}</span>
+            </div>
+        @endforeach
+    @endif
+
+    @if(!empty($z['other_movements']))
+        <div class="line"></div>
+        <div class="bold">Otros movimientos de caja</div>
+        @foreach($z['other_movements'] as $movement)
+            <div class="row">
+                <span>{{ $movement['label'] }} ({{ $movement['currency'] }})</span>
+                <span>{{ $movement['currency'] === 'VES' ? $bs($movement['amount']) : $money($movement['amount']) }}</span>
+            </div>
+        @endforeach
     @endif
 
     <div class="line"></div>
-    <div class="bold">Arqueo</div>
-    <div class="row"><span>Esperado USD</span><span>{{ $money($z['totals']['expected_base_amount'] ?? 0) }}</span></div>
-    <div class="row"><span>Contado USD</span><span>{{ $money($z['totals']['counted_base_amount'] ?? 0) }}</span></div>
-    <div class="row"><span>Diferencia USD</span><span>{{ $money($z['totals']['difference_base_amount'] ?? 0) }}</span></div>
-    <div class="row"><span>Diferencia efectivo USD</span><span>{{ $money($z['totals']['difference_cash_usd'] ?? 0) }}</span></div>
-    <div class="row"><span>Diferencia efectivo VES</span><span>{{ $bs($z['totals']['difference_cash_ves'] ?? 0) }}</span></div>
+    <div class="bold">Arqueo de efectivo</div>
+    <div class="row"><span>Efectivo USD esperado</span><span>{{ $money($z['totals']['expected_cash_usd'] ?? 0) }}</span></div>
+    <div class="row"><span>Efectivo USD contado</span><span>{{ $money($z['totals']['counted_cash_usd'] ?? 0) }}</span></div>
+    <div class="row bold"><span>Diferencia USD</span><span>{{ $money($z['totals']['difference_cash_usd'] ?? 0) }}</span></div>
+    <div class="row"><span>Efectivo Bs esperado</span><span>{{ $bs($z['totals']['expected_cash_ves'] ?? 0) }}</span></div>
+    <div class="row"><span>Efectivo Bs contado</span><span>{{ $bs($z['totals']['counted_cash_ves'] ?? 0) }}</span></div>
+    <div class="row bold"><span>Diferencia Bs</span><span>{{ $bs($z['totals']['difference_cash_ves'] ?? 0) }}</span></div>
+    <div class="row"><span>Diferencia total (eq. USD)</span><span>{{ $money($z['totals']['difference_base_amount'] ?? 0) }}</span></div>
+    <div class="row small muted"><span>Cobros no efectivo (no se cuentan)</span><span>{{ $money($z['totals']['non_cash_collected_base_amount'] ?? 0) }}</span></div>
 
     @if(!empty($z['counts']))
         <div class="line"></div>

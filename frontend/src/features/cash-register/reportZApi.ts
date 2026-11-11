@@ -6,6 +6,21 @@ import { getPrinterAgentUrl, type PrinterStation } from '@/features/printing/api
 
 export const PRINTER_AGENT_URL = 'http://127.0.0.1:17777/print';
 
+const ReportZFlowSchema = z.object({
+  name: z.string(),
+  method: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((value) => value ?? ''),
+  currency: z.string(),
+  payments_count: z.number().int(),
+  amount: z.number().optional(),
+  amount_base: z.number(),
+  amount_local: z.number(),
+  exchange_rate: z.number().nullable().optional(),
+});
+
 export const ReportZSchema = z.object({
   z_number: z.number().int().nullable(),
   emitted_at: z.string().nullable().optional(),
@@ -28,18 +43,33 @@ export const ReportZSchema = z.object({
     difference_local_amount: z.number(),
     difference_cash_usd: z.number(),
     difference_cash_ves: z.number(),
+    expected_cash_usd: z.number().optional().default(0),
+    expected_cash_ves: z.number().optional().default(0),
+    counted_cash_usd: z.number().optional().default(0),
+    counted_cash_ves: z.number().optional().default(0),
+    collected_base_amount: z.number().optional().default(0),
+    collected_local_amount: z.number().optional().default(0),
+    non_cash_collected_base_amount: z.number().optional().default(0),
+    reversals_count: z.number().int().optional().default(0),
+    reversed_base_amount: z.number().optional().default(0),
+    net_paid_base_amount: z.number().optional(),
   }),
-  payments: z.array(
-    z.object({
-      name: z.string(),
-      method: z.string(),
-      currency: z.string(),
-      payments_count: z.number().int(),
-      amount_base: z.number(),
-      amount_local: z.number(),
-      exchange_rate: z.number().nullable().optional(),
-    }),
-  ),
+  payments: z.array(ReportZFlowSchema),
+  refunds: z.array(ReportZFlowSchema).optional().default([]),
+  other_movements: z
+    .array(
+      z.object({
+        type: z.string(),
+        label: z.string(),
+        method: z.string().nullable().optional(),
+        currency: z.string(),
+        count: z.number().int(),
+        amount: z.number(),
+        amount_base: z.number(),
+      }),
+    )
+    .optional()
+    .default([]),
   counts: z.array(
     z.object({
       currency: z.string(),
@@ -154,6 +184,7 @@ export async function printReportZThermal(
       closed_at: z.closed_at,
       totals: z.totals,
       payments: z.payments,
+      refunds: z.refunds,
       profile: {
         paper_width_mm: station.profile?.paper_width_mm ?? 58,
         cut_paper: station.profile?.cut_paper ?? true,

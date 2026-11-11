@@ -138,12 +138,34 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
               <Info label="Apertura" value={formatDate(data.opened_at)} />
               <Info label="Cierre" value={formatDate(data.closed_at)} />
               <Info label="Tickets" value={String(data.totals.orders_count)} />
-              <Info label="Total USD" value={formatMoney(data.totals.paid_base_amount)} />
-              <Info label="Total Bs" value={formatBs(data.totals.paid_local_amount)} />
+              <Info label="Ventas USD" value={formatMoney(data.totals.paid_base_amount)} />
+              <Info label="Ventas Bs" value={formatBs(data.totals.paid_local_amount)} />
               <Info
-                label="Diferencia efectivo USD"
-                value={formatMoney(data.totals.difference_cash_usd)}
+                label="Cobrado en esta caja"
+                value={formatMoney(data.totals.collected_base_amount ?? 0)}
               />
+            </div>
+
+            <div className="rounded-lg border border-border p-3" data-testid="report-z-cash-reconciliation">
+              <p className="text-text-muted mb-2 text-xs font-semibold uppercase">Arqueo de efectivo</p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <span />
+                <span className="text-text-muted text-right font-medium">USD</span>
+                <span className="text-text-muted text-right font-medium">Bs</span>
+                <span className="text-text-muted">Esperado</span>
+                <span className="text-right tabular-nums">{formatMoney(data.totals.expected_cash_usd ?? 0)}</span>
+                <span className="text-right tabular-nums">{formatBs(data.totals.expected_cash_ves ?? 0)}</span>
+                <span className="text-text-muted">Contado</span>
+                <span className="text-right tabular-nums">{formatMoney(data.totals.counted_cash_usd ?? 0)}</span>
+                <span className="text-right tabular-nums">{formatBs(data.totals.counted_cash_ves ?? 0)}</span>
+                <span className="font-semibold">Diferencia</span>
+                <span className="text-right font-semibold tabular-nums">{formatMoney(data.totals.difference_cash_usd)}</span>
+                <span className="text-right font-semibold tabular-nums">{formatBs(data.totals.difference_cash_ves)}</span>
+              </div>
+              <div className="text-text-muted mt-2 flex flex-wrap justify-between gap-2 text-xs">
+                <span>Diferencia total (eq. USD): {formatMoney(data.totals.difference_base_amount)}</span>
+                <span>Cobros no efectivo (no se cuentan): {formatMoney(data.totals.non_cash_collected_base_amount ?? 0)}</span>
+              </div>
             </div>
 
             <Tabs defaultValue="resumen" className="w-full">
@@ -159,7 +181,7 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
 
               <TabsContent value="resumen" className="space-y-4 pt-2">
                 <div>
-                  <p className="text-text-muted mb-1 text-xs font-semibold uppercase">Pagos</p>
+                  <p className="text-text-muted mb-1 text-xs font-semibold uppercase">Cobros por método (en esta caja)</p>
                   <div className="space-y-1">
                     {data.payments.map((payment) => (
                       <div
@@ -177,10 +199,57 @@ export function ReportZDialog({ sessionId, open, onOpenChange }: ReportZDialogPr
                       </div>
                     ))}
                     {data.payments.length === 0 && (
-                      <p className="text-text-muted">Sin pagos registrados.</p>
+                      <p className="text-text-muted">Sin cobros registrados.</p>
                     )}
                   </div>
                 </div>
+
+                {(data.refunds ?? []).length > 0 && (
+                  <div>
+                    <p className="text-text-muted mb-1 text-xs font-semibold uppercase">Reembolsos</p>
+                    <div className="space-y-1">
+                      {(data.refunds ?? []).map((refund) => (
+                        <div
+                          key={`refund-${refund.method}-${refund.currency}-${refund.name}`}
+                          className="flex justify-between gap-3 border-b border-border/40 py-1"
+                        >
+                          <span className="text-text-muted">
+                            {refund.name} ({refund.currency}) · {refund.payments_count}
+                          </span>
+                          <strong>
+                            -
+                            {refund.currency === 'VES'
+                              ? formatBs(refund.amount_local)
+                              : formatMoney(refund.amount_base)}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(data.other_movements ?? []).length > 0 && (
+                  <div>
+                    <p className="text-text-muted mb-1 text-xs font-semibold uppercase">Otros movimientos de caja</p>
+                    <div className="space-y-1">
+                      {(data.other_movements ?? []).map((movement) => (
+                        <div
+                          key={`${movement.label}-${movement.method ?? ''}-${movement.currency}`}
+                          className="flex justify-between gap-3 border-b border-border/40 py-1"
+                        >
+                          <span className="text-text-muted">
+                            {movement.label} ({movement.currency}) · {movement.count}
+                          </span>
+                          <strong>
+                            {movement.currency === 'VES'
+                              ? formatBs(movement.amount)
+                              : formatMoney(movement.amount)}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               </TabsContent>
 
