@@ -10,7 +10,9 @@ import {
   PayablePaymentRequestPayloadSchema,
   PayablePaymentRequestSchema,
   PayPayableSchema,
+  SupplierCreditRefundSchema,
   SupplierCreditSchema,
+  type SupplierCreditRefundValues,
   type Payable,
   type PayableListFilters,
   type PayablePayment,
@@ -124,6 +126,21 @@ export function useApplySupplierCredit() {
     onSuccess: (_, { id, supplierId }) => {
       void qc.invalidateQueries({ queryKey: payableKeys.lists() });
       void qc.invalidateQueries({ queryKey: payableKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: payableKeys.supplierCredit(supplierId) });
+    },
+  });
+}
+
+export function useRegisterSupplierCreditRefund() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ supplierId, values }: { supplierId: number; values: SupplierCreditRefundValues }) =>
+      postOne<SupplierCreditRefundValues, unknown>(
+        `/suppliers/${supplierId}/credit-refunds`,
+        SupplierCreditRefundSchema.parse(values),
+        idempotencyConfig('supplier-credit-refund'),
+      ),
+    onSuccess: (_, { supplierId }) => {
       void qc.invalidateQueries({ queryKey: payableKeys.supplierCredit(supplierId) });
     },
   });

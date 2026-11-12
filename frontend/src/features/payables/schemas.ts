@@ -229,3 +229,13 @@ export const SupplierCreditSchema = z.object({
 });
 
 export type SupplierCredit = z.infer<typeof SupplierCreditSchema>;
+
+export const SupplierCreditRefundSchema = z.object({
+  payment_currency: z.enum(['USD', 'VES']),
+  amount: z.number().positive(),
+  method: z.string().max(100),
+  reference: z.string().max(255).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+export type SupplierCreditRefundValues = z.infer<typeof SupplierCreditRefundSchema>;
