@@ -279,7 +279,7 @@ function ReceivableDetail({ receivableId, receivable, activeRate }: { receivable
   );
 }
 
-function CollectPanel({ receivable, activeRate, onClose }: { receivable: Receivable; activeRate: CurrentExchangeRate | null; onClose: () => void }) {
+export function CollectPanel({ receivable, activeRate, onClose }: { receivable: Receivable; activeRate: CurrentExchangeRate | null; onClose: () => void }) {
   const collect = useCollectReceivable();
   const { data: sessions = [] } = useCashSessions();
   const { data: methods = [] } = usePaymentMethods();
@@ -329,7 +329,12 @@ function CollectPanel({ receivable, activeRate, onClose }: { receivable: Receiva
       reference: form.reference?.trim() || null,
       notes: form.notes?.trim() || null,
     };
-    await collect.mutateAsync({ id: receivable.id, values: payload });
+    try {
+      await collect.mutateAsync({ id: receivable.id, values: payload });
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'No se pudo registrar el cobro.');
+      return;
+    }
     toast.success('Cobro registrado.');
     onClose();
   }

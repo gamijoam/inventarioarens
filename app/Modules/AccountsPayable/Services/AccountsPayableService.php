@@ -8,8 +8,7 @@ use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
-use App\Modules\Currency\Models\ExchangeRate;
-use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Currency\Services\SettlementRateResolver;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
 use App\Modules\Purchases\Models\PurchaseOrder;
@@ -187,43 +186,7 @@ class AccountsPayableService
 
     private function paymentAmounts(string $currency, float $amount, ?int $rateTypeId, ?float $exchangeRate): array
     {
-        if ($currency === PurchaseOrder::CURRENCY_USD) {
-            $rateType = $rateTypeId ? ExchangeRateType::query()->findOrFail($rateTypeId) : null;
-            $rate = $exchangeRate ?: ($rateType ? $this->activeRateFor($rateType)?->rate : null);
-
-            return [$rateType, $rate ? (float) $rate : null, round($amount, 4), $rate ? round($amount * (float) $rate, 4) : 0.0];
-        }
-
-        $rateType = $rateTypeId
-            ? ExchangeRateType::query()->findOrFail($rateTypeId)
-            : ExchangeRateType::query()->where('is_default', true)->where('is_active', true)->first();
-
-        if (! $rateType) {
-            throw ValidationException::withMessages([
-                'exchange_rate_type_id' => 'El pago en bolivares requiere un tipo de tasa activo.',
-            ]);
-        }
-
-        $rate = $exchangeRate ?: $this->activeRateFor($rateType)?->rate;
-
-        if (! $rate || (float) $rate <= 0.0) {
-            throw ValidationException::withMessages([
-                'exchange_rate' => 'El pago en bolivares requiere una tasa activa mayor que cero.',
-            ]);
-        }
-
-        return [$rateType, (float) $rate, round($amount / (float) $rate, 4), round($amount, 4)];
-    }
-
-    private function activeRateFor(ExchangeRateType $rateType): ?ExchangeRate
-    {
-        return ExchangeRate::query()
-            ->where('exchange_rate_type_id', $rateType->id)
-            ->where('base_currency', ExchangeRate::BASE_USD)
-            ->where('quote_currency', ExchangeRate::QUOTE_VES)
-            ->where('is_active', true)
-            ->latest('effective_at')
-            ->first();
+        return app(SettlementRateResolver::class)->resolve($currency, $amount, $rateTypeId, $exchangeRate, 'El pago');
     }
 
     private function localReturnAmount(PurchaseOrder $purchaseOrder, float $unitCost, float $quantity): float

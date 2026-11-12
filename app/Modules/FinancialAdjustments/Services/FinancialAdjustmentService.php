@@ -5,10 +5,9 @@ namespace App\Modules\FinancialAdjustments\Services;
 use App\Models\User;
 use App\Modules\AccountsPayable\Models\AccountsPayable;
 use App\Modules\AccountsReceivable\Models\AccountsReceivable;
-use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
+use App\Modules\Currency\Services\SettlementRateResolver;
 use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
-use App\Modules\Products\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -139,43 +138,7 @@ class FinancialAdjustmentService
 
     private function amounts(string $currency, float $amount, ?int $rateTypeId, ?float $exchangeRate): array
     {
-        if ($currency === Product::CURRENCY_USD) {
-            $rateType = $rateTypeId ? ExchangeRateType::query()->findOrFail($rateTypeId) : null;
-            $rate = $exchangeRate ?: ($rateType ? $this->activeRateFor($rateType)?->rate : null);
-
-            return [$rateType, $rate ? (float) $rate : null, round($amount, 4), $rate ? round($amount * (float) $rate, 4) : 0.0];
-        }
-
-        $rateType = $rateTypeId
-            ? ExchangeRateType::query()->findOrFail($rateTypeId)
-            : ExchangeRateType::query()->where('is_default', true)->where('is_active', true)->first();
-
-        if (! $rateType) {
-            throw ValidationException::withMessages([
-                'exchange_rate_type_id' => 'El ajuste en bolivares requiere un tipo de tasa activo.',
-            ]);
-        }
-
-        $rate = $exchangeRate ?: $this->activeRateFor($rateType)?->rate;
-
-        if (! $rate || (float) $rate <= 0.0) {
-            throw ValidationException::withMessages([
-                'exchange_rate' => 'El ajuste en bolivares requiere una tasa activa mayor que cero.',
-            ]);
-        }
-
-        return [$rateType, (float) $rate, round($amount / (float) $rate, 4), round($amount, 4)];
-    }
-
-    private function activeRateFor(ExchangeRateType $rateType): ?ExchangeRate
-    {
-        return ExchangeRate::query()
-            ->where('exchange_rate_type_id', $rateType->id)
-            ->where('base_currency', ExchangeRate::BASE_USD)
-            ->where('quote_currency', ExchangeRate::QUOTE_VES)
-            ->where('is_active', true)
-            ->latest('effective_at')
-            ->first();
+        return app(SettlementRateResolver::class)->resolve($currency, $amount, $rateTypeId, $exchangeRate, 'El ajuste');
     }
 
     private function assertAdjustable(string|float $balanceBase, float $amountBase, string $message): void
