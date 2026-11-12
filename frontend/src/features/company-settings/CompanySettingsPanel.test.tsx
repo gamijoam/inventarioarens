@@ -91,6 +91,26 @@ describe('CompanySettingsPanel', () => {
     expect(payload.show_on.report_z).toBe(true);
   });
 
+  it('el metodo de costeo inicia en ultimo costo y se puede cambiar a promedio ponderado', async () => {
+    render(<CompanySettingsPanel />);
+
+    const select = (await screen.findByTestId('company-inventory-costing-method')) as HTMLSelectElement;
+    expect(select.value).toBe('last_cost');
+
+    await userEvent.selectOptions(select, 'weighted_average');
+    fireEvent.click(screen.getByTestId('company-save'));
+
+    await waitFor(() => expect(updateMutation).toHaveBeenCalledTimes(1));
+    const payload = updateMutation.mock.calls[0]?.[0] as { inventory_costing_method: string };
+    expect(payload.inventory_costing_method).toBe('weighted_average');
+  });
+
+  it('acepta el metodo de costeo que devuelve la API', async () => {
+    const { CompanySettingsSchema } = await vi.importActual<typeof import('./api')>('./api');
+    expect(CompanySettingsSchema.parse({ inventory_costing_method: 'weighted_average' }).inventory_costing_method).toBe('weighted_average');
+    expect(CompanySettingsSchema.safeParse({ inventory_costing_method: 'fifo' }).success).toBe(false);
+  });
+
   it('muestra el preview del logo y permite eliminarlo', async () => {
     deleteMutation.mockResolvedValue({});
     render(<CompanySettingsPanel />);

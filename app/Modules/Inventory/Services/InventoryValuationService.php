@@ -2,47 +2,80 @@
 
 namespace App\Modules\Inventory\Services;
 
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
-use Illuminate\Support\Facades\DB;
 
 /**
- * Recalcula el costo promedio ponderado (WAC) de un producto.
- *
- * Formula: nuevo_wac = ((cantidad_anterior * costo_anterior) + (cantidad_nueva * costo_nuevo)) / cantidad_total
- *
- * Solo afecta movimientos que tienen unit_cost (purchase, purchase_return, adjustment_in/out).
+ * Reconstruye el promedio ponderado movil de un producto desde su historial
+ * de movimientos: cada entrada con costo mezcla su costo con la existencia
+ * restante; las salidas reducen la existencia sin cambiar el promedio.
  */
 class InventoryValuationService
 {
-    public const COST_TYPES = [
+    public const INCREASE_TYPES = [
         'purchase',
-        'purchase_return',
+        'sale_return',
+        'sale_reversal',
         'adjustment_in',
-        'adjustment_out',
+        'transfer_in',
+        'transfer_request_in',
         'return_in',
+    ];
+
+    public const DECREASE_TYPES = [
+        'sale',
+        'purchase_return',
+        'adjustment_out',
+        'transfer_out',
+        'transfer_request_out',
         'return_out',
     ];
 
     /**
-     * Recalcula WAC y persiste en products.average_cost.
-     * Devuelve el nuevo costo promedio o null si no se puede calcular.
+     * Recalcula y persiste products.average_cost. Devuelve el promedio o null
+     * si ningun movimiento tiene costo.
      */
     public function recalculate(Product $product): ?float
     {
-        // El sistema utiliza costo de reposición directo (último costo de adquisición).
-        // Se evita la dilución histórica de WAC.
-        if ($product->last_purchase_cost !== null) {
-            $product->average_cost = $product->last_purchase_cost;
-            $product->save();
+        $quantity = 0.0;
+        $average = null;
 
-            return $product->average_cost;
+        StockMovement::query()
+            ->where('product_id', $product->id)
+            ->whereIn('type', [...self::INCREASE_TYPES, ...self::DECREASE_TYPES])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->each(function (StockMovement $movement) use (&$quantity, &$average): void {
+                $moved = (float) $movement->quantity;
+
+                if (in_array($movement->type, self::DECREASE_TYPES, true)) {
+                    $quantity -= $moved;
+
+                    return;
+                }
+
+                if ($movement->unit_cost !== null) {
+                    $cost = (float) $movement->unit_cost;
+                    $average = $quantity > 0.0 && $average !== null
+                        ? (($quantity * $average) + ($moved * $cost)) / ($quantity + $moved)
+                        : $cost;
+                }
+
+                $quantity += $moved;
+            });
+
+        if ($average === null) {
+            return null;
         }
 
-        return $product->average_cost;
+        $product->average_cost = round($average, 4);
+        $product->save();
+
+        return (float) $product->average_cost;
     }
 
     /**
-     * Recalcula WAC para todos los productos activos del tenant.
+     * Recalcula el promedio para todos los productos activos del tenant.
      */
     public function recalculateAllForTenant(int $tenantId): int
     {

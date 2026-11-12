@@ -27,6 +27,7 @@ export const CompanySettingsSchema = z.object({
   regimen: z.string().nullable().optional(),
   logo_url: z.string().nullable().optional(),
   allow_negative_stock: z.boolean().optional(),
+  inventory_costing_method: z.enum(['last_cost', 'weighted_average']).optional(),
   pos_allow_rate_edit: z.boolean().optional(),
   pos_allow_catalog_view: z.boolean().optional(),
   pos_catalog_stock_edit: z.boolean().optional(),

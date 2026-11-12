@@ -4,6 +4,7 @@ namespace App\Modules\Sales\Resources;
 
 use App\Modules\AccountsReceivable\Resources\AccountsReceivableResource;
 use App\Modules\Customers\Resources\CustomerResource;
+use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\POS\Resources\PosPaymentResource;
 use App\Modules\SalesReturns\Resources\SalesReturnResource;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ class SaleResource extends JsonResource
                 foreach ($items as $item) {
                     $unitCost = $item->base_unit_cost;
                     if ($unitCost === null && $item->relationLoaded('product') && $item->product) {
-                        $unitCost = $item->product->last_purchase_cost ?? $item->product->average_cost;
+                        $unitCost = app(InventoryCostService::class)->unitCost($item->product);
                     }
                     if ($unitCost !== null) {
                         $hasCalculatedCost = true;

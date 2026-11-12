@@ -5,6 +5,7 @@ namespace App\Modules\Workshop\Services;
 use App\Models\User;
 use App\Modules\Commissions\Services\CommissionLedgerService;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -135,7 +136,7 @@ class ServiceOrderService
                 ]);
             }
 
-            $unitCost = (float) ($product->last_purchase_cost ?? $product->average_cost ?? 0);
+            $unitCost = (float) (app(InventoryCostService::class)->unitCost($product) ?? 0);
             $unitPrice = (float) $product->base_price ?? 0;
 
             $part = ServiceOrderPart::create([
