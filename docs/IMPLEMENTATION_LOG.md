@@ -7605,3 +7605,16 @@ Regla:
 - **Tests**: Inventory/POS 154/154; Sync 169/170 (1 skip); frontend 824/825 (1 skip); TypeScript,
   Pint y builds Admin/POS correctos. La suite backend combinada con `--process-isolation` excede el
   timeout por volumen, por lo que las suites criticas se verifican por modulo.
+
+
+## 2026-11-12 - Diferencial cambiario y CxP en bolivares (auditoria contable, lote 2)
+
+- Tabla `exchange_differences` + `ExchangeDifferenceService`: registra ganancia/perdida cambiaria en
+  cobros CxC y pagos CxP cuando la tasa de liquidacion difiere de la del documento. Evento de sync
+  `exchange_difference.recorded` (insert-once por identidad de origen).
+- CxP en Bs: el pago se tope por `balance_local_amount`; el monto base aplicado se calcula con la tasa
+  de la factura, de modo que la deuda en Bs queda saldada aunque la tasa haya cambiado.
+- POS: el espejo CxC acepta la tasa con markup calculada por el servidor (regresion del lote 1 corregida).
+- Endpoint `GET /api/exchange-differences` con totales; tarjetas en Reportes > Finanzas.
+- Tests: `tests/Feature/Currency/ExchangeDifferenceTest.php` (13), test POS con markup,
+  `reportsApi.test.tsx` (parser con payload real). Mutation testing manual: 12/12 mutantes muertos.

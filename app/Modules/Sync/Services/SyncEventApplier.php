@@ -91,6 +91,7 @@ class SyncEventApplier
         'cash.session.opened',
         'cash.session.closed',
         'cash.movement.recorded',
+        'exchange_difference.recorded',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -172,6 +173,7 @@ class SyncEventApplier
         'cash.session.opened',
         'cash.session.closed',
         'cash.movement.recorded',
+        'exchange_difference.recorded',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -315,6 +317,7 @@ class SyncEventApplier
                 'cash_register.updated', 'cash_register.created' => $this->applyCashRegister($tenant, $payload),
                 'cash.session.opened', 'cash.session.closed' => $this->applyCashSession($tenant, $payload, $event),
                 'cash.movement.recorded' => $this->applyCashMovement($tenant, $payload, $event),
+                'exchange_difference.recorded' => $this->applyExchangeDifference($tenant, $payload, $event),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
                 'tenant_settings.updated' => $this->applyTenantSettings($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
@@ -2956,6 +2959,52 @@ class SyncEventApplier
                 'updated_at' => $now,
             ]
         ));
+
+        return 'applied';
+    }
+
+    /**
+     * Aplica `exchange_difference.recorded`: copia append-only del diferencial
+     * cambiario del nodo de origen (identidad: nodo + id de origen).
+     */
+    private function applyExchangeDifference(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceId = (int) ($payload['difference_id'] ?? $event['aggregate_id'] ?? 0);
+
+        if ($sourceId <= 0) {
+            return 'ignored';
+        }
+
+        $keys = [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => $sourceNodeCode,
+            'sync_source_id' => $sourceId,
+        ];
+
+        if (DB::table('exchange_differences')->where($keys)->exists()) {
+            return 'applied';
+        }
+
+        $now = now();
+        DB::table('exchange_differences')->insert(array_merge($keys, [
+            'account_type' => $this->requiredString($payload, 'account_type'),
+            'document_number' => $this->nullableString($payload['document_number'] ?? null),
+            'document_currency' => $payload['document_currency'] ?? 'USD',
+            'payment_currency' => $payload['payment_currency'] ?? 'USD',
+            'document_rate' => $payload['document_rate'] ?? 0,
+            'settlement_rate' => $payload['settlement_rate'] ?? 0,
+            'applied_base_amount' => $payload['applied_base_amount'] ?? 0,
+            'applied_local_amount' => $payload['applied_local_amount'] ?? 0,
+            'paid_base_amount' => $payload['paid_base_amount'] ?? 0,
+            'paid_local_amount' => $payload['paid_local_amount'] ?? 0,
+            'difference_base_amount' => $payload['difference_base_amount'] ?? 0,
+            'difference_local_amount' => $payload['difference_local_amount'] ?? 0,
+            'kind' => $payload['kind'] ?? 'gain',
+            'occurred_at' => $this->nullableDate($payload['occurred_at'] ?? null) ?? $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]));
 
         return 'applied';
     }

@@ -271,3 +271,47 @@ describe('reports api', () => {
     ).toMatchObject({ summary: { open_count: 1 } });
   });
 });
+
+describe('exchange differences report', () => {
+  it('builds the query with the finance filters', async () => {
+    const { buildExchangeDifferencesQuery } = await import('../api');
+    expect(buildExchangeDifferencesQuery({ date_from: '2026-11-01', date_to: '2026-11-12' })).toBe(
+      '/exchange-differences?date_from=2026-11-01&date_to=2026-11-12',
+    );
+  });
+
+  it('parses the real API payload with decimal strings and nullable fields', async () => {
+    const { ExchangeDifferencesReportSchema } = await import('../schemas');
+    const parsed = ExchangeDifferencesReportSchema.parse({
+      data: [
+        {
+          id: 1,
+          account_type: 'receivable',
+          document_number: 'VENTA-9',
+          payment_currency: 'VES',
+          document_rate: '36.000000',
+          settlement_rate: '40.000000',
+          difference_base_amount: '10.0000',
+          difference_local_amount: '400.0000',
+          kind: 'gain',
+          occurred_at: '2026-11-12T10:00:00.000000Z',
+          created_at: null,
+          updated_at: null,
+        },
+      ],
+      meta: { current_page: 1, last_page: 1, per_page: 50, total: 1 },
+      totals: {
+        gain_local_amount: 400,
+        loss_local_amount: -200,
+        net_local_amount: 200,
+        gain_base_amount: 10,
+        loss_base_amount: -5,
+        net_base_amount: 5,
+      },
+    });
+
+    expect(parsed.data[0]?.difference_local_amount).toBe(400);
+    expect(parsed.data[0]?.document_number).toBe('VENTA-9');
+    expect(parsed.totals.net_local_amount).toBe(200);
+  });
+});

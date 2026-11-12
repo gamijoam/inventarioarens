@@ -13,4 +13,6 @@ export const reportKeys = {
   financeReceivables: (filters: unknown) =>
     [...reportKeys.all, 'finance-receivables', filters] as const,
   financePayables: (filters: unknown) => [...reportKeys.all, 'finance-payables', filters] as const,
+  exchangeDifferences: (filters: unknown) =>
+    [...reportKeys.all, 'exchange-differences', filters] as const,
 };

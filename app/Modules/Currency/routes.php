@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Currency\Controllers\ExchangeDifferenceController;
 use App\Modules\Currency\Controllers\ExchangeRateController;
 use App\Modules\Currency\Controllers\ExchangeRateTypeController;
 use Illuminate\Support\Facades\Route;
@@ -15,3 +16,5 @@ Route::prefix('currency')->group(function (): void {
         ->only(['index', 'store', 'show'])
         ->parameters(['rates' => 'rate']);
 });
+
+Route::get('exchange-differences', [ExchangeDifferenceController::class, 'index']);

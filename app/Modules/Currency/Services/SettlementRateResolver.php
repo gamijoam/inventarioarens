@@ -55,6 +55,25 @@ class SettlementRateResolver
         return [$rateType, $officialRate, round($amount / $officialRate, 4), round($amount, 4)];
     }
 
+    /**
+     * Liquidacion con una tasa ya calculada por el servidor (p. ej. la tasa de
+     * cobro del POS con markup de la lista de precio): no se revalida.
+     *
+     * @return array{0: ?ExchangeRateType, 1: ?float, 2: float, 3: float}
+     */
+    public function resolveWithTrustedRate(string $currency, float $amount, ?int $rateTypeId, ?float $trustedRate, string $operation): array
+    {
+        if (! $trustedRate || $trustedRate <= 0.0) {
+            return $this->resolve($currency, $amount, $rateTypeId, null, $operation);
+        }
+
+        $rateType = $rateTypeId ? ExchangeRateType::query()->findOrFail($rateTypeId) : null;
+
+        return strtoupper($currency) === Product::CURRENCY_USD
+            ? [$rateType, $trustedRate, round($amount, 4), round($amount * $trustedRate, 4)]
+            : [$rateType, $trustedRate, round($amount / $trustedRate, 4), round($amount, 4)];
+    }
+
     private function assertMatchesOfficialRate(float $exchangeRate, ?float $officialRate, ?ExchangeRateType $rateType): void
     {
         if ($officialRate === null) {

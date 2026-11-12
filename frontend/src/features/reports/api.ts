@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { api, getMany, getOne } from '@/api/client';
 import {
+  ExchangeDifferencesReportSchema,
   FinancePayableRowSchema,
   FinanceReceivableRowSchema,
   FinanceSummarySchema,
@@ -16,6 +17,7 @@ import {
   StockReportRowSchema,
   type CashSessions,
   type DailyOperations,
+  type ExchangeDifferencesReport,
   type FinancePayableRow,
   type FinanceReceivableRow,
   type FinanceSummary,
@@ -97,6 +99,21 @@ export function buildFinanceReceivablesQuery(filters: ReportFilters = {}): strin
 
 export function buildFinancePayablesQuery(filters: ReportFilters = {}): string {
   return `/finance-reports/payables${toQueryString(filters)}`;
+}
+
+export function buildExchangeDifferencesQuery(filters: ReportFilters = {}): string {
+  return `/exchange-differences${toQueryString({ date_from: filters.date_from, date_to: filters.date_to })}`;
+}
+
+export function useExchangeDifferences(filters: ReportFilters, enabled: boolean) {
+  return useQuery({
+    queryKey: reportKeys.exchangeDifferences({ date_from: filters.date_from, date_to: filters.date_to }),
+    queryFn: async () => {
+      const response = await api.get(buildExchangeDifferencesQuery(filters));
+      return ExchangeDifferencesReportSchema.parse(response.data);
+    },
+    enabled,
+  });
 }
 
 export function useStockReport(filters: ReportFilters, enabled: boolean) {
@@ -263,6 +280,7 @@ function csvCell(value: unknown): string {
 export type {
   CashSessions,
   DailyOperations,
+  ExchangeDifferencesReport,
   FinancePayableRow,
   FinanceReceivableRow,
   FinanceSummary,
