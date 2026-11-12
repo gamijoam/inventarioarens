@@ -7705,3 +7705,17 @@ Regla:
 - Conteo fisico: cada ajuste emite `stock_movement.created`.
 - Tests: `tests/Feature/Inventory/MovementCostAndQuickAdjustTest.php` (8). Mutation testing: 8/8.
 
+## 2026-11-12 - Faltantes de traslado valorados y traspaso interempresa al costo (lote 6d)
+
+- `InventoryMovementService::transferLoss` (sin efecto en saldos) y `returnTransferToOrigin`.
+- Resolucion de diferencias: perdida aceptada y ajuste manual registran `transfer_loss` al costo del
+  despacho (antes no se registraba nada o se descontaba en el destino lo que nunca llego); el ajuste
+  manual no puede superar el faltante; se habilita `returned_to_origin` (stock y seriales vuelven al origen).
+- Interempresa: la entrada se valora al costo de la salida y actualiza los costos de la receptora; igual
+  en el applier de la nube (`createCloudProductExit/Entry` con `unit_cost`).
+- `InventoryCostService::unitCost` usa como respaldo el costo de la ultima compra registrada en movimientos.
+- Tests: casos nuevos en `InventoryTransferApiTest` (perdida valorada, exceso rechazado, devuelto al
+  origen con cantidad y seriales), `InventoryTransferRequestApiTest` y `InventoryTransferRequestSyncTest`.
+  Dos pruebas del comportamiento anterior (ajuste manual que descontaba del destino) se actualizaron.
+  Mutation testing: 14/15 muertos; 1 equivalente (los seriales faltantes no cambian de almacen al despachar).
+

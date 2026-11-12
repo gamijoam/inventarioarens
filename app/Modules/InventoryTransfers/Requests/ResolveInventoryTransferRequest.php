@@ -23,6 +23,7 @@ class ResolveInventoryTransferRequest extends FormRequest
                 InventoryTransferItem::RESOLUTION_INVESTIGATING,
                 InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS,
                 InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY,
+                InventoryTransferItem::RESOLUTION_RETURNED_TO_ORIGIN,
             ])],
             'items.*.quantity' => [
                 'required_if:items.*.action,'.InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY,

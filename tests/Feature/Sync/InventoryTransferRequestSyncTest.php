@@ -180,6 +180,7 @@ class InventoryTransferRequestSyncTest extends TestCase
         DB::table('products')
             ->whereIn('id', [$data['productA']->id, $data['productB']->id])
             ->update(['tracking_type' => Product::TRACKING_SERIALIZED]);
+        DB::table('products')->where('id', $data['productB']->id)->update(['last_purchase_cost' => 120, 'average_cost' => 120]);
         DB::table('product_units')->insert([
             [
                 'tenant_id' => $data['tenantB']->id,
@@ -311,6 +312,12 @@ class InventoryTransferRequestSyncTest extends TestCase
             'serial_number' => 'SYNC-IMEI-001',
             'status' => 'available',
         ]);
+
+        $exitMovement = DB::table('stock_movements')->where('reference_type', 'product_exit')->first();
+        $entryMovement = DB::table('stock_movements')->where('reference_type', 'product_entry')->first();
+        $this->assertEqualsWithDelta(120.0, (float) $exitMovement->unit_cost, 0.0001, 'La salida en la nube queda valorada al costo de quien envia.');
+        $this->assertEqualsWithDelta(120.0, (float) $entryMovement->unit_cost, 0.0001, 'La entrada en la nube usa ese mismo costo.');
+        $this->assertEqualsWithDelta(120.0, (float) DB::table('products')->where('id', $data['productA']->id)->value('last_purchase_cost'), 0.0001);
     }
 
     public function test_rejected_event_only_updates_status_no_stock_movement(): void

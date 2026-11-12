@@ -461,6 +461,13 @@ unica fuente del costo que se congela en `sale_items.base_unit_cost` al vender (
 - El ajuste rapido `POST /api/inventory-center/products/{id}/set-stock` exige `inventory.adjust`, pasa por
   `InventoryMovementService` (bloqueo, costo, auditoria), emite `stock_movement.created` y respeta
   `allow_negative_stock`. Los conteos fisicos completados tambien emiten `stock_movement.created`.
+- Traslados con faltantes: lo que no llego ya salio del origen. `accepted_loss` y `adjusted_manually`
+  (cantidad <= faltante) registran un movimiento `transfer_loss` valorado al costo del despacho, en el
+  almacen de origen y **sin tocar saldos**. `returned_to_origin` reingresa el faltante al origen
+  (`transfer_in`) y devuelve los seriales faltantes como disponibles alli.
+- Solicitudes entre empresas: traspaso al costo. La entrada `transfer_request_in` usa el `unit_cost` de la
+  salida de la empresa que envia y actualiza ultimo costo y promedio de la receptora (local y nube).
+  No se generan CxC/CxP entre empresas.
 
 **Regla de costeo vigente**: devoluciones y ajustes deben usar el costo histórico/snapshot de la
 operación original, nunca el costo vigente. Las ventas ya registradas conservan su costo congelado.

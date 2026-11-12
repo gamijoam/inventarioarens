@@ -7,6 +7,8 @@ use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Exceptions\InvalidStockQuantityException;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequestGuide;
@@ -644,6 +646,7 @@ class InventoryTransferRequestService
             }
 
             $receiverVariantId = $this->localVariantId($receiverProduct, $item->product_variant_id);
+            $transferCost = $this->transferCost($item->out_stock_movement_id);
             $inMovement = $this->inventory->transferRequestIn(
                 warehouse: $receiverWarehouse,
                 product: $receiverProduct,
@@ -653,7 +656,9 @@ class InventoryTransferRequestService
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
                 productVariantId: $receiverVariantId,
+                unitCost: $transferCost,
             );
+            $this->registerReceiverCost($receiverProduct, $quantity, $transferCost);
             $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits, $receiverVariantId);
         } finally {
             $tenantManager->set($currentTenant);
@@ -755,6 +760,7 @@ class InventoryTransferRequestService
 
             $tenantManager->set($receiverTenant);
             $receiverVariantId = $this->localVariantId($receiverProduct, $item->product_variant_id ?? $senderVariantId);
+            $transferCost = $outMovement->unit_cost === null ? null : (float) $outMovement->unit_cost;
             $inMovement = $this->inventory->transferRequestIn(
                 warehouse: $receiverWarehouse,
                 product: $receiverProduct,
@@ -764,7 +770,9 @@ class InventoryTransferRequestService
                 referenceType: InventoryTransferRequest::class,
                 referenceId: $request->id,
                 productVariantId: $receiverVariantId,
+                unitCost: $transferCost,
             );
+            $this->registerReceiverCost($receiverProduct, $quantityOverride ?? (float) $item->quantity, $transferCost);
             $this->createRequesterUnits($receiverProduct, $receiverWarehouse, $inMovement->id, $serialUnits, $receiverVariantId);
         } catch (InsufficientStockException $exception) {
             throw ValidationException::withMessages([
@@ -1127,5 +1135,34 @@ class InventoryTransferRequestService
             ->value('sequence');
 
         return ((int) $lastSequence) + 1;
+    }
+
+    /**
+     * Costo unitario de la salida en la empresa que envia; la mercancia se
+     * traspasa al costo.
+     */
+    private function transferCost(?int $outMovementId): ?float
+    {
+        if ($outMovementId === null) {
+            return null;
+        }
+
+        $cost = StockMovement::withoutGlobalScopes()->whereKey($outMovementId)->value('unit_cost');
+
+        return $cost === null ? null : (float) $cost;
+    }
+
+    /**
+     * La entrada interempresa actualiza el ultimo costo y el promedio de la
+     * empresa receptora (contexto de tenant receptor).
+     */
+    private function registerReceiverCost(Product $receiverProduct, float $quantity, ?float $unitCost): void
+    {
+        if ($unitCost === null || $quantity <= 0.0) {
+            return;
+        }
+
+        app(InventoryCostService::class)->registerReceipt($receiverProduct, $quantity, $unitCost);
+        $receiverProduct->save();
     }
 }

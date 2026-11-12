@@ -3,6 +3,7 @@
 namespace App\Modules\Inventory\Services;
 
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
 use App\Modules\Tenancy\Services\CompanySettings;
 use App\Support\Tenancy\TenantManager;
@@ -43,6 +44,13 @@ class InventoryCostService
         $cost = $this->method() === self::METHOD_WEIGHTED_AVERAGE
             ? ($product->average_cost ?? $product->last_purchase_cost)
             : ($product->last_purchase_cost ?? $product->average_cost);
+
+        $cost ??= StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', 'purchase')
+            ->whereNotNull('unit_cost')
+            ->latest('id')
+            ->value('unit_cost');
 
         return $cost === null ? null : round((float) $cost, 4);
     }

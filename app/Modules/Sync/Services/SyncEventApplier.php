@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductAudit;
@@ -1720,6 +1721,7 @@ class SyncEventApplier
 
         try {
             $tenantManager->set(Tenant::query()->findOrFail($senderTenantId));
+            $transferCost = app(InventoryCostService::class)->unitCost(Product::query()->findOrFail($senderProductId));
             $destinationExitDocNumber = $documentNumber ? $documentNumber.'-OUT' : 'TREQ-OUT-'.$requestId;
             $outMovementId = $this->createCloudProductExit(
                 tenantId: $senderTenantId,
@@ -1729,6 +1731,7 @@ class SyncEventApplier
                 documentNumber: $destinationExitDocNumber,
                 serialUnits: $itemPayload['serial_units'] ?? [],
                 productVariantId: $this->variantIdForProduct($senderProductId, $itemPayload['product_variant_sku'] ?? null, $itemPayload['product_variant_color'] ?? null),
+                unitCost: $transferCost,
             );
 
             $tenantManager->set(Tenant::query()->findOrFail($receiverTenantId));
@@ -1741,7 +1744,14 @@ class SyncEventApplier
                 documentNumber: $originEntryDocNumber,
                 serialUnits: $itemPayload['serial_units'] ?? [],
                 productVariantId: $this->variantIdForProduct($receiverProductId, $itemPayload['product_variant_sku'] ?? null, $itemPayload['product_variant_color'] ?? null),
+                unitCost: $transferCost,
             );
+
+            if ($transferCost !== null) {
+                $receiverProduct = Product::query()->findOrFail($receiverProductId);
+                app(InventoryCostService::class)->registerReceipt($receiverProduct, $quantity, $transferCost);
+                $receiverProduct->save();
+            }
 
             DB::table('inventory_transfer_request_items')
                 ->where('inventory_transfer_request_id', $requestId)
@@ -1773,6 +1783,7 @@ class SyncEventApplier
         string $documentNumber,
         array $serialUnits,
         ?int $productVariantId = null,
+        ?float $unitCost = null,
     ): int {
         $now = now();
 
@@ -1863,7 +1874,7 @@ class SyncEventApplier
             'product_variant_id' => $productVariantId,
             'type' => 'exit',
             'quantity' => $quantity,
-            'unit_cost' => null,
+            'unit_cost' => $unitCost,
             'reason' => "Salida interempresa {$documentNumber}",
             'reference_type' => 'product_exit',
             'reference_id' => $exitId,
@@ -1914,6 +1925,7 @@ class SyncEventApplier
         string $documentNumber,
         array $serialUnits,
         ?int $productVariantId = null,
+        ?float $unitCost = null,
     ): int {
         $now = now();
 
@@ -1978,7 +1990,7 @@ class SyncEventApplier
             'product_variant_id' => $productVariantId,
             'type' => 'entry',
             'quantity' => $quantity,
-            'unit_cost' => null,
+            'unit_cost' => $unitCost,
             'reason' => "Entrada interempresa {$documentNumber}",
             'reference_type' => 'product_entry',
             'reference_id' => $entryId,
@@ -1994,7 +2006,7 @@ class SyncEventApplier
             'product_id' => $productId,
             'product_variant_id' => $productVariantId,
             'quantity' => $quantity,
-            'unit_cost' => null,
+            'unit_cost' => $unitCost,
             'stock_movement_id' => $movementId,
             'serial_units' => $serialUnits !== [] ? json_encode($serialUnits) : null,
             'created_at' => $now,
