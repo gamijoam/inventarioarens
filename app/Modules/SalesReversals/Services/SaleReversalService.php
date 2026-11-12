@@ -290,6 +290,8 @@ class SaleReversalService
             return [
                 'id' => $item->id,
                 'product_sku' => $item->product?->sku,
+                'product_variant_sku' => $item->variant?->sku_variant,
+                'product_variant_color' => $item->variant?->color,
                 'warehouse_code' => $item->warehouse?->code,
                 'price_list_code' => null,
                 'quantity' => (string) $item->quantity,

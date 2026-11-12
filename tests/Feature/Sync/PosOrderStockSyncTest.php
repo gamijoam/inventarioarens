@@ -5,6 +5,7 @@ namespace Tests\Feature\Sync;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -400,6 +401,59 @@ class PosOrderStockSyncTest extends TestCase
             'event_type' => 'pos.order.reversed',
             'status' => 'applied',
         ]);
+    }
+
+    public function test_reversed_variant_pos_order_sync_restores_the_variant_balance(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa reverso variante', 'slug' => 'empresa-reverso-variante']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $branch = Branch::create(['name' => 'Sucursal RV', 'code' => 'BR-RV']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen RV', 'code' => 'WH-RV']);
+        $product = Product::create(['name' => 'Franela RV', 'sku' => 'SKU-RV', 'tracking_type' => Product::TRACKING_QUANTITY, 'base_price' => 10, 'sale_currency' => Product::CURRENCY_USD]);
+        $red = ProductVariant::create(['product_id' => $product->id, 'color' => 'Rojo', 'sku_variant' => 'SKU-RV-R']);
+        $blue = ProductVariant::create(['product_id' => $product->id, 'color' => 'Azul', 'sku_variant' => 'SKU-RV-B']);
+        foreach ([$blue, $red] as $variant) {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
+                'quantity_available' => 3,
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+            ]);
+        }
+
+        $paidAt = now()->subMinute();
+        $paidPayload = $this->paidOrderPayload('LOCAL-RV', 95, 950, $product->sku, $warehouse->code, null, $paidAt->toISOString());
+        $paidPayload['items'][0]['product_variant_sku'] = 'SKU-RV-R';
+        $paidPayload['items'][0]['product_variant_color'] = 'Rojo';
+        $this->insertInboxEvent($tenant, 'pos.order.paid', $paidPayload, 95, $paidAt);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $balance = fn ($variant): float => (float) DB::table('stock_balances')->where('tenant_id', $tenant->id)->where('product_variant_id', $variant->id)->value('quantity_available');
+        $this->assertSame(2.0, $balance($red));
+        $this->assertSame(3.0, $balance($blue));
+
+        $reversalPayload = array_merge($paidPayload, [
+            'status' => 'voided',
+            'sale_status' => 'voided',
+            'type' => 'void',
+            'reversal_id' => 951,
+            'reversed_base_amount' => '10.0000',
+            'reversed_local_amount' => '0.0000',
+            'effective_at' => now()->toISOString(),
+            'sale' => ['id' => 950, 'status' => 'voided', 'total_base_amount' => '10.0000', 'total_local_amount' => '0.0000', 'confirmed_at' => $paidAt->toISOString()],
+        ]);
+        $this->insertInboxEvent($tenant, 'pos.order.reversed', $reversalPayload, 95);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(3.0, $balance($red), 'El reverso devuelve a la variante vendida.');
+        $this->assertSame(3.0, $balance($blue));
+        $this->assertSame(0, DB::table('stock_balances')->where('tenant_id', $tenant->id)->whereNull('product_variant_id')->count());
+        $this->assertSame($red->id, (int) DB::table('stock_movements')->where('tenant_id', $tenant->id)->where('type', 'sale_reversal')->value('product_variant_id'));
     }
 
     public function test_credit_sale_and_later_collection_sync_once_after_recovery(): void

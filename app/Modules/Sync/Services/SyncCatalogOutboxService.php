@@ -709,6 +709,7 @@ class SyncCatalogOutboxService
             'items.product',
             'items.warehouse',
             'items.stockMovement',
+            'items.purchaseItem.productVariant',
         ]);
 
         $this->outbox->record(
@@ -724,6 +725,8 @@ class SyncCatalogOutboxService
                 'items' => $return->items->map(fn ($item): array => [
                     'sku' => $item->product?->sku,
                     'warehouse_code' => $item->warehouse?->code,
+                    'product_variant_sku' => $item->purchaseItem?->productVariant?->sku_variant,
+                    'product_variant_color' => $item->purchaseItem?->productVariant?->color,
                     'quantity' => (string) $item->quantity,
                     'product_serial_units' => collect($item->product_unit_ids ?? [])
                         ->map(function (int $unitId): ?array {

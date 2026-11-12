@@ -198,6 +198,7 @@ class SalesReturnService
                     'reason' => $returnItem->reason ?? $salesReturn->reason ?? "Devolucion venta #{$salesReturn->sale_id}",
                     'referenceType' => SalesReturn::class,
                     'referenceId' => $salesReturn->id,
+                    'productVariantId' => $saleItem->product_variant_id === null ? null : (int) $saleItem->product_variant_id,
                 ];
 
                 $movement = $returnItem->condition === SalesReturnItem::CONDITION_DAMAGED

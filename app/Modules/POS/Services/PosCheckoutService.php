@@ -1494,6 +1494,8 @@ class PosCheckoutService
                 'items' => $order->sale?->items->map(fn ($item): array => [
                     'id' => $item->id,
                     'product_sku' => $item->product?->sku,
+                    'product_variant_sku' => $item->variant?->sku_variant,
+                    'product_variant_color' => $item->variant?->color,
                     'product_name' => $item->product?->name,
                     'warehouse_code' => $item->warehouse?->code,
                     'warehouse_name' => $item->warehouse?->name,

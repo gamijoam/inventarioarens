@@ -83,6 +83,7 @@ class InventoryMovementService
         ?string $reason = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->decreaseAvailable(
             type: 'purchase_return',
@@ -93,6 +94,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -118,6 +120,7 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?float $unitCost = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->increaseAvailable(
             type: 'sale_return',
@@ -129,6 +132,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
@@ -165,6 +169,7 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?float $unitCost = null,
+        ?int $productVariantId = null,
     ): StockMovement {
         return $this->increaseDamaged(
             type: 'sale_return',
@@ -176,6 +181,7 @@ class InventoryMovementService
             reason: $reason,
             referenceType: $referenceType,
             referenceId: $referenceId,
+            productVariantId: $productVariantId,
         );
     }
 
