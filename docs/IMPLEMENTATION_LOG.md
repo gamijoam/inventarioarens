@@ -7645,6 +7645,8 @@ Regla:
 - Comisiones: la reversion por devolucion se registra al procesar (fecha = `processed_at`); solicitar
   o rechazar una devolucion ya no toca la comision.
 - Tests: `tests/Feature/Customers/CustomerCreditIntegrityTest.php` (7). Mutation testing: 9/9 muertos.
-- Hallazgo previo no corregido: `CommissionControlService` usa `PosOrder` sin importarlo (500 en
-  `GET /api/commissions/control`), introducido en 86080769.
+- Corregido: `CommissionControlService` usaba `PosOrder` sin importarlo (500 en
+  `GET /api/commissions/control`, introducido en 86080769). `tests/Feature/Commissions` 25/25 verde.
+- Nota: `PosOrderPdfTest` falla en entornos sin el binario `tools/pdf-engine/bin/pdf-engine`
+  (se compila con `scripts/build-go-tools.sh`); no es un error de codigo.
 

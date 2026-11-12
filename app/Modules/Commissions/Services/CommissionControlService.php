@@ -5,6 +5,7 @@ namespace App\Modules\Commissions\Services;
 use App\Models\User;
 use App\Modules\Commissions\Models\CommissionEntry;
 use App\Modules\PaymentMethods\Models\PaymentMethod;
+use App\Modules\POS\Models\PosOrder;
 use App\Support\Time\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
