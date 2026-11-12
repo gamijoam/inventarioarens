@@ -540,6 +540,10 @@ subject_type, subject_id) en 24h no se duplica.
   (`POST /api/accounts-payable/{id}/supplier-credit`, pago con metodo `supplier_credit`, sin caja) o con
   un reembolso recibido (`POST /api/suppliers/{id}/credit-refunds`, entra a caja si es efectivo).
   Consulta: `GET /api/suppliers/{id}/credit`. Evento de sync `supplier_credit.recorded` (insert-once).
+- (2026-11-12) Saldo a favor del cliente: `CustomerCreditService::apply` bloquea la fila del cliente
+  antes de calcular el disponible. Cada movimiento emite `customer_credit.recorded` (cliente por
+  documento, insert-once por identidad de origen; si el cliente aun no llego, el evento falla y se
+  reintenta). La comision se revierte al **procesar** la devolucion, no al solicitarla.
 - (2026-11-12) Devoluciones: lo devuelto primero cancela la deuda pendiente de la venta; solo el
   excedente cobrado se reembolsa (efectivo o saldo a favor). Un reverso se rechaza si la venta tiene
   devoluciones y anula la CxC (`status=voided`), reembolsando tambien los cobros de CxC (no los
