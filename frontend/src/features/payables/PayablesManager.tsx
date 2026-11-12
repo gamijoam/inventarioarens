@@ -44,6 +44,7 @@ import {
   exportPayables,
   type PayableListFilters,
 } from './api';
+import { SupplierCreditPanel } from './SupplierCreditPanel';
 import { activeUsdVesRate, currentLocalBalance, numberLabel, rateLabel } from './currentBalance';
 import {
   PAYABLE_STATUS_LABELS,
@@ -444,6 +445,7 @@ function PayableDetail({
   const payments = current.payments ?? [];
   const requests = current.payment_requests ?? [];
   const localBalance = currentLocalBalance(current, activeRate);
+  const canPay = useCan(PERMISSIONS.ACCOUNTS_PAYABLE_PAY);
 
   if (isLoading && !data) return <Skeleton className="h-36 w-full" />;
 
@@ -471,6 +473,12 @@ function PayableDetail({
         <InfoTile label="Ajustado" value={money(current.adjusted_base_amount)} />
         <InfoTile label="Pagado" value={money(current.paid_base_amount)} />
       </div>
+      <SupplierCreditPanel
+        payableId={current.id}
+        supplierId={current.supplier_id ?? current.supplier?.id}
+        balance={Number(current.balance_base_amount ?? 0)}
+        canPay={canPay}
+      />
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="border-border bg-surface rounded border p-3">
           <div className="flex items-center justify-between gap-2">
@@ -515,7 +523,9 @@ function PayableDetail({
                   className="border-border flex items-center justify-between border-b py-2 text-sm last:border-0"
                 >
                   <div>
-                    <p className="font-medium">{payment.method ?? 'Pago'}</p>
+                    <p className="font-medium">
+                      {payment.method === 'supplier_credit' ? 'Credito con proveedor' : (payment.method ?? 'Pago')}
+                    </p>
                     <p className="text-text-muted text-xs">
                       {payment.reference ?? dateLabel(payment.paid_at)}
                     </p>

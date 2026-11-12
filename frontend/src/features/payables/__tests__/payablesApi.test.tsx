@@ -73,3 +73,40 @@ describe('payables api', () => {
     });
   });
 });
+
+describe('supplier credit api', () => {
+  it('builds the supplier credit query', async () => {
+    const { buildSupplierCreditQuery } = await import('../api');
+    expect(buildSupplierCreditQuery(12)).toBe('/suppliers/12/credit');
+  });
+
+  it('parses the real supplier credit payload with nullable fields', async () => {
+    const { SupplierCreditSchema } = await import('../schemas');
+    const parsed = SupplierCreditSchema.parse({
+      supplier_id: 12,
+      available_base_amount: 20,
+      available_local_amount: 2000,
+      transactions: [
+        {
+          id: 1,
+          type: 'return_credit',
+          currency: 'USD',
+          amount: 20,
+          amount_base: 20,
+          amount_local: 2000,
+          exchange_rate: 100,
+          accounts_payable_id: 3,
+          purchase_return_id: 4,
+          method: null,
+          reference: null,
+          notes: 'Devolucion de compra #4 posterior al pago',
+          occurred_at: '2026-11-12T10:00:00.000000Z',
+          created_at: null,
+        },
+      ],
+    });
+
+    expect(parsed.available_base_amount).toBe(20);
+    expect(parsed.transactions[0]?.type).toBe('return_credit');
+  });
+});

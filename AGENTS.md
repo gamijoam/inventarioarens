@@ -534,6 +534,12 @@ subject_type, subject_id) en 24h no se duplica.
   fila append-only en `exchange_differences` (positivo = ganancia) y emite
   `exchange_difference.recorded`. Una CxP en Bs se salda por su monto en Bs; la diferencia queda en USD.
   Consulta: `GET /api/exchange-differences` (permiso `finance_reports.view`), visible en Reportes > Finanzas.
+- (2026-11-12) Credito con proveedor: una devolucion de compra posterior al pago genera un movimiento
+  append-only en `supplier_credit_transactions` (`return_credit`) por el excedente devuelto+pagado sobre
+  la factura. Se consume aplicandolo a otra CxP del mismo proveedor
+  (`POST /api/accounts-payable/{id}/supplier-credit`, pago con metodo `supplier_credit`, sin caja) o con
+  un reembolso recibido (`POST /api/suppliers/{id}/credit-refunds`, entra a caja si es efectivo).
+  Consulta: `GET /api/suppliers/{id}/credit`. Evento de sync `supplier_credit.recorded` (insert-once).
 - (2026-11-12) Devoluciones: lo devuelto primero cancela la deuda pendiente de la venta; solo el
   excedente cobrado se reembolsa (efectivo o saldo a favor). Un reverso se rechaza si la venta tiene
   devoluciones y anula la CxC (`status=voided`), reembolsando tambien los cobros de CxC (no los

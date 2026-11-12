@@ -12,6 +12,8 @@ Route::apiResource('accounts-payable', AccountsPayableController::class)
 
 Route::post('accounts-payable/{accountsPayable}/payments', [AccountsPayableController::class, 'pay'])
     ->middleware('idempotency');
+Route::post('accounts-payable/{accountsPayable}/supplier-credit', [AccountsPayableController::class, 'applySupplierCredit'])
+    ->middleware('idempotency');
 Route::post('accounts-payable/{accountsPayable}/payment-requests', [AccountsPayableController::class, 'preparePaymentRequest'])
     ->middleware('idempotency');
 
