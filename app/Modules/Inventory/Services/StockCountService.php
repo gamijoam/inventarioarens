@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Inventory\Models\StockCount;
 use App\Modules\Inventory\Models\StockCountItem;
 use App\Modules\Products\Models\Product;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\TenantManager;
@@ -161,7 +162,7 @@ class StockCountService
                 $product = Product::query()->findOrFail($item->product_id);
 
                 if ($type === 'adjustment_in') {
-                    $this->inventory->adjustmentIn(
+                    $movement = $this->inventory->adjustmentIn(
                         warehouse: $warehouse,
                         product: $product,
                         quantity: $quantity,
@@ -171,7 +172,7 @@ class StockCountService
                         referenceId: $count->id,
                     );
                 } else {
-                    $this->inventory->adjustmentOut(
+                    $movement = $this->inventory->adjustmentOut(
                         warehouse: $warehouse,
                         product: $product,
                         quantity: $quantity,
@@ -182,6 +183,7 @@ class StockCountService
                     );
                 }
 
+                app(SyncCatalogOutboxService::class)->stockMovementCreated($movement);
                 $variance > 0 ? $adjustments['in']++ : $adjustments['out']++;
                 $item->update(['status' => StockCountItem::STATUS_ADJUSTED]);
             }
