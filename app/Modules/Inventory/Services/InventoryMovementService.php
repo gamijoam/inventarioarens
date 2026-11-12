@@ -289,13 +289,14 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?int $productVariantId = null,
+        ?float $unitCost = null,
     ): StockMovement {
         return $this->increaseAvailable(
             'transfer_request_in',
             $warehouse,
             $product,
             $quantity,
-            null,
+            $unitCost,
             $createdBy,
             $reason,
             $referenceType,
@@ -453,6 +454,56 @@ class InventoryMovementService
 
             return $this->recordMovement('transfer_out', $warehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
         });
+    }
+
+    /**
+     * Registra, valorada, la mercancia que salio de un traslado y nunca llego.
+     * No mueve saldos: la salida del origen ya se aplico al despachar.
+     */
+    public function transferLoss(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?float $unitCost = null,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?int $productVariantId = null,
+    ): StockMovement {
+        return DB::transaction(function () use ($warehouse, $product, $quantity, $unitCost, $createdBy, $reason, $referenceType, $referenceId, $productVariantId): StockMovement {
+            $this->validateOperation($warehouse, $product, $quantity);
+
+            return $this->recordMovement('transfer_loss', $warehouse, $product, $quantity, $unitCost, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
+        });
+    }
+
+    /**
+     * Reingresa al almacen de origen lo que no llego al destino de un traslado.
+     */
+    public function returnTransferToOrigin(
+        Warehouse $warehouse,
+        Product $product,
+        float $quantity,
+        ?float $unitCost = null,
+        ?User $createdBy = null,
+        ?string $reason = null,
+        ?string $referenceType = null,
+        ?int $referenceId = null,
+        ?int $productVariantId = null,
+    ): StockMovement {
+        return $this->increaseAvailable(
+            type: 'transfer_in',
+            warehouse: $warehouse,
+            product: $product,
+            quantity: $quantity,
+            unitCost: $unitCost,
+            createdBy: $createdBy,
+            reason: $reason,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
+            productVariantId: $productVariantId,
+        );
     }
 
     public function receiveTransfer(

@@ -813,6 +813,38 @@ class InventoryTransferService
         return $transfer;
     }
 
+    private function dispatchedUnitCost(InventoryTransferItem $item): ?float
+    {
+        $cost = $item->out_stock_movement_id === null
+            ? null
+            : StockMovement::query()->whereKey($item->out_stock_movement_id)->value('unit_cost');
+
+        return $cost === null ? null : (float) $cost;
+    }
+
+    private function returnMissingUnitsToOrigin(InventoryTransferItem $item, Warehouse $origin): void
+    {
+        $missingUnitIds = array_values(array_diff($item->prepared_product_unit_ids ?? [], $item->received_product_unit_ids ?? []));
+
+        if ($missingUnitIds === []) {
+            return;
+        }
+
+        ProductUnit::query()
+            ->whereIn('id', $missingUnitIds)
+            ->where('status', '!=', ProductUnit::STATUS_SOLD)
+            ->lockForUpdate()
+            ->get()
+            ->each(function (ProductUnit $unit) use ($origin): void {
+                $unit->update([
+                    'status' => ProductUnit::STATUS_AVAILABLE,
+                    'warehouse_id' => $origin->id,
+                    'released_stock_movement_id' => null,
+                ]);
+                $this->syncCatalog->productUnitUpdated($unit->refresh());
+            });
+    }
+
     public function resolveDifferences(User $user, InventoryTransfer $transfer, array $data): InventoryTransfer
     {
         return DB::transaction(function () use ($user, $transfer, $data): InventoryTransfer {
@@ -886,26 +918,29 @@ class InventoryTransferService
                         break;
 
                     case InventoryTransferItem::RESOLUTION_ACCEPTED_LOSS:
-                        $movementId = null;
-                        break;
-
                     case InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY:
-                        $manualQuantity = (float) ($payloadItem['quantity'] ?? 0);
+                        $lossQuantity = $differenceQuantity;
 
-                        if ($manualQuantity <= 0) {
-                            throw ValidationException::withMessages([
-                                "items.{$index}.quantity" => 'La cantidad de ajuste manual debe ser mayor que cero.',
-                            ]);
+                        if ($action === InventoryTransferItem::RESOLUTION_ADJUSTED_MANUALLY) {
+                            $lossQuantity = (float) ($payloadItem['quantity'] ?? 0);
+
+                            if ($lossQuantity <= 0 || $lossQuantity > $differenceQuantity + 0.0001) {
+                                throw ValidationException::withMessages([
+                                    "items.{$index}.quantity" => "La cantidad de merma debe ser mayor que cero y no superar lo que falto ({$differenceQuantity}).",
+                                ]);
+                            }
                         }
 
-                        $movement = $this->inventory->adjustmentOut(
-                            warehouse: $transfer->toWarehouse,
+                        $movement = $this->inventory->transferLoss(
+                            warehouse: $transfer->fromWarehouse,
                             product: $product,
-                            quantity: $manualQuantity,
+                            quantity: $lossQuantity,
+                            unitCost: $this->dispatchedUnitCost($item),
                             createdBy: $user,
-                            reason: "Ajuste manual por diferencia en recepcion {$transfer->guide_number}",
+                            reason: "Perdida en transito {$transfer->guide_number}",
                             referenceType: InventoryTransfer::class,
                             referenceId: $transfer->id,
+                            productVariantId: $item->product_variant_id,
                         );
                         $this->syncCatalog->stockMovementCreated($movement);
                         $movementId = $movement->id;
@@ -913,9 +948,21 @@ class InventoryTransferService
                         break;
 
                     case InventoryTransferItem::RESOLUTION_RETURNED_TO_ORIGIN:
-                        throw ValidationException::withMessages([
-                            "items.{$index}.action" => 'La devolucion al origen no esta habilitada en esta fase.',
-                        ]);
+                        $movement = $this->inventory->returnTransferToOrigin(
+                            warehouse: $transfer->fromWarehouse,
+                            product: $product,
+                            quantity: $differenceQuantity,
+                            unitCost: $this->dispatchedUnitCost($item),
+                            createdBy: $user,
+                            reason: "Devuelto al origen {$transfer->guide_number}",
+                            referenceType: InventoryTransfer::class,
+                            referenceId: $transfer->id,
+                            productVariantId: $item->product_variant_id,
+                        );
+                        $this->syncCatalog->stockMovementCreated($movement);
+                        $movementId = $movement->id;
+                        $this->returnMissingUnitsToOrigin($item, $transfer->fromWarehouse);
+                        break;
 
                     default:
                         throw ValidationException::withMessages([

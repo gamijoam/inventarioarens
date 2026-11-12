@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\StockBalance;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\Products\Models\Product;
@@ -81,6 +82,19 @@ class InventoryTransferRequestApiTest extends TestCase
             'type' => 'transfer_request_in',
             'reference_type' => InventoryTransferRequest::class,
         ]);
+        $this->assertTransferredAtCost($originTenant, $destinationTenant, $originProduct, 4);
+    }
+
+    private function assertTransferredAtCost(Tenant $receiver, Tenant $sender, Product $receiverProduct, float $quantity): void
+    {
+        $out = StockMovement::withoutGlobalScopes()->where('tenant_id', $sender->id)->where('type', 'transfer_request_out')->sole();
+        $in = StockMovement::withoutGlobalScopes()->where('tenant_id', $receiver->id)->where('type', 'transfer_request_in')->sole();
+        $this->assertEqualsWithDelta(50.0, (float) $out->unit_cost, 0.0001, 'La salida queda valorada al costo de la empresa que envia.');
+        $this->assertEqualsWithDelta((float) $out->unit_cost, (float) $in->unit_cost, 0.0001, 'La entrada usa el costo de la empresa que envia.');
+        $this->assertEqualsWithDelta($quantity, (float) $in->quantity, 0.0001);
+        $product = Product::withoutGlobalScopes()->findOrFail($receiverProduct->id);
+        $this->assertEqualsWithDelta(50.0, (float) $product->last_purchase_cost, 0.0001, 'La receptora queda con costo para vender.');
+        $this->assertEqualsWithDelta(50.0, (float) $product->average_cost, 0.0001);
     }
 
     public function test_intercompany_serialized_transfer_moves_imei_between_companies_after_acceptance(): void
@@ -194,6 +208,7 @@ class InventoryTransferRequestApiTest extends TestCase
         $this->assertSame(4.0, (float) $this->balance($originWarehouse, $originProduct)->quantity_available);
         $this->useTenant($destinationTenant);
         $this->assertSame(6.0, (float) $this->balance($destinationWarehouse, $destinationProduct)->quantity_available);
+        $this->assertTransferredAtCost($originTenant, $destinationTenant, $originProduct, 4);
     }
 
     public function test_simple_guide_can_be_prepared_without_transport_details(): void
