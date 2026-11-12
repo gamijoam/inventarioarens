@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
-import { Plus, Pencil, Trash2, Search, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Wallet, X } from 'lucide-react';
 import { toast } from '@/lib/toast';
 
 import { Button } from '@/components/ui/Button';
@@ -40,6 +40,7 @@ import {
   type Supplier,
   type SupplierDocumentType,
 } from '@/features/suppliers/schemas';
+import { SupplierCreditDialog } from './SupplierCreditDialog';
 
 type FormValues = z.input<typeof StoreSupplierSchema>;
 
@@ -69,6 +70,7 @@ export function SuppliersManager() {
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Supplier | null>(null);
+  const [crediting, setCrediting] = useState<Supplier | null>(null);
 
   return (
     <>
@@ -154,6 +156,9 @@ export function SuppliersManager() {
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-1">
+                      <Button size="icon-sm" variant="ghost" onClick={() => setCrediting(s)} aria-label={`Credito de ${s.name}`}>
+                        <Wallet className="size-4" />
+                      </Button>
                       <Button size="icon-sm" variant="ghost" onClick={() => setEditing(s)} aria-label={`Editar ${s.name}`}>
                         <Pencil className="size-4" />
                       </Button>
@@ -191,6 +196,8 @@ export function SuppliersManager() {
           loading={create.isPending || update.isPending}
         />
       )}
+
+      {crediting && <SupplierCreditDialog supplier={crediting} onClose={() => setCrediting(null)} />}
 
       {deleting && (
         <ConfirmDialog

@@ -7632,3 +7632,5 @@ Regla:
 - Frontend: panel "Credito con este proveedor" en el detalle de la CxP.
 - Tests: `tests/Feature/AccountsPayable/SupplierCreditTest.php` (16), `SupplierCreditPanel.test.tsx` (4),
   parser en `payablesApi.test.tsx`. Mutation testing manual: 14/14 mutantes muertos.
+- Proveedores: boton "Credito" por proveedor con saldo, historial y formulario de reembolso recibido
+  (transferencia, pago movil, Zelle u otro). Tests: `SupplierCreditDialog.test.tsx` (4).

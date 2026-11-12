@@ -110,3 +110,17 @@ describe('supplier credit api', () => {
     expect(parsed.transactions[0]?.type).toBe('return_credit');
   });
 });
+
+describe('supplier credit refund payload', () => {
+  it('accepts a bolivar refund by transfer', async () => {
+    const { SupplierCreditRefundSchema } = await import('../schemas');
+    expect(
+      SupplierCreditRefundSchema.parse({ payment_currency: 'VES', amount: 1500, method: 'transfer', reference: 'TRF-1' }),
+    ).toEqual({ payment_currency: 'VES', amount: 1500, method: 'transfer', reference: 'TRF-1' });
+  });
+
+  it('rejects a non positive amount', async () => {
+    const { SupplierCreditRefundSchema } = await import('../schemas');
+    expect(SupplierCreditRefundSchema.safeParse({ payment_currency: 'USD', amount: 0, method: 'transfer' }).success).toBe(false);
+  });
+});
