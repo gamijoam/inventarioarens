@@ -15,6 +15,7 @@ use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
 use App\Modules\SalesReversals\Models\SaleReversal;
+use App\Modules\Suppliers\Models\SupplierCreditTransaction;
 use App\Modules\Sync\Services\SyncOutboxService;
 use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
@@ -379,6 +380,42 @@ class CashRegisterService
                 'source_id' => $payment->id,
                 'reference' => $payment->reference,
                 'notes' => "Pago CxP #{$payment->id}",
+                'created_by' => $operator->id,
+            ]);
+
+            $this->recalculateExpectedTotals($session);
+
+            return $session->refresh();
+        });
+    }
+
+    public function recordSupplierCreditRefund(CashRegisterSession $session, SupplierCreditTransaction $transaction, User $operator): CashRegisterSession
+    {
+        return DB::transaction(function () use ($session, $transaction, $operator): CashRegisterSession {
+            $session = CashRegisterSession::query()->lockForUpdate()->findOrFail($session->id);
+            $this->assertOpen($session);
+
+            if ((int) $session->cashier_id !== (int) $operator->id) {
+                throw ValidationException::withMessages([
+                    'cash_register_session_id' => 'Solo puedes registrar reembolsos en tu caja abierta.',
+                ]);
+            }
+
+            $this->persistMovement([
+                'cash_register_session_id' => $session->id,
+                'type' => CashRegisterMovement::TYPE_INFLOW,
+                'method' => CashRegisterMovement::METHOD_CASH,
+                'currency' => $transaction->currency,
+                'amount' => abs((float) $transaction->amount),
+                'amount_base' => abs((float) $transaction->amount_base),
+                'amount_local' => abs((float) $transaction->amount_local),
+                'exchange_rate_type_id' => $transaction->exchange_rate_type_id,
+                'exchange_rate_type_code' => $transaction->exchange_rate_type_code,
+                'exchange_rate' => $transaction->exchange_rate,
+                'source_type' => SupplierCreditTransaction::class,
+                'source_id' => $transaction->id,
+                'reference' => $transaction->reference,
+                'notes' => "Reembolso de proveedor #{$transaction->supplier_id}",
                 'created_by' => $operator->id,
             ]);
 

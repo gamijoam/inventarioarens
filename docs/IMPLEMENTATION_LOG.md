@@ -7618,3 +7618,17 @@ Regla:
 - Endpoint `GET /api/exchange-differences` con totales; tarjetas en Reportes > Finanzas.
 - Tests: `tests/Feature/Currency/ExchangeDifferenceTest.php` (13), test POS con markup,
   `reportsApi.test.tsx` (parser con payload real). Mutation testing manual: 12/12 mutantes muertos.
+
+
+## 2026-11-12 - Credito con proveedor por devolucion posterior al pago (auditoria contable, lote 3)
+
+- Tabla `supplier_credit_transactions` + `SupplierCreditService`. La devolucion de compra registra el
+  excedente (devuelto + pagado + ajustado - factura) como credito, sin contarlo dos veces en
+  devoluciones sucesivas. Factura en Bs: el credito se calcula en Bs; factura USD sin tasa: el
+  equivalente en Bs usa la tasa oficial vigente.
+- Aplicar credito a otra CxP del mismo proveedor (pago `supplier_credit`, sin caja ni recibo) y
+  registrar reembolsos recibidos (con tasa oficial; en efectivo entra a la caja abierta).
+- Sync `supplier_credit.recorded`: proveedor por documento, CxP por numero, insert-once.
+- Frontend: panel "Credito con este proveedor" en el detalle de la CxP.
+- Tests: `tests/Feature/AccountsPayable/SupplierCreditTest.php` (16), `SupplierCreditPanel.test.tsx` (4),
+  parser en `payablesApi.test.tsx`. Mutation testing manual: 14/14 mutantes muertos.

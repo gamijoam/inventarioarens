@@ -184,6 +184,45 @@ class AccountsPayableService
     }
 
     /**
+     * Pago de CxP con credito del proveedor: no mueve caja ni emite recibo de
+     * pago; se valora a la tasa de la factura, sin diferencial cambiario.
+     */
+    public function registerCreditPayment(
+        AccountsPayable $account,
+        User $user,
+        float $amountBase,
+        float $amountLocal,
+        ?float $documentRate,
+        ?string $notes = null,
+    ): AccountsPayablePayment {
+        return DB::transaction(function () use ($account, $user, $amountBase, $amountLocal, $documentRate, $notes): AccountsPayablePayment {
+            $account = AccountsPayable::query()->lockForUpdate()->findOrFail($account->id);
+
+            $payment = AccountsPayablePayment::create([
+                'accounts_payable_id' => $account->id,
+                'payment_currency' => PurchaseOrder::CURRENCY_USD,
+                'amount' => $amountBase,
+                'exchange_rate_type_id' => $account->exchange_rate_type_id,
+                'exchange_rate_type_code' => $account->exchange_rate_type_code,
+                'exchange_rate' => $documentRate,
+                'amount_base' => $amountBase,
+                'amount_local' => $amountLocal,
+                'method' => AccountsPayablePayment::METHOD_SUPPLIER_CREDIT,
+                'notes' => $notes ?? 'Credito con proveedor',
+                'created_by' => $user->id,
+                'paid_at' => now(),
+            ]);
+
+            $account->paid_base_amount = round((float) $account->paid_base_amount + $amountBase, 4);
+            $account->paid_local_amount = round((float) $account->paid_local_amount + $amountLocal, 4);
+            $this->recalculate($account);
+            $account->save();
+
+            return $payment->refresh()->load('account');
+        });
+    }
+
+    /**
      * Monto que el pago cancela de la deuda. Una factura en bolivares se salda
      * por su monto en Bs y su equivalente USD a la tasa de la factura; la
      * diferencia con el valor real pagado es diferencial cambiario.

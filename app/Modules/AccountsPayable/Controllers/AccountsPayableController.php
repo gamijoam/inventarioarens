@@ -12,6 +12,7 @@ use App\Modules\AccountsPayable\Services\AccountsPayablePaymentRequestService;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
+use App\Modules\Suppliers\Services\SupplierCreditService;
 use App\Support\Database\SearchNormalization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class AccountsPayableController extends Controller
@@ -200,6 +200,22 @@ class AccountsPayableController extends Controller
         }
 
         $payment = $service->registerPayment($accountsPayable, $request->user(), $data);
+
+        return AccountsPayablePaymentResource::make($payment)
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
+    public function applySupplierCredit(Request $request, AccountsPayable $accountsPayable, SupplierCreditService $credits): JsonResponse
+    {
+        Gate::authorize('pay', $accountsPayable);
+
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $payment = $credits->applyToPayable($accountsPayable, $request->user(), (float) $data['amount'], $data['notes'] ?? null);
 
         return AccountsPayablePaymentResource::make($payment)
             ->response()

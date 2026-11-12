@@ -29,6 +29,8 @@ class AccountsPayablePayment extends Model
 {
     use BelongsToTenant, Syncable;
 
+    public const METHOD_SUPPLIER_CREDIT = 'supplier_credit';
+
     protected function syncOutboxMethod(string $action): ?string
     {
         return match ($action) {

@@ -203,3 +203,29 @@ export type PayablePaymentRequest = z.infer<typeof PayablePaymentRequestSchema>;
 export type PayPayableValues = z.infer<typeof PayPayableSchema>;
 export type PayablePaymentRequestPayload = z.infer<typeof PayablePaymentRequestPayloadSchema>;
 export type ExecutePayablePaymentRequestValues = z.infer<typeof ExecutePayablePaymentRequestSchema>;
+
+export const SupplierCreditTransactionSchema = z.object({
+  id: z.number(),
+  type: z.string(),
+  currency: z.string(),
+  amount: z.coerce.number(),
+  amount_base: z.coerce.number(),
+  amount_local: z.coerce.number(),
+  exchange_rate: z.coerce.number().nullable().optional(),
+  accounts_payable_id: z.number().nullable().optional(),
+  purchase_return_id: z.number().nullable().optional(),
+  method: z.string().nullable().optional(),
+  reference: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  occurred_at: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+});
+
+export const SupplierCreditSchema = z.object({
+  supplier_id: z.number(),
+  available_base_amount: z.coerce.number(),
+  available_local_amount: z.coerce.number(),
+  transactions: z.array(SupplierCreditTransactionSchema),
+});
+
+export type SupplierCredit = z.infer<typeof SupplierCreditSchema>;

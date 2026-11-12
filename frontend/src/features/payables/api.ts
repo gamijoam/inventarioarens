@@ -10,6 +10,7 @@ import {
   PayablePaymentRequestPayloadSchema,
   PayablePaymentRequestSchema,
   PayPayableSchema,
+  SupplierCreditSchema,
   type Payable,
   type PayableListFilters,
   type PayablePayment,
@@ -94,6 +95,36 @@ export function usePayPayable() {
       void qc.invalidateQueries({ queryKey: payableKeys.lists() });
       void qc.invalidateQueries({ queryKey: payableKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: ['pos', 'cash-sessions'] });
+    },
+  });
+}
+
+export function buildSupplierCreditQuery(supplierId: number): string {
+  return `/suppliers/${supplierId}/credit`;
+}
+
+export function useSupplierCredit(supplierId: number | null | undefined) {
+  return useQuery({
+    queryKey: payableKeys.supplierCredit(Number(supplierId)),
+    queryFn: async () =>
+      SupplierCreditSchema.parse(await getOne<unknown>(buildSupplierCreditQuery(Number(supplierId)))),
+    enabled: Number.isFinite(supplierId) && Number(supplierId) > 0,
+  });
+}
+
+export function useApplySupplierCredit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount }: { id: number; supplierId: number; amount: number }) =>
+      postOne<{ amount: number }, PayablePayment>(
+        `/accounts-payable/${id}/supplier-credit`,
+        { amount },
+        idempotencyConfig('ap-supplier-credit'),
+      ),
+    onSuccess: (_, { id, supplierId }) => {
+      void qc.invalidateQueries({ queryKey: payableKeys.lists() });
+      void qc.invalidateQueries({ queryKey: payableKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: payableKeys.supplierCredit(supplierId) });
     },
   });
 }

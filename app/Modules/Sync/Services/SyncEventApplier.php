@@ -92,6 +92,7 @@ class SyncEventApplier
         'cash.session.closed',
         'cash.movement.recorded',
         'exchange_difference.recorded',
+        'supplier_credit.recorded',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -174,6 +175,7 @@ class SyncEventApplier
         'cash.session.closed',
         'cash.movement.recorded',
         'exchange_difference.recorded',
+        'supplier_credit.recorded',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -318,6 +320,7 @@ class SyncEventApplier
                 'cash.session.opened', 'cash.session.closed' => $this->applyCashSession($tenant, $payload, $event),
                 'cash.movement.recorded' => $this->applyCashMovement($tenant, $payload, $event),
                 'exchange_difference.recorded' => $this->applyExchangeDifference($tenant, $payload, $event),
+                'supplier_credit.recorded' => $this->applySupplierCredit($tenant, $payload, $event),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
                 'tenant_settings.updated' => $this->applyTenantSettings($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
@@ -3001,6 +3004,68 @@ class SyncEventApplier
             'difference_base_amount' => $payload['difference_base_amount'] ?? 0,
             'difference_local_amount' => $payload['difference_local_amount'] ?? 0,
             'kind' => $payload['kind'] ?? 'gain',
+            'occurred_at' => $this->nullableDate($payload['occurred_at'] ?? null) ?? $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]));
+
+        return 'applied';
+    }
+
+    /**
+     * Movimiento del credito con proveedor; append-only e idempotente por
+     * identidad de origen. Proveedor por documento y CxP por numero.
+     */
+    private function applySupplierCredit(Tenant $tenant, array $payload, array $event): string
+    {
+        $sourceNodeCode = $this->sourceNodeCode($tenant, $event, $payload);
+        $sourceId = (int) ($payload['transaction_id'] ?? $event['aggregate_id'] ?? 0);
+        $documentNumber = $this->nullableString($payload['supplier_document_number'] ?? null);
+
+        if ($sourceId <= 0 || $documentNumber === null) {
+            return 'ignored';
+        }
+
+        $keys = [
+            'tenant_id' => $tenant->id,
+            'sync_source_node_code' => $sourceNodeCode,
+            'sync_source_id' => $sourceId,
+        ];
+
+        if (DB::table('supplier_credit_transactions')->where($keys)->exists()) {
+            return 'applied';
+        }
+
+        $supplierId = DB::table('suppliers')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $documentNumber)
+            ->when($this->nullableString($payload['supplier_document_type'] ?? null), fn ($q, $type) => $q->where('document_type', $type))
+            ->value('id');
+
+        if (! $supplierId) {
+            throw new RuntimeException("Proveedor {$documentNumber} no sincronizado para el credito con proveedor.");
+        }
+
+        $payableDocument = $this->nullableString($payload['payable_document'] ?? null);
+        $payableId = $payableDocument === null ? null : DB::table('accounts_payables')
+            ->where('tenant_id', $tenant->id)
+            ->where('document_number', $payableDocument)
+            ->value('id');
+
+        $now = now();
+        DB::table('supplier_credit_transactions')->insert(array_merge($keys, [
+            'supplier_id' => $supplierId,
+            'type' => $this->requiredString($payload, 'type'),
+            'currency' => $payload['currency'] ?? 'USD',
+            'amount' => $payload['amount'] ?? 0,
+            'amount_base' => $payload['amount_base'] ?? 0,
+            'amount_local' => $payload['amount_local'] ?? 0,
+            'exchange_rate_type_code' => $this->nullableString($payload['exchange_rate_type_code'] ?? null),
+            'exchange_rate' => $payload['exchange_rate'] ?? null,
+            'accounts_payable_id' => $payableId,
+            'method' => $this->nullableString($payload['method'] ?? null),
+            'reference' => $this->nullableString($payload['reference'] ?? null),
+            'notes' => $this->nullableString($payload['notes'] ?? null),
             'occurred_at' => $this->nullableDate($payload['occurred_at'] ?? null) ?? $now,
             'created_at' => $now,
             'updated_at' => $now,
