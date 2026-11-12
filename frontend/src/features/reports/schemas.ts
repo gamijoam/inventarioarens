@@ -96,6 +96,44 @@ export const FinanceReceivableRowSchema = z.object({
   opened_at: z.string().nullable().optional(),
 });
 
+const DecimalSchema = z.coerce.number();
+
+export const ExchangeDifferenceRowSchema = z.object({
+  id: z.number(),
+  account_type: z.string(),
+  document_number: z.string().nullable().optional(),
+  payment_currency: z.string().nullable().optional(),
+  document_rate: DecimalSchema.nullable().optional(),
+  settlement_rate: DecimalSchema.nullable().optional(),
+  difference_base_amount: DecimalSchema,
+  difference_local_amount: DecimalSchema,
+  kind: z.string(),
+  occurred_at: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+});
+
+export const ExchangeDifferencesReportSchema = z.object({
+  data: z.array(ExchangeDifferenceRowSchema),
+  meta: z
+    .object({
+      current_page: z.number(),
+      last_page: z.number(),
+      per_page: z.number(),
+      total: z.number(),
+    })
+    .partial()
+    .optional(),
+  totals: z.object({
+    gain_local_amount: DecimalSchema,
+    loss_local_amount: DecimalSchema,
+    net_local_amount: DecimalSchema,
+    gain_base_amount: DecimalSchema,
+    loss_base_amount: DecimalSchema,
+    net_base_amount: DecimalSchema,
+  }),
+});
+
 export const FinancePayableRowSchema = z.object({
   id: z.number(),
   supplier_id: z.number().nullable().optional(),
@@ -425,6 +463,7 @@ export type MovementReportResponse = z.infer<typeof MovementReportResponseSchema
 export type FinanceSummary = z.infer<typeof FinanceSummarySchema>;
 export type FinanceReceivableRow = z.infer<typeof FinanceReceivableRowSchema>;
 export type FinancePayableRow = z.infer<typeof FinancePayableRowSchema>;
+export type ExchangeDifferencesReport = z.infer<typeof ExchangeDifferencesReportSchema>;
 export type ReportCatalogItem = z.infer<typeof ReportCatalogItemSchema>;
 export type DailyOperations = z.infer<typeof DailyOperationsSchema>;
 export type SalesDetail = z.infer<typeof SalesDetailSchema>;

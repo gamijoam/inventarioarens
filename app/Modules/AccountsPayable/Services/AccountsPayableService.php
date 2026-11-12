@@ -8,6 +8,7 @@ use App\Modules\AccountsPayable\Models\AccountsPayablePayment;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
+use App\Modules\Currency\Services\ExchangeDifferenceService;
 use App\Modules\Currency\Services\SettlementRateResolver;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
 use App\Modules\PurchaseReturns\Models\PurchaseReturn;
@@ -146,11 +147,7 @@ class AccountsPayableService
                 isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
             );
 
-            if ($amountBase > round((float) $account->balance_base_amount, 4)) {
-                throw ValidationException::withMessages([
-                    'amount' => 'El pago supera el saldo pendiente de la cuenta.',
-                ]);
-            }
+            [$appliedBase, $appliedLocal] = $this->appliedAmounts($account, $amountBase, $amountLocal);
 
             $payment = AccountsPayablePayment::create([
                 'accounts_payable_id' => $account->id,
@@ -168,10 +165,12 @@ class AccountsPayableService
                 'paid_at' => $data['paid_at'] ?? now(),
             ]);
 
-            $account->paid_base_amount = round((float) $account->paid_base_amount + $amountBase, 4);
-            $account->paid_local_amount = round((float) $account->paid_local_amount + $amountLocal, 4);
+            $account->paid_base_amount = round((float) $account->paid_base_amount + $appliedBase, 4);
+            $account->paid_local_amount = round((float) $account->paid_local_amount + $appliedLocal, 4);
             $this->recalculate($account);
             $account->save();
+
+            app(ExchangeDifferenceService::class)->recordPayablePayment($account, $payment, $appliedBase, $appliedLocal);
 
             app(PaymentReceiptService::class)->issueForPayablePayment($payment, $user);
 
@@ -182,6 +181,41 @@ class AccountsPayableService
 
             return $payment->refresh()->load('account');
         });
+    }
+
+    /**
+     * Monto que el pago cancela de la deuda. Una factura en bolivares se salda
+     * por su monto en Bs y su equivalente USD a la tasa de la factura; la
+     * diferencia con el valor real pagado es diferencial cambiario.
+     *
+     * @return array{0: float, 1: float}
+     */
+    private function appliedAmounts(AccountsPayable $account, float $amountBase, float $amountLocal): array
+    {
+        $isBolivarDebt = strtoupper((string) $account->currency) === PurchaseOrder::CURRENCY_VES
+            && (float) $account->original_base_amount > 0.0
+            && (float) $account->original_local_amount > 0.0;
+
+        if (! $isBolivarDebt) {
+            if ($amountBase > round((float) $account->balance_base_amount, 4)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'El pago supera el saldo pendiente de la cuenta.',
+                ]);
+            }
+
+            return [$amountBase, $amountLocal];
+        }
+
+        if ($amountLocal > round((float) $account->balance_local_amount, 4) + 0.01) {
+            throw ValidationException::withMessages([
+                'amount' => 'El pago supera el saldo pendiente en bolivares de la cuenta.',
+            ]);
+        }
+
+        $appliedLocal = min($amountLocal, (float) $account->balance_local_amount);
+        $documentRate = (float) $account->original_local_amount / (float) $account->original_base_amount;
+
+        return [round($appliedLocal / $documentRate, 4), round($appliedLocal, 4)];
     }
 
     private function paymentAmounts(string $currency, float $amount, ?int $rateTypeId, ?float $exchangeRate): array
@@ -226,6 +260,19 @@ class AccountsPayableService
 
     private function recalculate(AccountsPayable $account): void
     {
+        // Factura en bolivares saldada en Bs: el residuo en USD por redondeo de
+        // la tasa no deja la cuenta abierta.
+        if (strtoupper((string) $account->currency) === PurchaseOrder::CURRENCY_VES
+            && (float) $account->original_local_amount > 0.0
+            && round((float) $account->original_local_amount - (float) $account->returned_local_amount - (float) $account->paid_local_amount - (float) $account->adjusted_local_amount, 4) < 0.01) {
+            $account->balance_base_amount = 0;
+            $account->balance_local_amount = 0;
+            $account->status = AccountsPayable::STATUS_PAID;
+            $account->paid_at = $account->paid_at ?? now();
+
+            return;
+        }
+
         $account->balance_base_amount = max(0.0, round(
             (float) $account->original_base_amount
             - (float) $account->returned_base_amount

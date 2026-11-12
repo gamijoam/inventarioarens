@@ -38,6 +38,7 @@ import {
   useFinancePayables,
   useFinanceReceivables,
   useFinanceSummary,
+  useExchangeDifferences,
   useLowStockReport,
   useMovementReport,
   usePaymentMethodsReport,
@@ -45,6 +46,7 @@ import {
   useStockReport,
   type CashSessions,
   type DailyOperations,
+  type ExchangeDifferencesReport,
   type FinancePayableRow,
   type FinanceReceivableRow,
   type MovementReportResponse,
@@ -189,6 +191,10 @@ export function ReportsManager({
     canFinanceReports && activeModule === 'finance',
   );
   const payables = useFinancePayables(filters, canFinanceReports && activeModule === 'finance');
+  const exchangeDifferences = useExchangeDifferences(
+    filters,
+    canFinanceReports && activeModule === 'finance',
+  );
   const activeError = activeModule === 'daily'
     ? daily.isError
     : activeModule === 'sales'
@@ -412,6 +418,7 @@ export function ReportsManager({
           summary={financeSummary.data}
           receivables={receivables.data ?? []}
           payables={payables.data ?? []}
+          exchangeTotals={exchangeDifferences.data?.totals}
           isLoading={financeSummary.isLoading || receivables.isLoading || payables.isLoading}
           canExport={canFinanceExport}
           filters={filters}
@@ -795,6 +802,7 @@ function FinancePanel({
   summary,
   receivables,
   payables,
+  exchangeTotals,
   isLoading,
   canExport,
   filters,
@@ -806,6 +814,7 @@ function FinancePanel({
   };
   receivables: FinanceReceivableRow[];
   payables: FinancePayableRow[];
+  exchangeTotals?: ExchangeDifferencesReport['totals'];
   isLoading: boolean;
   canExport: boolean;
   filters: ReportFilters;
@@ -846,6 +855,25 @@ function FinancePanel({
             />
             <MiniTotal label="Balance neto" value={formatMoney(summary?.net_balance_base_amount)} />
           </div>
+          {exchangeTotals && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <MiniTotal
+                label="Ganancia cambiaria"
+                value={formatMoney({ amount: String(exchangeTotals.gain_local_amount), currency: 'VES' })}
+                helper={formatMoney(exchangeTotals.gain_base_amount)}
+              />
+              <MiniTotal
+                label="Perdida cambiaria"
+                value={formatMoney({ amount: String(exchangeTotals.loss_local_amount), currency: 'VES' })}
+                helper={formatMoney(exchangeTotals.loss_base_amount)}
+              />
+              <MiniTotal
+                label="Diferencial cambiario neto"
+                value={formatMoney({ amount: String(exchangeTotals.net_local_amount), currency: 'VES' })}
+                helper={`${formatMoney(exchangeTotals.net_base_amount)} · cobros y pagos a tasa distinta a la del documento`}
+              />
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <FinanceTable title="Cuentas por cobrar" rows={receivables} partyLabel="Cliente" />
             <FinanceTable title="Cuentas por pagar" rows={payables} partyLabel="Proveedor" />

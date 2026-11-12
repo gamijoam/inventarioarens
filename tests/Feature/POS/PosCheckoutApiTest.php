@@ -10,6 +10,7 @@ use App\Modules\CashRegister\Models\CashRegister;
 use App\Modules\CashRegister\Models\CashRegisterMovement;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\Commissions\Models\CommissionPlan;
+use App\Modules\Currency\Models\ExchangeDifference;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Customers\Models\Customer;
@@ -934,6 +935,63 @@ class PosCheckoutApiTest extends TestCase
             ->assertJsonPath('data.payments.1.amount_base', '10.0000')
             ->assertJsonPath('data.payments.1.amount_local', '8500.0000')
             ->assertJsonPath('data.payments.1.exchange_rate_type_code', 'DIVISA-RECIBIDA');
+    }
+
+    public function test_pos_checkout_with_price_list_rate_markup_is_accepted_and_records_exchange_difference(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa A', 'slug' => 'empresa-a']);
+        [$warehouse, $product, $bcv] = $this->pricedProduct($tenant, Product::CURRENCY_USD, 'BCV', 750);
+        StockBalance::create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity_available' => 2,
+        ]);
+        $priceList = $this->priceListWithPrice($tenant, $product, 'Mayor', 'MAYOR', 50);
+        $priceList->update(['payment_exchange_rate_type_id' => $bcv->id, 'payment_exchange_rate_markup_percentage' => 10]);
+        $mobile = PaymentMethod::create([
+            'name' => 'Pago movil',
+            'code' => 'PM-MARKUP',
+            'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+            'currency_mode' => PaymentMethod::CURRENCY_VES,
+            'requires_reference' => true,
+        ]);
+        $priceList->paymentMethods()->sync([$mobile->id => ['tenant_id' => $tenant->id]]);
+        $user = $this->userInTenant($tenant);
+        $this->grantRole($tenant, $user, 'Cajero', ['pos.checkout']);
+        $session = $this->cashRegisterSession($tenant, $user, $warehouse->branch_id);
+
+        // Tasa de cobro de la lista: BCV 750 + 10% = 825. La CxC espejo del POS
+        // acepta la tasa calculada por el servidor aunque no sea la oficial.
+        $response = $this
+            ->actingAs($user)
+            ->withHeader('X-Tenant', $tenant->slug)
+            ->postJson('/api/pos/checkouts', [
+                'cash_register_session_id' => $session->id,
+                'items' => [[
+                    'warehouse_id' => $warehouse->id,
+                    'product_id' => $product->id,
+                    'price_list_id' => $priceList->id,
+                    'quantity' => 1,
+                ]],
+                'payments' => [[
+                    'payment_method_id' => $mobile->id,
+                    'method' => PosPayment::METHOD_MOBILE_PAYMENT,
+                    'currency' => Product::CURRENCY_VES,
+                    'amount' => 41250,
+                    'reference' => 'PM-825-001',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', PosOrder::STATUS_PAID)
+            ->assertJsonPath('data.payments.0.exchange_rate', '825.000000');
+
+        $this->useTenant($tenant);
+        $account = AccountsReceivable::query()->where('sale_id', $response->json('data.sale_id'))->firstOrFail();
+        $this->assertSame('paid', $account->status);
+        $difference = ExchangeDifference::query()->sole();
+        $this->assertEqualsWithDelta(750.0, (float) $difference->document_rate, 0.0001);
+        $this->assertEqualsWithDelta(825.0, (float) $difference->settlement_rate, 0.0001);
+        $this->assertEqualsWithDelta(3750.0, (float) $difference->difference_local_amount, 0.0001, 'El markup cobrado (Bs 3.750) queda registrado como ganancia cambiaria.');
     }
 
     public function test_pos_checkout_rejects_rate_different_from_price_list_configuration(): void

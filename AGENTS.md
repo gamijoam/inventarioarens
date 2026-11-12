@@ -527,6 +527,13 @@ subject_type, subject_id) en 24h no se duplica.
 - El Reporte Z se construye desde `cash_register_movements` del turno, no desde las ordenes.
 - Todo movimiento de caja se crea via `CashRegisterService` (emite `cash.movement.recorded`).
 - Detalle en `docs/AUDITORIA_CAJA_ARQUEO_2026-11-11.md`.
+- (2026-11-12) Tasa de liquidacion: cobros CxC, pagos CxP y ajustes usan la tasa oficial vigente
+  (`SettlementRateResolver`); una tasa distinta enviada por el cliente se rechaza con 422. El POS usa
+  `resolveWithTrustedRate` porque su tasa (con markup de lista) la calcula el servidor.
+- (2026-11-12) Diferencial cambiario: cada cobro/pago a tasa distinta a la del documento registra una
+  fila append-only en `exchange_differences` (positivo = ganancia) y emite
+  `exchange_difference.recorded`. Una CxP en Bs se salda por su monto en Bs; la diferencia queda en USD.
+  Consulta: `GET /api/exchange-differences` (permiso `finance_reports.view`), visible en Reportes > Finanzas.
 - (2026-11-12) Devoluciones: lo devuelto primero cancela la deuda pendiente de la venta; solo el
   excedente cobrado se reembolsa (efectivo o saldo a favor). Un reverso se rechaza si la venta tiene
   devoluciones y anula la CxC (`status=voided`), reembolsando tambien los cobros de CxC (no los

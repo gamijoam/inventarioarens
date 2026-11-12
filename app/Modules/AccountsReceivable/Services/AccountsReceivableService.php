@@ -8,6 +8,7 @@ use App\Modules\AccountsReceivable\Models\AccountsReceivablePayment;
 use App\Modules\CashRegister\Models\CashRegisterSession;
 use App\Modules\CashRegister\Services\CashRegisterService;
 use App\Modules\Commissions\Services\CommissionLedgerService;
+use App\Modules\Currency\Services\ExchangeDifferenceService;
 use App\Modules\Currency\Services\SettlementRateResolver;
 use App\Modules\Customers\Models\CustomerCreditTransaction;
 use App\Modules\PaymentReceipts\Services\PaymentReceiptService;
@@ -126,12 +127,20 @@ class AccountsReceivableService
                 ]);
             }
 
-            [$rateType, $exchangeRate, $amountBase, $amountLocal] = $this->paymentAmounts(
-                $data['payment_currency'],
-                (float) $data['amount'],
-                $data['exchange_rate_type_id'] ?? null,
-                isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
-            );
+            [$rateType, $exchangeRate, $amountBase, $amountLocal] = ! empty($data['trusted_exchange_rate'])
+                ? app(SettlementRateResolver::class)->resolveWithTrustedRate(
+                    $data['payment_currency'],
+                    (float) $data['amount'],
+                    $data['exchange_rate_type_id'] ?? null,
+                    isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
+                    'El cobro',
+                )
+                : $this->paymentAmounts(
+                    $data['payment_currency'],
+                    (float) $data['amount'],
+                    $data['exchange_rate_type_id'] ?? null,
+                    isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
+                );
 
             if ($amountBase > round((float) $account->balance_base_amount, 4)) {
                 throw ValidationException::withMessages([
@@ -159,6 +168,8 @@ class AccountsReceivableService
             $account->collected_local_amount = round((float) $account->collected_local_amount + $amountLocal, 4);
             $this->recalculate($account);
             $account->save();
+
+            app(ExchangeDifferenceService::class)->recordReceivablePayment($account, $payment);
 
             app(PaymentReceiptService::class)->issueForReceivablePayment($payment, $user);
 
@@ -198,11 +209,12 @@ class AccountsReceivableService
         $amount = (float) $posPayment->amount;
         $currency = strtoupper((string) $posPayment->currency);
 
-        [, $rate, $amountBase] = $this->paymentAmounts(
+        [, $rate, $amountBase] = app(SettlementRateResolver::class)->resolveWithTrustedRate(
             $currency,
             (float) $posPayment->amount,
             $posPayment->exchange_rate_type_id,
             $posPayment->exchange_rate ? (float) $posPayment->exchange_rate : null,
+            'El cobro',
         );
 
         if ($balanceBase > 0 && $amountBase > $balanceBase) {
@@ -224,6 +236,8 @@ class AccountsReceivableService
             'reference' => $reference,
             'notes' => 'Cobro generado automaticamente desde POS.',
             'paid_at' => $posPayment->created_at ?? now(),
+            // La tasa del POS (con markup de la lista) ya la calculo el servidor.
+            'trusted_exchange_rate' => true,
         ]);
     }
 
