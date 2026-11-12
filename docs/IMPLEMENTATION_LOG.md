@@ -7654,3 +7654,17 @@ Regla:
   parser en `payablesApi.test.tsx`. Mutation testing manual: 14/14 mutantes muertos.
 - Proveedores: boton "Credito" por proveedor con saldo, historial y formulario de reembolso recibido
   (transferencia, pago movil, Zelle u otro). Tests: `SupplierCreditDialog.test.tsx` (4).
+
+## 2026-11-12 - Saldo a favor concurrente/sincronizado y comision al procesar (auditoria contable, lote 4)
+
+- `CustomerCreditService::apply` bloquea al cliente (`lockForUpdate`) antes de leer el saldo, para que
+  dos cobros simultaneos no lo dejen negativo.
+- Saldo a favor por sync: columnas `sync_source_node_code`/`sync_source_id` en
+  `customer_credit_transactions`, evento `customer_credit.recorded` y applier insert-once que resuelve
+  el cliente por documento (reintenta si el cliente aun no existe en el nodo).
+- Comisiones: la reversion por devolucion se registra al procesar (fecha = `processed_at`); solicitar
+  o rechazar una devolucion ya no toca la comision.
+- Tests: `tests/Feature/Customers/CustomerCreditIntegrityTest.php` (7). Mutation testing: 9/9 muertos.
+- Hallazgo previo no corregido: `CommissionControlService` usa `PosOrder` sin importarlo (500 en
+  `GET /api/commissions/control`), introducido en 86080769.
+

@@ -20,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'source_id',
     'created_by',
     'notes',
+    'sync_source_node_code',
+    'sync_source_id',
 ])]
 class CustomerCreditTransaction extends Model
 {

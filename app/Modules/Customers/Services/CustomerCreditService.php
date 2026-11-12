@@ -5,11 +5,14 @@ namespace App\Modules\Customers\Services;
 use App\Models\User;
 use App\Modules\Customers\Models\Customer;
 use App\Modules\Customers\Models\CustomerCreditTransaction;
+use App\Modules\Sync\Services\SyncOutboxService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CustomerCreditService
 {
+    public function __construct(private readonly SyncOutboxService $syncOutbox) {}
+
     public function issue(
         Customer $customer,
         User $user,
@@ -22,7 +25,7 @@ class CustomerCreditService
                 ]);
             }
 
-            return CustomerCreditTransaction::create([
+            return $this->store($customer, [
                 'customer_id' => $customer->id,
                 'type' => CustomerCreditTransaction::TYPE_ISSUED,
                 'currency' => $data['currency'],
@@ -47,6 +50,7 @@ class CustomerCreditService
     public function apply(Customer $customer, User $user, array $data): CustomerCreditTransaction
     {
         return DB::transaction(function () use ($customer, $user, $data): CustomerCreditTransaction {
+            $customer = Customer::query()->lockForUpdate()->findOrFail($customer->id);
             $available = $this->availableBase($customer);
             $amountBase = round((float) $data['amount_base'], 4);
 
@@ -56,7 +60,7 @@ class CustomerCreditService
                 ]);
             }
 
-            return CustomerCreditTransaction::create([
+            return $this->store($customer, [
                 'customer_id' => $customer->id,
                 'type' => CustomerCreditTransaction::TYPE_APPLIED,
                 'currency' => $data['currency'],
@@ -94,5 +98,32 @@ class CustomerCreditService
                     'created_at' => $transaction->created_at?->toISOString(),
                 ])->all(),
         ];
+    }
+
+    private function store(Customer $customer, array $attributes): CustomerCreditTransaction
+    {
+        $transaction = CustomerCreditTransaction::create($attributes);
+
+        $this->syncOutbox->record(
+            eventType: 'customer_credit.recorded',
+            aggregateType: 'customer_credit',
+            aggregateId: $transaction->id,
+            payload: [
+                'transaction_id' => $transaction->id,
+                'customer_document_type' => $customer->document_type,
+                'customer_document_number' => $customer->document_number,
+                'type' => $transaction->type,
+                'currency' => $transaction->currency,
+                'amount' => (string) $transaction->amount,
+                'amount_base' => (string) $transaction->amount_base,
+                'amount_local' => (string) $transaction->amount_local,
+                'source_type' => $transaction->source_type,
+                'notes' => $transaction->notes,
+                'occurred_at' => $transaction->created_at?->toJSON(),
+            ],
+            idempotencyKey: "customer_credit.recorded:customer_credit:{$transaction->id}"
+        );
+
+        return $transaction;
     }
 }

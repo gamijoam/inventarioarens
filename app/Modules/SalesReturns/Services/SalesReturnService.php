@@ -88,7 +88,6 @@ class SalesReturnService
             }
 
             $salesReturn = $this->loadReturn($salesReturn);
-            app(CommissionLedgerService::class)->reverseSalesReturn($salesReturn);
             $this->recordReturnSyncEvent($salesReturn);
 
             return $salesReturn;
@@ -228,6 +227,7 @@ class SalesReturnService
                 'customer_credit_transaction_id' => $customerCredit?->id,
             ]);
             app(AccountsReceivableService::class)->applySalesReturn($salesReturn->refresh());
+            app(CommissionLedgerService::class)->reverseSalesReturn($salesReturn->refresh());
 
             $salesReturn = $this->loadReturn($salesReturn);
             $this->recordReturnSyncEvent($salesReturn);
