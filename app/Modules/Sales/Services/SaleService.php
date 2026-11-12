@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Services\ProductPriceService;
@@ -95,7 +96,7 @@ class SaleService
             $netBaseTotal = $promotionApplied ? $baseTotal : round($baseTotal - $discount['base_amount'], 4);
             $netLocalTotal = $promotionApplied ? $localTotal : round($localTotal - $discount['local_amount'], 4);
 
-            $unitCost = $product->last_purchase_cost ?? $product->average_cost;
+            $unitCost = app(InventoryCostService::class)->unitCost($product);
 
             $createdItems[$itemIndex] = SaleItem::create([
                 'sale_id' => $sale->id,
@@ -227,7 +228,7 @@ class SaleService
                             warehouse: $item->warehouse,
                             product: $item->product,
                             quantity: (float) $item->quantity,
-                            unitCost: $item->base_unit_cost === null ? $item->product->last_purchase_cost : (float) $item->base_unit_cost,
+                            unitCost: $item->base_unit_cost === null ? app(InventoryCostService::class)->unitCost($item->product) : (float) $item->base_unit_cost,
                             createdBy: $user,
                             reason: "Venta #{$sale->id}",
                             referenceType: Sale::class,
@@ -243,7 +244,7 @@ class SaleService
 
                 $item->update([
                     'stock_movement_id' => $movement?->id,
-                    'base_unit_cost' => $item->base_unit_cost ?? $item->product->last_purchase_cost ?? $item->product->average_cost,
+                    'base_unit_cost' => $item->base_unit_cost ?? app(InventoryCostService::class)->unitCost($item->product),
                 ]);
                 if ($movement !== null) {
                     $this->markProductUnitsAsSold($productUnits, $movement->id);

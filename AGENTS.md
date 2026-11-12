@@ -444,14 +444,20 @@ GET    /api/inventory-center/reorder-suggestions
 GET    /api/inventory-center/alerts-summary
 ```
 
-**WAC legado/informativo**: `InventoryValuationService::recalculate(Product)` puede actualizar
-`products.average_cost` desde los `stock_movements` con `unit_cost`, pero ese valor NO se usa para
-precios, costo de ventas, devoluciones, margen, CxC/CxP, reportes ni asientos contables. No diseñar
-código nuevo que dependa de `average_cost`.
+**Metodo de costeo por empresa (2026-11-12)**: `tenant_settings.company.inventory_costing_method`
+(`last_cost` por defecto o `weighted_average`), editable por el administrador en Configuracion de la
+empresa y sincronizado con `tenant_settings.updated`. `InventoryCostService::unitCost(Product)` es la
+unica fuente del costo que se congela en `sale_items.base_unit_cost` al vender (ventas, POS, taller).
+- `last_cost`: toda la existencia se valora al costo de la ultima compra (`last_purchase_cost`).
+- `weighted_average`: `products.average_cost` es el promedio ponderado movil real; cada recepcion de
+  compra (`InventoryCostService::registerReceipt`) mezcla su costo con la existencia restante (si la
+  existencia previa es 0 o negativa, el promedio reinicia en el costo de la compra).
+- El promedio se mantiene siempre, aunque el metodo activo sea `last_cost`, para poder cambiar sin
+  reconstruir. `InventoryValuationService::recalculate` lo reconstruye desde el historial.
+- El precio de venta automatico sigue calculandose sobre el ultimo costo (politica de precios).
 
 **Regla de costeo vigente**: devoluciones y ajustes deben usar el costo histórico/snapshot de la
-operación original, nunca el WAC vigente. El WAC puede permanecer calculado por compatibilidad
-interna, pero no debe afectar ningún resultado visible u financiero.
+operación original, nunca el costo vigente. Las ventas ya registradas conservan su costo congelado.
 
 **Alertas**: `InventoryAlertService` calcula status por producto:
 - `out` (available <= 0), `critical` (available <= min/2), `low` (available <= min),

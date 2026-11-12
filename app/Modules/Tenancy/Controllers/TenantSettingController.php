@@ -63,6 +63,7 @@ class TenantSettingController extends Controller
             'settings.company.regimen' => ['nullable', 'string', 'max:80'],
             'settings.company.logo_url' => ['nullable', 'string', 'max:500'],
             'settings.company.allow_negative_stock' => ['sometimes', 'boolean'],
+            'settings.company.inventory_costing_method' => ['sometimes', 'string', 'in:last_cost,weighted_average'],
             'settings.company.pos_allow_rate_edit' => ['sometimes', 'boolean'],
             'settings.company.pos_allow_catalog_view' => ['sometimes', 'boolean'],
             'settings.company.pos_catalog_stock_edit' => ['sometimes', 'boolean'],

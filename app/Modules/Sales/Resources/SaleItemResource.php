@@ -3,6 +3,7 @@
 namespace App\Modules\Sales\Resources;
 
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Services\InventoryCostService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,7 +20,7 @@ class SaleItemResource extends JsonResource
         if ($canViewCosts) {
             $costVal = $this->base_unit_cost;
             if ($costVal === null && $this->relationLoaded('product') && $this->product) {
-                $costVal = $this->product->last_purchase_cost ?? $this->product->average_cost;
+                $costVal = app(InventoryCostService::class)->unitCost($this->product);
             }
             if ($costVal !== null) {
                 $resolvedUnitCost = round((float) $costVal, 4);

@@ -7,6 +7,7 @@ use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\Currency\Models\ExchangeRate;
 use App\Modules\Currency\Models\ExchangeRateType;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Inventory\Services\InventoryValuationService;
 use App\Modules\Products\Models\PriceList;
@@ -104,7 +105,7 @@ class PurchaseOrderService
 
     public function update(PurchaseOrder $purchaseOrder, User $user, array $data): PurchaseOrder
     {
-        return DB::transaction(function () use ($purchaseOrder, $user, $data): PurchaseOrder {
+        return DB::transaction(function () use ($purchaseOrder, $data): PurchaseOrder {
             $purchaseOrder = PurchaseOrder::query()
                 ->lockForUpdate()
                 ->findOrFail($purchaseOrder->id);
@@ -263,13 +264,11 @@ class PurchaseOrderService
 
                 $this->createProductUnits($item, $movement->id, $serialUnits);
 
-                // Actualizar costo del producto con el nuevo costo de compra directo (sin dilucion WAC)
                 $newCost = round((float) $item->base_unit_cost, 4);
                 $previousCost = (float) ($item->product->last_purchase_cost ?? $item->product->average_cost ?? 0);
                 $previousPrice = (float) ($item->product->base_price ?? 0);
 
-                $item->product->last_purchase_cost = $newCost;
-                $item->product->average_cost = $newCost; // Sin WAC: el costo contable y operativo es el costo de reposicion
+                app(InventoryCostService::class)->registerReceipt($item->product, $quantity, $newCost);
 
                 // Si se indico un nuevo precio de venta explicito (en la recepcion o guardado en el item)
                 $newSalePrice = $receipt['new_sale_price'] ?? $item->new_sale_price;

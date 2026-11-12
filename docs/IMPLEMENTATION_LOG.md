@@ -7683,3 +7683,15 @@ Regla:
   `SalesReturnSyncTest`, `PosOrderStockSyncTest`, `PosCheckoutApiTest` y `PosSaleReversalApiTest`.
   Mutation testing: 13/13 muertos.
 
+## 2026-11-12 - Metodo de costeo configurable (auditoria contable, lote 6a)
+
+- `InventoryCostService`: metodo por empresa en `company.inventory_costing_method` (`last_cost` por
+  defecto, `weighted_average` activable). Costo de ventas (SaleService, POS, taller y recursos de venta)
+  centralizado en `unitCost()`.
+- Promedio ponderado movil real en cada recepcion de compra; `InventoryValuationService::recalculate`
+  lo reconstruye desde el historial (entradas con costo mezclan, salidas reducen existencia).
+- Frontend: selector "Metodo de costeo del inventario" en Configuracion de la empresa.
+- `PurchaseWacRecalculationTest`: dos aserciones cambian de "promedio = ultimo costo" a promedio
+  ponderado real (cambio de comportamiento pedido). `InventoryValuationTest` vuelve a verde.
+- Tests: `tests/Feature/Inventory/CostingMethodTest.php` (13) + panel (2). Mutation testing: 11/11.
+

@@ -135,7 +135,7 @@ class PurchaseWacRecalculationTest extends TestCase
         ]);
         app(PurchaseOrderService::class)->receive($po2->fresh(), $user);
 
-        $this->assertEquals(20.0, (float) $product->fresh()->average_cost);
+        $this->assertEquals(16.0, (float) $product->fresh()->average_cost, 'Promedio ponderado: (4x10 + 6x20) / 10.');
         $this->assertEquals(20.0, (float) $product->fresh()->last_purchase_cost);
     }
 
@@ -304,7 +304,7 @@ class PurchaseWacRecalculationTest extends TestCase
         $freshDrop = $product->fresh();
         // Costo baja a $8
         $this->assertEquals(8.00, (float) $freshDrop->last_purchase_cost);
-        $this->assertEquals(8.00, (float) $freshDrop->average_cost);
+        $this->assertEquals(14.00, (float) $freshDrop->average_cost, 'Promedio ponderado: (1x20 + 1x8) / 2.');
         // PVP bajo automaticamente a $12 ($8 * 1.50)
         $this->assertEquals(12.00, (float) $freshDrop->base_price);
     }

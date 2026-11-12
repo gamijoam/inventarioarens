@@ -68,6 +68,7 @@ export function CompanySettingsPanel() {
   });
   const [saving, setSaving] = useState(false);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [costingMethod, setCostingMethod] = useState<'last_cost' | 'weighted_average'>('last_cost');
   const [allowRateEdit, setAllowRateEdit] = useState(false);
   const [allowCatalogView, setAllowCatalogView] = useState(true);
   const [allowCatalogStockEdit, setAllowCatalogStockEdit] = useState(false);
@@ -86,6 +87,7 @@ export function CompanySettingsPanel() {
     setRegimen(data.regimen ?? '');
     setLogoUrl(data.logo_url ?? null);
     setAllowNegativeStock(data.allow_negative_stock ?? false);
+    setCostingMethod(data.inventory_costing_method ?? 'last_cost');
     setAllowRateEdit(data.pos_allow_rate_edit ?? false);
     setAllowCatalogView(data.pos_allow_catalog_view ?? true);
     setAllowCatalogStockEdit(data.catalog_allow_stock_edit ?? data.pos_catalog_stock_edit ?? false);
@@ -155,6 +157,7 @@ export function CompanySettingsPanel() {
         regimen: regimen.trim() || null,
         logo_url: logoUrl,
         allow_negative_stock: allowNegativeStock,
+        inventory_costing_method: costingMethod,
         pos_allow_rate_edit: allowRateEdit,
         pos_allow_catalog_view: allowCatalogView,
         pos_catalog_stock_edit: allowCatalogStockEdit,
@@ -399,6 +402,29 @@ export function CompanySettingsPanel() {
               className="size-4"
               data-testid="company-allow-negative-stock"
             />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">
+            <div>
+              <Label htmlFor="company-inventory-costing-method" className="text-sm font-medium">
+                Método de costeo del inventario
+              </Label>
+              <div className="text-text-muted text-xs">
+                Último costo: toda la mercancía se valora al costo de la compra más reciente. Promedio
+                ponderado: mezcla el costo de cada compra con la existencia que queda. Afecta el costo
+                de las ventas nuevas; las ventas ya registradas conservan su costo.
+              </div>
+            </div>
+            <select
+              id="company-inventory-costing-method"
+              value={costingMethod}
+              onChange={(e) => setCostingMethod(e.target.value as 'last_cost' | 'weighted_average')}
+              className="border-border bg-surface rounded border px-2 py-1 text-sm"
+              data-testid="company-inventory-costing-method"
+            >
+              <option value="last_cost">Último costo</option>
+              <option value="weighted_average">Promedio ponderado</option>
+            </select>
           </div>
 
           <div className="flex items-center justify-between gap-3 rounded border border-border bg-bg/30 p-3">

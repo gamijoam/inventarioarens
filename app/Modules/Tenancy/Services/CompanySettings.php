@@ -27,6 +27,7 @@ class CompanySettings
         'regimen' => null,
         'logo_url' => null,
         'allow_negative_stock' => false,
+        'inventory_costing_method' => 'last_cost',
         'pos_allow_rate_edit' => false,
         'pos_allow_catalog_view' => true,
         'pos_catalog_stock_edit' => false,
