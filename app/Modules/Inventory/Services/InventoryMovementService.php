@@ -21,6 +21,11 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryMovementService
 {
+    /**
+     * Movimientos que no cambian la existencia fisica valorada (apartados).
+     */
+    private const UNVALUED_TYPES = ['reserved', 'released', 'reservation_expired'];
+
     public const EXPIRED_RESERVATION_REFERENCE_TYPE = 'inventory_reservation_expired';
 
     public function __construct(private readonly AuditLogger $audit) {}
@@ -84,12 +89,14 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?int $productVariantId = null,
+        ?float $unitCost = null,
     ): StockMovement {
         return $this->decreaseAvailable(
             type: 'purchase_return',
             warehouse: $warehouse,
             product: $product,
             quantity: $quantity,
+            unitCost: $unitCost,
             createdBy: $createdBy,
             reason: $reason,
             referenceType: $referenceType,
@@ -787,6 +794,10 @@ class InventoryMovementService
         ?int $productVariantId = null,
         ?DateTimeInterface $reservationExpiresAt = null,
     ): StockMovement {
+        if ($unitCost === null && ! in_array($type, self::UNVALUED_TYPES, true)) {
+            $unitCost = app(InventoryCostService::class)->unitCost($product);
+        }
+
         $movement = StockMovement::create([
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,

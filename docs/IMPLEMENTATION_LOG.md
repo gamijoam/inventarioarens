@@ -7675,3 +7675,13 @@ Regla:
   ponderado real (cambio de comportamiento pedido). `InventoryValuationTest` vuelve a verde.
 - Tests: `tests/Feature/Inventory/CostingMethodTest.php` (13) + panel (2). Mutation testing: 11/11.
 
+## 2026-11-12 - Costo en todos los movimientos y ajuste rapido auditado (lote 6b/6c)
+
+- `InventoryMovementService::recordMovement` valora con el costo vigente los movimientos sin costo
+  explicito (ajustes, conteos, traslados, danados, salidas); los apartados no se valoran.
+- Devolucion a proveedor valorada al costo de la compra devuelta.
+- `set-stock`: permiso `inventory.adjust`, bloqueo de saldo, movimiento por el servicio (auditoria y
+  costo), sync `stock_movement.created`, rechazo 422 con mensaje si la empresa no permite negativo.
+- Conteo fisico: cada ajuste emite `stock_movement.created`.
+- Tests: `tests/Feature/Inventory/MovementCostAndQuickAdjustTest.php` (8). Mutation testing: 8/8.
+

@@ -455,6 +455,12 @@ unica fuente del costo que se congela en `sale_items.base_unit_cost` al vender (
 - El promedio se mantiene siempre, aunque el metodo activo sea `last_cost`, para poder cambiar sin
   reconstruir. `InventoryValuationService::recalculate` lo reconstruye desde el historial.
 - El precio de venta automatico sigue calculandose sobre el ultimo costo (politica de precios).
+- Todo movimiento fisico guarda `unit_cost`: si el llamador no lo indica, `recordMovement` usa el costo
+  vigente segun el metodo (los apartados `reserved`/`released` no se valoran). La devolucion a proveedor
+  usa el costo de la compra devuelta.
+- El ajuste rapido `POST /api/inventory-center/products/{id}/set-stock` exige `inventory.adjust`, pasa por
+  `InventoryMovementService` (bloqueo, costo, auditoria), emite `stock_movement.created` y respeta
+  `allow_negative_stock`. Los conteos fisicos completados tambien emiten `stock_movement.created`.
 
 **Regla de costeo vigente**: devoluciones y ajustes deben usar el costo histórico/snapshot de la
 operación original, nunca el costo vigente. Las ventas ya registradas conservan su costo congelado.

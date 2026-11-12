@@ -2,8 +2,9 @@
 
 namespace App\Modules\InventoryCenter\Controllers;
 
+use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\StockBalance;
-use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\InventoryCenter\Requests\InventoryCenterBulkActionRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductAuditsRequest;
 use App\Modules\InventoryCenter\Requests\InventoryCenterProductMovementsRequest;
@@ -19,6 +20,7 @@ use App\Modules\InventoryCenter\Services\InventoryCenterProductDetailService;
 use App\Modules\InventoryCenter\Services\InventoryCenterSummaryService;
 use App\Modules\InventoryCenter\Services\RecalculatePriceService;
 use App\Modules\Products\Models\Product;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Modules\Warehouses\Models\Warehouse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,6 +28,7 @@ use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class InventoryCenterController extends Controller
 {
@@ -231,6 +234,7 @@ class InventoryCenterController extends Controller
     public function setProductStock(Request $request, Product $product): JsonResponse
     {
         Gate::authorize('update', $product);
+        abort_unless($request->user()->can('inventory.adjust'), 403, 'Ajustar existencias requiere el permiso de ajuste de inventario.');
 
         $payload = $request->validate([
             'warehouse_id' => 'nullable|integer|exists:warehouses,id',
@@ -253,63 +257,48 @@ class InventoryCenterController extends Controller
             ];
 
         $results = [];
+        $inventory = app(InventoryMovementService::class);
 
-        DB::transaction(function () use ($items, $product, $request, &$results) {
-            foreach ($items as $item) {
-                $whId = (int) ($item['warehouse_id'] ?? 0);
-                if ($whId <= 0) {
-                    continue;
-                }
+        try {
+            DB::transaction(function () use ($items, $product, $request, $inventory, &$results) {
+                foreach ($items as $item) {
+                    $whId = (int) ($item['warehouse_id'] ?? 0);
+                    if ($whId <= 0) {
+                        continue;
+                    }
 
-                $warehouse = Warehouse::query()->findOrFail($whId);
-                $targetQuantity = (float) $item['quantity'];
+                    $warehouse = Warehouse::query()->findOrFail($whId);
+                    $targetQuantity = (float) $item['quantity'];
+                    $currentAvailable = (float) (StockBalance::query()
+                        ->where('warehouse_id', $whId)
+                        ->where('product_id', $product->id)
+                        ->whereNull('product_variant_id')
+                        ->lockForUpdate()
+                        ->value('quantity_available') ?? 0);
+                    $diff = round($targetQuantity - $currentAvailable, 4);
+                    $reason = $item['reason'] ?? 'Ajuste rápido desde catálogo';
 
-                $balance = StockBalance::firstOrCreate(
-                    [
+                    if (abs($diff) > 0.00001) {
+                        $movement = $diff > 0
+                            ? $inventory->adjustmentIn(warehouse: $warehouse, product: $product, quantity: $diff, createdBy: $request->user(), reason: $reason, referenceType: 'catalog_quick_stock_set')
+                            : $inventory->adjustmentOut(warehouse: $warehouse, product: $product, quantity: abs($diff), createdBy: $request->user(), reason: $reason, referenceType: 'catalog_quick_stock_set');
+                        app(SyncCatalogOutboxService::class)->stockMovementCreated($movement);
+                    }
+
+                    $results[] = [
                         'warehouse_id' => $whId,
-                        'product_id' => $product->id,
-                        'product_variant_id' => null,
-                    ],
-                    [
-                        'quantity_available' => 0,
-                        'quantity_reserved' => 0,
-                        'quantity_damaged' => 0,
-                    ]
-                );
-
-                $currentAvailable = (float) $balance->quantity_available;
-                $diff = $targetQuantity - $currentAvailable;
-
-                if (abs($diff) > 0.00001) {
-                    $type = $diff > 0 ? 'adjustment_in' : 'adjustment_out';
-                    $qty = abs($diff);
-
-                    $balance->quantity_available = $targetQuantity;
-                    $balance->save();
-
-                    StockMovement::create([
-                        'type' => $type,
-                        'warehouse_id' => $whId,
-                        'product_id' => $product->id,
-                        'product_variant_id' => null,
-                        'quantity' => $qty,
-                        'unit_cost' => $product->average_cost ?? $product->last_purchase_cost,
-                        'created_by' => $request->user()?->id,
-                        'reason' => $item['reason'] ?? 'Ajuste rápido desde catálogo',
-                        'reference_type' => 'catalog_quick_stock_set',
-                        'reference_id' => null,
-                    ]);
+                        'warehouse_name' => $warehouse->name,
+                        'previous_quantity' => $currentAvailable,
+                        'new_quantity' => $targetQuantity,
+                        'diff' => $diff,
+                    ];
                 }
-
-                $results[] = [
-                    'warehouse_id' => $whId,
-                    'warehouse_name' => $warehouse->name,
-                    'previous_quantity' => $currentAvailable,
-                    'new_quantity' => $targetQuantity,
-                    'diff' => $diff,
-                ];
-            }
-        });
+            });
+        } catch (InsufficientStockException) {
+            throw ValidationException::withMessages([
+                'quantity' => 'La empresa no permite stock negativo. Activa "Permitir facturar sin stock" en Configuracion si necesitas dejarlo por debajo de cero.',
+            ]);
+        }
 
         // Refrescar total de stock del producto
         $totalAvailable = (float) StockBalance::where('product_id', $product->id)->sum('quantity_available');

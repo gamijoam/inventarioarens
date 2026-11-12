@@ -66,6 +66,7 @@ class PurchaseReturnService
                     referenceType: PurchaseReturn::class,
                     referenceId: $purchaseReturn->id,
                     productVariantId: $purchaseItem->product_variant_id === null ? null : (int) $purchaseItem->product_variant_id,
+                    unitCost: $purchaseItem->base_unit_cost === null ? null : (float) $purchaseItem->base_unit_cost,
                 );
 
                 PurchaseReturnItem::create([
