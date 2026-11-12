@@ -16,6 +16,7 @@ use App\Modules\Inventory\Models\StockBalance;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\SalesReversals\Models\SaleReversal;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -88,6 +89,29 @@ class PosSaleReversalApiTest extends TestCase
             'aggregate_id' => $order->id,
         ]);
         $this->assertSame('0.0000', (string) CashRegisterSession::findOrFail($session->id)->expected_base_amount);
+    }
+
+    public function test_void_of_a_variant_sale_restores_the_variant_and_syncs_it(): void
+    {
+        [$tenant, $user, $session, $warehouse, $product] = $this->fixture();
+        $variant = ProductVariant::create(['product_id' => $product->id, 'color' => 'Verde', 'sku_variant' => $product->sku.'-V']);
+        StockBalance::create(['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'product_variant_id' => $variant->id, 'quantity_available' => 2]);
+        $response = $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)->postJson('/api/pos/checkouts', [
+            'cash_register_session_id' => $session->id,
+            'items' => [['warehouse_id' => $warehouse->id, 'product_id' => $product->id, 'product_variant_id' => $variant->id, 'quantity' => 1]],
+            'payments' => [['method' => PosPayment::METHOD_CASH, 'currency' => Product::CURRENCY_USD, 'amount' => 100]],
+        ])->assertCreated();
+        $order = PosOrder::findOrFail($response->json('data.id'));
+
+        $this->actingAs($user)->withHeader('X-Tenant', $tenant->slug)
+            ->postJson("/api/pos/orders/{$order->id}/reverse", ['type' => 'void', 'reason' => 'Error', 'cash_register_session_id' => $session->id])
+            ->assertCreated();
+
+        $this->assertSame(2.0, (float) StockBalance::query()->where('product_variant_id', $variant->id)->value('quantity_available'));
+        $this->assertSame(1.0, (float) StockBalance::query()->where('product_id', $product->id)->whereNull('product_variant_id')->value('quantity_available'));
+        $payload = json_decode((string) DB::table('sync_outbox')->where('event_type', 'pos.order.reversed')->latest('id')->value('payload'), true);
+        $this->assertSame('Verde', $payload['items'][0]['product_variant_color']);
+        $this->assertSame($product->sku.'-V', $payload['items'][0]['product_variant_sku']);
     }
 
     public function test_same_paid_sale_cannot_be_reversed_twice(): void

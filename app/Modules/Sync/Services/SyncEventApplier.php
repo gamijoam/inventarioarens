@@ -3287,8 +3287,10 @@ class SyncEventApplier
             $product = $this->productBySku($tenant, $this->requiredString($item, 'product_sku'));
             $warehouse = $this->warehouseByCode($tenant, $this->requiredString($item, 'warehouse_code'));
             $quantity = (float) ($item['quantity'] ?? 0);
+            $variantId = $this->variantIdBySku($tenant, (int) $product->id, $item['product_variant_sku'] ?? null, $item['product_variant_color'] ?? null)
+                ?? $this->syncedSaleItemVariantId($tenant, $sourceNodeCode, (int) ($item['id'] ?? 0));
 
-            $this->applyCloudStockIn($tenant, $product->id, $warehouse->id, $quantity);
+            $this->applyCloudStockIn($tenant, $product->id, $warehouse->id, $quantity, $variantId);
 
             foreach ($item['product_serial_units'] ?? [] as $serialUnit) {
                 $unit = DB::table('product_units')
@@ -3317,6 +3319,7 @@ class SyncEventApplier
                 'tenant_id' => $tenant->id,
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $product->id,
+                'product_variant_id' => $variantId,
                 'type' => 'sale_reversal',
                 'quantity' => $quantity,
                 'unit_cost' => $item['base_unit_cost'] ?? null,
@@ -3373,7 +3376,12 @@ class SyncEventApplier
             $product = $this->productBySku($tenant, $this->requiredString($item, 'product_sku'));
             $warehouse = $this->warehouseByCode($tenant, $this->requiredString($item, 'warehouse_code'));
             $priceListId = $this->nullablePriceListIdByCode($tenant, $item['price_list_code'] ?? null);
+            $variantId = $this->variantIdBySku($tenant, (int) $product->id, $item['product_variant_sku'] ?? null, $item['product_variant_color'] ?? null);
             $sourceIds[] = $sourceId;
+
+            if ($variantId === null && ($this->nullableString($item['product_variant_sku'] ?? null) !== null || $this->nullableString($item['product_variant_color'] ?? null) !== null)) {
+                throw new RuntimeException("La variante de {$product->sku} no esta sincronizada para la venta.");
+            }
 
             $this->upsertByKeys(
                 'sale_items',
@@ -3386,6 +3394,7 @@ class SyncEventApplier
                     'sale_id' => $saleId,
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
+                    'product_variant_id' => $variantId,
                     'price_list_id' => $priceListId,
                     'price_list_name' => $item['price_list_name'] ?? null,
                     'quantity' => $item['quantity'] ?? 1,
@@ -3426,7 +3435,7 @@ class SyncEventApplier
             );
 
             if ($saleStatus === 'confirmed' && $applyStock) {
-                $this->applyCloudStockOut($tenant, $product->id, $warehouse->id, (float) ($item['quantity'] ?? 0));
+                $this->applyCloudStockOut($tenant, $product->id, $warehouse->id, (float) ($item['quantity'] ?? 0), $variantId);
                 $this->applyCloudSerialSold($tenant, $product->id, $warehouse->id, $item['product_serial_units'] ?? []);
             }
         }
@@ -3708,6 +3717,7 @@ class SyncEventApplier
                     SalesReturn::class,
                     $returnId,
                     $saleItem->base_unit_cost === null ? null : (float) $saleItem->base_unit_cost,
+                    $saleItem->product_variant_id === null ? null : (int) $saleItem->product_variant_id,
                 )
                 : app(InventoryMovementService::class)->saleReturn(
                     Warehouse::query()->findOrFail($warehouse->id),
@@ -3718,6 +3728,7 @@ class SyncEventApplier
                     SalesReturn::class,
                     $returnId,
                     $saleItem->base_unit_cost === null ? null : (float) $saleItem->base_unit_cost,
+                    $saleItem->product_variant_id === null ? null : (int) $saleItem->product_variant_id,
                 );
 
             DB::table('sales_return_items')->where('id', $returnItemId)->update([
@@ -4175,7 +4186,7 @@ class SyncEventApplier
         }
     }
 
-    private function applyCloudStockOut(Tenant $tenant, int $productId, int $warehouseId, float $quantity): void
+    private function applyCloudStockOut(Tenant $tenant, int $productId, int $warehouseId, float $quantity, ?int $variantId = null): void
     {
         if ($quantity <= 0.0) {
             return;
@@ -4187,6 +4198,11 @@ class SyncEventApplier
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
+            ->when(
+                $variantId === null,
+                fn ($query) => $query->whereNull('product_variant_id'),
+                fn ($query) => $query->where('product_variant_id', $variantId),
+            )
             ->lockForUpdate()
             ->first();
 
@@ -4199,16 +4215,29 @@ class SyncEventApplier
         }
 
         DB::table('stock_balances')
-            ->where('tenant_id', $tenant->id)
-            ->where('warehouse_id', $warehouseId)
-            ->where('product_id', $productId)
+            ->where('id', $balance->id)
             ->update([
                 'quantity_available' => (float) $balance->quantity_available - $quantity,
                 'updated_at' => $now,
             ]);
     }
 
-    private function applyCloudStockIn(Tenant $tenant, int $productId, int $warehouseId, float $quantity): void
+    private function syncedSaleItemVariantId(Tenant $tenant, string $sourceNodeCode, int $sourceSaleItemId): ?int
+    {
+        if ($sourceSaleItemId <= 0) {
+            return null;
+        }
+
+        $variantId = DB::table('sale_items')
+            ->where('tenant_id', $tenant->id)
+            ->where('sync_source_node_code', $sourceNodeCode)
+            ->where('sync_source_id', $sourceSaleItemId)
+            ->value('product_variant_id');
+
+        return $variantId === null ? null : (int) $variantId;
+    }
+
+    private function applyCloudStockIn(Tenant $tenant, int $productId, int $warehouseId, float $quantity, ?int $variantId = null): void
     {
         if ($quantity <= 0.0) {
             return;
@@ -4219,6 +4248,11 @@ class SyncEventApplier
             ->where('tenant_id', $tenant->id)
             ->where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
+            ->when(
+                $variantId === null,
+                fn ($query) => $query->whereNull('product_variant_id'),
+                fn ($query) => $query->where('product_variant_id', $variantId),
+            )
             ->lockForUpdate()
             ->first();
 
@@ -4227,6 +4261,7 @@ class SyncEventApplier
                 'tenant_id' => $tenant->id,
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
+                'product_variant_id' => $variantId,
                 'quantity_available' => $quantity,
                 'quantity_reserved' => 0,
                 'quantity_damaged' => 0,
@@ -4833,9 +4868,14 @@ class SyncEventApplier
             $product = $this->productBySku($tenant, $sku);
             $warehouse = $this->warehouseByCode($tenant, $warehouseCode);
             $quantity = (float) ($item['quantity'] ?? 0);
+            $variantId = $this->variantIdBySku($tenant, (int) $product->id, $item['product_variant_sku'] ?? null, $item['product_variant_color'] ?? null);
 
             if ($quantity <= 0.0) {
                 throw new RuntimeException('La devolucion sincronizada contiene una cantidad invalida.');
+            }
+
+            if ($variantId === null && ($this->nullableString($item['product_variant_sku'] ?? null) !== null || $this->nullableString($item['product_variant_color'] ?? null) !== null)) {
+                throw new RuntimeException("La variante de {$sku} no esta sincronizada para la devolucion de compra.");
             }
 
             $sourceItemId = $sourceReturnId * 1000 + $index + 1;
@@ -4847,6 +4887,7 @@ class SyncEventApplier
                 ->where('tenant_id', $tenant->id)
                 ->where('purchase_order_id', $purchaseOrderId)
                 ->where('product_id', $product->id)
+                ->when($variantId !== null, fn ($query) => $query->where('product_variant_id', $variantId))
                 ->value('id');
 
             $returnItemId = $this->upsertAndGetId(
@@ -4883,6 +4924,7 @@ class SyncEventApplier
                 $item['reason'] ?? $payload['reason'] ?? "Devolucion sincronizada #{$sourceReturnId}",
                 PurchaseReturn::class,
                 $returnId,
+                $variantId,
             );
 
             DB::table('purchase_return_items')->where('id', $returnItemId)->update([

@@ -65,6 +65,7 @@ class PurchaseReturnService
                     reason: $itemData['reason'] ?? $data['reason'] ?? "Devolucion compra #{$purchaseOrder->id}",
                     referenceType: PurchaseReturn::class,
                     referenceId: $purchaseReturn->id,
+                    productVariantId: $purchaseItem->product_variant_id === null ? null : (int) $purchaseItem->product_variant_id,
                 );
 
                 PurchaseReturnItem::create([

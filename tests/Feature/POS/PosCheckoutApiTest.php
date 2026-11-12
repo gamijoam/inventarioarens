@@ -31,6 +31,7 @@ use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Permissions\BasePermissions;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -400,6 +401,14 @@ class PosCheckoutApiTest extends TestCase
         ]);
 
         $this->assertNotNull($response->json('data.sale_id'));
+
+        $payload = json_decode((string) DB::table('sync_outbox')
+            ->where('tenant_id', $tenant->id)
+            ->where('event_type', 'pos.order.paid')
+            ->latest('id')
+            ->value('payload'), true);
+        $this->assertSame('Azul', $payload['items'][0]['product_variant_color'], 'La venta sincronizada identifica la variante vendida.');
+        $this->assertArrayHasKey('product_variant_sku', $payload['items'][0]);
     }
 
     public function test_pos_checkout_rejects_discount_without_special_permission(): void

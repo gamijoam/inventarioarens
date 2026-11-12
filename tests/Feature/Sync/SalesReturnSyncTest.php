@@ -5,6 +5,7 @@ namespace Tests\Feature\Sync;
 use App\Modules\Branches\Models\Branch;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Sync\Services\SyncEventApplier;
 use App\Modules\Tenancy\Models\Tenant;
 use App\Modules\Warehouses\Models\Warehouse;
@@ -129,6 +130,96 @@ class SalesReturnSyncTest extends TestCase
             ->where('tenant_id', $tenant->id)
             ->where('type', 'sale_return')
             ->count());
+    }
+
+    public function test_variant_pos_sale_and_return_move_the_variant_balance_in_the_cloud(): void
+    {
+        $tenant = Tenant::create(['name' => 'Empresa variantes sync', 'slug' => 'empresa-variantes-sync']);
+        app(TenantManager::class)->set($tenant);
+        setPermissionsTeamId($tenant->id);
+
+        $branch = Branch::create(['name' => 'Sucursal variantes', 'code' => 'BR-VAR']);
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Almacen variantes', 'code' => 'WH-VAR']);
+        $product = Product::create(['name' => 'Franela', 'sku' => 'SKU-VAR', 'tracking_type' => Product::TRACKING_QUANTITY, 'base_price' => 20, 'sale_currency' => Product::CURRENCY_USD]);
+        $red = ProductVariant::create(['product_id' => $product->id, 'color' => 'Rojo', 'sku_variant' => 'SKU-VAR-R']);
+        $blue = ProductVariant::create(['product_id' => $product->id, 'color' => 'Azul', 'sku_variant' => 'SKU-VAR-B']);
+        foreach ([[$blue, 5], [$red, 5]] as [$variant, $quantity]) {
+            DB::table('stock_balances')->insert([
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
+                'quantity_available' => $quantity,
+                'quantity_reserved' => 0,
+                'quantity_damaged' => 0,
+            ]);
+        }
+
+        $this->insertInboxEvent($tenant, 'pos.order.paid', [
+            'source_node_code' => 'LOCAL-A',
+            'order_id' => 110,
+            'sale_id' => 210,
+            'sale_status' => 'confirmed',
+            'status' => 'paid',
+            'items' => [[
+                'id' => 310,
+                'product_sku' => 'SKU-VAR',
+                'product_variant_sku' => 'SKU-VAR-R',
+                'product_variant_color' => 'Rojo',
+                'warehouse_code' => 'WH-VAR',
+                'quantity' => '2.0000',
+                'sale_currency' => 'USD',
+                'unit_price' => '20.0000',
+                'total_amount' => '40.0000',
+                'base_unit_price' => '20.0000',
+                'base_total_amount' => '40.0000',
+            ]],
+            'payments' => [],
+        ], 110);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $balance = fn ($variant): float => (float) DB::table('stock_balances')->where('tenant_id', $tenant->id)->where('product_variant_id', $variant->id)->value('quantity_available');
+        $this->assertSame(3.0, $balance($red), 'La venta descuenta la variante vendida.');
+        $this->assertSame(5.0, $balance($blue), 'Las demas variantes no se tocan.');
+        $this->assertSame($red->id, (int) DB::table('sale_items')->where('tenant_id', $tenant->id)->value('product_variant_id'));
+
+        $this->insertInboxEvent($tenant, 'sales_return.updated', [
+            'source_node_code' => 'CLOUD-01',
+            'return' => ['id' => 410, 'status' => 'processed', 'reason' => 'Talla equivocada', 'processed_at' => now()->toISOString()],
+            'sale' => ['id' => 210, 'source_node_code' => 'LOCAL-A'],
+            'items' => [[
+                'id' => 510,
+                'sale_item_id' => 310,
+                'sale_item_source_node_code' => 'LOCAL-A',
+                'product_sku' => 'SKU-VAR',
+                'warehouse_code' => 'WH-VAR',
+                'quantity' => '1.0000',
+                'condition' => 'sellable',
+            ]],
+        ], 410);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(4.0, $balance($red), 'La devolucion vuelve a la variante vendida.');
+        $this->assertSame(5.0, $balance($blue));
+
+        $this->insertInboxEvent($tenant, 'sales_return.updated', [
+            'source_node_code' => 'CLOUD-01',
+            'return' => ['id' => 411, 'status' => 'processed', 'reason' => 'Llego rota', 'processed_at' => now()->toISOString()],
+            'sale' => ['id' => 210, 'source_node_code' => 'LOCAL-A'],
+            'items' => [[
+                'id' => 511,
+                'sale_item_id' => 310,
+                'sale_item_source_node_code' => 'LOCAL-A',
+                'product_sku' => 'SKU-VAR',
+                'warehouse_code' => 'WH-VAR',
+                'quantity' => '1.0000',
+                'condition' => 'damaged',
+            ]],
+        ], 411);
+        app(SyncEventApplier::class)->applyPending($tenant);
+
+        $this->assertSame(1.0, (float) DB::table('stock_balances')->where('tenant_id', $tenant->id)->where('product_variant_id', $red->id)->value('quantity_damaged'), 'La devolucion danada va a la variante.');
+        $this->assertSame(0, DB::table('stock_balances')->where('tenant_id', $tenant->id)->whereNull('product_variant_id')->count());
     }
 
     private function insertInboxEvent(Tenant $tenant, string $eventType, array $payload, int $aggregateId): void

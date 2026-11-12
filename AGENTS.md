@@ -544,6 +544,10 @@ subject_type, subject_id) en 24h no se duplica.
   antes de calcular el disponible. Cada movimiento emite `customer_credit.recorded` (cliente por
   documento, insert-once por identidad de origen; si el cliente aun no llego, el evento falla y se
   reintenta). La comision se revierte al **procesar** la devolucion, no al solicitarla.
+- (2026-11-12) Variantes: devoluciones de venta/compra y reversos mueven el saldo de la variante de la
+  linea original (`product_variant_id`). Los payloads de sync de venta POS, reverso y devolucion de
+  compra incluyen `product_variant_sku`/`product_variant_color`; en la nube el saldo se ubica por
+  variante y se actualiza por `id` de la fila (antes descontaba de una fila cualquiera del producto).
 - (2026-11-12) Devoluciones: lo devuelto primero cancela la deuda pendiente de la venta; solo el
   excedente cobrado se reembolsa (efectivo o saldo a favor). Un reverso se rechaza si la venta tiene
   devoluciones y anula la CxC (`status=voided`), reembolsando tambien los cobros de CxC (no los

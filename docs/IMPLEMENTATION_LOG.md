@@ -7650,3 +7650,16 @@ Regla:
 - Nota: `PosOrderPdfTest` falla en entornos sin el binario `tools/pdf-engine/bin/pdf-engine`
   (se compila con `scripts/build-go-tools.sh`); no es un error de codigo.
 
+## 2026-11-12 - Variantes en devoluciones, reversos y sync de ventas POS (auditoria contable, lote 5)
+
+- `InventoryMovementService::saleReturn/damagedSaleReturn/purchaseReturn` aceptan `productVariantId`;
+  `SalesReturnService::process` y `PurchaseReturnService::create` pasan la variante de la linea original.
+  La devolucion a proveedor de una variante ya no falla con "stock insuficiente".
+- Sync: el payload de `pos.order.paid`, `pos.order.reversed` y `purchase_return.created` incluye la
+  variante. En la nube `sale_items.product_variant_id` se guarda, la salida/entrada de stock se ubica por
+  variante y se actualiza la fila exacta. Bug corregido: el applier descontaba de cualquier fila del
+  producto y el UPDATE sin filtro de variante igualaba el saldo de todas las variantes.
+- Tests: `tests/Feature/Inventory/ReturnVariantStockTest.php` (4) + casos de variante en
+  `SalesReturnSyncTest`, `PosOrderStockSyncTest`, `PosCheckoutApiTest` y `PosSaleReversalApiTest`.
+  Mutation testing: 13/13 muertos.
+
