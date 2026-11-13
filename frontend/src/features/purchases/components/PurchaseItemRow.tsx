@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useWarehouses } from '@/features/inventory-center/api';
 import { useProductVariants } from '@/features/inventory-center/variantApi';
+import { useProductPackagings } from '@/features/inventory-center/packagingApi';
 import { cn } from '@/lib/cn';
 
 import type { ImeiInput } from './ImeiListInput';
@@ -38,7 +39,44 @@ export interface PurchaseItemRowValue {
   new_sale_price?: number | string;
   update_sale_price?: boolean;
   serial_units: ImeiInput[];
+  /** Compra por presentacion: cantidad y costo se capturan por caja/bulto */
+  product_packaging_id?: number | null;
+  packaging_factor?: number | null;
+  packaging_name?: string | null;
   error?: string;
+}
+
+/**
+ * Linea del payload de compra. Con presentacion se envian cajas y costo por
+ * caja; el backend las convierte a unidades y costo unitario.
+ */
+export function purchaseItemPayload(it: PurchaseItemRowValue): Record<string, unknown> {
+  const base = {
+    warehouse_id: it.warehouse_id ?? 0,
+    product_id: it.product_id ?? 0,
+    product_variant_id: it.product_variant_id ?? undefined,
+    new_sale_price: it.update_sale_price && Number(it.new_sale_price) > 0 ? Number(it.new_sale_price) : undefined,
+  };
+
+  if (it.product_packaging_id) {
+    return {
+      ...base,
+      product_packaging_id: it.product_packaging_id,
+      packaging_quantity: Number(it.quantity) || 0,
+      packaging_cost: Number(it.unit_cost) || 0,
+      serial_units: [],
+    };
+  }
+
+  return {
+    ...base,
+    quantity: Number(it.quantity) || 0,
+    unit_cost: Number(it.unit_cost) || 0,
+    serial_units:
+      it.product_info?.tracking_type === 'serialized'
+        ? it.serial_units.filter((s) => s.serial_number.trim() !== '')
+        : [],
+  };
 }
 
 interface PurchaseItemRowProps {
@@ -82,6 +120,8 @@ export function PurchaseItemRow({
     [value.quantity, value.unit_cost],
   );
   const isSerialized = value.product_info?.tracking_type === 'serialized';
+  const { data: packagings = [] } = useProductPackagings(isSerialized ? null : value.product_id);
+  const packagingLabel = value.product_packaging_id ? (value.packaging_name ?? 'presentacion') : null;
 
   const productInfo = value.product_info;
 
@@ -416,6 +456,39 @@ export function PurchaseItemRow({
             )}
           </div>
 
+          {packagings.length > 0 && !isSerialized && (
+            <div className="space-y-1.5">
+              <label
+                htmlFor={`purchase-item-packaging-${index}`}
+                className="text-text-secondary text-xs font-semibold uppercase"
+              >
+                Comprar por
+              </label>
+              <Select
+                id={`purchase-item-packaging-${index}`}
+                value={value.product_packaging_id ? String(value.product_packaging_id) : ''}
+                onChange={(event) => {
+                  const selected = packagings.find((p) => p.id === Number(event.target.value));
+                  onChange({
+                    ...value,
+                    product_packaging_id: selected?.id ?? null,
+                    packaging_factor: selected?.factor ?? null,
+                    packaging_name: selected?.name ?? null,
+                  });
+                }}
+                disabled={disabled}
+                className="h-11"
+              >
+                <option value="">Unidad</option>
+                {packagings.map((packaging) => (
+                  <option key={packaging.id} value={String(packaging.id)}>
+                    {packaging.name} ({packaging.factor} u)
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label className="text-text-secondary flex items-center gap-1.5 text-xs font-semibold uppercase">
               <Boxes className="size-3.5" /> Almacen <span className="text-danger">*</span>
@@ -448,7 +521,9 @@ export function PurchaseItemRow({
 
         <div className="border-border grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-[160px_180px_minmax(180px,1fr)]">
           <div className="space-y-1.5">
-            <label className="text-text-secondary text-xs font-semibold uppercase">Cantidad</label>
+            <label className="text-text-secondary text-xs font-semibold uppercase">
+              {packagingLabel ? `Cantidad (${packagingLabel})` : 'Cantidad'}
+            </label>
             <Input
               type="text"
               inputMode="decimal"
@@ -466,11 +541,16 @@ export function PurchaseItemRow({
             {isSerialized && (
               <p className="text-text-muted text-xs">Una unidad por cada IMEI o serial.</p>
             )}
+            {packagingLabel && value.packaging_factor && Number(value.quantity) > 0 && (
+              <p className="text-text-muted text-xs">
+                = {Number(value.quantity) * value.packaging_factor} unidades
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
             <label className="text-text-secondary text-xs font-semibold uppercase">
-              Costo unitario
+              {packagingLabel ? `Costo por ${packagingLabel}` : 'Costo unitario'}
             </label>
             <Input
               type="text"

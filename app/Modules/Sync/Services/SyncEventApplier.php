@@ -97,6 +97,7 @@ class SyncEventApplier
         'supplier_credit.recorded',
         'customer_credit.recorded',
         'stock_lot.updated',
+        'product_packaging.upserted',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -182,6 +183,7 @@ class SyncEventApplier
         'supplier_credit.recorded',
         'customer_credit.recorded',
         'stock_lot.updated',
+        'product_packaging.upserted',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -329,6 +331,7 @@ class SyncEventApplier
                 'supplier_credit.recorded' => $this->applySupplierCredit($tenant, $payload, $event),
                 'customer_credit.recorded' => $this->applyCustomerCredit($tenant, $payload, $event),
                 'stock_lot.updated' => $this->applyStockLot($tenant, $payload),
+                'product_packaging.upserted' => $this->applyProductPackaging($tenant, $payload),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
                 'tenant_settings.updated' => $this->applyTenantSettings($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
@@ -3173,6 +3176,33 @@ class SyncEventApplier
                 'quantity' => $payload['quantity'] ?? 0,
                 'unit_cost' => $payload['unit_cost'] ?? null,
                 'updated_at' => $now,
+            ]
+        );
+
+        return 'applied';
+    }
+
+    /**
+     * Presentacion de producto; upsert por producto y nombre.
+     */
+    private function applyProductPackaging(Tenant $tenant, array $payload): string
+    {
+        $product = $this->productBySku($tenant, $this->requiredString($payload, 'sku'));
+
+        $this->upsertByKeys(
+            'product_packagings',
+            [
+                'tenant_id' => $tenant->id,
+                'product_id' => $product->id,
+                'name' => $this->requiredString($payload, 'name'),
+            ],
+            [
+                'product_variant_id' => $this->variantIdBySku($tenant, (int) $product->id, $payload['product_variant_sku'] ?? null, $payload['product_variant_color'] ?? null),
+                'factor' => $payload['factor'] ?? 1,
+                'barcode' => $this->nullableString($payload['barcode'] ?? null),
+                'price_usd' => $payload['price_usd'] ?? null,
+                'is_active' => array_key_exists('is_active', $payload) ? (bool) $payload['is_active'] : true,
+                'updated_at' => now(),
             ]
         );
 

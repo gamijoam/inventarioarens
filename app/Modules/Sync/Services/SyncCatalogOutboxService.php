@@ -22,6 +22,7 @@ use App\Modules\Products\Models\Category;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductImage;
+use App\Modules\Products\Models\ProductPackaging;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Products\Models\Tag;
@@ -977,6 +978,28 @@ class SyncCatalogOutboxService
             aggregateId: (int) ($image->id ?? crc32($image->uuid)),
             payload: $payload,
             idempotencyKey: $this->eventKey($eventType, 'product_image', $image->id, $image->updated_at),
+        );
+    }
+
+    public function productPackagingUpserted(ProductPackaging $packaging): void
+    {
+        $packaging->loadMissing(['product', 'variant']);
+
+        $this->outbox->record(
+            eventType: 'product_packaging.upserted',
+            aggregateType: 'product_packaging',
+            aggregateId: $packaging->id,
+            payload: [
+                'sku' => $packaging->product?->sku,
+                'product_variant_sku' => $packaging->variant?->sku_variant,
+                'product_variant_color' => $packaging->variant?->color,
+                'name' => $packaging->name,
+                'factor' => (string) $packaging->factor,
+                'barcode' => $packaging->barcode,
+                'price_usd' => $packaging->price_usd === null ? null : (string) $packaging->price_usd,
+                'is_active' => (bool) $packaging->is_active,
+            ],
+            idempotencyKey: $this->eventKey('product_packaging.upserted', 'product_packaging', $packaging->id, $packaging->updated_at),
         );
     }
 

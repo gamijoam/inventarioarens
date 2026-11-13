@@ -33,6 +33,8 @@ import { movementTypeLabel, MOVEMENT_IN_TYPES, referenceTypeLabel, referenceLink
 import { EditProductDialog } from '@/features/inventory-center/dialogs/EditProductDialog';
 import { DeleteProductDialog } from '@/features/inventory-center/dialogs/DeleteProductDialog';
 import type { ProductStock, ProductSerial, ProductMovement } from '@/features/inventory-center/schemas';
+import { ProductPackagingsTab } from '@/features/inventory-center/components/ProductPackagingsTab';
+import { ProductPriceHistoryTab } from '@/features/inventory-center/components/ProductPriceHistoryTab';
 
 export const Route = createFileRoute('/_authed/inventory/$productId')({
   component: ProductDetailPage,
@@ -161,6 +163,8 @@ function ProductDetailPage() {
             <TabsTrigger value="serials">Seriales / IMEI</TabsTrigger>
           )}
           <TabsTrigger value="prices">Precios por lista</TabsTrigger>
+          <TabsTrigger value="packagings">Presentaciones</TabsTrigger>
+          <TabsTrigger value="price-history">Historial de precios</TabsTrigger>
           <TabsTrigger value="images">Galería</TabsTrigger>
           <Can I={PERMISSIONS.PRODUCTS_UPDATE}>
             <TabsTrigger value="variants">Variantes</TabsTrigger>
@@ -245,6 +249,14 @@ function ProductDetailPage() {
 
         <TabsContent value="prices" className="space-y-4">
           <PricesTab productId={id} />
+        </TabsContent>
+
+        <TabsContent value="packagings" className="space-y-4">
+          <ProductPackagingsTab productId={id} />
+        </TabsContent>
+
+        <TabsContent value="price-history" className="space-y-4">
+          <ProductPriceHistoryTab productId={id} />
         </TabsContent>
 
         <TabsContent value="images" className="space-y-4">

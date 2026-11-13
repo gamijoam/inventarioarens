@@ -6,6 +6,10 @@ export interface PosCartLine {
   product_id: number;
   product_variant_id?: number | null;
   product_variant_name?: string | null;
+  /** Presentacion vendida (caja, bulto): la cantidad sigue en unidades. */
+  product_packaging_id?: number | null;
+  packaging_name?: string | null;
+  packaging_factor?: number | null;
   name: string;
   sku?: string | null;
   barcode?: string | null;
@@ -121,6 +125,28 @@ export interface VariantMatchInput {
   warehouse_id: number;
   product_variant_id?: number | null;
   combo_instance_uuid?: string | null;
+  product_packaging_id?: number | null;
+}
+
+/**
+ * Precio unitario de una linea vendida por presentacion. Con precio propio
+ * escala el precio unitario cotizado (y su equivalente base) a
+ * precio_presentacion / factor; sin precio propio deja el unitario.
+ */
+export function packagingUnitPrices(
+  unitPrice: number,
+  baseUnitPrice: number,
+  packaging: { factor: number; price_usd?: number | null },
+): { unit_price: number; base_unit_price: number } {
+  if (!packaging.price_usd || packaging.factor <= 0 || baseUnitPrice <= 0) {
+    return { unit_price: unitPrice, base_unit_price: baseUnitPrice };
+  }
+  const packagingUnit = packaging.price_usd / packaging.factor;
+  const ratio = packagingUnit / baseUnitPrice;
+  return {
+    unit_price: Math.round(unitPrice * ratio * 1e6) / 1e6,
+    base_unit_price: Math.round(packagingUnit * 1e6) / 1e6,
+  };
 }
 
 export function requiresPosVariantSelection(variants: { color?: string | null }[]): boolean {
@@ -159,7 +185,8 @@ export function findMatchingVariantLine(
       line.product_id === input.product_id &&
       line.warehouse_id === input.warehouse_id &&
       (line.product_variant_id ?? null) === (input.product_variant_id ?? null) &&
-      (line.combo_instance_uuid ?? null) === (input.combo_instance_uuid ?? null),
+      (line.combo_instance_uuid ?? null) === (input.combo_instance_uuid ?? null) &&
+      (line.product_packaging_id ?? null) === (input.product_packaging_id ?? null),
   );
 }
 

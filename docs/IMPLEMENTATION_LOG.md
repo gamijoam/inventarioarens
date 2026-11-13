@@ -7733,3 +7733,14 @@ Regla:
   `expirations/__tests__` (7), `schemas.test.ts` (+1). Mutation testing: 19/19.
 - Pendiente: lotes en traslados logisticos, solicitudes interempresa y reversos de venta.
 
+
+## 2026-11-13 - Presentaciones / empaques con precio propio
+
+- `product_packagings` (factor, codigo de barras, precio propio) con CRUD, lookup por codigo y sync
+  `product_packaging.upserted`.
+- Compras por caja: convierte a unidades y costo unitario; conserva cajas y costo por caja en la linea
+  (`purchase_items.product_packaging_id/packaging_quantity/packaging_cost`), visibles al editar.
+- Ventas/POS: precio propio de la presentacion (USD, moneda de venta y Bs), `sale_items.packaging_quantity`.
+- Frontend: pestana Presentaciones del producto, selector "Comprar por" en compras, escaner POS por caja.
+- Tests: `tests/Feature/Products/ProductPackagingTest.php` (11), `posLogic` (+3), `packagingLookup` (2),
+  `packagingApi` + `ProductPackagingsTab` (6), `PurchaseItemRow` (+3). Mutation testing: 20/20.

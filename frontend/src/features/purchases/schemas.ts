@@ -53,6 +53,13 @@ export const PurchaseItemSchema = z.object({
   received_quantity: z.union([z.number(), z.string()]).transform((v) => Number(v)),
   serial_units: z.array(z.unknown()).nullable().optional(),
   product_variant_id: z.number().int().positive().nullable().optional(),
+  product_packaging_id: z.number().int().positive().nullable().optional(),
+  packaging_quantity: z.coerce.number().nullable().optional(),
+  packaging_cost: z.coerce.number().nullable().optional(),
+  packaging: z
+    .object({ id: z.number(), name: z.string().nullable().optional(), factor: z.coerce.number().nullable().optional() })
+    .nullable()
+    .optional(),
   stock_movement_id: z.number().int().nullable().optional(),
   // Costos (opcionales por permisos).
   unit_cost: z.union([z.number(), z.string()]).nullable().optional(),
@@ -180,8 +187,11 @@ export const PurchaseItemInputSchema = z.object({
   warehouse_id: positiveNumber(),
   product_id: positiveNumber(),
   product_variant_id: z.coerce.number().int().positive().nullable().optional(),
-  quantity: positiveNumber(),
-  unit_cost: positiveNumber(),
+  product_packaging_id: z.coerce.number().int().positive().nullable().optional(),
+  packaging_quantity: z.coerce.number().positive().optional(),
+  packaging_cost: z.coerce.number().positive().optional(),
+  quantity: positiveNumber().optional(),
+  unit_cost: positiveNumber().optional(),
   new_sale_price: z.coerce.number().positive().nullable().optional(),
   serial_units: z
     .array(
@@ -192,7 +202,13 @@ export const PurchaseItemInputSchema = z.object({
     )
     .optional()
     .default([]),
-});
+}).refine(
+  (item) =>
+    item.product_packaging_id
+      ? item.packaging_quantity !== undefined && item.packaging_cost !== undefined
+      : item.quantity !== undefined && item.unit_cost !== undefined,
+  { message: 'Indica cantidad y costo de la linea.' },
+);
 export type PurchaseItemInput = z.input<typeof PurchaseItemInputSchema>;
 
 /**

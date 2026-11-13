@@ -4,6 +4,7 @@ namespace App\Modules\Purchases\Models;
 
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPackaging;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Warehouses\Models\Warehouse;
 use App\Support\Tenancy\Concerns\BelongsToTenant;
@@ -16,6 +17,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'warehouse_id',
     'product_id',
     'product_variant_id',
+    'product_packaging_id',
+    'packaging_quantity',
+    'packaging_cost',
     'quantity',
     'received_quantity',
     'unit_cost',
@@ -57,6 +61,11 @@ class PurchaseItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function productPackaging(): BelongsTo
+    {
+        return $this->belongsTo(ProductPackaging::class, 'product_packaging_id');
     }
 
     public function productVariant(): BelongsTo

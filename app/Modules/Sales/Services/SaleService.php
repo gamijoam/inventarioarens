@@ -9,6 +9,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPackaging;
 use App\Modules\Products\Services\ProductPriceService;
 use App\Modules\Promotions\Models\SalePromotionApplication;
 use App\Modules\Sales\Models\Sale;
@@ -73,6 +74,8 @@ class SaleService
                 $item['price_list_id'] ?? null,
                 $item['price_source'] ?? null,
             );
+            $packaging = $this->resolvePackaging($product, $item['product_packaging_id'] ?? null);
+            $quote = $this->applyPackagingPrice($quote, $packaging);
             $baseUnitPrice = (float) $quote['base_price_usd'];
             $normalBaseTotal = round($baseUnitPrice * $quantity, 4);
             $normalUnitPrice = (float) $quote['sale_price'];
@@ -103,6 +106,8 @@ class SaleService
                 'warehouse_id' => $warehouse->id,
                 'product_id' => $product->id,
                 'product_variant_id' => $item['product_variant_id'] ?? null,
+                'product_packaging_id' => $packaging?->id,
+                'packaging_quantity' => $packaging ? round($quantity / (float) $packaging->factor, 4) : null,
                 'price_list_id' => $quote['price_list_id'],
                 'price_list_name' => $quote['price_list_name'],
                 'quantity' => $quantity,
@@ -437,5 +442,43 @@ class SaleService
                 'released_stock_movement_id' => $movementId,
             ]);
         }
+    }
+
+    private function resolvePackaging(Product $product, mixed $packagingId): ?ProductPackaging
+    {
+        if ($packagingId === null || $packagingId === '') {
+            return null;
+        }
+
+        $packaging = ProductPackaging::query()->where('product_id', $product->id)->find((int) $packagingId);
+
+        if (! $packaging || (float) $packaging->factor <= 0.0) {
+            throw ValidationException::withMessages([
+                'items' => "La presentacion indicada no pertenece a {$product->name}.",
+            ]);
+        }
+
+        return $packaging;
+    }
+
+    /**
+     * Precio propio de la presentacion: escala el precio unitario cotizado
+     * (USD, moneda de venta y Bs) a precio_presentacion / factor.
+     */
+    private function applyPackagingPrice(array $quote, ?ProductPackaging $packaging): array
+    {
+        $unitPrice = $packaging?->unitPriceUsd();
+        $quotedBase = (float) ($quote['base_price_usd'] ?? 0);
+
+        if ($unitPrice === null || $quotedBase <= 0.0) {
+            return $quote;
+        }
+
+        $ratio = $unitPrice / $quotedBase;
+        $quote['base_price_usd'] = round($unitPrice, 6);
+        $quote['sale_price'] = round((float) $quote['sale_price'] * $ratio, 6);
+        $quote['price_ves'] = $quote['price_ves'] === null ? null : round((float) $quote['price_ves'] * $ratio, 6);
+
+        return $quote;
     }
 }

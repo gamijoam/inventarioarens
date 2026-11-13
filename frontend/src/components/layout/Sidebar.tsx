@@ -35,6 +35,7 @@ import {
   BadgeDollarSign,
   Wrench,
   CalendarClock,
+  Barcode,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -173,6 +174,12 @@ const NAV_ITEMS: NavItem[] = [
         label: 'Vencimientos',
         icon: CalendarClock,
         permission: PERMISSIONS.INVENTORY_VIEW,
+      },
+      {
+        to: '/inventory/labels',
+        label: 'Etiquetas de precio',
+        icon: Barcode,
+        permission: PERMISSIONS.PRODUCTS_VIEW,
       },
       {
         to: '/inventory/manual-movements',

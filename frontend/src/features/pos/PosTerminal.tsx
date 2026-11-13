@@ -9,6 +9,7 @@ import {
 import { loadShowVesOnCards, saveShowVesOnCards } from './posDisplayPrefs';
 import { usePendingPosCart, readHandoffItems, clearHandoffItems } from './pendingPosCart';
 import { parseScaleBarcode } from '@/lib/scaleBarcode';
+import { lookupPackagingByCode, type PosPackaging } from './packagingLookup';
 import { convertWeightQuantity, isWeightUnit, quantityForScaleReading, type ScaleReading } from './scaleDevice';
 import { useRealtimeSync } from '@/lib/useRealtimeSync';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -183,6 +184,7 @@ import {
   missingSerialIssue,
   paymentBaseAmount,
   findMatchingVariantLine,
+  packagingUnitPrices,
   requiresPosVariantSelection,
   resolveInitialPosPriceListId,
   resolveLineQuoteListId,
@@ -3833,6 +3835,7 @@ export function PosTerminal() {
     promotionRef?: { id: number; code?: string | null; benefitType?: string } | null,
     comboInstanceUuid?: string | null,
     forcedPriceList?: { id: number; name: string | null; price: number } | null,
+    packaging?: PosPackaging | null,
   ): Promise<boolean> {
     const warehouse = selectedWarehouse;
     if (!warehouse) {
@@ -3889,6 +3892,7 @@ export function PosTerminal() {
       warehouse_id: warehouse.id,
       product_variant_id: selectedVariant?.id ?? null,
       combo_instance_uuid: comboInstanceUuid ?? null,
+      product_packaging_id: packaging?.id ?? null,
     };
     const samePriceList = (line: { price_list_id?: number | null }): boolean =>
       !forced || line.price_list_id === forced.id;
@@ -3955,19 +3959,27 @@ export function PosTerminal() {
           product_id: product.id,
           product_variant_id: selectedVariant?.id ?? null,
           product_variant_name: selectedVariant?.color ?? null,
-          name: product.name,
+          name: packaging ? `${product.name} (${packaging.name})` : product.name,
           sku: product.sku,
           barcode: product.barcode,
           warehouse_id: warehouse.id,
           combo_instance_uuid: comboInstanceUuid ?? null,
           quantity,
           available_stock: available,
-          unit_price:
-            forced?.price ??
-            promotionPriceOverride ??
-            quote?.base_price_usd ??
-            Number(selectedVariant?.price_override ?? product.base_price ?? 0),
-          base_unit_price: Number(selectedVariant?.price_override ?? product.base_price ?? 0),
+          ...(() => {
+            const unitPrice =
+              forced?.price ??
+              promotionPriceOverride ??
+              quote?.base_price_usd ??
+              Number(selectedVariant?.price_override ?? product.base_price ?? 0);
+            const baseUnitPrice = Number(selectedVariant?.price_override ?? product.base_price ?? 0);
+            return packaging && !forced && promotionPriceOverride === undefined
+              ? packagingUnitPrices(Number(unitPrice), baseUnitPrice, packaging)
+              : { unit_price: unitPrice, base_unit_price: baseUnitPrice };
+          })(),
+          product_packaging_id: packaging?.id ?? null,
+          packaging_name: packaging?.name ?? null,
+          packaging_factor: packaging?.factor ?? null,
           promotion_id: promotionRef?.id ?? null,
           promotion_code: promotionRef?.code ?? null,
           promotion_benefit_type: promotionRef?.benefitType ?? null,
@@ -4280,7 +4292,31 @@ export function PosTerminal() {
         return;
       }
 
-      // 2. Búsqueda directa e inmediata al backend (omite debounce para lectores de código de barras)
+      // 2. Codigo de una presentacion (caja, bulto): agrega sus unidades con su precio.
+      if (!scaleInfo) {
+        const packagingHit = await lookupPackagingByCode(effectiveSearchTerm);
+        if (packagingHit) {
+          const added = await addProduct(
+            packagingHit.product,
+            undefined,
+            packagingHit.packaging.factor,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            packagingHit.packaging,
+          );
+          if (added) {
+            toast.success(`${packagingHit.packaging.name} de ${packagingHit.product.name}`);
+            setQuery('');
+            setQuickSearchIndex(0);
+          }
+          return;
+        }
+      }
+
+      // 3. Búsqueda directa e inmediata al backend (omite debounce para lectores de código de barras)
       try {
         const directResults = await fetchPosProductsDirect(effectiveSearchTerm, effectiveWarehouseId);
         const directExact = directResults.find(
@@ -4824,6 +4860,7 @@ export function PosTerminal() {
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
         product_variant_id: line.product_variant_id ?? null,
+        product_packaging_id: line.product_packaging_id ?? null,
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),
@@ -4864,6 +4901,7 @@ export function PosTerminal() {
         warehouse_id: line.warehouse_id,
         product_id: line.product_id,
         product_variant_id: line.product_variant_id ?? null,
+        product_packaging_id: line.product_packaging_id ?? null,
         price_list_id: line.price_list_id ?? selectedPriceList?.id ?? null,
         price_source:
           line.price_source ?? (line.price_list_id || selectedPriceList ? 'price_list' : 'base'),

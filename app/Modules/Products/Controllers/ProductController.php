@@ -371,11 +371,14 @@ class ProductController extends Controller
                 $priceListId = $change['after']['price_list_id'] ?? $change['before']['price_list_id'] ?? null;
                 $priceList = $priceListId ? $priceLists->get($priceListId) : null;
 
+                $isBasePrice = ($change['kind'] ?? null) === 'base_price';
+
                 return [
                     'id' => $audit->id,
                     'action' => $audit->action,
+                    'kind' => $change['kind'] ?? 'price_list',
                     'price_list_id' => $priceListId,
-                    'price_list_name' => $priceList?->name ?? 'Lista no disponible',
+                    'price_list_name' => $isBasePrice ? 'Precio base' : ($priceList?->name ?? 'Lista no disponible'),
                     'price_list_code' => $priceList?->code,
                     'before' => $change['before'],
                     'after' => $change['after'],
@@ -848,10 +851,21 @@ class ProductController extends Controller
         $after = $changes['after']['product_price'] ?? null;
 
         if ($before === null && $after === null) {
-            return null;
+            if (! array_key_exists('base_price', $changes['before'] ?? []) || ! array_key_exists('base_price', $changes['after'] ?? [])) {
+                return null;
+            }
+
+            $basePrice = fn (mixed $price): ?array => $price === null ? null : ['price' => round((float) $price, 4)];
+
+            return [
+                'kind' => 'base_price',
+                'before' => $basePrice($changes['before']['base_price']),
+                'after' => $basePrice($changes['after']['base_price']),
+            ];
         }
 
         return [
+            'kind' => 'price_list',
             'before' => $before,
             'after' => $after,
         ];

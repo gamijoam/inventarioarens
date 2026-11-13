@@ -330,3 +330,25 @@ describe('overpaymentIssue', () => {
     ).toBeNull();
   });
 });
+
+describe('presentaciones en el POS', () => {
+  it('una caja va en una linea distinta a la unidad del mismo producto', async () => {
+    const { findMatchingVariantLine } = await import('../posLogic');
+    const unitLine = { id: 'u', product_id: 1, warehouse_id: 2, product_variant_id: null, product_packaging_id: null } as never;
+    const boxLine = { id: 'c', product_id: 1, warehouse_id: 2, product_variant_id: null, product_packaging_id: 9 } as never;
+
+    expect(findMatchingVariantLine([unitLine, boxLine], { product_id: 1, warehouse_id: 2, product_packaging_id: 9 })?.id).toBe('c');
+    expect(findMatchingVariantLine([unitLine, boxLine], { product_id: 1, warehouse_id: 2 })?.id).toBe('u');
+  });
+
+  it('el precio propio de la caja escala el precio unitario en la misma proporcion', async () => {
+    const { packagingUnitPrices } = await import('../posLogic');
+    expect(packagingUnitPrices(1.2, 1.2, { factor: 24, price_usd: 24 })).toEqual({ unit_price: 1, base_unit_price: 1 });
+    expect(packagingUnitPrices(120, 1.2, { factor: 24, price_usd: 24 })).toEqual({ unit_price: 100, base_unit_price: 1 });
+  });
+
+  it('sin precio propio la caja se cobra al precio unitario', async () => {
+    const { packagingUnitPrices } = await import('../posLogic');
+    expect(packagingUnitPrices(1.2, 1.2, { factor: 24, price_usd: null })).toEqual({ unit_price: 1.2, base_unit_price: 1.2 });
+  });
+});

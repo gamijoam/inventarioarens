@@ -52,7 +52,7 @@ import {
 } from '@/features/purchases/purchaseFormDraft';
 import { useSessionStore } from '@/stores/session';
 import { SupplierAutocomplete, type SupplierOption } from './SupplierAutocomplete';
-import { PurchaseItemRow, type PurchaseItemRowValue } from './PurchaseItemRow';
+import { PurchaseItemRow, purchaseItemPayload, type PurchaseItemRowValue } from './PurchaseItemRow';
 import { PurchaseItemTableRow } from './PurchaseItemTableRow';
 import {
   ProductAutocomplete,
@@ -201,8 +201,15 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
             product_id: it.product_id,
             product_variant_id: it.product_variant_id ?? null,
             product_info: (it.product as ProductAutocompleteOption | null) ?? null,
-            quantity: String(it.quantity ?? ''),
-            unit_cost: it.unit_cost !== null && it.unit_cost !== undefined ? String(it.unit_cost) : '',
+            quantity: it.product_packaging_id ? String(it.packaging_quantity ?? '') : String(it.quantity ?? ''),
+            unit_cost: it.product_packaging_id
+              ? String(it.packaging_cost ?? '')
+              : it.unit_cost !== null && it.unit_cost !== undefined
+                ? String(it.unit_cost)
+                : '',
+            product_packaging_id: it.product_packaging_id ?? null,
+            packaging_factor: it.packaging?.factor ?? null,
+            packaging_name: it.packaging?.name ?? null,
             new_sale_price: it.new_sale_price ? String(it.new_sale_price) : '',
             update_sale_price: Boolean(it.new_sale_price),
             serial_units: Array.isArray(it.serial_units)
@@ -439,24 +446,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onCreated, purchase }: 
       return;
     }
 
-    const serializedItems: PurchaseItemInput[] = items.map((it) => {
-      const serialUnits: ImeiInput[] =
-        it.product_info?.tracking_type === 'serialized'
-          ? it.serial_units.filter((s) => s.serial_number.trim() !== '')
-          : [];
-      return {
-        warehouse_id: it.warehouse_id ?? 0,
-        product_id: it.product_id ?? 0,
-        product_variant_id: it.product_variant_id ?? undefined,
-        quantity: Number(it.quantity) || 0,
-        unit_cost: Number(it.unit_cost) || 0,
-        new_sale_price:
-          it.update_sale_price && Number(it.new_sale_price) > 0
-            ? Number(it.new_sale_price)
-            : undefined,
-        serial_units: serialUnits,
-      };
-    });
+    const serializedItems = items.map((it) => purchaseItemPayload(it)) as PurchaseItemInput[];
 
     const payload = {
       supplier_id: supplierId ?? undefined,

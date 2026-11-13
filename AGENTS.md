@@ -484,6 +484,20 @@ unica fuente del costo que se congela en `sale_items.base_unit_cost` al vender (
 - Frontend: switch "Controla vencimiento" en el producto, fecha/lote en la recepcion y pagina
   Inventario > Vencimientos (`/inventory/expirations`).
 
+**Presentaciones / empaques (2026-11-13)**: tabla `product_packagings` (producto, variante opcional,
+`name` unico por producto, `factor` en unidades, `barcode` unico por tenant y distinto de los codigos de
+producto, `price_usd` propio de la presentacion, `is_active`). Endpoints `GET/POST /api/products/{id}/packagings`,
+`PATCH/DELETE /api/product-packagings/{id}` (`products.update`) y `GET /api/product-packagings/lookup?code=`
+(`products.view` o `pos.checkout`). El inventario siempre se lleva en unidades:
+- Compra: la linea acepta `product_packaging_id` + `packaging_quantity` + `packaging_cost`; el servicio
+  guarda `quantity = cajas x factor` y `unit_cost = costo caja / factor` y conserva los datos de la caja.
+- Venta/POS: `quantity` va en unidades y `product_packaging_id` aplica el precio propio
+  (`price_usd / factor` por unidad, escalando moneda de venta y Bs en la misma proporcion); sin precio
+  propio se vende al precio unitario. `sale_items.packaging_quantity` guarda las cajas vendidas.
+- Una presentacion de otro producto se rechaza (422). Sync `product_packaging.upserted` (upsert por producto + nombre).
+- Frontend: pestana "Presentaciones" del producto, "Comprar por" en la linea de compra y el escaner
+  del POS reconoce el codigo de la caja antes que la busqueda normal.
+
 **Regla de costeo vigente**: devoluciones y ajustes deben usar el costo histórico/snapshot de la
 operación original, nunca el costo vigente. Las ventas ya registradas conservan su costo congelado.
 
