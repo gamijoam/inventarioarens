@@ -90,8 +90,10 @@ class PriceLabelsAndHistoryTest extends TestCase
             ->assertJsonPath('data.0.after.price', 1.5);
 
         app(TenantManager::class)->set($this->tenant);
+        $created->delete();
         app(BulkPriceAdjustmentService::class)->rollback($adjustment, $this->user);
 
+        $this->assertFalse(ProductPrice::query()->where('product_id', $this->harina->id)->where('price_list_id', $list->id)->exists(), 'El reverso no recrea un precio de lista que ya no existe.');
         $this->assertEqualsWithDelta(1.0, (float) $price->refresh()->price, 0.0001);
         $this->assertSame(2, DB::table('sync_outbox')->where('event_type', 'product_price.updated')->where('aggregate_id', $price->id)->count());
         $this->assertSame(2, ProductAudit::query()->where('product_id', $this->malta->id)->count());
@@ -145,6 +147,8 @@ class PriceLabelsAndHistoryTest extends TestCase
         $this->bulk(['product_ids' => [$this->harina->id]], ['target' => 'base_price', 'adjustment_type' => BulkPriceAdjustment::TYPE_FIXED_AMOUNT, 'adjustment_value' => 1]);
         $this->travelBack();
         $this->bulk(['product_ids' => [$this->malta->id]], ['target' => 'base_price', 'adjustment_type' => BulkPriceAdjustment::TYPE_FIXED_AMOUNT, 'adjustment_value' => 1]);
+        $renamed = Product::create(['name' => 'Arroz', 'sku' => 'ARROZ', 'tracking_type' => Product::TRACKING_QUANTITY, 'base_price' => 1, 'sale_currency' => Product::CURRENCY_USD]);
+        ProductAudit::create(['product_id' => $renamed->id, 'action' => ProductAudit::ACTION_UPDATED, 'changes' => ['before' => ['name' => 'Arroz'], 'after' => ['name' => 'Arroz 1kg']], 'created_by' => $this->user->id]);
 
         $this->getJson('/api/product-labels?changed_since='.now()->subDay()->toDateString())
             ->assertOk()
@@ -175,12 +179,14 @@ class PriceLabelsAndHistoryTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data.labels')
             ->assertJsonPath('data.skipped.0.product_id', $free->id)
-            ->assertJsonPath('data.skipped.0.name', 'Sin precio');
+            ->assertJsonPath('data.skipped.0.name', 'Sin precio')
+            ->assertJsonPath('data.skipped.0.reason', 'El producto no tiene precio base configurado.');
     }
 
     public function test_labels_require_a_selection_and_the_products_view_permission(): void
     {
         $this->getJson('/api/product-labels')->assertUnprocessable();
+        $this->getJson('/api/product-labels?'.http_build_query(['product_ids' => range(1, 501)]))->assertUnprocessable();
 
         $clerk = User::factory()->create();
         $clerk->tenants()->attach($this->tenant, ['status' => 'active']);

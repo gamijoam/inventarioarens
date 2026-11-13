@@ -7724,3 +7724,12 @@ Regla:
 - Frontend: pestana Presentaciones del producto, selector "Comprar por" en compras, escaner POS por caja.
 - Tests: `tests/Feature/Products/ProductPackagingTest.php` (11), `posLogic` (+3), `packagingLookup` (2),
   `packagingApi` + `ProductPackagingsTab` (6), `PurchaseItemRow` (+3). Mutation testing: 20/20.
+
+## 2026-11-13 - Ajuste masivo auditado, historial de precios y etiquetas de anaquel
+
+- Bug: el ajuste masivo (y su reverso) actualizaba precios sin auditoria, sin sync a los nodos y sin
+  propagar a las copias del grupo. Ahora pasa por modelo, `ProductAudit` y `SyncCatalogOutboxService`.
+- Historial de precios incluye precio base; pestana "Historial de precios" en el producto.
+- `GET /api/product-labels` + pagina Etiquetas de precio (50x30 mm o carta/A4, copias, Bs, presentaciones).
+- Tests: `tests/Feature/Products/PriceLabelsAndHistoryTest.php` (10); frontend `code128` (6),
+  `labels` (10), historial (3). Mutation testing: 17/17.
