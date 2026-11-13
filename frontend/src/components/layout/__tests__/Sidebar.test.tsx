@@ -232,4 +232,51 @@ describe('<Sidebar>', () => {
     fireEvent.click(dashboardLink);
     expect(aside.className).toContain('w-16');
   });
+  it('muestra la flecha para expandir arriba, antes del menu, y la barra se ajusta al alto visible', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    const { container } = render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+
+    const aside = container.querySelector('aside')!;
+    const toggle = screen.getByRole('button', { name: 'Expandir menú' });
+    const nav = screen.getByRole('navigation', { name: 'Módulos' });
+
+    expect(toggle.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(aside.className).not.toContain('h-screen');
+    expect(aside.className).toContain('bottom-0');
+  });
+
+  it('la flecha fija el menu abierto aunque salga el cursor y vuelve a colapsarlo', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    const { container } = render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+    const wrapperDiv = container.firstChild as HTMLElement;
+    const aside = container.querySelector('aside')!;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir menú' }));
+    expect(aside.className).toContain('w-64');
+    fireEvent.mouseLeave(wrapperDiv);
+    expect(aside.className).toContain('w-64');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Colapsar menú' }));
+    expect(aside.className).toContain('w-16');
+    expect(screen.getByRole('button', { name: 'Expandir menú' })).toBeInTheDocument();
+  });
+  it('abierto solo por el cursor (o un toque en tablet) la flecha fija el menu en vez de cerrarlo', () => {
+    mockUseTenantGroups.mockReturnValue({ data: [], isLoading: false, isError: false });
+
+    const { container } = render(<Sidebar />, { wrapper: makeWrapper(Object.values(PERMISSIONS)) });
+    const wrapperDiv = container.firstChild as HTMLElement;
+    const aside = container.querySelector('aside')!;
+
+    fireEvent.mouseEnter(wrapperDiv);
+    const pin = screen.getByRole('button', { name: 'Expandir menú' });
+    expect(pin).toHaveTextContent('Fijar menú abierto');
+    expect(screen.queryByRole('button', { name: 'Colapsar menú' })).not.toBeInTheDocument();
+
+    fireEvent.click(pin);
+    fireEvent.mouseLeave(wrapperDiv);
+    expect(aside.className).toContain('w-64');
+    expect(screen.getByRole('button', { name: 'Colapsar menú' })).toHaveTextContent('Colapsar');
+  });
 });

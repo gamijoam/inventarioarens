@@ -433,7 +433,7 @@ export function Sidebar() {
     >
       <aside
         className={cn(
-          'bg-surface border-border fixed top-0 bottom-0 left-0 z-40 flex h-screen flex-col border-r transition-all duration-200 ease-in-out',
+          'bg-surface border-border fixed top-0 bottom-0 left-0 z-40 flex flex-col border-r transition-all duration-200 ease-in-out',
           isExpanded
             ? 'w-64 shadow-2xl ring-1 ring-black/10 dark:ring-white/10'
             : 'w-16 shadow-none',
@@ -465,6 +465,39 @@ export function Sidebar() {
           </div>
         </div>
 
+        {/* Collapse / Pin Toggle */}
+        <div className="border-border shrink-0 border-b p-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (isPinned) {
+                setIsPinned(false);
+                setIsHovered(false);
+              } else {
+                setIsPinned(true);
+              }
+            }}
+            className={cn(
+              'text-text-muted hover:bg-bg hover:text-text-secondary flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-[length:var(--text-ui-caption)] transition-colors',
+              !isExpanded && 'justify-center',
+            )}
+            aria-label={isPinned ? 'Colapsar menú' : 'Expandir menú'}
+            aria-expanded={isPinned}
+            title={isPinned ? 'Colapsar menú' : 'Fijar menú abierto'}
+          >
+            {isPinned ? (
+              <>
+                <ChevronLeft className="size-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">Colapsar</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+                {isExpanded && <span className="truncate">Fijar menú abierto</span>}
+              </>
+            )}
+          </button>
+        </div>
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto p-2" aria-label="Módulos">
           <ul className="space-y-0.5">
@@ -539,36 +572,6 @@ export function Sidebar() {
           </ul>
         </nav>
 
-        {/* Collapse / Pin Toggle */}
-        <div className="border-border shrink-0 border-t p-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (isPinned) {
-                setIsPinned(false);
-                setIsHovered(false);
-              } else {
-                setIsPinned(true);
-              }
-            }}
-            className={cn(
-              'text-text-muted hover:bg-bg hover:text-text-secondary flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-[length:var(--text-ui-caption)] transition-colors',
-              !isExpanded && 'justify-center',
-            )}
-            aria-label={isExpanded ? 'Colapsar menú' : 'Expandir menú'}
-            aria-expanded={isExpanded}
-            title={isPinned ? 'Desfijar (auto-colapsar)' : 'Fijar menú abierto'}
-          >
-            {isExpanded ? (
-              <>
-                <ChevronLeft className="size-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">{isPinned ? 'Desfijar menú' : 'Colapsar'}</span>
-              </>
-            ) : (
-              <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
-            )}
-          </button>
-        </div>
       </aside>
     </div>
   );
