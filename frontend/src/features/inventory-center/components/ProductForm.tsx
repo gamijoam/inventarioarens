@@ -1186,6 +1186,18 @@ export function ProductForm({
                         <SwitchField form={form} name="track_stock" label="" />
                       </div>
                     )}
+
+                    <div className="rounded-lg border border-border/80 bg-surface-subtle/30 px-3.5 py-2 flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="tracks_expiration" className="font-semibold text-xs text-text-primary">
+                          Controla vencimiento
+                        </Label>
+                        <p className="text-[11px] text-text-muted">
+                          Pide fecha al recibir y vende primero lo que vence antes.
+                        </p>
+                      </div>
+                      <SwitchField form={form} name="tracks_expiration" label="" />
+                    </div>
                   </div>
 
                   {(activeVisibility.min_stock || activeVisibility.max_stock || activeVisibility.reorder_quantity) && (
@@ -1786,7 +1798,7 @@ function SwitchField({
   label,
 }: {
   form: UseFormReturn<StoreProductInput, unknown, StoreProductValues>;
-  name: 'is_active' | 'track_stock';
+  name: 'is_active' | 'track_stock' | 'tracks_expiration';
   label: string;
 }) {
   const { field } = useController({ name, control: form.control });

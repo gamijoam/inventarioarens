@@ -37,6 +37,7 @@ const CREATE_DEFAULTS: StoreProductValues = {
   tracking_type: 'quantity',
   unit_of_measure: 'unit',
   track_stock: true,
+  tracks_expiration: false,
   brand_id: undefined,
   category_ids: [],
   tag_ids: [],

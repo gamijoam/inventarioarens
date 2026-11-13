@@ -34,6 +34,7 @@ import {
   Send,
   BadgeDollarSign,
   Wrench,
+  CalendarClock,
 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
@@ -166,6 +167,12 @@ const NAV_ITEMS: NavItem[] = [
         label: 'Productos',
         icon: Package,
         permission: PERMISSIONS.PRODUCTS_VIEW,
+      },
+      {
+        to: '/inventory/expirations',
+        label: 'Vencimientos',
+        icon: CalendarClock,
+        permission: PERMISSIONS.INVENTORY_VIEW,
       },
       {
         to: '/inventory/manual-movements',

@@ -469,6 +469,21 @@ unica fuente del costo que se congela en `sale_items.base_unit_cost` al vender (
   salida de la empresa que envia y actualiza ultimo costo y promedio de la receptora (local y nube).
   No se generan CxC/CxP entre empresas.
 
+**Vencimientos y lotes (2026-11-13)**: `products.tracks_expiration` activa el control. Tablas
+`stock_lots` (almacen, producto, variante, lote, `expires_on`, cantidad, costo; identidad `lot_key`) y
+`stock_lot_movements` (imputacion de cada movimiento a sus lotes). `StockLotService` (scoped):
+- La recepcion de compra exige `expires_on` para productos con control (`lot_code` opcional) y crea el lote.
+- Toda salida fisica (`CONSUMING_TYPES`) se imputa sola desde `InventoryMovementService::recordMovement`:
+  primero la existencia sin lote (anterior al control), luego lotes vigentes por vencimiento ascendente
+  y al final los vencidos. Los apartados no consumen lotes.
+- `transfer()` replica los lotes en el destino (`mirror`); la devolucion de venta vendible repone los
+  lotes de la venta (`restore`). Pendiente: traslados logisticos, interempresa y reversos usan stock sin lote.
+- `GET /api/stock-lots?status=expiring|expired|all&days=` (`inventory.view`) y
+  `POST /api/stock-lots/{id}/write-off` (`inventory.adjust`): merma valorada al costo del lote sobre ese lote.
+- Sync `stock_lot.updated` con la cantidad absoluta del lote (upsert por identidad).
+- Frontend: switch "Controla vencimiento" en el producto, fecha/lote en la recepcion y pagina
+  Inventario > Vencimientos (`/inventory/expirations`).
+
 **Regla de costeo vigente**: devoluciones y ajustes deben usar el costo histórico/snapshot de la
 operación original, nunca el costo vigente. Las ventas ya registradas conservan su costo congelado.
 

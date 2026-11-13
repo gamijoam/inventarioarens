@@ -49,6 +49,7 @@ import { Route as AuthedQuotationsQuotationIdRouteImport } from './routes/_authe
 import { Route as AuthedPosArmarRouteImport } from './routes/_authed/pos_.armar'
 import { Route as AuthedInventoryPriceListsRouteImport } from './routes/_authed/inventory/price-lists'
 import { Route as AuthedInventoryManualMovementsRouteImport } from './routes/_authed/inventory/manual-movements'
+import { Route as AuthedInventoryExpirationsRouteImport } from './routes/_authed/inventory/expirations'
 import { Route as AuthedInventoryCurrencyRouteImport } from './routes/_authed/inventory/currency'
 import { Route as AuthedInventoryCatalogsRouteImport } from './routes/_authed/inventory/catalogs'
 import { Route as AuthedInventoryAdminRouteImport } from './routes/_authed/inventory/admin'
@@ -265,6 +266,12 @@ const AuthedInventoryManualMovementsRoute =
     path: '/inventory/manual-movements',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedInventoryExpirationsRoute =
+  AuthedInventoryExpirationsRouteImport.update({
+    id: '/inventory/expirations',
+    path: '/inventory/expirations',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedInventoryCurrencyRoute = AuthedInventoryCurrencyRouteImport.update({
   id: '/inventory/currency',
   path: '/inventory/currency',
@@ -356,6 +363,7 @@ export interface FileRoutesByFullPath {
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
+  '/inventory/expirations': typeof AuthedInventoryExpirationsRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/inventory/price-lists': typeof AuthedInventoryPriceListsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
@@ -407,6 +415,7 @@ export interface FileRoutesByTo {
   '/inventory/admin': typeof AuthedInventoryAdminRoute
   '/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/inventory/currency': typeof AuthedInventoryCurrencyRoute
+  '/inventory/expirations': typeof AuthedInventoryExpirationsRoute
   '/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/inventory/price-lists': typeof AuthedInventoryPriceListsRoute
   '/pos/armar': typeof AuthedPosArmarRoute
@@ -460,6 +469,7 @@ export interface FileRoutesById {
   '/_authed/inventory/admin': typeof AuthedInventoryAdminRoute
   '/_authed/inventory/catalogs': typeof AuthedInventoryCatalogsRoute
   '/_authed/inventory/currency': typeof AuthedInventoryCurrencyRoute
+  '/_authed/inventory/expirations': typeof AuthedInventoryExpirationsRoute
   '/_authed/inventory/manual-movements': typeof AuthedInventoryManualMovementsRoute
   '/_authed/inventory/price-lists': typeof AuthedInventoryPriceListsRoute
   '/_authed/pos_/armar': typeof AuthedPosArmarRoute
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/inventory/admin'
     | '/inventory/catalogs'
     | '/inventory/currency'
+    | '/inventory/expirations'
     | '/inventory/manual-movements'
     | '/inventory/price-lists'
     | '/pos/armar'
@@ -564,6 +575,7 @@ export interface FileRouteTypes {
     | '/inventory/admin'
     | '/inventory/catalogs'
     | '/inventory/currency'
+    | '/inventory/expirations'
     | '/inventory/manual-movements'
     | '/inventory/price-lists'
     | '/pos/armar'
@@ -616,6 +628,7 @@ export interface FileRouteTypes {
     | '/_authed/inventory/admin'
     | '/_authed/inventory/catalogs'
     | '/_authed/inventory/currency'
+    | '/_authed/inventory/expirations'
     | '/_authed/inventory/manual-movements'
     | '/_authed/inventory/price-lists'
     | '/_authed/pos_/armar'
@@ -923,6 +936,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInventoryManualMovementsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/inventory/expirations': {
+      id: '/_authed/inventory/expirations'
+      path: '/inventory/expirations'
+      fullPath: '/inventory/expirations'
+      preLoaderRoute: typeof AuthedInventoryExpirationsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/inventory/currency': {
       id: '/_authed/inventory/currency'
       path: '/inventory/currency'
@@ -1086,6 +1106,7 @@ interface AuthedRouteChildren {
   AuthedInventoryAdminRoute: typeof AuthedInventoryAdminRoute
   AuthedInventoryCatalogsRoute: typeof AuthedInventoryCatalogsRoute
   AuthedInventoryCurrencyRoute: typeof AuthedInventoryCurrencyRoute
+  AuthedInventoryExpirationsRoute: typeof AuthedInventoryExpirationsRoute
   AuthedInventoryManualMovementsRoute: typeof AuthedInventoryManualMovementsRoute
   AuthedInventoryPriceListsRoute: typeof AuthedInventoryPriceListsRoute
   AuthedPosArmarRoute: typeof AuthedPosArmarRoute
@@ -1127,6 +1148,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedInventoryAdminRoute: AuthedInventoryAdminRoute,
   AuthedInventoryCatalogsRoute: AuthedInventoryCatalogsRoute,
   AuthedInventoryCurrencyRoute: AuthedInventoryCurrencyRoute,
+  AuthedInventoryExpirationsRoute: AuthedInventoryExpirationsRoute,
   AuthedInventoryManualMovementsRoute: AuthedInventoryManualMovementsRoute,
   AuthedInventoryPriceListsRoute: AuthedInventoryPriceListsRoute,
   AuthedPosArmarRoute: AuthedPosArmarRoute,

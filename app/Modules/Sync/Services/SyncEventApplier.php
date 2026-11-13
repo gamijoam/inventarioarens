@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\AccountsPayable\Services\AccountsPayableService;
 use App\Modules\AccountsReceivable\Services\AccountsReceivableService;
 use App\Modules\Inventory\Models\ProductUnit;
+use App\Modules\Inventory\Models\StockLot;
 use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Products\Models\Product;
@@ -95,6 +96,7 @@ class SyncEventApplier
         'exchange_difference.recorded',
         'supplier_credit.recorded',
         'customer_credit.recorded',
+        'stock_lot.updated',
     ];
 
     private const REPROCESSABLE_EVENT_TYPES = [
@@ -179,6 +181,7 @@ class SyncEventApplier
         'exchange_difference.recorded',
         'supplier_credit.recorded',
         'customer_credit.recorded',
+        'stock_lot.updated',
         'product.image.uploaded',
         'product.image.updated',
         'product.image.deleted',
@@ -325,6 +328,7 @@ class SyncEventApplier
                 'exchange_difference.recorded' => $this->applyExchangeDifference($tenant, $payload, $event),
                 'supplier_credit.recorded' => $this->applySupplierCredit($tenant, $payload, $event),
                 'customer_credit.recorded' => $this->applyCustomerCredit($tenant, $payload, $event),
+                'stock_lot.updated' => $this->applyStockLot($tenant, $payload),
                 'inventory_transfer.updated', 'inventory_transfer.created' => $this->applyInventoryTransfer($tenant, $payload),
                 'tenant_settings.updated' => $this->applyTenantSettings($tenant, $payload),
                 'inventory_transfer_request.created' => $this->applyInventoryTransferRequestCreated($tenant, $payload),
@@ -431,6 +435,7 @@ class SyncEventApplier
             'tracking_type' => $payload['tracking_type'] ?? 'quantity',
             'unit_of_measure' => $payload['unit_of_measure'] ?? 'unit',
             'track_stock' => array_key_exists('track_stock', $payload) ? (bool) $payload['track_stock'] : true,
+            'tracks_expiration' => array_key_exists('tracks_expiration', $payload) ? (bool) $payload['tracks_expiration'] : false,
             'base_price' => $payload['base_price'] ?? null,
             'profit_margin' => $payload['profit_margin'] ?? null,
             // Events generated before pricing_mode existed must preserve the
@@ -3136,6 +3141,40 @@ class SyncEventApplier
             'created_at' => $this->nullableDate($payload['occurred_at'] ?? null) ?? $now,
             'updated_at' => $now,
         ]));
+
+        return 'applied';
+    }
+
+    /**
+     * Estado de un lote (cantidad absoluta). Upsert por almacen, producto,
+     * variante, lote y fecha de vencimiento.
+     */
+    private function applyStockLot(Tenant $tenant, array $payload): string
+    {
+        $product = $this->productBySku($tenant, $this->requiredString($payload, 'sku'));
+        $warehouse = $this->warehouseByCode($tenant, $this->requiredString($payload, 'warehouse_code'));
+        $expiresOn = $this->requiredString($payload, 'expires_on');
+        $variantId = $this->variantIdBySku($tenant, (int) $product->id, $payload['product_variant_sku'] ?? null, $payload['product_variant_color'] ?? null);
+        $lotCode = $this->nullableString($payload['lot_code'] ?? null);
+        $now = now();
+
+        $this->upsertByKeys(
+            'stock_lots',
+            [
+                'tenant_id' => $tenant->id,
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'lot_key' => StockLot::keyFor($variantId, $lotCode, $expiresOn),
+            ],
+            [
+                'product_variant_id' => $variantId,
+                'lot_code' => $lotCode,
+                'expires_on' => $expiresOn,
+                'quantity' => $payload['quantity'] ?? 0,
+                'unit_cost' => $payload['unit_cost'] ?? null,
+                'updated_at' => $now,
+            ]
+        );
 
         return 'applied';
     }

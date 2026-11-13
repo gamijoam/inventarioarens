@@ -23,6 +23,7 @@ use App\Modules\Customers\Policies\CustomerPolicy;
 use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\FinancialAdjustments\Policies\FinancialAdjustmentPolicy;
 use App\Modules\Inventory\Policies\InventoryPolicy;
+use App\Modules\Inventory\Services\StockLotService;
 use App\Modules\InventoryTransferRequests\Models\InventoryTransferRequest;
 use App\Modules\InventoryTransferRequests\Policies\InventoryTransferRequestPolicy;
 use App\Modules\InventoryTransfers\Models\InventoryTransfer;
@@ -70,7 +71,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(StockLotService::class);
     }
 
     /**

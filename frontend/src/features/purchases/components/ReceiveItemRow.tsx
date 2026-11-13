@@ -37,8 +37,47 @@ export interface ReceiveItemRowValue {
   unit_cost: number | null;
   /** Seriales/IMEIs a recibir en este ciclo */
   serial_units: ImeiInput[];
+  /** El producto controla vencimiento: exige fecha y admite lote */
+  tracks_expiration?: boolean;
+  lot_code?: string;
+  expires_on?: string;
   /** Validacion local: el padre inyecta mensajes de error por item */
   error?: string;
+}
+
+/**
+ * Error de validacion de una fila de recepcion, o null si es valida.
+ */
+export function receiveItemError(it: ReceiveItemRowValue): string | null {
+  const pending = it.ordered_quantity - it.received_quantity;
+  const isSerialized = it.product_tracking_type === 'serialized';
+
+  if (it.receiving_quantity < 0) return 'Debe ser >= 0.';
+  if (it.receiving_quantity > pending) return `Excede el pendiente (${pending}).`;
+  if (it.receiving_quantity === 0) {
+    return 'No puede ser 0. Usa el boton Cancelar si no quieres recibir este item.';
+  }
+  if (isSerialized && it.receiving_quantity !== Math.floor(it.receiving_quantity)) {
+    return 'Los productos serializados se reciben en unidades enteras.';
+  }
+  if (isSerialized) {
+    const serials = it.serial_units.map((s) => s.serial_number.trim()).filter(Boolean);
+    const expected = Math.floor(it.receiving_quantity);
+    const unique = new Set(
+      it.serial_units.map((s) => `${s.serial_type}:${s.serial_number.trim().toUpperCase()}`),
+    );
+    if (it.serial_units.length !== expected || serials.length !== expected) {
+      return `Captura ${expected} serial(es) para recibir este producto.`;
+    }
+    if (unique.size !== it.serial_units.length) {
+      return 'No puedes repetir seriales dentro de la recepcion.';
+    }
+  }
+  if (it.tracks_expiration && !(it.expires_on ?? '').trim()) {
+    return 'Indica la fecha de vencimiento: el producto controla vencimiento.';
+  }
+
+  return null;
 }
 
 interface ReceiveItemRowProps {
@@ -200,6 +239,40 @@ export function ReceiveItemRow({ value, onChange, disabled }: ReceiveItemRowProp
           )}
         </div>
       </div>
+
+      {value.tracks_expiration && (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label
+              htmlFor={`receive-expires-${value.purchase_item_id}`}
+              className="text-text-secondary text-xs font-semibold tracking-wide uppercase"
+            >
+              Vence el
+            </label>
+            <Input
+              id={`receive-expires-${value.purchase_item_id}`}
+              type="date"
+              value={value.expires_on ?? ''}
+              onChange={(e) => onChange({ ...value, expires_on: e.target.value })}
+              disabled={disabled}
+            />
+          </div>
+          <div className="space-y-1">
+            <label
+              htmlFor={`receive-lot-${value.purchase_item_id}`}
+              className="text-text-secondary text-xs font-semibold tracking-wide uppercase"
+            >
+              Lote (opcional)
+            </label>
+            <Input
+              id={`receive-lot-${value.purchase_item_id}`}
+              value={value.lot_code ?? ''}
+              onChange={(e) => onChange({ ...value, lot_code: e.target.value })}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      )}
 
       {isSerialized && (
         <div className="border-border-strong/50 bg-bg/50 mt-3 space-y-1 rounded border p-2">

@@ -145,6 +145,7 @@ function productToFormValues(p: Product): Partial<StoreProductValues> {
     tracking_type: p.tracking_type,
     unit_of_measure: p.unit_of_measure ?? 'unit',
     track_stock: p.track_stock ?? true,
+    tracks_expiration: p.tracks_expiration ?? false,
     brand_id: p.brand_id ?? undefined,
     category_ids: p.categories?.map((c) => c.id) ?? [],
     tag_ids: p.tags?.map((t) => t.id) ?? [],
