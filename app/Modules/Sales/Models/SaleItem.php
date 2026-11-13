@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'warehouse_id',
     'product_id',
     'product_variant_id',
+    'product_packaging_id',
+    'packaging_quantity',
     'price_list_id',
     'promotion_id',
     'promotion_code',

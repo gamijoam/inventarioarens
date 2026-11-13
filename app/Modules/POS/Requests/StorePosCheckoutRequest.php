@@ -83,6 +83,7 @@ class StorePosCheckoutRequest extends FormRequest
             'items.*.price_source' => ['nullable', 'string', Rule::in(['base', 'price_list', 'list'])],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.combo_instance_uuid' => ['nullable', 'string', 'max:100'],
+            'items.*.product_packaging_id' => ['nullable', 'integer'],
             'items.*.product_variant_id' => [
                 'nullable',
                 'integer',

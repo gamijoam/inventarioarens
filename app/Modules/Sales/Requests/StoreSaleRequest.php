@@ -36,6 +36,7 @@ class StoreSaleRequest extends FormRequest
                 Rule::exists('price_lists', 'id')->whereIn('tenant_id', $tenantIds),
             ],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'items.*.product_packaging_id' => ['nullable', 'integer'],
             'items.*.product_variant_id' => [
                 'nullable',
                 'integer',

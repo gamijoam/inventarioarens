@@ -13,6 +13,7 @@ use App\Modules\Inventory\Services\InventoryValuationService;
 use App\Modules\Inventory\Services\StockLotService;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductPackaging;
 use App\Modules\Products\Models\ProductPrice;
 use App\Modules\Products\Models\ProductVariant;
 use App\Modules\Purchases\Models\PurchaseItem;
@@ -61,10 +62,11 @@ class PurchaseOrderService
                 $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
                 $product = Product::query()->findOrFail($item['product_id']);
                 $variant = $this->resolveVariant($product, $item['product_variant_id'] ?? null);
-                $quantity = (float) $item['quantity'];
+                $packaging = $this->resolvePackaging($product, $item['product_packaging_id'] ?? null);
+                $quantity = $packaging ? round((float) $item['packaging_quantity'] * (float) $packaging->factor, 4) : (float) $item['quantity'];
                 $serialUnits = $item['serial_units'] ?? [];
                 $this->validateSerialUnits($product, $quantity, $serialUnits);
-                $unitCost = (float) $item['unit_cost'];
+                $unitCost = $packaging ? round((float) $item['packaging_cost'] / (float) $packaging->factor, 6) : (float) $item['unit_cost'];
                 $totalCost = round($unitCost * $quantity, 4);
                 $baseUnitCost = $this->baseUnitCost($currency, $unitCost, $exchangeRate);
                 $baseTotalCost = round($baseUnitCost * $quantity, 4);
@@ -74,6 +76,9 @@ class PurchaseOrderService
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
                     'product_variant_id' => $variant?->id,
+                    'product_packaging_id' => $packaging?->id,
+                    'packaging_quantity' => $packaging ? (float) $item['packaging_quantity'] : null,
+                    'packaging_cost' => $packaging ? (float) $item['packaging_cost'] : null,
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
                     'total_cost' => $totalCost,
@@ -180,10 +185,11 @@ class PurchaseOrderService
                 $warehouse = Warehouse::query()->findOrFail($item['warehouse_id']);
                 $product = Product::query()->findOrFail($item['product_id']);
                 $variant = $this->resolveVariant($product, $item['product_variant_id'] ?? null);
-                $quantity = (float) $item['quantity'];
+                $packaging = $this->resolvePackaging($product, $item['product_packaging_id'] ?? null);
+                $quantity = $packaging ? round((float) $item['packaging_quantity'] * (float) $packaging->factor, 4) : (float) $item['quantity'];
                 $serialUnits = $item['serial_units'] ?? [];
                 $this->validateSerialUnits($product, $quantity, $serialUnits);
-                $unitCost = (float) $item['unit_cost'];
+                $unitCost = $packaging ? round((float) $item['packaging_cost'] / (float) $packaging->factor, 6) : (float) $item['unit_cost'];
                 $totalCost = round($unitCost * $quantity, 4);
                 $baseUnitCost = $this->baseUnitCost($currency, $unitCost, $exchangeRate);
                 $baseTotalCost = round($baseUnitCost * $quantity, 4);
@@ -193,6 +199,9 @@ class PurchaseOrderService
                     'warehouse_id' => $warehouse->id,
                     'product_id' => $product->id,
                     'product_variant_id' => $variant?->id,
+                    'product_packaging_id' => $packaging?->id,
+                    'packaging_quantity' => $packaging ? (float) $item['packaging_quantity'] : null,
+                    'packaging_cost' => $packaging ? (float) $item['packaging_cost'] : null,
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
                     'total_cost' => $totalCost,
@@ -442,6 +451,23 @@ class PurchaseOrderService
      * Fecha de vencimiento obligatoria para los productos que controlan
      * vencimiento; null para los demas.
      */
+    private function resolvePackaging(Product $product, mixed $packagingId): ?ProductPackaging
+    {
+        if ($packagingId === null || $packagingId === '') {
+            return null;
+        }
+
+        $packaging = ProductPackaging::query()->where('product_id', $product->id)->find((int) $packagingId);
+
+        if (! $packaging || (float) $packaging->factor <= 0.0) {
+            throw ValidationException::withMessages([
+                'items' => "La presentacion indicada no pertenece a {$product->name}.",
+            ]);
+        }
+
+        return $packaging;
+    }
+
     private function receiptExpiration(PurchaseItem $item, array $receipt, int $index, ?array $requestedItems): ?string
     {
         if (! $item->product?->tracks_expiration) {

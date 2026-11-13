@@ -12,6 +12,10 @@ vi.mock('@/features/inventory-center/variantApi', () => ({
   useProductVariants: () => ({ data: [], isLoading: false }),
 }));
 
+vi.mock('@/features/inventory-center/packagingApi', () => ({
+  useProductPackagings: () => ({ data: [{ id: 4, product_id: 10, name: 'Caja x24', factor: 24, barcode: null, price_usd: null }] }),
+}));
+
 vi.mock('@/features/purchases/api', () => ({
   useProductsForPurchase: () => ({ data: [], isFetching: false }),
 }));
@@ -208,5 +212,39 @@ describe('PurchaseItemRow', () => {
     expect(screen.getAllByText(/Stock: 4/).length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByTestId('product-toggle-active-10'));
     expect(onToggleActive).toHaveBeenCalledWith(10, false);
+  });
+});
+
+describe('compra por presentacion', () => {
+  it('arma el payload en cajas cuando se elige una presentacion', async () => {
+    const { purchaseItemPayload } = await import('./PurchaseItemRow');
+    expect(
+      purchaseItemPayload(makeItemValue({ product_packaging_id: 4, packaging_factor: 24, quantity: '2', unit_cost: '18' })),
+    ).toMatchObject({ product_packaging_id: 4, packaging_quantity: 2, packaging_cost: 18 });
+    expect(purchaseItemPayload(makeItemValue({ product_packaging_id: 4, packaging_factor: 24, quantity: '2', unit_cost: '18' }))).not.toHaveProperty('quantity');
+    expect(purchaseItemPayload(makeItemValue())).toMatchObject({ quantity: 10, unit_cost: 2 });
+  });
+
+  it('el esquema acepta una linea por presentacion sin cantidad unitaria', async () => {
+    const { PurchaseItemInputSchema } = await import('../schemas');
+    expect(PurchaseItemInputSchema.safeParse({ warehouse_id: 1, product_id: 10, product_packaging_id: 4, packaging_quantity: 2, packaging_cost: 18 }).success).toBe(true);
+    expect(PurchaseItemInputSchema.safeParse({ warehouse_id: 1, product_id: 10 }).success).toBe(false);
+  });
+
+  it('cambia las etiquetas a cajas al elegir una presentacion', () => {
+    render(
+      <PurchaseItemRow
+        value={makeItemValue({ product_packaging_id: 4, packaging_factor: 24, packaging_name: 'Caja x24', quantity: '2' })}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        canRemove
+        index={0}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Cantidad \(Caja x24\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Costo por Caja x24/i)).toBeInTheDocument();
+    expect(screen.getByText(/48 unidades/i)).toBeInTheDocument();
   });
 });

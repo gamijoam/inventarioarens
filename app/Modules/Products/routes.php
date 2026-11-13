@@ -1,9 +1,12 @@
 <?php
 
+use App\Modules\POS\Controllers\CrossBranchStockController;
 use App\Modules\Products\Controllers\BulkPriceAdjustmentController;
 use App\Modules\Products\Controllers\PriceListController;
 use App\Modules\Products\Controllers\ProductController;
 use App\Modules\Products\Controllers\ProductImageController;
+use App\Modules\Products\Controllers\ProductLabelController;
+use App\Modules\Products\Controllers\ProductPackagingController;
 use App\Modules\Products\Controllers\ProductVariantController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,11 +20,12 @@ Route::apiResource('price-lists', PriceListController::class)
     ->parameters(['price-lists' => 'priceList']);
 Route::get('products/{product}/price', [ProductController::class, 'price']);
 Route::get('products/{product}/prices', [ProductController::class, 'prices']);
+Route::get('product-labels', ProductLabelController::class);
 Route::get('products/{product}/price-history', [ProductController::class, 'priceHistory']);
 Route::put('products/{product}/prices', [ProductController::class, 'syncPrices']);
 Route::patch('products/{product}/categories', [ProductController::class, 'syncCategories']);
 Route::patch('products/{product}/tags', [ProductController::class, 'syncTags']);
-Route::get('products/{product}/cross-branch-stock', \App\Modules\POS\Controllers\CrossBranchStockController::class);
+Route::get('products/{product}/cross-branch-stock', CrossBranchStockController::class);
 Route::delete('products/{product}/force', [ProductController::class, 'forceDestroy']);
 Route::post('products/resolve-image-url', [ProductImageController::class, 'resolveImageUrl']);
 Route::apiResource('products', ProductController::class);
@@ -42,3 +46,9 @@ Route::patch('products/{product}/variants/{variant}', [ProductVariantController:
 Route::delete('products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy']);
 
 require __DIR__.'/routes_catalog.php';
+
+Route::get('product-packagings/lookup', [ProductPackagingController::class, 'lookup']);
+Route::get('products/{product}/packagings', [ProductPackagingController::class, 'index']);
+Route::post('products/{product}/packagings', [ProductPackagingController::class, 'store']);
+Route::patch('product-packagings/{productPackaging}', [ProductPackagingController::class, 'update']);
+Route::delete('product-packagings/{productPackaging}', [ProductPackagingController::class, 'destroy']);

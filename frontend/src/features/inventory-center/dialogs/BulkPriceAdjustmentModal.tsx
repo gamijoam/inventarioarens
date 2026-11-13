@@ -4,7 +4,9 @@
  */
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import {
+  Barcode,
   CheckCircle2,
   History,
   Loader2,
@@ -456,6 +458,16 @@ export function BulkPriceAdjustmentModal({ open, onClose }: BulkPriceAdjustmentM
                             </Badge>
                           </td>
                           <td className="py-2.5 px-3 text-right">
+                            {isApplied && (
+                              <Link
+                                to="/inventory/labels"
+                                search={{ bulk_adjustment_id: item.id }}
+                                className="mr-2 inline-flex h-7 items-center gap-1 rounded border border-border px-2 text-xs font-semibold hover:bg-bg"
+                              >
+                                <Barcode className="size-3" />
+                                Etiquetas
+                              </Link>
+                            )}
                             {isApplied ? (
                               <Button
                                 size="sm"

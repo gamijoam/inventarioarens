@@ -5,7 +5,9 @@ namespace App\Modules\Products\Services;
 use App\Models\User;
 use App\Modules\Products\Models\BulkPriceAdjustment;
 use App\Modules\Products\Models\Product;
+use App\Modules\Products\Models\ProductAudit;
 use App\Modules\Products\Models\ProductPrice;
+use App\Modules\Sync\Services\SyncCatalogOutboxService;
 use App\Support\Realtime\WsHub;
 use App\Support\Tenancy\TenantManager;
 use Illuminate\Database\Eloquent\Builder;
@@ -106,26 +108,16 @@ class BulkPriceAdjustmentService
                 ];
 
                 if ($target === BulkPriceAdjustment::TARGET_BASE_PRICE) {
-                    Product::where('id', $item['product_id'])
-                        ->update(['base_price' => $item['new_price']]);
+                    $this->setBasePrice((int) $item['product_id'], (float) $item['new_price'], $user);
                 } else {
-                    ProductPrice::updateOrCreate(
-                        [
-                            'product_id' => $item['product_id'],
-                            'price_list_id' => $priceListId,
-                        ],
-                        [
-                            'price' => $item['new_price'],
-                            'is_active' => true,
-                        ]
-                    );
+                    $this->setListPrice((int) $item['product_id'], (int) $priceListId, (float) $item['new_price'], $user, true);
                 }
             }
 
             $adjustment = BulkPriceAdjustment::create([
                 'tenant_id' => $tenantId,
                 'user_id' => $user->id,
-                'name' => $name ?: 'Ajuste masivo de precios (' . count($items) . ' productos)',
+                'name' => $name ?: 'Ajuste masivo de precios ('.count($items).' productos)',
                 'target' => $target,
                 'price_list_id' => $priceListId,
                 'adjustment_type' => $rules['adjustment_type'] ?? BulkPriceAdjustment::TYPE_PERCENTAGE_INCREASE,
@@ -168,12 +160,9 @@ class BulkPriceAdjustmentService
                 $oldPrice = $snap['old_price'];
 
                 if ($target === BulkPriceAdjustment::TARGET_BASE_PRICE) {
-                    Product::where('id', $snap['product_id'])
-                        ->update(['base_price' => $oldPrice]);
+                    $this->setBasePrice((int) $snap['product_id'], (float) $oldPrice, $user);
                 } else {
-                    ProductPrice::where('product_id', $snap['product_id'])
-                        ->where('price_list_id', $priceListId)
-                        ->update(['price' => $oldPrice]);
+                    $this->setListPrice((int) $snap['product_id'], (int) $priceListId, (float) $oldPrice, $user, false);
                 }
             }
 
@@ -197,6 +186,83 @@ class BulkPriceAdjustmentService
 
             return $adjustment->refresh();
         });
+    }
+
+    /**
+     * Cambia el precio base como una edicion normal: auditoria (historial de
+     * precios), sincronizacion y propagacion a las copias del grupo.
+     */
+    private function setBasePrice(int $productId, float $price, User $user): void
+    {
+        $product = Product::query()->find($productId);
+
+        if (! $product) {
+            return;
+        }
+
+        $before = $product->base_price === null ? null : round((float) $product->base_price, 4);
+        $product->base_price = $price;
+        $product->save();
+
+        $this->audit($product, ['base_price' => $before], ['base_price' => round($price, 4)], $user);
+        app(SyncCatalogOutboxService::class)->productUpdated($product->refresh());
+
+        if ($product->isCatalogMaster()) {
+            app(SharedCatalogPropagationService::class)->syncMasterFieldsToCopies($product);
+        }
+    }
+
+    private function setListPrice(int $productId, int $priceListId, float $price, User $user, bool $createIfMissing): void
+    {
+        $product = Product::query()->find($productId);
+        $productPrice = ProductPrice::query()
+            ->where('product_id', $productId)
+            ->where('price_list_id', $priceListId)
+            ->first();
+
+        if (! $product || (! $productPrice && ! $createIfMissing)) {
+            return;
+        }
+
+        $before = $productPrice ? $this->listPriceAudit($productPrice) : null;
+
+        if ($productPrice) {
+            $productPrice->update(['price' => $price, 'is_active' => true]);
+        } else {
+            $productPrice = ProductPrice::create([
+                'product_id' => $productId,
+                'price_list_id' => $priceListId,
+                'price' => $price,
+                'currency' => Product::CURRENCY_USD,
+                'is_active' => true,
+            ]);
+        }
+
+        $this->audit($product, ['product_price' => $before], ['product_price' => $this->listPriceAudit($productPrice->refresh())], $user);
+        $before === null
+            ? app(SyncCatalogOutboxService::class)->productPriceCreated($productPrice)
+            : app(SyncCatalogOutboxService::class)->productPriceUpdated($productPrice);
+    }
+
+    private function listPriceAudit(ProductPrice $productPrice): array
+    {
+        return [
+            'price_list_id' => $productPrice->price_list_id,
+            'price' => round((float) $productPrice->price, 4),
+            'currency' => $productPrice->currency,
+            'exchange_rate_type_id' => $productPrice->exchange_rate_type_id,
+            'is_active' => (bool) $productPrice->is_active,
+        ];
+    }
+
+    private function audit(Product $product, array $before, array $after, User $user): void
+    {
+        ProductAudit::create([
+            'product_id' => $product->id,
+            'action' => ProductAudit::ACTION_UPDATED,
+            'changes' => ['before' => $before, 'after' => $after],
+            'created_by' => $user->id,
+        ]);
     }
 
     private function queryProducts(array $filters): Builder
