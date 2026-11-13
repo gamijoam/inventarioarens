@@ -10,6 +10,7 @@ use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryCostService;
 use App\Modules\Inventory\Services\InventoryMovementService;
 use App\Modules\Inventory\Services\InventoryValuationService;
+use App\Modules\Inventory\Services\StockLotService;
 use App\Modules\Products\Models\PriceList;
 use App\Modules\Products\Models\Product;
 use App\Modules\Products\Models\ProductPrice;
@@ -237,7 +238,7 @@ class PurchaseOrderService
 
             $receipts = $this->receiptItems($purchaseOrder, $data['items'] ?? null);
 
-            foreach ($receipts as $receipt) {
+            foreach ($receipts as $receiptIndex => $receipt) {
                 /** @var PurchaseItem $item */
                 $item = $receipt['item'];
                 $quantity = (float) $receipt['quantity'];
@@ -245,6 +246,7 @@ class PurchaseOrderService
 
                 $this->validateReceiptQuantity($item, $quantity);
                 $this->validateSerialUnits($item->product, $quantity, $serialUnits);
+                $expiresOn = $this->receiptExpiration($item, $receipt, $receiptIndex, $data['items'] ?? null);
 
                 $movement = $this->inventory->purchase(
                     warehouse: $item->warehouse,
@@ -257,6 +259,10 @@ class PurchaseOrderService
                     referenceId: $purchaseOrder->id,
                     productVariantId: $item->product_variant_id,
                 );
+
+                if ($expiresOn !== null) {
+                    app(StockLotService::class)->receive($movement, $receipt['lot_code'] ?? null, $expiresOn, (float) $item->base_unit_cost);
+                }
 
                 $item->update(['stock_movement_id' => $movement->id]);
                 $item->received_quantity = round((float) $item->received_quantity + $quantity, 4);
@@ -432,6 +438,29 @@ class PurchaseOrderService
         return round($unitCost / $exchangeRate, 4);
     }
 
+    /**
+     * Fecha de vencimiento obligatoria para los productos que controlan
+     * vencimiento; null para los demas.
+     */
+    private function receiptExpiration(PurchaseItem $item, array $receipt, int $index, ?array $requestedItems): ?string
+    {
+        if (! $item->product?->tracks_expiration) {
+            return null;
+        }
+
+        $expiresOn = trim((string) ($receipt['expires_on'] ?? ''));
+
+        if ($expiresOn === '' || strtotime($expiresOn) === false) {
+            $field = $requestedItems === null ? 'items' : "items.{$index}.expires_on";
+
+            throw ValidationException::withMessages([
+                $field => "Indica la fecha de vencimiento de {$item->product->name}: el producto controla vencimiento.",
+            ]);
+        }
+
+        return date('Y-m-d', strtotime($expiresOn));
+    }
+
     private function receiptItems(PurchaseOrder $purchaseOrder, ?array $requestedItems): array
     {
         if ($requestedItems === null) {
@@ -471,6 +500,8 @@ class PurchaseOrderService
                     'quantity' => (float) $receipt['quantity'],
                     'new_sale_price' => isset($receipt['new_sale_price']) && is_numeric($receipt['new_sale_price']) ? (float) $receipt['new_sale_price'] : null,
                     'serial_units' => $receipt['serial_units'] ?? [],
+                    'lot_code' => $receipt['lot_code'] ?? null,
+                    'expires_on' => $receipt['expires_on'] ?? null,
                 ];
             })
             ->all();

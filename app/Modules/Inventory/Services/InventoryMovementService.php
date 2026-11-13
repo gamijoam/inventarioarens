@@ -201,12 +201,14 @@ class InventoryMovementService
         ?string $referenceType = null,
         ?int $referenceId = null,
         ?int $productVariantId = null,
+        ?float $unitCost = null,
     ): StockMovement {
         return $this->decreaseAvailable(
             type: 'adjustment_out',
             warehouse: $warehouse,
             product: $product,
             quantity: $quantity,
+            unitCost: $unitCost,
             createdBy: $createdBy,
             reason: $reason,
             referenceType: $referenceType,
@@ -580,10 +582,11 @@ class InventoryMovementService
             $toBalance->quantity_available = (float) $toBalance->quantity_available + $quantity;
             $toBalance->save();
 
-            return [
-                $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId),
-                $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId),
-            ];
+            $out = $this->recordMovement('transfer_out', $fromWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
+            $in = $this->recordMovement('transfer_in', $toWarehouse, $product, $quantity, null, $createdBy, $reason, $referenceType, $referenceId, $productVariantId);
+            app(StockLotService::class)->mirror($out, $in);
+
+            return [$out, $in];
         });
     }
 
@@ -862,6 +865,8 @@ class InventoryMovementService
             'reservation_expires_at' => $reservationExpiresAt,
             'created_by' => $createdBy?->id,
         ]);
+
+        app(StockLotService::class)->consume($movement);
 
         $this->audit->record(
             action: 'inventory.movement.created',

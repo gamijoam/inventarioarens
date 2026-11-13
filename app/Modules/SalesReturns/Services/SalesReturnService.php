@@ -13,6 +13,7 @@ use App\Modules\FinancialAdjustments\Models\FinancialAdjustment;
 use App\Modules\FinancialAdjustments\Services\FinancialAdjustmentService;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\InventoryMovementService;
+use App\Modules\Inventory\Services\StockLotService;
 use App\Modules\POS\Models\PosOrder;
 use App\Modules\POS\Models\PosPayment;
 use App\Modules\POS\Services\PosCheckoutService;
@@ -204,6 +205,10 @@ class SalesReturnService
                 $movement = $returnItem->condition === SalesReturnItem::CONDITION_DAMAGED
                     ? $this->inventory->damagedSaleReturn(...$movementData)
                     : $this->inventory->saleReturn(...$movementData);
+
+                if ($returnItem->condition !== SalesReturnItem::CONDITION_DAMAGED) {
+                    app(StockLotService::class)->restore($saleItem->stock_movement_id === null ? null : (int) $saleItem->stock_movement_id, $movement);
+                }
 
                 $returnItem->update(['stock_movement_id' => $movement->id]);
                 $this->restoreProductUnits($returnItem->product_unit_ids ?? [], $returnItem->condition, (int) $saleItem->warehouse_id);

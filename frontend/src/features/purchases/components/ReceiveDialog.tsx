@@ -35,7 +35,7 @@ import type { Purchase } from '@/features/purchases/schemas';
 import { formatMoney } from '@/lib/money';
 import { todayDateString } from '@/lib/format';
 
-import { ReceiveItemRow, type ReceiveItemRowValue } from './ReceiveItemRow';
+import { ReceiveItemRow, receiveItemError, type ReceiveItemRowValue } from './ReceiveItemRow';
 
 interface ReceiveDialogProps {
   open: boolean;
@@ -66,6 +66,7 @@ function buildInitialValues(purchase: Purchase): ReceiveItemRowValue[] {
             base_price?: number | string | null;
             profit_margin?: number | string | null;
             pricing_mode?: 'manual' | 'automatic' | null;
+            tracks_expiration?: boolean;
           }
         | null
         | undefined;
@@ -96,6 +97,9 @@ function buildInitialValues(purchase: Purchase): ReceiveItemRowValue[] {
         receiving_quantity: pending,
         unit_cost: unitCost,
         serial_units: serialUnits,
+        tracks_expiration: product?.tracks_expiration === true,
+        lot_code: '',
+        expires_on: '',
       };
     })
     .filter((v): v is ReceiveItemRowValue => v !== null);
@@ -144,31 +148,8 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
     // Validacion: no exceder pendientes y seriales exactos para productos serializados.
     const newErrors: Record<number, string> = {};
     for (const it of items) {
-      const pending = it.ordered_quantity - it.received_quantity;
-      const isSerialized = it.product_tracking_type === 'serialized';
-      if (it.receiving_quantity < 0) {
-        newErrors[it.purchase_item_id] = 'Debe ser >= 0.';
-      } else if (it.receiving_quantity > pending) {
-        newErrors[it.purchase_item_id] = `Excede el pendiente (${pending}).`;
-      } else if (it.receiving_quantity === 0) {
-        newErrors[it.purchase_item_id] =
-          'No puede ser 0. Usa el boton Cancelar si no quieres recibir este item.';
-      } else if (isSerialized && it.receiving_quantity !== Math.floor(it.receiving_quantity)) {
-        newErrors[it.purchase_item_id] =
-          'Los productos serializados se reciben en unidades enteras.';
-      } else if (isSerialized) {
-        const serials = it.serial_units.map((s) => s.serial_number.trim()).filter(Boolean);
-        const expected = Math.floor(it.receiving_quantity);
-        const unique = new Set(
-          it.serial_units.map((s) => `${s.serial_type}:${s.serial_number.trim().toUpperCase()}`),
-        );
-        if (it.serial_units.length !== expected || serials.length !== expected) {
-          newErrors[it.purchase_item_id] =
-            `Captura ${expected} serial(es) para recibir este producto.`;
-        } else if (unique.size !== it.serial_units.length) {
-          newErrors[it.purchase_item_id] = 'No puedes repetir seriales dentro de la recepcion.';
-        }
-      }
+      const error = receiveItemError(it);
+      if (error) newErrors[it.purchase_item_id] = error;
     }
     if (Object.keys(newErrors).length > 0) {
       setItemErrors(newErrors);
@@ -189,6 +170,9 @@ export function ReceiveDialog({ open, onOpenChange, purchaseId, onReceived }: Re
               ? Number(it.new_sale_price)
               : undefined,
           serial_units: it.product_tracking_type === 'serialized' ? it.serial_units : [],
+          ...(it.tracks_expiration
+            ? { expires_on: it.expires_on, lot_code: it.lot_code?.trim() || undefined }
+            : {}),
         })),
     };
 

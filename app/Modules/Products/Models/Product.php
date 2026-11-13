@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'barcode',
     'unit_of_measure',
     'track_stock',
+    'tracks_expiration',
     'tracking_type',
     'brand_id',
     'base_price',
@@ -163,7 +164,6 @@ class Product extends Model
         'galon',
     ];
 
-
     protected function casts(): array
     {
         return [
@@ -175,6 +175,7 @@ class Product extends Model
             'average_cost' => 'decimal:4',
             'last_purchase_cost' => 'decimal:4',
             'track_stock' => 'boolean',
+            'tracks_expiration' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

@@ -212,6 +212,7 @@ export const StoreProductSchema = z
     tracking_type: z.enum(TRACKING_TYPES).default('quantity'),
     unit_of_measure: z.string().max(20).default('unit'),
     track_stock: z.boolean().default(true),
+    tracks_expiration: z.boolean().default(false),
 
     brand_id: optionalNumber(1),
     category_ids: z.array(z.number().int().positive()).default([]),
@@ -305,6 +306,7 @@ const StoreProductBaseSchema = z.object({
   tracking_type: z.enum(TRACKING_TYPES).default('quantity'),
   unit_of_measure: z.string().max(20).default('unit'),
   track_stock: z.boolean().default(true),
+  tracks_expiration: z.boolean().default(false),
 
   brand_id: optionalNumber(1),
   category_ids: z.array(z.number().int().positive()).default([]),
@@ -460,6 +462,7 @@ export const ProductSchema = z.object({
   tracking_type: z.enum(TRACKING_TYPES),
   unit_of_measure: z.string().optional(),
   track_stock: z.boolean().optional(),
+  tracks_expiration: z.boolean().optional(),
 
   brand_id: z.number().int().nullable().optional(),
   brand: ProductBrandRefSchema.nullable().optional(),

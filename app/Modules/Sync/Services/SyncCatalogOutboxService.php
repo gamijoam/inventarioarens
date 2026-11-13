@@ -997,6 +997,7 @@ class SyncCatalogOutboxService
                 'tracking_type' => $product->tracking_type,
                 'unit_of_measure' => $product->unit_of_measure,
                 'track_stock' => (bool) $product->track_stock,
+                'tracks_expiration' => (bool) $product->tracks_expiration,
                 'base_price' => $product->base_price === null ? null : (string) $product->base_price,
                 'profit_margin' => $product->profit_margin === null ? null : (string) $product->profit_margin,
                 'pricing_mode' => $product->pricing_mode ?? Product::PRICING_AUTOMATIC,

@@ -48,6 +48,7 @@ class UpdateProductRequest extends FormRequest
             ],
 
             'track_stock' => ['sometimes', 'boolean'],
+            'tracks_expiration' => ['sometimes', 'boolean'],
             'tracking_type' => [
                 'sometimes',
                 'required',

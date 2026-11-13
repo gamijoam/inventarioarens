@@ -228,6 +228,8 @@ export const ReceivePurchaseItemSchema = z.object({
   purchase_item_id: positiveNumber(),
   quantity: positiveNumber(),
   new_sale_price: z.coerce.number().positive().nullable().optional(),
+  lot_code: z.string().max(100).optional(),
+  expires_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   serial_units: z
     .array(
       z.object({

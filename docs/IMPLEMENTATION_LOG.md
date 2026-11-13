@@ -7719,3 +7719,17 @@ Regla:
   Dos pruebas del comportamiento anterior (ajuste manual que descontaba del destino) se actualizaron.
   Mutation testing: 14/15 muertos; 1 equivalente (los seriales faltantes no cambian de almacen al despachar).
 
+## 2026-11-13 - Vencimientos y lotes para minimarkets
+
+- Producto con `tracks_expiration`; `stock_lots` + `stock_lot_movements`; `StockLotService`.
+- Recepcion de compra exige fecha de vencimiento (lote opcional) para productos con control.
+- Salidas imputadas automaticamente: existencia sin lote primero, lotes vigentes por vencimiento,
+  vencidos al final. Traslado simple replica lotes; devolucion de venta repone el lote de origen.
+- `GET /api/stock-lots` (por vencer/vencidos con dias y valor) y `POST /api/stock-lots/{id}/write-off`
+  (merma valorada al costo del lote, sync `stock_movement.created`).
+- Sync `stock_lot.updated` (cantidad absoluta).
+- Frontend: switch en producto, fecha/lote en recepcion, pagina Inventario > Vencimientos.
+- Tests: `tests/Feature/Inventory/StockLotTest.php` (16), `ReceiveItemRow.test.tsx` (+4),
+  `expirations/__tests__` (7), `schemas.test.ts` (+1). Mutation testing: 19/19.
+- Pendiente: lotes en traslados logisticos, solicitudes interempresa y reversos de venta.
+

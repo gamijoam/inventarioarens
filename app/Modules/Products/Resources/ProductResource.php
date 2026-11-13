@@ -40,6 +40,7 @@ class ProductResource extends JsonResource
             'tracking_type' => $this->tracking_type,
             'unit_of_measure' => $this->unit_of_measure,
             'track_stock' => (bool) $this->track_stock,
+            'tracks_expiration' => (bool) $this->tracks_expiration,
 
             'brand_id' => $this->brand_id,
             'brand' => $this->whenLoaded('brand', fn () => $this->brand ? [

@@ -437,3 +437,14 @@ describe('StorePriceListSchema', () => {
     ).toThrow();
   });
 });
+
+describe('control de vencimiento del producto', () => {
+  it('el formulario envia la marca y por defecto queda apagada', async () => {
+    const { StoreProductSchema, ProductSchema } = await import('./schemas');
+    const base = { name: 'Leche', sku: 'LECHE-1', base_price: 4 };
+    expect(StoreProductSchema.parse(base).tracks_expiration).toBe(false);
+    expect(StoreProductSchema.parse({ ...base, tracks_expiration: true }).tracks_expiration).toBe(true);
+    expect(ProductSchema.shape.tracks_expiration.parse(true)).toBe(true);
+    expect(ProductSchema.shape.tracks_expiration.parse(undefined)).toBeUndefined();
+  });
+});

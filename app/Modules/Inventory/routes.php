@@ -2,6 +2,7 @@
 
 use App\Modules\Inventory\Controllers\InventoryManualMovementController;
 use App\Modules\Inventory\Controllers\InventoryMovementController;
+use App\Modules\Inventory\Controllers\StockLotController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('inventory')->group(function (): void {
@@ -23,3 +24,7 @@ Route::prefix('inventory')->group(function (): void {
     Route::get('manual-movements', [InventoryManualMovementController::class, 'index']);
     Route::get('manual-movements/{movement}', [InventoryManualMovementController::class, 'show']);
 });
+
+Route::get('stock-lots', [StockLotController::class, 'index']);
+Route::post('stock-lots/{stockLot}/write-off', [StockLotController::class, 'writeOff'])
+    ->middleware('idempotency');
