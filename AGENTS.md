@@ -498,6 +498,19 @@ producto, `price_usd` propio de la presentacion, `is_active`). Endpoints `GET/PO
 - Frontend: pestana "Presentaciones" del producto, "Comprar por" en la linea de compra y el escaner
   del POS reconoce el codigo de la caja antes que la busqueda normal.
 
+**Precios: ajuste masivo, historial y etiquetas (2026-11-13)**: `BulkPriceAdjustmentService` aplica y
+revierte por modelo: registra `ProductAudit` (precio base o `product_price`), emite `product.updated` /
+`product_price.created|updated` y propaga el precio base a las copias del grupo (antes hacia un UPDATE
+directo sin auditoria ni sync). El reverso no recrea precios de lista eliminados.
+`GET /api/products/{id}/price-history` incluye cambios de precio base (`kind=base_price`,
+`price_list_name='Precio base'`) ademas de listas (`kind=price_list`).
+`GET /api/product-labels` (`products.view`) recibe `product_ids[]` (max 500), `changed_since` o
+`bulk_adjustment_id`, y `price_list_id` opcional; devuelve precio USD/Bs a la tasa vigente, codigo de
+barras y presentaciones activas con precio propio; los productos sin precio salen en `skipped` con el
+motivo. Frontend: Inventario > Etiquetas de precio (`/inventory/labels`, Code128 propio en
+`src/lib/code128.ts`, impresion por el navegador), boton Etiquetas en el historial de ajustes masivos y
+pestana Historial de precios del producto.
+
 **Regla de costeo vigente**: devoluciones y ajustes deben usar el costo histórico/snapshot de la
 operación original, nunca el costo vigente. Las ventas ya registradas conservan su costo congelado.
 
